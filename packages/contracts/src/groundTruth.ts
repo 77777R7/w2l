@@ -1,4 +1,4 @@
-import type { Lane } from './status.js'
+import type { Lane, ResultStatus } from './status.js'
 
 /** The five false-success checks. Fixtures evaluate all five; canaries evaluate the evidence-bearing subset. */
 export const FALSE_SUCCESS_CHECK = [
@@ -70,7 +70,7 @@ export interface GroundTruth {
   expectedMainTokens: { min: number; max: number } | null
   budget: CaseBudget
   /** Expected terminal status. Lets non-success cases (blocked, failed) be asserted too. */
-  expectedStatus: string
+  expectedStatus: ResultStatus
   notes?: string
 }
 
