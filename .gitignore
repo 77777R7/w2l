@@ -1,0 +1,17 @@
+# deps
+node_modules/
+.pnpm-store/
+
+# build
+dist/
+*.tsbuildinfo
+
+# benchmark outputs (artifacts are large and machine-specific)
+bench-runs/
+
+# user research working files
+tmp/
+output/
+
+# os
+.DS_Store
