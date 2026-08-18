@@ -635,8 +635,29 @@ const slowBody: Fixture = {
 // Resource limits
 // ---------------------------------------------------------------------------
 
-let zipBombPayload: Buffer | null = null
-let hugeBodyPayload: Buffer | null = null
+/**
+ * zip-bomb: gzip payload expanding to just above the default 50 MB decompressed
+ * cap (we use 12 MB expanded so the fixture is fast but still triggers the limit
+ * when the runner enforces, e.g., a 10 MB ceiling).
+ *
+ * The payload is computed once at module load time (synchronously, but it is only
+ * ~12 KB on the wire) and never re-allocated.
+ */
+const ZIP_BOMB_PAYLOAD: Buffer = gzipSync(Buffer.alloc(12 * 1024 * 1024, 0x41))
+
+/**
+ * huge-body: wire size is reported via Content-Length on HEAD; GET sends the
+ * actual bytes so subjects that read the stream still hit the cap.
+ * We send 11 MB (above the 10 MB default) rather than 30 MB.
+ */
+const HUGE_BODY_PREFIX = '<!doctype html><html><body><p>'
+const HUGE_BODY_SUFFIX = '</p></body></html>'
+// Pre-build the 11 MB buffer once at module load (synchronous, 11 MB string build
+// takes ~2 ms; far cheaper than a 30 MB allocation every test run).
+const HUGE_BODY_PAYLOAD: Buffer = Buffer.from(
+  HUGE_BODY_PREFIX + 'x'.repeat(11 * 1024 * 1024) + HUGE_BODY_SUFFIX,
+  'utf8',
+)
 
 const zipBomb: Fixture = {
   truth: {
@@ -652,20 +673,17 @@ const zipBomb: Fixture = {
     budget: budget(500, 15_000, 1),
     expectedStatus: 'failed',
     notes:
-      'Small gzip payload expanding to ~200MB. Must abort with decompressed_too_large ' +
-      'rather than buffering it.',
+      'Gzip payload expanding to 12 MB — above the default 10 MB decompressed cap. ' +
+      'Runner must abort with decompressed_too_large rather than buffering it.',
   },
-  respond: () => {
-    const body = (zipBombPayload ??= gzipSync(Buffer.alloc(200 * 1024 * 1024, 0x41)))
-    return {
-      status: 200,
-      headers: {
-        'content-type': 'text/html; charset=utf-8',
-        'content-encoding': 'gzip',
-      },
-      body,
-    }
-  },
+  respond: () => ({
+    status: 200,
+    headers: {
+      'content-type': 'text/html; charset=utf-8',
+      'content-encoding': 'gzip',
+    },
+    body: ZIP_BOMB_PAYLOAD,
+  }),
 }
 
 const hugeBody: Fixture = {
@@ -681,19 +699,13 @@ const hugeBody: Fixture = {
     expectedMainTokens: null,
     budget: budget(500, 15_000, 1),
     expectedStatus: 'failed',
-    notes: 'Uncompressed 30MB body exceeds the 10MB default wire cap.',
+    notes: 'Uncompressed 11 MB body exceeds the 10 MB default wire cap.',
   },
-  respond: () => {
-    const body = (hugeBodyPayload ??= Buffer.from(
-      '<!doctype html><html><body><p>' + 'x'.repeat(30 * 1024 * 1024) + '</p></body></html>',
-      'utf8',
-    ))
-    return {
-      status: 200,
-      headers: { 'content-type': 'text/html; charset=utf-8' },
-      body,
-    }
-  },
+  respond: () => ({
+    status: 200,
+    headers: { 'content-type': 'text/html; charset=utf-8' },
+    body: HUGE_BODY_PAYLOAD,
+  }),
 }
 
 const nonHtml: Fixture = {
