@@ -3,6 +3,7 @@ export {
   SUITE_META,
   SOFT_404_BODY,
   STATEFUL_FIXTURE_IDS,
+  ZIP_BOMB_UNCOMPRESSED_BYTES,
   resetFixtureState,
 } from './fixtures.js'
 export type { Fixture, FixtureResponse } from './fixtures.js'

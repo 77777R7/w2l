@@ -1,4 +1,4 @@
-import type { GroundTruth } from '@w2l/contracts'
+import { DEFAULT_NETWORK_POLICY, type GroundTruth } from '@w2l/contracts'
 import { Buffer } from 'node:buffer'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { gzipSync } from 'node:zlib'
@@ -636,28 +636,36 @@ const slowBody: Fixture = {
 // ---------------------------------------------------------------------------
 
 /**
- * zip-bomb: gzip payload expanding to just above the default 50 MB decompressed
- * cap (we use 12 MB expanded so the fixture is fast but still triggers the limit
- * when the runner enforces, e.g., a 10 MB ceiling).
+ * Uncompressed size of the zip-bomb payload — 1 MB above
+ * DEFAULT_NETWORK_POLICY.maxDecompressedBytes (50 MB), so a runner that enforces
+ * the decompressed cap must abort on this fixture.
  *
- * The payload is computed once at module load time (synchronously, but it is only
- * ~12 KB on the wire) and never re-allocated.
+ * Note this is the *decompressed* cap, not maxBodyBytes (10 MB): the wire body
+ * here is only ~50 KB, so a wire-size check alone would let it through.
  */
-const ZIP_BOMB_PAYLOAD: Buffer = gzipSync(Buffer.alloc(12 * 1024 * 1024, 0x41))
+export const ZIP_BOMB_UNCOMPRESSED_BYTES =
+  DEFAULT_NETWORK_POLICY.maxDecompressedBytes + 1024 * 1024 // 51 MB
+
+// Built on first request rather than at module load: a 51 MB Buffer.alloc during
+// module evaluation aborts vitest's fork workers on macOS (ECANCELED while the
+// loader is reading the module). gzipSync on uniform bytes is fast and the input
+// Buffer becomes GC-eligible immediately, so only the ~50 KB result stays resident.
+let _zipBombPayload: Buffer | null = null
+function getZipBombPayload(): Buffer {
+  if (!_zipBombPayload) {
+    _zipBombPayload = gzipSync(Buffer.alloc(ZIP_BOMB_UNCOMPRESSED_BYTES, 0x41))
+  }
+  return _zipBombPayload
+}
 
 /**
- * huge-body: wire size is reported via Content-Length on HEAD; GET sends the
- * actual bytes so subjects that read the stream still hit the cap.
- * We send 11 MB (above the 10 MB default) rather than 30 MB.
+ * Declared byte count for the huge-body fixture — 1 MB above
+ * DEFAULT_NETWORK_POLICY.maxBodyBytes (10 MB), the *wire* cap.
+ *
+ * No module-level Buffer is allocated: HEAD answers from the header alone and GET
+ * streams fill bytes on demand, so the 11 MB never exists as one resident buffer.
  */
-const HUGE_BODY_PREFIX = '<!doctype html><html><body><p>'
-const HUGE_BODY_SUFFIX = '</p></body></html>'
-// Pre-build the 11 MB buffer once at module load (synchronous, 11 MB string build
-// takes ~2 ms; far cheaper than a 30 MB allocation every test run).
-const HUGE_BODY_PAYLOAD: Buffer = Buffer.from(
-  HUGE_BODY_PREFIX + 'x'.repeat(11 * 1024 * 1024) + HUGE_BODY_SUFFIX,
-  'utf8',
-)
+const HUGE_BODY_DECLARED_BYTES = DEFAULT_NETWORK_POLICY.maxBodyBytes + 1024 * 1024 // 11 MB
 
 const zipBomb: Fixture = {
   truth: {
@@ -673,7 +681,8 @@ const zipBomb: Fixture = {
     budget: budget(500, 15_000, 1),
     expectedStatus: 'failed',
     notes:
-      'Gzip payload expanding to 12 MB — above the default 10 MB decompressed cap. ' +
+      'Gzip payload expanding to ZIP_BOMB_UNCOMPRESSED_BYTES — above ' +
+      'DEFAULT_NETWORK_POLICY.maxDecompressedBytes (50 MB). ' +
       'Runner must abort with decompressed_too_large rather than buffering it.',
   },
   respond: () => ({
@@ -682,7 +691,7 @@ const zipBomb: Fixture = {
       'content-type': 'text/html; charset=utf-8',
       'content-encoding': 'gzip',
     },
-    body: ZIP_BOMB_PAYLOAD,
+    body: getZipBombPayload(),
   }),
 }
 
@@ -699,12 +708,44 @@ const hugeBody: Fixture = {
     expectedMainTokens: null,
     budget: budget(500, 15_000, 1),
     expectedStatus: 'failed',
-    notes: 'Uncompressed 11 MB body exceeds the 10 MB default wire cap.',
+    notes:
+      'Uncompressed body declared at HUGE_BODY_DECLARED_BYTES — above ' +
+      'DEFAULT_NETWORK_POLICY.maxBodyBytes (10 MB). HEAD returns Content-Length ' +
+      'only; GET streams the body in 64 KB chunks with backpressure.',
   },
   respond: () => ({
-    status: 200,
-    headers: { 'content-type': 'text/html; charset=utf-8' },
-    body: HUGE_BODY_PAYLOAD,
+    handler: (req, res) => {
+      res.writeHead(200, {
+        'content-type': 'text/html; charset=utf-8',
+        'content-length': HUGE_BODY_DECLARED_BYTES,
+      })
+      if (req.method === 'HEAD') {
+        res.end()
+        return
+      }
+      const prefix = Buffer.from('<!doctype html><html><body><p>', 'utf8')
+      const suffix = Buffer.from('</p></body></html>', 'utf8')
+      const CHUNK = 64 * 1024
+      const fillChunk = Buffer.alloc(CHUNK, 0x78) // reused across iterations
+      const fillTotal = HUGE_BODY_DECLARED_BYTES - prefix.length - suffix.length
+      let filled = 0
+      const writeFill = (): void => {
+        while (filled < fillTotal) {
+          if (res.destroyed) return
+          const remaining = fillTotal - filled
+          const chunk = remaining >= CHUNK ? fillChunk : Buffer.alloc(remaining, 0x78)
+          const ok = res.write(chunk)
+          filled += chunk.length
+          if (!ok) {
+            res.once('drain', writeFill)
+            return
+          }
+        }
+        if (!res.destroyed) res.end(suffix)
+      }
+      if (res.write(prefix)) writeFill()
+      else res.once('drain', writeFill)
+    },
   }),
 }
 

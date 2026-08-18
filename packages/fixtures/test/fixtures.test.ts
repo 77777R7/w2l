@@ -1,7 +1,7 @@
-import { estimateTokens } from '@w2l/contracts'
+import { DEFAULT_NETWORK_POLICY, estimateTokens } from '@w2l/contracts'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { ALL_BOILERPLATE } from '../src/chrome.js'
-import { FIXTURES, STATEFUL_FIXTURE_IDS } from '../src/fixtures.js'
+import { FIXTURES, STATEFUL_FIXTURE_IDS, ZIP_BOMB_UNCOMPRESSED_BYTES } from '../src/fixtures.js'
 import { startFixtureServer, type FixtureServer } from '../src/server.js'
 import { FIXTURE_TRUTHS, bindSuite } from '../src/suite.js'
 
@@ -17,7 +17,7 @@ afterAll(async () => {
 
 /** Fixtures that deliberately never complete; fetching them would hang the suite. */
 const HANGING = new Set(['timeout-headers', 'timeout-body'])
-/** Fixtures whose bodies are hundreds of megabytes; not worth downloading in unit tests. */
+/** Resource-limit fixtures; the generic loop must not download them — they have their own tests. */
 const OVERSIZED = new Set(['limit-zip-bomb', 'limit-huge-body'])
 /** Fixtures whose response depends on prior fetches; only their own test may touch them. */
 const STATEFUL = new Set(STATEFUL_FIXTURE_IDS)
@@ -205,17 +205,59 @@ describe('misbehaving responses', () => {
     expect(res.headers.get('location')).toBe('/home')
   })
 
-  it('serves a gzip payload that expands far beyond the wire size', async () => {
-    const res = await fetch(`${server.url}/limit/zip-bomb`, { headers: { 'accept-encoding': 'identity' } })
-    expect(res.headers.get('content-encoding')).toBe('gzip')
-    const wire = Number(res.headers.get('content-length'))
-    expect(wire).toBeLessThan(1024 * 1024)
-    await res.body?.cancel()
+  it('ZIP_BOMB_UNCOMPRESSED_BYTES exceeds DEFAULT_NETWORK_POLICY.maxDecompressedBytes', () => {
+    expect(ZIP_BOMB_UNCOMPRESSED_BYTES).toBeGreaterThan(DEFAULT_NETWORK_POLICY.maxDecompressedBytes)
   })
 
-  it('advertises a body far above the default wire cap', async () => {
+  it('serves a gzip payload whose decompressed size exceeds maxDecompressedBytes', async () => {
+    const res = await fetch(`${server.url}/limit/zip-bomb`)
+    expect(res.headers.get('content-encoding')).toBe('gzip')
+
+    // The wire body is small — a maxBodyBytes check alone would not catch this.
+    const wire = Number(res.headers.get('content-length'))
+    expect(wire).toBeLessThan(DEFAULT_NETWORK_POLICY.maxBodyBytes)
+
+    // fetch decodes content-encoding itself, so res.body yields the *decompressed*
+    // bytes. Count them without accumulating 51 MB in memory.
+    const reader = res.body!.getReader()
+    let decompressed = 0
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      decompressed += value!.length
+    }
+
+    expect(decompressed).toBe(ZIP_BOMB_UNCOMPRESSED_BYTES)
+    expect(decompressed).toBeGreaterThan(DEFAULT_NETWORK_POLICY.maxDecompressedBytes)
+    // The whole point of the fixture: the expansion ratio hides a 51 MB body
+    // behind a wire payload small enough to pass a naive size check.
+    expect(decompressed / wire).toBeGreaterThan(100)
+  })
+
+  it('HEAD returns Content-Length above maxBodyBytes without sending a body', async () => {
     const res = await fetch(`${server.url}/limit/huge-body`, { method: 'HEAD' })
-    expect(Number(res.headers.get('content-length'))).toBeGreaterThan(10 * 1024 * 1024)
+    expect(Number(res.headers.get('content-length'))).toBeGreaterThan(
+      DEFAULT_NETWORK_POLICY.maxBodyBytes,
+    )
+    // HEAD must not deliver any body bytes.
+    expect(await res.text()).toBe('')
+  })
+
+  it('GET on huge-body streams more bytes than maxBodyBytes', async () => {
+    const res = await fetch(`${server.url}/limit/huge-body`)
+    const declared = Number(res.headers.get('content-length'))
+    expect(declared).toBeGreaterThan(DEFAULT_NETWORK_POLICY.maxBodyBytes)
+
+    // Count streamed bytes without accumulating them.
+    const reader = res.body!.getReader()
+    let received = 0
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      received += value!.length
+    }
+    expect(received).toBe(declared)
+    expect(received).toBeGreaterThan(DEFAULT_NETWORK_POLICY.maxBodyBytes)
   })
 
   it('serves a PNG where HTML is expected', async () => {
