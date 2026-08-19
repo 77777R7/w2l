@@ -2,6 +2,8 @@
   "files": [],
   "references": [
     { "path": "packages/contracts" },
-    { "path": "packages/fixtures" }
+    { "path": "packages/fixtures" },
+    { "path": "packages/http-core" },
+    { "path": "packages/bench" }
   ]
 }
