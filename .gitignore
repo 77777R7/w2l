@@ -1,17 +1,33 @@
-# deps
+# Node
 node_modules/
-.pnpm-store/
-
-# build
 dist/
 *.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
-# benchmark outputs (artifacts are large and machine-specific)
-bench-runs/
-
-# user research working files
-tmp/
-output/
-
-# os
+# System
 .DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Claude Code
+.claude/worktrees/
+.claude/scheduled-tasks/
+
+# Testing
+coverage/
+.nyc_output/
+
+# Build artifacts
+*.log
+.cache/
+tmp/
+temp/
