@@ -717,14 +717,18 @@ const malformed: Fixture = {
     expectedMainTokens: { min: 20, max: 400 },
     budget: budget(2000),
     expectedStatus: 'success',
-    notes: 'Unclosed tags and stray markup must not crash the parser.',
+    notes:
+      'Unclosed tags, stray markup, and an unquoted attribute must not crash the parser. ' +
+      'Deliberately realistic: the <title> IS closed (an unclosed title is RCDATA and ' +
+      'would swallow the whole document per spec).',
   },
   respond: () =>
-    html(`<!doctype html><html><head><title>Broken markup<body>
+    html(`<!doctype html><html><head><title>Broken markup</title></head><body>
 <div class=unquoted><p>The valve seized in the second winter.
 <p>Another paragraph with <b>unclosed bold
 <ul><li>one<li>two
 <p>Trailing text after a stray </div></span>
+</body></html>
 `),
 }
 

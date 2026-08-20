@@ -26,6 +26,15 @@ export function checkFalseSuccess(
       outcome: missing.length === 0 ? 'pass' : 'fail',
       detail: missing.length > 0 ? `Missing: ${missing.join(', ')}` : null,
     })
+  } else if (hasAnnotation) {
+    // Contentful status with an annotation but empty/no markdown: the required
+    // content is missing by definition. An 'unknown' here would let the most
+    // classic false success (success + empty body) slip through.
+    checks.push({
+      check: 'missing_required_content',
+      outcome: 'fail',
+      detail: 'Contentful status but markdown is empty',
+    })
   } else {
     checks.push({
       check: 'missing_required_content',

@@ -115,7 +115,14 @@ export class GoldenConverterSubject implements SubjectAdapter {
 }
 
 function extract(body: string): string {
-  const main = /<(?:article|main)\b[\s\S]*?<\/(?:article|main)>/i.exec(body)?.[0]
+  const main =
+    /<(?:article|main)\b[\s\S]*?<\/(?:article|main)>/i.exec(body)?.[0] ??
+    // Fallback for pages without a main-content element: the whole body minus
+    // the known boilerplate (the CMP-pruning shape the real pipeline applies
+    // before extraction).
+    body
+      .replace(/<div[^>]*id="cookie-consent"[\s\S]*?<\/div>/gi, '')
+      .replace(/<(?:nav|aside|footer)\b[\s\S]*?<\/(?:nav|aside|footer)>/gi, '')
   if (!main) return ''
   const clamped = clampSpans(main)
   const withTables = clamped.replace(
