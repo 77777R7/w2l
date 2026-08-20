@@ -11,7 +11,7 @@
   "scripts": {
     "typecheck": "tsc --build",
     "test": "vitest run",
-    "bench": "node --import tsx packages/bench/src/cli.ts"
+    "bench": "tsc --build && node --import tsx packages/bench/src/cli.ts"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",

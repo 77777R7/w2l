@@ -5,6 +5,7 @@ import { runBenchmark } from './runner.js'
 import { BareHttpSubject } from './subjects/bareHttp.js'
 import { GoldenConverterSubject } from './subjects/goldenConverter.js'
 import { ExtractTfSubject } from './subjects/extractTf.js'
+import { ResilientHttpSubject } from './subjects/resilientHttp.js'
 
 async function main() {
   console.log('Starting benchmark runner...\n')
@@ -17,8 +18,14 @@ async function main() {
   const suite = bindSuite(server.url)
   console.log(`Suite: ${suite.name} v${suite.version} (${suite.cases.length} cases)\n`)
 
-  // Run benchmark: bare HTTP floor, golden converter reference, extract-tf
-  const subjects = [new BareHttpSubject(), new GoldenConverterSubject(), new ExtractTfSubject()]
+  // Run benchmark: bare HTTP floor, golden converter reference, extract-tf,
+  // resilient transport (redirect+retry) composed with extract-tf
+  const subjects = [
+    new BareHttpSubject(),
+    new GoldenConverterSubject(),
+    new ExtractTfSubject(),
+    new ResilientHttpSubject(),
+  ]
   const result = await runBenchmark(subjects, suite.cases, ['http', 'browser_local'])
 
   // Print summary
