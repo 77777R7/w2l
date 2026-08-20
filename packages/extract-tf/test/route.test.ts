@@ -64,10 +64,90 @@ describe('routePage', () => {
     doc.close()
   })
 
-  it('routes a price itemprop to product', () => {
-    const doc = parse(wrap('<main><h1>Teapot</h1><span itemprop="price">84.00</span></main>'))
+  it('routes JSON-LD @type array to product', () => {
+    const doc = parse(
+      wrap('<main><h1>Teapot</h1>' + TABLE_SNIPPET + '</main>',
+        '<script type="application/ld+json">{"@type":["Product","Thing"]}</script>'),
+    )
     const d = routePage(doc.document)
     expect(d.type).toBe('product')
+    doc.close()
+  })
+
+  it('routes a full-IRI JSON-LD type to product', () => {
+    const doc = parse(
+      wrap('<main><h1>Teapot</h1>' + TABLE_SNIPPET + '</main>',
+        '<script type="application/ld+json">{"@type":"https://schema.org/Product"}</script>'),
+    )
+    const d = routePage(doc.document)
+    expect(d.type).toBe('product')
+    doc.close()
+  })
+
+  it('finds Product inside JSON-LD @graph', () => {
+    const doc = parse(
+      wrap('<main><h1>Teapot</h1>' + TABLE_SNIPPET + '</main>',
+        '<script type="application/ld+json">{"@graph":[{"@type":"WebPage"},{"@type":"Product"}]}</script>'),
+    )
+    const d = routePage(doc.document)
+    expect(d.type).toBe('product')
+    doc.close()
+  })
+
+  it('ignores malformed JSON-LD without throwing', () => {
+    const doc = parse(
+      wrap('<main><h1>Readings</h1><table><tr><th>Station</th><th>Flow</th></tr><tr><td>Meridian</td><td>41</td></tr></table></main>',
+        '<script type="application/ld+json">{"@type":"Product", broken</script>'),
+    )
+    const d = routePage(doc.document)
+    expect(d.type).toBe('collection')
+    doc.close()
+  })
+
+  it('routes two independent weak product signals to product', () => {
+    // price alone is not enough; price + sku are two independent weak signals.
+    const doc = parse(
+      wrap('<main><h1>Teapot</h1><span itemprop="price">84.00</span><span itemprop="sku">TP-04</span></main>'),
+    )
+    const d = routePage(doc.document)
+    expect(d.type).toBe('product')
+    doc.close()
+  })
+
+  it('does not route priceCurrency alone to product', () => {
+    const doc = parse(wrap('<main><h1>Teapot</h1><span itemprop="priceCurrency">USD</span></main>'))
+    const d = routePage(doc.document)
+    expect(d.type).toBe('article')
+    doc.close()
+  })
+
+  it('does not substring-match itemprop values', () => {
+    // "brandish" contains "brand" but is not the brand itemprop token.
+    const doc = parse(wrap('<main><h1>Teapot</h1><span itemprop="brandish">waved</span></main>'))
+    const d = routePage(doc.document)
+    expect(d.type).toBe('article')
+    doc.close()
+  })
+
+  it('routes JSON-LD OfferCatalog to collection, not product', () => {
+    const doc = parse(
+      wrap('<main><h1>Catalog</h1><ul><li><a href="/c/1">Cobalt teapot</a></li><li><a href="/c/2">Ash jug</a></li></ul></main>',
+        '<script type="application/ld+json">{"@type":"OfferCatalog"}</script>'),
+    )
+    const d = routePage(doc.document)
+    expect(d.type).toBe('collection')
+    doc.close()
+  })
+
+  it('does not route an article with JSON-LD comments to forum', () => {
+    const doc = parse(
+      wrap('<article><h1>Essay</h1>' +
+        Array.from({ length: 8 }, (_, i) => `<p>Paragraph ${i} with enough prose to satisfy the text length thresholds and count as real content.</p>`).join('') +
+        '</article>',
+        '<script type="application/ld+json">{"@type":"Article","comment":[{"@type":"Comment","text":"First comment"}]}</script>'),
+    )
+    const d = routePage(doc.document)
+    expect(d.type).toBe('article')
     doc.close()
   })
 

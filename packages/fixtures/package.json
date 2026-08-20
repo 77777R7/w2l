@@ -16,7 +16,6 @@
     "serve": "node --import tsx src/cli.ts"
   },
   "dependencies": {
-    "@w2l/contracts": "*",
-    "@w2l/extract-tf": "*"
+    "@w2l/contracts": "*"
   }
 }

@@ -48,12 +48,12 @@ export interface RouteDecision {
 }
 
 interface PageSignals {
-  /** JSON-LD @type list. */
+  /** Normalized JSON-LD @type names, collected by real JSON parsing. */
   jsonLdTypes: string[]
-  /** itemprop attribute values across the document. */
-  itemprops: string[]
-  /** itemtype attribute values (microdata scope declarations). */
-  itemTypes: string[]
+  /** itemprop tokens (split on HTML whitespace, lower-cased). */
+  itempropTokens: string[]
+  /** itemtype tokens (microdata scope declarations, lower-cased). */
+  itemTypeTokens: string[]
   /** Count of <article class~="post"> elements. */
   postArticles: number
 }
@@ -61,57 +61,127 @@ interface PageSignals {
 /** itemprop tokens that indicate a product/offer context. */
 const PRICE_ITEMPROPS = ['price', 'offers', 'sku', 'gtin', 'mpn', 'brand'] as const
 
-/** itemprop tokens that indicate a forum thread/post context. */
-const POST_ITEMPROPS = ['comment', 'commentcount', 'commenttext', 'interactioncount'] as const
+/** Split an HTML attribute on ASCII whitespace (like itemprop tokenization). */
+function splitTokens(value: string): string[] {
+  return value.split(/[\t\n\f\r ]+/).filter((t) => t.length > 0)
+}
+
+/**
+ * Normalize a JSON-LD @type value to its short name: strip schema.org IRI
+ * prefixes ("https://schema.org/Product", "schema:Product") to the last
+ * path segment or fragment, lower-cased.
+ */
+function normalizeTypeName(raw: string): string {
+  const trimmed = raw.trim()
+  const last =
+    /[#/]([^#/]+)$/.exec(trimmed)?.[1] ??
+    /^([^:]+):(.+)$/.exec(trimmed)?.[2] ??
+    trimmed
+  return last.toLowerCase()
+}
+
+/**
+ * Recursively walk parsed JSON-LD (objects, arrays, @graph) and collect
+ * every normalized @type. Malformed JSON is caught by the caller.
+ */
+function collectJsonLdTypes(node: unknown, out: string[]): void {
+  if (Array.isArray(node)) {
+    for (const item of node) collectJsonLdTypes(item, out)
+    return
+  }
+  if (typeof node !== 'object' || node === null) return
+  const t = (node as Record<string, unknown>)['@type']
+  if (typeof t === 'string') {
+    out.push(normalizeTypeName(t))
+  } else if (Array.isArray(t)) {
+    for (const item of t) if (typeof item === 'string') out.push(normalizeTypeName(item))
+  }
+  for (const value of Object.values(node as Record<string, unknown>)) {
+    if (typeof value === 'object' && value !== null) collectJsonLdTypes(value, out)
+  }
+}
 
 /**
  * Collect semantic signals BEFORE cleanTree/pruneTree removes their carriers.
- * JSON-LD @type names are lower-cased for matching; the raw graph text is
- * deliberately not kept — routing must rest on structured signals, not on
- * words inside quoted names or titles.
+ * JSON-LD is parsed with JSON.parse (never regex) and walked recursively;
+ * malformed scripts are ignored without throwing. itemprop/itemtype
+ * attributes are split into whitespace tokens for exact, case-insensitive
+ * matching — no substring includes.
  */
 function collectPageSignals(doc: Document): PageSignals {
   const jsonLdTypes: string[] = []
   for (const el of qsa(doc, 'script[type="application/ld+json"]')) {
     const text = (el.textContent ?? '').trim()
     if (text.length === 0) continue
-    for (const m of text.matchAll(/"@type"\s*:\s*"?([A-Za-z]+)"?/g)) {
-      jsonLdTypes.push(m[1]!.toLowerCase())
+    try {
+      collectJsonLdTypes(JSON.parse(text), jsonLdTypes)
+    } catch {
+      // Malformed JSON-LD is not a routing signal; ignore it.
     }
+  }
+  const itempropTokens: string[] = []
+  for (const el of qsa(doc, '[itemprop]')) {
+    itempropTokens.push(...splitTokens(el.getAttribute('itemprop') ?? '').map((t) => t.toLowerCase()))
+  }
+  const itemTypeTokens: string[] = []
+  for (const el of qsa(doc, '[itemtype]')) {
+    // itemtype values are IRIs (https://schema.org/Product) or bare tokens;
+    // normalize to the last segment the same way JSON-LD @type names are.
+    itemTypeTokens.push(
+      ...splitTokens(el.getAttribute('itemtype') ?? '').map((t) => normalizeTypeName(t)),
+    )
   }
   return {
     jsonLdTypes,
-    itemprops: qsa(doc, '[itemprop]').map((el) => (el.getAttribute('itemprop') ?? '').toLowerCase()),
-    itemTypes: qsa(doc, '[itemtype]').map((el) => (el.getAttribute('itemtype') ?? '').toLowerCase()),
+    itempropTokens,
+    itemTypeTokens,
     postArticles: qsa(doc, 'article.post').length,
   }
 }
 
-function hasAny(values: readonly string[], needles: readonly string[]): boolean {
-  return values.some((v) => needles.some((n) => v.includes(n)))
+/** Exact, case-insensitive membership across all tokens. */
+function hasToken(values: readonly string[], needle: string): boolean {
+  return values.includes(needle)
+}
+
+/** How many tokens from `needles` appear in `values`. */
+function countTokens(values: readonly string[], needles: readonly string[]): number {
+  let count = 0
+  for (const n of needles) if (values.includes(n)) count++
+  return count
 }
 
 /**
- * Semantic product signals: JSON-LD Product/OfferCatalog type, microdata
- * Product/Offer scope (itemtype URL ending in the schema.org type), or
- * price/sku-style itemprops. A bare spec table is NOT a product signal —
- * that stays a collection.
+ * Semantic product signals, strength-weighted:
+ *  - STRONG: JSON-LD Product, microdata Product scope, itemprop "product"/"offer".
+ *    One is enough.
+ *  - WEAK: price/sku/gtin/mpn/brand-style itemprops. Needs >=2 independent ones.
+ *  - OfferCatalog (JSON-LD or microdata) is a CATALOG, not a single product:
+ *    routed to collection.
+ * A bare spec table is never a product signal — it stays a collection.
  */
 function hasProductSignals(s: PageSignals): boolean {
-  if (s.jsonLdTypes.includes('product') || s.jsonLdTypes.includes('offercatalog')) return true
-  if (s.itemprops.includes('product') || s.itemprops.includes('offer')) return true
-  if (s.itemTypes.some((t) => /(?:^|\/)(product|offer|catalog)$/.test(t))) return true
-  return hasAny(s.itemprops, PRICE_ITEMPROPS)
+  const strong =
+    hasToken(s.jsonLdTypes, 'product') ||
+    hasToken(s.itemTypeTokens, 'product') ||
+    hasToken(s.itempropTokens, 'product') ||
+    hasToken(s.itempropTokens, 'offer')
+  if (strong) return true
+  return countTokens(s.itempropTokens, PRICE_ITEMPROPS) >= 2
+}
+
+function hasOfferCatalogSignals(s: PageSignals): boolean {
+  return hasToken(s.jsonLdTypes, 'offercatalog') || hasToken(s.itemTypeTokens, 'offercatalog')
 }
 
 /**
- * Multiple posts, JSON-LD thread shapes, or microdata comment semantics.
- * A single post alone does not make a forum.
+ * Multiple posts, or DiscussionForumPosting. Plain JSON-LD Comment / a
+ * comment section on an article does NOT make a forum.
  */
 function hasForumSignals(s: PageSignals): boolean {
   if (s.postArticles >= 2) return true
-  if (s.jsonLdTypes.includes('discussionforumposting')) return true
-  return hasAny(s.itemprops, POST_ITEMPROPS) && s.jsonLdTypes.includes('comment')
+  if (hasToken(s.jsonLdTypes, 'discussionforumposting')) return true
+  return hasToken(s.jsonLdTypes, 'forum') || hasToken(s.itemTypeTokens, 'forum')
 }
 
 function routeByCounts(c: RouterCounts, s: PageSignals): RouteDecision {
@@ -123,8 +193,13 @@ function routeByCounts(c: RouterCounts, s: PageSignals): RouteDecision {
       : { type: 'product', strategy: 'article' }
   }
 
-  // Semantic forum signals (multiple posts, DiscussionForumPosting, or
-  // comment microdata). Still extracted by the article cascade.
+  // OfferCatalog is a collection of products, not one product.
+  if (hasOfferCatalogSignals(s)) {
+    return { type: 'collection', strategy: 'article' }
+  }
+
+  // Semantic forum signals (multiple posts, DiscussionForumPosting).
+  // Still extracted by the article cascade.
   if (hasForumSignals(s)) return { type: 'forum', strategy: 'article' }
 
   // A page whose only structure is one standalone table (readings, schedules,

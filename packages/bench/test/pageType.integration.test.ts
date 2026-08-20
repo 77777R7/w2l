@@ -7,6 +7,9 @@ import { startFixtureServer, type FixtureServer } from '@w2l/fixtures'
  * The router's JSON-LD/microdata/post signals live in the raw response,
  * so this proves the routing path on served HTML — not on hand-built
  * test strings, and not through benchmark aggregate inference.
+ *
+ * Lives in @w2l/bench, not @w2l/fixtures: fixtures is the independent
+ * oracle and must never depend on the subject under evaluation.
  */
 
 let server: FixtureServer
@@ -28,7 +31,7 @@ const EXPECTED: ReadonlyArray<{ id: string; pageType: string; strategy: string; 
 
 describe('page-type routing on served fixture bytes', () => {
   it.each(EXPECTED.map((e) => [e.id, e] as const))(
-    '%s routes to %s with the %s strategy',
+    '%s routes to the expected type and strategy',
     async (id, expected) => {
       const res = await fetch(`${server.url}/pt/${id.replace(/^pt-/, '')}`)
       expect(res.status).toBe(200)
