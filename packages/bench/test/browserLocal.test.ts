@@ -11,8 +11,10 @@ import { BrowserLocalSubject } from '../src/subjects/browserLocal.js'
 
 let server: Server
 let url: string
+let flakyHits = 0
 
 beforeAll(async () => {
+  flakyHits = 0
   server = createServer((req, res) => {
     if (req.url === '/spa') {
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
@@ -21,6 +23,17 @@ beforeAll(async () => {
           'document.getElementById("root").innerHTML = "<article><h1>Rendered</h1><p>Loaded after script execution.</p></article>"' +
           '</script></body></html>',
       )
+    } else if (req.url === '/flaky') {
+      flakyHits++
+      if (flakyHits === 1) {
+        res.writeHead(503, { 'content-type': 'text/html; charset=utf-8' })
+        res.end('<!doctype html><html><body><h1>Service Unavailable</h1></body></html>')
+      } else {
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+        res.end(
+          '<!doctype html><html><body><article><h1>Recovered</h1><p>Succeeded on the second attempt.</p></article></body></html>',
+        )
+      }
     } else if (req.url === '/hang') {
       // Never respond; the subject's own timeout must fire and map to `timeout`.
     } else {
@@ -56,6 +69,21 @@ describe('BrowserLocalSubject transport', () => {
       const out = await subject.fetch(`${url}/hang`)
       expect(out.status).toBe('failed')
       expect(out.failureReason).toBe('timeout')
+    } finally {
+      await subject.teardown()
+    }
+  })
+
+  it('retries a 503 once and succeeds on the second attempt', async () => {
+    flakyHits = 0
+    const subject = new BrowserLocalSubject()
+    try {
+      const out = await subject.fetch(`${url}/flaky`)
+      expect(out.status).toBe('success')
+      expect(out.markdown).toContain('Succeeded on the second attempt.')
+      expect(out.usage.attemptCount).toBe(2)
+      expect(out.usage.requestCount).toBe(2)
+      expect(out.trace.filter((t) => t.event === 'retry')).toHaveLength(1)
     } finally {
       await subject.teardown()
     }

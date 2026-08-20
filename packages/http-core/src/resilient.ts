@@ -83,10 +83,13 @@ export interface ResilientOutcome {
   trace: Array<{ at: number; event: string; detail?: Record<string, unknown> }>
 }
 
-const RETRYABLE_STATUS = new Set([503])
+/** Transport-independent retry policy shared by every lane's client. */
+export function isRetryableStatus(status: number): boolean {
+  return status === 503
+}
 
 /** Parse Retry-After as integer seconds; anything else yields null (no delay). */
-function parseRetryAfterMs(value: string | null): number | null {
+export function parseRetryAfterMs(value: string | null): number | null {
   if (!value) return null
   const seconds = Number(value.trim())
   if (!Number.isFinite(seconds) || seconds < 0) return null
@@ -233,7 +236,7 @@ export async function resilientFetch(
       // Retry only 503, at most maxRetries times. 429 and friends never retry.
       // The retry shows up in trace/requestCount/attemptCount, NOT in the
       // redirect chain — the chain records redirects, not re-visits.
-      if (RETRYABLE_STATUS.has(response.status) && retriesLeft > 0) {
+      if (isRetryableStatus(response.status) && retriesLeft > 0) {
         retriesLeft--
         const parsed = parseRetryAfterMs(response.headers.get('retry-after'))
         const delayMs = Math.min(parsed ?? 0, cfg.retryAfterCapMs)

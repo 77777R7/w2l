@@ -1,6 +1,7 @@
 import { estimateTokens, type FetchResult, type TraceEvent } from '@w2l/contracts'
 import { extractTf } from '@w2l/extract-tf'
 import { toGfmTable } from '@w2l/fixtures'
+import { isRetryableStatus, parseRetryAfterMs } from '@w2l/http-core'
 import { chromium, type Browser } from 'playwright'
 import type { SubjectAdapter } from '../subject.js'
 import { POLITE_UA } from '../ua.js'
@@ -35,8 +36,28 @@ export class BrowserLocalSubject implements SubjectAdapter {
     try {
       context = await browser.newContext({ userAgent: POLITE_UA })
       page = await context.newPage()
-      trace.push({ at: Date.now() - start, lane: 'browser_local', event: 'navigate', detail: { url } })
-      const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20_000 })
+
+      // Browser-tier retry: the same transport-independent policy the
+      // http engine shares (503 only, once, Retry-After bounded). The
+      // runner resets fixture state per subject, so the browser arm
+      // genuinely sees flaky attempt 1 and must retry to survive it.
+      const MAX_ATTEMPTS = 2
+      let attemptCount = 1
+      let response
+      for (;;) {
+        trace.push({ at: Date.now() - start, lane: 'browser_local', event: 'navigate', detail: { url, attempt: attemptCount } })
+        response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20_000 })
+        const status = response?.status() ?? 0
+        if (isRetryableStatus(status) && attemptCount < MAX_ATTEMPTS) {
+          const retryAfter = response?.headers()['retry-after'] ?? null
+          const delayMs = Math.min(parseRetryAfterMs(retryAfter) ?? 0, 2000)
+          trace.push({ at: Date.now() - start, lane: 'browser_local', event: 'retry', detail: { attempt: attemptCount, status, delayMs } })
+          attemptCount++
+          if (delayMs > 0) await page.waitForTimeout(delayMs)
+          continue
+        }
+        break
+      }
       // Give JS shells a beat to render after first paint; networkidle never
       // fires on long-polling pages, so use a bounded settle instead.
       await page.waitForTimeout(1500)
@@ -45,7 +66,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
       const body = await page.content()
       const wallMs = Date.now() - start
       const browserMs = wallMs
-      trace.push({ at: wallMs, lane: 'browser_local', event: 'rendered', detail: { status } })
+      trace.push({ at: wallMs, lane: 'browser_local', event: 'rendered', detail: { status, attemptCount } })
 
       const base = {
         requestedUrl: url,
@@ -63,8 +84,8 @@ export class BrowserLocalSubject implements SubjectAdapter {
           wallMs,
           bytesWire: Buffer.byteLength(body),
           bytesDecompressed: Buffer.byteLength(body),
-          requestCount: 1,
-          attemptCount: 1,
+          requestCount: attemptCount,
+          attemptCount,
           contentTokens: null as number | null,
           browserMs,
           externalCostUsd: null,
