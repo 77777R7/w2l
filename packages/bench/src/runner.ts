@@ -9,11 +9,15 @@ import type { SubjectAdapter } from './subject.js'
  * subject observes attempt 1 (the flaky fixture is global mutable state). The
  * control route is not part of the suite; this is the runner's contract with
  * the fixture server, not a subject behaviour.
+ *
+ * Only fixture-kind cases carry a fixture-server origin. A canary suite
+ * (absolute URLs to real sites) must never receive a /__reset request —
+ * derive the origin from the first fixture case, and skip when there is none.
  */
 async function resetStatefulFixtures(cases: readonly GroundTruth[]): Promise<void> {
-  const first = cases[0]
-  if (!first) return
-  const origin = new URL(first.target).origin
+  const firstFixture = cases.find((c) => c.kind === 'fixture')
+  if (!firstFixture) return
+  const origin = new URL(firstFixture.target).origin
   const res = await fetch(`${origin}/__reset`)
   if (res.status !== 204) {
     throw new Error(`fixture reset failed: ${res.status} ${origin}/__reset`)

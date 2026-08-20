@@ -137,6 +137,24 @@ describe('resilientFetch: retry', () => {
     expect(out.trace.filter((t) => t.event === 'retry')).toHaveLength(1)
   })
 
+  it('retries at the redirect destination, not the requested URL', async () => {
+    // A -> B (302), B answers 503: the retry must re-enter at B — that is
+    // where the content lives; re-fetching A would re-run the whole chain.
+    const f = scripted([
+      res(302, { location: '/b' }),
+      res(503),
+      res(200, {}, 'recovered'),
+    ])
+    const out = await resilientFetch('http://x.test/a', f)
+    expect(f.calls).toEqual(['http://x.test/a', 'http://x.test/b', 'http://x.test/b'])
+    expect(out.kind).toBe('ok')
+    expect(out.status).toBe(200)
+    expect(out.finalUrl).toBe('http://x.test/b')
+    expect(out.redirectChain).toEqual(['http://x.test/a', 'http://x.test/b'])
+    expect(out.attemptCount).toBe(2)
+    expect(out.requestCount).toBe(3)
+  })
+
   it('does not retry past maxRetries: second 503 is terminal', async () => {
     const f = scripted([res(503), res(503)])
     const out = await resilientFetch(U, f, { maxRetries: 1 })
