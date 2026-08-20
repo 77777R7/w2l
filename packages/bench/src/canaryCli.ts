@@ -44,15 +44,28 @@ function reportLines(run: Awaited<ReturnType<typeof runBenchmark>>): string[] {
   out.push('')
 
   out.push('## Summary', '')
-  out.push('| Arm | contentful | blocked | failed | budget | median tokens | median wall |')
-  out.push('|---|---|---|---|---|---|---|')
+  out.push('| Arm | tier | contentful | blocked | failed | budget | median tokens | median wall |')
+  out.push('|---|---|---|---|---|---|---|---|')
   for (const s of run.scores) {
-    const os = run.outcomes.filter((o) => o.subjectId === s.subjectId)
-    const blocked = os.filter((o) => o.result.status === 'blocked').length
-    const failed = os.filter((o) => o.result.status === 'failed').length
-    out.push(
-      `| ${s.subjectId} | ${s.contentfulCount}/${s.caseCount} | ${blocked} | ${failed} | ${s.budgetViolations} | ${s.medianContentTokens ?? '-'} | ${s.medianWallMs}ms |`,
-    )
+    for (const tier of ['1', '2']) {
+      const os = run.outcomes.filter(
+        (o) => o.subjectId === s.subjectId && o.caseId.startsWith(`canary${tier === '1' ? '-' : '2-'}`),
+      )
+      if (os.length === 0) continue
+      const blocked = os.filter((o) => o.result.status === 'blocked').length
+      const failed = os.filter((o) => o.result.status === 'failed').length
+      const contentful = os.filter((o) => ['success', 'partial'].includes(o.result.status)).length
+      const tokens = os
+        .map((o) => o.result.usage.contentTokens)
+        .filter((t): t is number => t !== null)
+        .sort((a, b) => a - b)
+      const median = tokens.length > 0 ? tokens[Math.floor(tokens.length / 2)] : null
+      out.push(
+        `| ${s.subjectId} | ${tier} | ${contentful}/${os.length} | ${blocked} | ${failed} | ${
+          os.filter((o) => !o.budgetRespected).length
+        } | ${median ?? '-'} | ${s.medianWallMs}ms |`,
+      )
+    }
   }
   out.push('')
 
@@ -91,7 +104,7 @@ function reportLines(run: Awaited<ReturnType<typeof runBenchmark>>): string[] {
   out.push('## Reading the numbers', '')
   out.push('- bare-http sends no user-agent and no extraction: its blocked/failed counts are the open-web floor, not a regression.')
   out.push('- golden/extract-tf/resilient share the polite UA; differences among them are extraction quality, not politeness.')
-  out.push('- A contentful count below ~7/10 on the polite arms means the http lane alone cannot carry the product thesis — that is the browser-lane trigger.')
+  out.push('- Tier 1 is expected to clear on the http lane alone. Tier 2 is NOT: every tier-2 failure mode (bot gate, auth wall, JS shell) is precisely what the browser lane exists to solve — the tier-2 contentful rate IS the browser-lane value case, measured.')
   out.push('- challenge_text_returned failures on real pages double as bot-gate measurements.')
   out.push('')
   return out

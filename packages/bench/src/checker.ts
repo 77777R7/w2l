@@ -51,6 +51,9 @@ export function checkFalseSuccess(
     'Are you a robot',
     'Access denied',
     'Cloudflare Ray ID',
+    // Real-world markers found by the tier-2 canary probe:
+    'Please wait', // tiktok.com JS shell
+    'Humans only', // glassdoor.com bot gate
   ]
   const md = result.markdown ?? ''
   const foundChallenge = challengePatterns.some((p) => md.includes(p))

@@ -29,7 +29,13 @@ const budget = (maxTokens: number, maxWallMs = 30_000, maxAttempts = 2) => ({
   maxAttempts,
 })
 
-function truth(id: string, url: string, category: string, notes: string): GroundTruth {
+function truth(
+  id: string,
+  url: string,
+  category: string,
+  notes: string,
+  tier: 1 | 2 = 1,
+): GroundTruth {
   return {
     id,
     target: url,
@@ -45,7 +51,7 @@ function truth(id: string, url: string, category: string, notes: string): Ground
     expectedMainTokens: null,
     budget: budget(4000),
     expectedStatus: 'success',
-    notes,
+    notes: `tier${tier}: ${notes}`,
   }
 }
 
@@ -109,6 +115,76 @@ const SITES: readonly GroundTruth[] = [
   // every endpoint (/get, /status/200, /redirect/*) — external service
   // degradation, not a W2L defect. A drifting external dependency cannot
   // serve as a measurement target; MDN's 301 covers real redirect chains.
+  //
+  // -------------------------------------------------------------------------
+  // Tier 2: bot-protected or JS-dependent pages. The http lane is NOT
+  // expected to clear these — measuring where and how it fails is the
+  // browser lane's value case, quantified instead of estimated.
+  //
+  // Curation split, measured at curation time (2026-08-20):
+  //  - runtime bot gates on robots-ALLOWING sites -> in the suite (the
+  //    browser lane's addressable problem: challenge pages, JS shells,
+  //    intermittent walls)
+  //  - robots.txt Disallow: / for * -> OUT of the suite: that is a policy
+  //    boundary no lane may cross (dropped: imdb.com, old.reddit.com,
+  //    instagram.com, pinterest.com — all measured disallow-all)
+  // -------------------------------------------------------------------------
+  truth(
+    'canary2-etsy',
+    'https://www.etsy.com/',
+    'blocked',
+    '403 at curation with a polite UA — bot gate on a listing the product must eventually crawl.',
+    2,
+  ),
+  truth(
+    'canary2-glassdoor',
+    'https://www.glassdoor.com/index.htm',
+    'blocked',
+    '403 "Security | Glassdoor Humans only" challenge page at curation.',
+    2,
+  ),
+  truth(
+    'canary2-yc-companies',
+    'https://www.ycombinator.com/companies',
+    'js_shell',
+    'Static HTML is 39 chars of text — the directory is rendered entirely client-side.',
+    2,
+  ),
+  truth(
+    'canary2-amazon-home',
+    'https://www.amazon.com/',
+    'js_shell',
+    '202 Accepted with an empty body at curation — bot detection on an e-commerce giant.',
+    2,
+  ),
+  truth(
+    'canary2-tiktok',
+    'https://www.tiktok.com/',
+    'js_shell',
+    '200 with zero server-rendered text — a pure SPA shell.',
+    2,
+  ),
+  truth(
+    'canary2-quora',
+    'https://www.quora.com/',
+    'blocked',
+    '200 with 185 chars and challenge markers — soft bot wall on a Q&A corpus.',
+    2,
+  ),
+  truth(
+    'canary2-indeed',
+    'https://www.indeed.com/',
+    'blocked',
+    '403 challenge at curation — jobs listings are a core vertical for W2L.',
+    2,
+  ),
+  truth(
+    'canary2-producthunt',
+    'https://www.producthunt.com/',
+    'js_shell',
+    '200 with 12k server-rendered chars but challenge markers present — mixed.',
+    2,
+  ),
 ]
 
 export const CANARY_SUITE: Suite = {
