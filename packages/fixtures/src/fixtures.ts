@@ -198,6 +198,484 @@ ${prose(60, 41)}
 
 const LIST_ITEM = 'Cistern maintenance log 07'
 
+// ---------------------------------------------------------------------------
+// Table shapes
+// ---------------------------------------------------------------------------
+// 16 fixtures probing markdown table conversion. Expected GFM markdown is
+// derived from the served HTML by toGfmTable() — the annotation (expectedTable)
+// is the single source of truth. Every fixture needs unique cell strings so
+// cells/anchors locate unambiguously.
+//
+// Fixtures whose HTML sits in a <table> parseable by the strict toGfmTable
+// subset (thead/tbody rows, td/th col/rowspan, caption, single-line cells)
+// use structural assertions. The irregular fixtures (ragged, nested,
+// list/code/block-in-cell, pipe-in-cell, empty table) cannot be pinned as
+// logical grids and instead anchor requireMarkdown:false + unique cell facts
+// via mustContain, plus a soft expectedTable where the geometry is stable.
+//
+// Conversion rules under test (see research/extraction_precision_deep_research.md §二.7):
+//   - header row: thead-first-row semantics; all-<th> vs <th>/<td> mix
+//   - colspan/rowspan expansion to logical grid, clamped to real bounds
+//   - pipes inside cells escaped
+//   - block content joined inside the cell, never breaking the row
+//   - empty cells kept as empty cells (geometry preserved)
+//   - irregular tables may degrade to sanitized HTML, never to garbage
+//   - a 112-byte colspan input must not amplify to tens of MB of output
+
+/** Generate a plain fixture table from a cell grid (all cells <td>). */
+function tableHtml(cells: readonly (readonly string[])[], thead = false): string {
+  const rowTag = (i: number) => (thead && i === 0 ? 'th' : 'td')
+  const rows = cells.map(
+    (row, i) => `<tr>${row.map((c) => `<${rowTag(i)}>${c}</${rowTag(i)}>`).join('')}</tr>`,
+  )
+  return `<table><thead>${rows[0]}</thead><tbody>${rows.slice(1).join('')}</tbody></table>`
+}
+
+/** Assert the derived GFM markdown satisfies the annotation. */
+function tableSpec(columns: number, rows: number, extra: Partial<import('@w2l/contracts').ExpectedTable> = {}) {
+  return { columns, rows, ...extra }
+}
+
+const t_thead: Fixture = {
+  truth: {
+    id: 'table-thead',
+    target: '/table/thead',
+    kind: 'fixture',
+    category: 'table',
+    mustContain: ['North Wall'],
+    mustNotContain: B,
+    expectedTable: {
+      columns: 2,
+      rows: 2,
+      cells: { '0,0': 'Reading', '0,1': 'Value', '1,0': 'North Wall', '1,1': '3.7' },
+    },
+    expectedLane: 'http',
+    emptyIsLegit: false,
+    expectedMainTokens: { min: 15, max: 120 },
+    budget: budget(1000),
+    expectedStatus: 'success',
+    notes: 'Canonical thead header table: header cells must become the header row.',
+  },
+  respond: () => html(htmlPage({ title: 'Readings', bodyHtml: `<article><h1>Readings</h1>${tableHtml([['Reading', 'Value'], ['North Wall', '3.7']], true)}</article>` })),
+}
+
+const t_noThead: Fixture = {
+  truth: {
+    id: 'table-no-thead',
+    target: '/table/no-thead',
+    kind: 'fixture',
+    category: 'table',
+    mustContain: ['South Gate', '2.1'],
+    mustNotContain: B,
+    expectedTable: {
+      columns: 2,
+      rows: 2,
+      cells: { '0,0': 'Reading', '0,1': 'Value', '1,0': 'South Gate', '1,1': '2.1' },
+    },
+    expectedLane: 'http',
+    emptyIsLegit: false,
+    expectedMainTokens: { min: 15, max: 120 },
+    budget: budget(1000),
+    expectedStatus: 'success',
+    notes: 'No thead element: a converter that requires <thead> must still emit a table (the official turndown-plugin-gfm emits raw HTML here).',
+  },
+  respond: () => html(htmlPage({ title: 'Readings', bodyHtml: `<article><h1>Readings</h1><table><tr><th>Reading</th><th>Value</th></tr><tr><td>South Gate</td><td>2.1</td></tr></table></article>` })),
+}
+
+const t_colspan: Fixture = {
+  truth: {
+    id: 'table-colspan',
+    target: '/table/colspan',
+    kind: 'fixture',
+    category: 'table',
+    mustContain: ['Full span'],
+    mustNotContain: B,
+    expectedTable: {
+      columns: 3,
+      rows: 2,
+      cells: { '0,0': 'Full span', '1,0': 'A', '1,1': 'B', '1,2': 'C' },
+      sameRow: ['A', 'B', 'C'],
+    },
+    expectedLane: 'http',
+    emptyIsLegit: false,
+    expectedMainTokens: { min: 15, max: 120 },
+    budget: budget(1000),
+    expectedStatus: 'success',
+    notes: 'colspan="3" header: the logical grid is 3 columns; continuation cells are empty spacers. A converter that drops the span shifts every following cell left.',
+  },
+  respond: () => html(htmlPage({ title: 'Span', bodyHtml: `<article><h1>Span</h1><table><tr><th colspan="3">Full span</th></tr><tr><td>A</td><td>B</td><td>C</td></tr></table></article>` })),
+}
+
+const t_rowspan: Fixture = {
+  truth: {
+    id: 'table-rowspan',
+    target: '/table/rowspan',
+    kind: 'fixture',
+    category: 'table',
+    mustContain: ['Tall cell'],
+    mustNotContain: B,
+    expectedTable: {
+      columns: 2,
+      rows: 3,
+      cells: { '0,0': 'Tall cell', '0,1': 'R1', '1,1': 'R2', '2,1': 'R3' },
+      sameColumn: ['R1', 'R2', 'R3'],
+    },
+    expectedLane: 'http',
+    emptyIsLegit: false,
+    expectedMainTokens: { min: 15, max: 120 },
+    budget: budget(1000),
+    expectedStatus: 'success',
+    notes: 'rowspan="3" first cell: rows 1-2 cell 0 are spacer cells. A converter that repeats the value or drops the geometry fails the grid.',
+  },
+  respond: () => html(htmlPage({ title: 'Tall', bodyHtml: `<article><h1>Tall</h1><table><tr><th rowspan="3">Tall cell</th><th>R1</th></tr><tr><td>R2</td></tr><tr><td>R3</td></tr></table></article>` })),
+}
+
+const t_colRowSpan: Fixture = {
+  truth: {
+    id: 'table-colrowspan',
+    target: '/table/colrowspan',
+    kind: 'fixture',
+    category: 'table',
+    mustContain: ['Origin'],
+    mustNotContain: B,
+    expectedTable: {
+      columns: 3,
+      rows: 3,
+      cells: {
+        '0,0': 'Origin',
+        '0,2': 'Mid',
+        '1,2': 'Right',
+        '2,0': 'Left',
+      },
+    },
+    expectedLane: 'http',
+    emptyIsLegit: false,
+    expectedMainTokens: { min: 15, max: 120 },
+    budget: budget(1000),
+    expectedStatus: 'success',
+    notes:
+      'Combined rowspan="2" colspan="2" on one cell: exercises span interaction ' +
+      'and spacer layout — Mid lands right of the span, Right under Mid, Left ' +
+      'in the row below the span.',
+  },
+  respond: () =>
+    html(
+      htmlPage({
+        title: 'Combined',
+        bodyHtml: `<article><h1>Combined</h1><table><tr><th rowspan="2" colspan="2">Origin</th><th>Mid</th></tr><tr><td>Right</td></tr><tr><td>Left</td><td> </td><td> </td></tr></table></article>`,
+      }),
+    ),
+}
+
+const t_nested: Fixture = {
+  truth: {
+    id: 'table-nested',
+    target: '/table/nested',
+    kind: 'fixture',
+    category: 'table',
+    mustContain: ['Inner fact', 'Outer fact'],
+    mustNotContain: B,
+    expectedTable: null,
+    expectedLane: 'http',
+    emptyIsLegit: false,
+    expectedMainTokens: { min: 20, max: 200 },
+    budget: budget(1000),
+    expectedStatus: 'success',
+    notes: 'Table inside a cell: a converter must not let the inner table break the outer row.',
+  },
+  respond: () => html(htmlPage({ title: 'Nested', bodyHtml: `<article><h1>Nested</h1><table><tr><th>Outer fact</th><th>Detail</th></tr><tr><td>Inner fact</td><td><table><tr><th>Sub</th></tr><tr><td>1</td></tr></table></td></tr></table></article>` })),
+}
+
+const t_listInCell: Fixture = {
+  truth: {
+    id: 'table-list-in-cell',
+    target: '/table/list-in-cell',
+    kind: 'fixture',
+    category: 'table',
+    mustContain: ['Aardvark', 'Bilberry', 'Cinder'],
+    mustNotContain: B,
+    expectedTable: null,
+    expectedLane: 'http',
+    emptyIsLegit: false,
+    expectedMainTokens: { min: 20, max: 200 },
+    budget: budget(1000),
+    expectedStatus: 'success',
+    notes: 'List inside a cell: cell content must survive without emitting raw newlines that destroy the pipe row.',
+  },
+  respond: () => html(htmlPage({ title: 'List cell', bodyHtml: `<article><h1>List cell</h1><table><tr><th>Group</th><th>Members</th></tr><tr><td>Alpha</td><td><ul><li>Aardvark</li><li>Bilberry</li><li>Cinder</li></ul></td></tr></table></article>` })),
+}
+
+const t_pInCell: Fixture = {
+  truth: {
+    id: 'table-p-in-cell',
+    target: '/table/p-in-cell',
+    kind: 'fixture',
+    category: 'table',
+    mustContain: ['First sentence', 'Second sentence'],
+    mustNotContain: B,
+    expectedTable: null,
+    expectedLane: 'http',
+    emptyIsLegit: false,
+    expectedMainTokens: { min: 20, max: 200 },
+    budget: budget(1000),
+    expectedStatus: 'success',
+    notes: 'Two <p> blocks in one cell: block content must be joined inside the cell (e.g. <br>), not break the row.',
+  },
+  respond: () => html(htmlPage({ title: 'P cell', bodyHtml: `<article><h1>P cell</h1><table><tr><th>Context</th><th>Note</th></tr><tr><td>Beta</td><td><p>First sentence</p><p>Second sentence</p></td></tr></table></article>` })),
+}
+
+const t_codeInCell: Fixture = {
+  truth: {
+    id: 'table-code-in-cell',
+    target: '/table/code-in-cell',
+    kind: 'fixture',
+    category: 'table',
+    mustContain: ['const x', 'Kind'],
+    mustNotContain: B,
+    expectedTable: null,
+    expectedLane: 'http',
+    emptyIsLegit: false,
+    expectedMainTokens: { min: 20, max: 200 },
+    budget: budget(1000),
+    expectedStatus: 'success',
+    notes:
+      'Inline code in a cell: backticks and pipes inside code spans must not be ' +
+      'treated as cell delimiters. mustContain anchors the code text and the ' +
+      'header label; the exact rendered form is left to the converter.',
+  },
+  respond: () =>
+    html(
+      htmlPage({
+        title: 'Code cell',
+        bodyHtml: `<article><h1>Code cell</h1><table><tr><th>Kind</th><th>Snippet</th></tr><tr><td>Code</td><td><code>const x = 1 | 2</code></td></tr></table></article>`,
+      }),
+    ),
+}
+
+const t_emptyCell: Fixture = {
+  truth: {
+    id: 'table-empty-cell',
+    target: '/table/empty-cell',
+    kind: 'fixture',
+    category: 'table',
+    mustContain: ['Filled A', 'Filled B'],
+    mustNotContain: B,
+    expectedTable: {
+      columns: 3,
+      rows: 2,
+      cells: { '0,0': 'A', '0,1': 'B', '0,2': 'C', '1,0': 'Filled A', '1,2': 'Filled B' },
+    },
+    expectedLane: 'http',
+    emptyIsLegit: false,
+    expectedMainTokens: { min: 15, max: 120 },
+    budget: budget(1000),
+    expectedStatus: 'success',
+    notes: 'Empty middle cell: must remain an empty cell so Filled B stays in column 3, not shift left.',
+  },
+  respond: () => html(htmlPage({ title: 'Empty cell', bodyHtml: `<article><h1>Empty cell</h1><table><tr><th>A</th><th>B</th><th>C</th></tr><tr><td>Filled A</td><td></td><td>Filled B</td></tr></table></article>` })),
+}
+
+const t_pipeInCell: Fixture = {
+  truth: {
+    id: 'table-pipe-in-cell',
+    target: '/table/pipe-in-cell',
+    kind: 'fixture',
+    category: 'table',
+    mustContain: ['Pipe cell'],
+    mustNotContain: B,
+    expectedTable: {
+      columns: 2,
+      rows: 2,
+      cells: { '0,0': 'Expr', '0,1': 'Result', '1,0': 'left \\| right', '1,1': 'true' },
+    },
+    expectedLane: 'http',
+    emptyIsLegit: false,
+    expectedMainTokens: { min: 15, max: 120 },
+    budget: budget(1000),
+    expectedStatus: 'success',
+    notes:
+      'Pipe character inside a cell: must be escaped so a 2-column row does not ' +
+      'parse as 3. Scored via exact cell "left \\| right" (the parser resolves ' +
+      'escaped pipes), NOT via mustContain — a substring check would reward ' +
+      'unescaped output and punish the correct one.',
+  },
+  respond: () =>
+    html(
+      htmlPage({
+        title: 'Pipe cell',
+        bodyHtml: `<article><h1>Pipe cell</h1><table><tr><th>Expr</th><th>Result</th></tr><tr><td>left | right</td><td>true</td></tr></table></article>`,
+      }),
+    ),
+}
+
+const t_ragged: Fixture = {
+  truth: {
+    id: 'table-ragged',
+    target: '/table/ragged',
+    kind: 'fixture',
+    category: 'table',
+    mustContain: ['C1', 'C3'],
+    mustNotContain: B,
+    expectedTable: null,
+    expectedLane: 'http',
+    emptyIsLegit: false,
+    expectedMainTokens: { min: 20, max: 200 },
+    budget: budget(1000),
+    expectedStatus: 'success',
+    notes: 'Rows with different cell counts: must not crash and must keep each row intact (may degrade to HTML).',
+  },
+  respond: () => html(htmlPage({ title: 'Ragged', bodyHtml: `<article><h1>Ragged</h1><table><tr><th>A</th><th>B</th><th>C</th></tr><tr><td>C1</td><td>C2</td></tr><tr><td>C3</td><td>C4</td><td>C5</td><td>C6</td></tr></table></article>` })),
+}
+
+const t_emptyTable: Fixture = {
+  truth: {
+    id: 'table-empty-table',
+    target: '/table/empty-table',
+    kind: 'fixture',
+    category: 'table',
+    mustContain: [],
+    mustNotContain: B,
+    expectedTable: null,
+    expectedLane: 'http',
+    emptyIsLegit: false,
+    expectedMainTokens: { min: 0, max: 60 },
+    budget: budget(1000),
+    expectedStatus: 'success',
+    notes: 'Literal <table></table>: must not throw (the official turndown-plugin-gfm throws an uncaught TypeError in isHeadingRow).',
+  },
+  respond: () => html(htmlPage({ title: 'Empty table', bodyHtml: `<article><h1>Empty table</h1><table></table><p>Text after the table.</p></article>` })),
+}
+
+const t_singleCell: Fixture = {
+  truth: {
+    id: 'table-single-cell',
+    target: '/table/single-cell',
+    kind: 'fixture',
+    category: 'table',
+    mustContain: ['Layout content'],
+    mustNotContain: B,
+    expectedTable: null,
+    expectedLane: 'http',
+    emptyIsLegit: false,
+    expectedMainTokens: { min: 10, max: 120 },
+    budget: budget(1000),
+    expectedStatus: 'success',
+    notes: 'Single-cell layout table (CSS layout abuse): a good converter may degrade this to the cell content, but must not produce a broken 1-column table row.',
+  },
+  respond: () => html(htmlPage({ title: 'Layout', bodyHtml: `<article><h1>Layout</h1><table><tr><td>Layout content</td></tr></table></article>` })),
+}
+
+const t_caption: Fixture = {
+  truth: {
+    id: 'table-caption',
+    target: '/table/caption',
+    kind: 'fixture',
+    category: 'table',
+    mustContain: ['Table 1: readings'],
+    mustNotContain: B,
+    expectedTable: {
+      columns: 2,
+      rows: 2,
+      cells: { '0,0': 'Reading', '0,1': 'Value', '1,0': 'East', '1,1': '4.4' },
+    },
+    expectedLane: 'http',
+    emptyIsLegit: false,
+    expectedMainTokens: { min: 15, max: 120 },
+    budget: budget(1000),
+    expectedStatus: 'success',
+    notes: '<caption> must be preserved as text, not dropped.',
+  },
+  respond: () => html(htmlPage({ title: 'Caption', bodyHtml: `<article><h1>Caption</h1><table><caption>Table 1: readings</caption><tr><th>Reading</th><th>Value</th></tr><tr><td>East</td><td>4.4</td></tr></table></article>` })),
+}
+
+const t_large: Fixture = {
+  truth: {
+    id: 'table-large',
+    target: '/table/large',
+    kind: 'fixture',
+    category: 'table',
+    mustContain: ['R0 C0', 'R99 C9'],
+    mustNotContain: B,
+    expectedTable: {
+      columns: 10,
+      rows: 101,
+      cells: { '0,0': 'H0', '0,9': 'H9', '100,0': 'R99 C0', '100,9': 'R99 C9' },
+    },
+    expectedLane: 'http',
+    emptyIsLegit: false,
+    expectedMainTokens: { min: 1800, max: 8000 },
+    budget: budget(20_000, 15_000),
+    expectedStatus: 'success',
+    notes:
+      '100-row x 10-col table (1,010 cells): wall-clock guard for converter ' +
+      'complexity. A quadratic converter blows the budget here. Token floor ' +
+      'derived from toGfmTable output (~2.3k tokens).',
+  },
+  respond: () => {
+    const header = ['H0', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'H7', 'H8', 'H9']
+    const rows = Array.from({ length: 100 }, (_, i) =>
+      Array.from({ length: 10 }, (_, j) => `R${i} C${j}`),
+    )
+    return html(htmlPage({ title: 'Large table', bodyHtml: `<article><h1>Large table</h1>${tableHtml([header, ...rows], true)}</article>` }))
+  },
+}
+
+const t_colspanAmp: Fixture = {
+  truth: {
+    id: 'table-colspan-amplification',
+    target: '/table/colspan-amplification',
+    kind: 'fixture',
+    category: 'table',
+    mustContain: ['Amplify me', 'Follower'],
+    mustNotContain: B,
+    expectedTable: null,
+    expectedLane: 'http',
+    emptyIsLegit: false,
+    expectedMainTokens: { min: 5, max: 200 },
+    budget: budget(1000, 15_000),
+    expectedStatus: 'success',
+    notes: 'colspan="10000" on one cell: the normalization step must clamp spans to the real column count. Reproduced bug: 112 bytes expanding to 60 MB output.',
+  },
+  respond: () => html(htmlPage({ title: 'Amplification', bodyHtml: `<article><h1>Amplification</h1><table><tr><td colspan="10000">Amplify me</td><td>Follower</td></tr></table></article>` })),
+}
+
+const t_largeColspan: Fixture = {
+  truth: {
+    id: 'table-large-colspan',
+    target: '/table/large-colspan',
+    kind: 'fixture',
+    category: 'table',
+    mustContain: ['Wide header', 'Tail'],
+    mustNotContain: B,
+    expectedTable: {
+      columns: 4,
+      rows: 3,
+      cells: {
+        '0,0': 'Wide header',
+        '0,3': 'Tail',
+        '1,0': 'B1',
+        '1,1': 'B2',
+        '2,0': 'C1',
+      },
+    },
+    expectedLane: 'http',
+    emptyIsLegit: false,
+    expectedMainTokens: { min: 15, max: 200 },
+    budget: budget(2000),
+    expectedStatus: 'success',
+    notes:
+      'colspan="3" with distinct continuation cells: spacer cells must not ' +
+      'swallow the Tail cell that follows the span, nor the B2/C1 cells below.',
+  },
+  respond: () =>
+    html(
+      htmlPage({
+        title: 'Large colspan',
+        bodyHtml: `<article><h1>Large colspan</h1><table><tr><th colspan="3">Wide header</th><th>Tail</th></tr><tr><td>B1</td><td>B2</td><td> </td><td> </td></tr><tr><td>C1</td><td> </td><td> </td><td> </td></tr></table></article>`,
+      }),
+    ),
+}
+
 const staticList: Fixture = {
   truth: {
     id: 'static-list',
@@ -962,6 +1440,24 @@ export const FIXTURES: readonly Fixture[] = [
   staticArticle,
   staticCjk,
   staticTable,
+  t_thead,
+  t_noThead,
+  t_colspan,
+  t_rowspan,
+  t_colRowSpan,
+  t_nested,
+  t_listInCell,
+  t_pInCell,
+  t_codeInCell,
+  t_emptyCell,
+  t_pipeInCell,
+  t_ragged,
+  t_emptyTable,
+  t_singleCell,
+  t_caption,
+  t_large,
+  t_colspanAmp,
+  t_largeColspan,
   staticLong,
   staticList,
   malformed,

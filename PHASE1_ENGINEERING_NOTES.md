@@ -193,7 +193,7 @@ Tier 0+1（诚实 header + 限速 + 本地浏览器 + 用户登录态）在长�
 
 ```
 第 0 周：benchmark harness（验收标准见下）
-  30 个 fixture（含 ground truth 标注）+ 20 个线上 canary
+  30 个 fixture（含 ground truth 标注）+ 16 个 table 形状 fixture + 20 个线上 canary
   + 一键运行的评分系统 + 对照组基线跑分
 第 1-2 周：HTTP lane 端到端
   undici 抓取 → 提取器接口（v0: readability；并行: trafilatura XPath 级联 TS 重实现）→ 后提取规范化（含表 colspan/rowspan 钳制）→ unified 栈转 Markdown → 失败分类 + 空结果三分类
