@@ -5,6 +5,23 @@ import { checkFalseSuccess, isFalseSuccess } from './checker.js'
 import type { SubjectAdapter } from './subject.js'
 
 /**
+ * Reset the fixture server's stateful fixtures before each subject, so every
+ * subject observes attempt 1 (the flaky fixture is global mutable state). The
+ * control route is not part of the suite; this is the runner's contract with
+ * the fixture server, not a subject behaviour.
+ */
+async function resetStatefulFixtures(cases: readonly GroundTruth[]): Promise<void> {
+  const first = cases[0]
+  if (!first) return
+  const origin = new URL(first.target).origin
+  const res = await fetch(`${origin}/__reset`)
+  if (res.status !== 204) {
+    throw new Error(`fixture reset failed: ${res.status} ${origin}/__reset`)
+  }
+  await res.body?.cancel()
+}
+
+/**
  * Run one subject against all cases in a suite.
  * Returns a complete BenchmarkRun with outcomes, scores, and environment metadata.
  */
@@ -18,6 +35,8 @@ export async function runBenchmark(
 
   for (const subject of subjects) {
     console.log(`\nRunning subject: ${subject.meta.displayName}`)
+    // Every subject must start from attempt 1 of stateful fixtures.
+    await resetStatefulFixtures(cases)
     for (const truth of cases) {
       console.log(`  - ${truth.id}`)
 
