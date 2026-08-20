@@ -116,12 +116,30 @@ const staticTable: Fixture = {
     category: 'static',
     mustContain: [TABLE_FACT, 'Meridian', '41'],
     mustNotContain: B,
+    expectedTable: {
+      columns: 3,
+      rows: 4,
+      cells: {
+        '0,0': 'Station',
+        '0,1': 'Flow',
+        '0,2': 'Recorded',
+        '1,0': 'Meridian',
+        '1,1': '41',
+        '1,2': '1873-04-02',
+        '2,0': 'Quarry',
+        '3,0': 'Estuary',
+      },
+      sameColumn: ['Meridian', 'Quarry', 'Estuary'],
+    },
     expectedLane: 'http',
     emptyIsLegit: false,
     expectedMainTokens: { min: 60, max: 500 },
     budget: budget(2000),
     expectedStatus: 'success',
-    notes: 'Table content must survive markdown conversion, not be dropped.',
+    notes: 'Table content must survive markdown conversion, not be dropped. ' +
+      'expectedTable pins the logical grid: a converter that drops a column, ' +
+      'shifts a row, or flattens the table into prose still satisfies mustContain ' +
+      'but fails missing_required_content here.',
   },
   respond: () =>
     html(

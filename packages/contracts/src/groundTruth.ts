@@ -1,4 +1,5 @@
 import type { Lane, ResultStatus } from './status.js'
+import type { ExpectedTable } from './tableMarkdown.js'
 
 /** The five false-success checks. Fixtures evaluate all five; canaries evaluate the evidence-bearing subset. */
 export const FALSE_SUCCESS_CHECK = [
@@ -62,6 +63,12 @@ export interface GroundTruth {
   mustContain: readonly string[]
   /** Substrings that MUST NOT appear (nav, footer, cookie banner, ads). */
   mustNotContain: readonly string[]
+  /**
+   * Structural table assertion, evaluated by check `missing_required_content`
+   * against the extracted markdown. Omitted for cases without table annotation.
+   * Use unique cell strings so cells/anchors locate unambiguously.
+   */
+  expectedTable?: ExpectedTable | null
   /** The lane the runtime is expected to settle on. */
   expectedLane: Lane
   /** True when an empty extraction is the correct answer. */

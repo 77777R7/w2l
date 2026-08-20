@@ -1,9 +1,11 @@
 import { DEFAULT_NETWORK_POLICY, estimateTokens } from '@w2l/contracts'
+import { evaluateExpectedTable } from '@w2l/contracts'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { ALL_BOILERPLATE } from '../src/chrome.js'
 import { FIXTURES, STATEFUL_FIXTURE_IDS, ZIP_BOMB_UNCOMPRESSED_BYTES } from '../src/fixtures.js'
 import { startFixtureServer, type FixtureServer } from '../src/server.js'
 import { FIXTURE_TRUTHS, bindSuite } from '../src/suite.js'
+import { toGfmTable } from '../src/tableGfm.js'
 
 let server: FixtureServer
 
@@ -88,6 +90,24 @@ describe('suite integrity', () => {
     const suite = bindSuite(server.url)
     expect(suite.cases).toHaveLength(FIXTURE_TRUTHS.length)
     for (const c of suite.cases) expect(c.target.startsWith(server.url)).toBe(true)
+  })
+
+  it('derives GFM for every annotated table that the annotation itself passes', async () => {
+    for (const fixture of FIXTURES) {
+      const t = fixture.truth
+      if (t.expectedTable == null) continue
+      const res = await get(t.target)
+      expect(res.status, t.id).toBe(200)
+      const body = await res.text()
+      const tableMatch = /<table[\s\S]*?<\/table>/i.exec(body)
+      expect(tableMatch, `${t.id} must serve a <table>`).not.toBeNull()
+
+      const md = toGfmTable(tableMatch![0])
+      const check = evaluateExpectedTable(md, t.expectedTable)
+      expect(check.pass, `${t.id}: ${check.issues.join('; ')}`).toBe(true)
+      expect(check.table!.columns).toBe(t.expectedTable.columns)
+      expect(check.table!.rows).toBe(t.expectedTable.rows)
+    }
   })
 })
 
