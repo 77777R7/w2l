@@ -1,13 +1,10 @@
 {
-  "name": "@w2l/bench",
+  "name": "@w2l/extract-tf",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "bin": {
-    "w2l-bench": "./dist/cli.js"
-  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -19,8 +16,6 @@
   },
   "dependencies": {
     "@w2l/contracts": "*",
-    "@w2l/extract-tf": "*",
-    "@w2l/fixtures": "*",
-    "undici": "^7.4.0"
+    "linkedom": "^0.18.13"
   }
 }
