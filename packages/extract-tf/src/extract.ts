@@ -16,7 +16,7 @@ import { qsa, outerHtml, parse, textOf } from './dom.js'
 import { cleanTree, pruneTree } from './prune.js'
 import { classifyBlocks, type ClassifyOptions } from './classify.js'
 import { selectMain } from './main.js'
-import { routePage, selectList, selectTable } from './route.js'
+import { pageSignalsFor, routePage, selectList, selectTable } from './route.js'
 
 const DEFAULT_CLASSIFY: ClassifyOptions = {
   minTextLength: 25,
@@ -63,10 +63,17 @@ export class ExtractTf implements Extractor {
     const { favorPrecision = false, favorRecall = false, pruneSelectors } = options
     const doc = parse(html)
 
+    // Semantic page-type signals must be collected BEFORE cleaning: they live
+    // in <script type="application/ld+json">, <meta>, and itemprop attributes,
+    // and cleanTree strips script/form/button. cleanTree also detaches
+    // article.post elements whose only content is a <form> (quick-reply),
+    // which would otherwise suppress forum routing.
+    const signals = pageSignalsFor(doc.document)
+
     cleanTree(doc.document)
     pruneTree(doc.document, { selectors: pruneSelectors })
 
-    const decision = routePage(doc.document)
+    const decision = routePage(doc.document, signals)
 
     const classifyOptions: ClassifyOptions = { ...DEFAULT_CLASSIFY, favorPrecision }
     if (favorPrecision) classifyOptions.minTextLength = 60
@@ -105,6 +112,7 @@ export class ExtractTf implements Extractor {
       // non-article strategy is not by itself an escalation reason.
       escalate: main === null,
       pageType: decision.type,
+      strategy: decision.strategy,
     }
 
     doc.close()

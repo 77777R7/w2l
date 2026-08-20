@@ -43,8 +43,20 @@ export class ExtractTfSubject implements SubjectAdapter {
       // suspected-bad emptiness is `failed`, not a contentful success).
       let markdown: string | null = null
       let escalated = false
+      let routeEvidence: {
+        pageType: string
+        strategy: string
+        confidence: number
+        escalate: boolean
+      } | null = null
       if (status === 200) {
         const out = extractTf.extract(body)
+        routeEvidence = {
+          pageType: out.pageType,
+          strategy: out.strategy,
+          confidence: out.confidence,
+          escalate: out.escalate,
+        }
         if (out.escalate) {
           escalated = true
         } else {
@@ -90,6 +102,9 @@ export class ExtractTfSubject implements SubjectAdapter {
         trace: [
           { at: 0, lane: 'http', event: 'request_start' },
           { at: wallMs, lane: 'http', event: 'request_complete', detail: { status } },
+          ...(routeEvidence !== null
+            ? [{ at: wallMs, lane: 'http' as const, event: 'extract', detail: routeEvidence }]
+            : []),
         ],
       }
     } catch (err) {

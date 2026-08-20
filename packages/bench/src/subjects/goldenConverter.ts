@@ -115,8 +115,12 @@ export class GoldenConverterSubject implements SubjectAdapter {
 }
 
 function extract(body: string): string {
+  // Prefer the outermost <main> container when one exists, so nested content
+  // (forum posts inside main, spec tables + paragraphs inside main) survives
+  // whole. Pages without <main> fall back to the first <article>.
   const main =
-    /<(?:article|main)\b[\s\S]*?<\/(?:article|main)>/i.exec(body)?.[0] ??
+    /<main\b[\s\S]*?<\/main>/i.exec(body)?.[0] ??
+    /<article\b[\s\S]*?<\/article>/i.exec(body)?.[0] ??
     // Fallback for pages without a main-content element: the whole body minus
     // the known boilerplate (the CMP-pruning shape the real pipeline applies
     // before extraction).

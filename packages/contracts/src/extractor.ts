@@ -6,6 +6,9 @@
 /** Page shape the extractor routed to. */
 export type PageType = 'article' | 'listing' | 'collection' | 'product' | 'forum'
 
+/** Extraction strategy that produced mainHtml, independent of pageType. */
+export type ExtractStrategy = 'article' | 'list' | 'table'
+
 export interface ExtractorOutput {
   /** Page title, or null when none could be found. */
   title: string | null
@@ -20,6 +23,11 @@ export interface ExtractorOutput {
   escalate: boolean
   /** Page type the router detected. */
   pageType: PageType
+  /**
+   * The strategy that produced mainHtml. Independent of pageType: a product
+   * page may use the table strategy, a forum thread the article cascade.
+   */
+  strategy: ExtractStrategy
 }
 
 export interface ExtractorOptions {

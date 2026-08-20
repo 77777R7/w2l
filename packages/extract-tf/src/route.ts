@@ -5,7 +5,13 @@
  * router decides the strategy before the block cascade runs.
  *
  * Routing runs AFTER cleanTree/pruneTree, so boilerplate (nav, aside, footer)
- * never drives a listing/collection misroute.
+ * never drives a listing/collection misroute. The semantic page-type signals
+ * (JSON-LD, microdata, post markup) are collected BEFORE cleaning — they live
+ * in <script type="application/ld+json">, <meta>, and itemprop attributes,
+ * and cleanTree strips script/form/button, which would erase them.
+ *
+ * Page type and strategy are independent: a product page can use the table
+ * strategy, but "one standalone table" by itself never proves "product".
  */
 
 import type { PageType } from '@w2l/contracts'
@@ -41,7 +47,86 @@ export interface RouteDecision {
   strategy: 'article' | 'list' | 'table'
 }
 
-function routeByCounts(c: RouterCounts): RouteDecision {
+interface PageSignals {
+  /** JSON-LD @type list. */
+  jsonLdTypes: string[]
+  /** itemprop attribute values across the document. */
+  itemprops: string[]
+  /** itemtype attribute values (microdata scope declarations). */
+  itemTypes: string[]
+  /** Count of <article class~="post"> elements. */
+  postArticles: number
+}
+
+/** itemprop tokens that indicate a product/offer context. */
+const PRICE_ITEMPROPS = ['price', 'offers', 'sku', 'gtin', 'mpn', 'brand'] as const
+
+/** itemprop tokens that indicate a forum thread/post context. */
+const POST_ITEMPROPS = ['comment', 'commentcount', 'commenttext', 'interactioncount'] as const
+
+/**
+ * Collect semantic signals BEFORE cleanTree/pruneTree removes their carriers.
+ * JSON-LD @type names are lower-cased for matching; the raw graph text is
+ * deliberately not kept — routing must rest on structured signals, not on
+ * words inside quoted names or titles.
+ */
+function collectPageSignals(doc: Document): PageSignals {
+  const jsonLdTypes: string[] = []
+  for (const el of qsa(doc, 'script[type="application/ld+json"]')) {
+    const text = (el.textContent ?? '').trim()
+    if (text.length === 0) continue
+    for (const m of text.matchAll(/"@type"\s*:\s*"?([A-Za-z]+)"?/g)) {
+      jsonLdTypes.push(m[1]!.toLowerCase())
+    }
+  }
+  return {
+    jsonLdTypes,
+    itemprops: qsa(doc, '[itemprop]').map((el) => (el.getAttribute('itemprop') ?? '').toLowerCase()),
+    itemTypes: qsa(doc, '[itemtype]').map((el) => (el.getAttribute('itemtype') ?? '').toLowerCase()),
+    postArticles: qsa(doc, 'article.post').length,
+  }
+}
+
+function hasAny(values: readonly string[], needles: readonly string[]): boolean {
+  return values.some((v) => needles.some((n) => v.includes(n)))
+}
+
+/**
+ * Semantic product signals: JSON-LD Product/OfferCatalog type, microdata
+ * Product/Offer scope (itemtype URL ending in the schema.org type), or
+ * price/sku-style itemprops. A bare spec table is NOT a product signal —
+ * that stays a collection.
+ */
+function hasProductSignals(s: PageSignals): boolean {
+  if (s.jsonLdTypes.includes('product') || s.jsonLdTypes.includes('offercatalog')) return true
+  if (s.itemprops.includes('product') || s.itemprops.includes('offer')) return true
+  if (s.itemTypes.some((t) => /(?:^|\/)(product|offer|catalog)$/.test(t))) return true
+  return hasAny(s.itemprops, PRICE_ITEMPROPS)
+}
+
+/**
+ * Multiple posts, JSON-LD thread shapes, or microdata comment semantics.
+ * A single post alone does not make a forum.
+ */
+function hasForumSignals(s: PageSignals): boolean {
+  if (s.postArticles >= 2) return true
+  if (s.jsonLdTypes.includes('discussionforumposting')) return true
+  return hasAny(s.itemprops, POST_ITEMPROPS) && s.jsonLdTypes.includes('comment')
+}
+
+function routeByCounts(c: RouterCounts, s: PageSignals): RouteDecision {
+  // Semantic product signals. Falls back to the table strategy when the page
+  // carries a spec-table shape; the strategy handles "no table" itself.
+  if (hasProductSignals(s)) {
+    return c.tableInArticle === 0 && c.table >= 1
+      ? { type: 'product', strategy: 'table' }
+      : { type: 'product', strategy: 'article' }
+  }
+
+  // Semantic forum signals (multiple posts, DiscussionForumPosting, or
+  // comment microdata). Still extracted by the article cascade.
+  if (hasForumSignals(s)) return { type: 'forum', strategy: 'article' }
+
   // A page whose only structure is one standalone table (readings, schedules,
   // dashboards). Tables inside <article> stay on the article cascade.
   if (c.tableInArticle === 0 && c.table === 1 && c.li < 10 && c.a < 20 && c.headings <= 2) {
@@ -74,10 +159,21 @@ function routeByCounts(c: RouterCounts): RouteDecision {
 }
 
 /**
- * Route the page to a page type + strategy.
+ * Collect pre-clean semantic signals for the page being routed. Extract
+ * calls this once on the raw document, before cleanTree/pruneTree, so
+ * script/meta-carried signals survive to routePage.
  */
-export function routePage(doc: Document): RouteDecision {
-  return routeByCounts(countAll(doc))
+export function pageSignalsFor(doc: Document): PageSignals {
+  return collectPageSignals(doc)
+}
+
+/**
+ * Route the page to a page type + strategy. `signals` are the pre-clean
+ * semantic signals; when omitted they are collected from the current tree
+ * (so direct routePage callers keep working on already-cleaned documents).
+ */
+export function routePage(doc: Document, signals: PageSignals = collectPageSignals(doc)): RouteDecision {
+  return routeByCounts(countAll(doc), signals)
 }
 
 // ---------------------------------------------------------------------------

@@ -715,21 +715,38 @@ const ptProduct: Fixture = {
     target: '/pt/product',
     kind: 'fixture',
     category: 'page_type',
-    mustContain: ['Four-spout infusion teapot'],
+    mustContain: [
+      'Four-spout infusion teapot',
+      'Hand-thrown stoneware with four spouts for even infusion.',
+    ],
     mustNotContain: B,
+    expectedTable: {
+      columns: 3,
+      rows: 2,
+      cells: {
+        '0,0': 'Capacity',
+        '0,1': 'Glaze',
+        '0,2': 'Firing',
+        '1,0': '600ml',
+        '1,1': 'Cobalt ash',
+        '1,2': '1260C',
+      },
+    },
     expectedLane: 'http',
     emptyIsLegit: false,
     expectedMainTokens: { min: 40, max: 900 },
     budget: budget(2000),
     expectedStatus: 'success',
     notes: 'Product page (spec table + description paragraphs). The table ' +
-      'strategy must return the spec table without losing the description. ' +
-      'Floor 40 = measured extract-tf 50 / golden 43.',
+      'strategy must return the spec table without losing the description, ' +
+      'and the router must see the JSON-LD Product type (title, description ' +
+      'and spec cells all asserted). Floor 40 = measured extract-tf 50 / golden 43.',
   },
   respond: () =>
     html(
       htmlPage({
         title: 'Four-spout infusion teapot',
+        headExtra: '<script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"Four-spout infusion teapot","description":"Hand-thrown stoneware with four spouts for even infusion.","brand":{"@type":"Brand","name":"Fixture Kiln"},"offers":{"@type":"Offer","price":"84.00","priceCurrency":"USD"}}</script>',
         bodyHtml: `<main>
 <h1>Four-spout infusion teapot</h1>
 <table><tr><th>Capacity</th><th>Glaze</th><th>Firing</th></tr><tr><td>600ml</td><td>Cobalt ash</td><td>1260C</td></tr></table>
@@ -745,7 +762,9 @@ const ptCollection: Fixture = {
     target: '/pt/collection',
     kind: 'fixture',
     category: 'page_type',
-    mustContain: ['Seasonal collection 2026'],
+    // One item from each section, so a strategy that stops at the first
+    // section cannot pass.
+    mustContain: ['Seasonal collection 2026', 'Cobalt teapot', 'Grey saucer'],
     mustNotContain: B,
     expectedLane: 'http',
     emptyIsLegit: false,
@@ -778,16 +797,21 @@ const ptForum: Fixture = {
     target: '/pt/forum',
     kind: 'fixture',
     category: 'page_type',
-    mustContain: ['Thread: best kiln temperature'],
+    // Both post bodies must survive the article cascade, not just the thread title.
+    mustContain: [
+      'Thread: best kiln temperature',
+      'glaze never crazes over the long winter months',
+      'harbour air keeps the clay from drying too fast',
+    ],
     mustNotContain: B,
     expectedLane: 'http',
     emptyIsLegit: false,
     expectedMainTokens: { min: 35, max: 900 },
     budget: budget(2000),
     expectedStatus: 'success',
-    notes: 'Forum thread page (posts). The router currently has no forum ' +
-      'strategy; it should still extract something sensible via the article ' +
-      'cascade rather than escalate. Floor 35 = measured golden 37.',
+    notes: 'Forum thread page (posts). The router must see the two ' +
+      'article.post containers and route to the forum type while the ' +
+      'article cascade extracts them. Floor 35 = measured golden 37.',
   },
   respond: () =>
     html(
@@ -795,8 +819,8 @@ const ptForum: Fixture = {
         title: 'Thread: best kiln temperature',
         bodyHtml: `<main>
 <h1>Thread: best kiln temperature</h1>
-<article class="post"><h2>Re: best kiln temperature</h2><p>We fire stoneware at 1260C and the glaze never crazes over the long winter months.</p></article>
-<article class="post"><h2>Re: best kiln temperature</h2><p>Our kiln holds 1240C steady, and the harbour air keeps the clay from drying too fast between firings.</p></article>
+<article class="post" data-post-id="1"><h2>Re: best kiln temperature</h2><p>We fire stoneware at 1260C and the glaze never crazes over the long winter months.</p></article>
+<article class="post" data-post-id="2"><h2>Re: best kiln temperature</h2><p>Our kiln holds 1240C steady, and the harbour air keeps the clay from drying too fast between firings.</p></article>
 </main>`,
       }),
     ),

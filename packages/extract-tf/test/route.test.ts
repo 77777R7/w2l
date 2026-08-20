@@ -2,8 +2,17 @@ import { describe, expect, it } from 'vitest'
 import { extractTf, routePage, selectList, selectTable } from '../src/index.js'
 import { parse } from '../src/dom.js'
 
-const wrap = (bodyHtml: string) =>
-  `<!doctype html><html><head><title>Page</title></head><body>${bodyHtml}</body></html>`
+const wrap = (bodyHtml: string, headExtra = '') =>
+  `<!doctype html><html><head><title>Page</title>${headExtra}</head><body>${bodyHtml}</body></html>`
+
+const PRODUCT_LD = (over = '') =>
+  `<script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"Four-spout infusion teapot","offers":{"@type":"Offer","price":"84.00","priceCurrency":"USD"}${over}}</script>`
+
+const TABLE_SNIPPET =
+  '<table><tr><th>Capacity</th><th>Glaze</th><th>Firing</th></tr><tr><td>600ml</td><td>Cobalt ash</td><td>1260C</td></tr></table>'
+
+const POST_SNIPPET = (n: number) =>
+  `<article class="post" data-post-id="${n}"><h2>Re: best kiln temperature</h2><p>Post body ${n} with enough prose to classify as a text block in the cascade.</p></article>`
 
 describe('routePage', () => {
   it('routes a link-farm list to listing', () => {
@@ -18,13 +27,102 @@ describe('routePage', () => {
     doc.close()
   })
 
-  it('routes a single-table page to table', () => {
+  it('routes a JSON-LD product page to product with the table strategy', () => {
+    const doc = parse(wrap(`<main><h1>Teapot</h1>${TABLE_SNIPPET}<p>Hand-thrown stoneware.</p></main>`, PRODUCT_LD()))
+    const d = routePage(doc.document)
+    expect(d.type).toBe('product')
+    expect(d.strategy).toBe('table')
+    doc.close()
+  })
+
+  it('routes a single-table page to collection with the table strategy (no product signal)', () => {
     const doc = parse(
       wrap('<main><h1>Readings</h1><table><tr><th>Station</th><th>Flow</th></tr><tr><td>Meridian</td><td>41</td></tr></table></main>'),
     )
     const d = routePage(doc.document)
     expect(d.type).toBe('collection')
     expect(d.strategy).toBe('table')
+    doc.close()
+  })
+
+  it('does not route a single product-spec-shaped table to product', () => {
+    // Product-spec headings alone are not proof of a product page.
+    const doc = parse(
+      wrap('<main><h1>Kiln archive</h1><table><tr><th>Capacity</th><th>Firing</th></tr><tr><td>600ml</td><td>1260C</td></tr></table></main>'),
+    )
+    const d = routePage(doc.document)
+    expect(d.type).toBe('collection')
+    doc.close()
+  })
+
+  it('routes a microdata product scope to product', () => {
+    const doc = parse(
+      wrap('<main><div itemscope itemtype="https://schema.org/Product"><h1>Teapot</h1><span itemprop="name">Four-spout teapot</span></div></main>'),
+    )
+    const d = routePage(doc.document)
+    expect(d.type).toBe('product')
+    doc.close()
+  })
+
+  it('routes a price itemprop to product', () => {
+    const doc = parse(wrap('<main><h1>Teapot</h1><span itemprop="price">84.00</span></main>'))
+    const d = routePage(doc.document)
+    expect(d.type).toBe('product')
+    doc.close()
+  })
+
+  it('routes a forum thread to forum with the article strategy', () => {
+    const doc = parse(wrap(`<main><h1>Thread: best kiln temperature</h1>${POST_SNIPPET(1)}${POST_SNIPPET(2)}</main>`))
+    const d = routePage(doc.document)
+    expect(d.type).toBe('forum')
+    expect(d.strategy).toBe('article')
+    doc.close()
+  })
+
+  it('routes a JSON-LD discussion to forum with the article strategy', () => {
+    const doc = parse(
+      wrap(
+        '<main><h1>Thread: kiln notes</h1>' +
+          '<div class="comment">The first kiln run held 1240C steady through the night.</div>' +
+          '<div class="comment">The second run cooled too fast and the glaze micro-cracked along the rim.</div>' +
+          '</main>',
+        '<script type="application/ld+json">{"@type":"DiscussionForumPosting"}</script>',
+      ),
+    )
+    const d = routePage(doc.document)
+    expect(d.type).toBe('forum')
+    expect(d.strategy).toBe('article')
+    doc.close()
+  })
+
+  it('does not route a long prose page to forum', () => {
+    const doc = parse(
+      wrap('<article><h1>Essay</h1>' +
+        Array.from({ length: 10 }, (_, i) => `<p>Paragraph ${i} with enough prose to satisfy the text length thresholds and count as real content.</p>`).join('') +
+        '</article>'),
+    )
+    const d = routePage(doc.document)
+    expect(d.type).toBe('article')
+    doc.close()
+  })
+
+  it('does not route a single post to forum', () => {
+    const doc = parse(wrap('<main><h1>Thread</h1>' + POST_SNIPPET(1) + '</main>'))
+    const d = routePage(doc.document)
+    expect(d.type).toBe('article')
+    doc.close()
+  })
+
+  it('does not route a prose page with many comment-shaped divs to forum', () => {
+    // Comment word in class names + "opinion" prose: still an article shape.
+    const doc = parse(
+      wrap('<article><h1>Kiln opinion essay</h1>' +
+        '<div class="comments-wrapper">Comments on the winter firing:</div>' +
+        Array.from({ length: 4 }, (_, i) => `<div class="comment-body"><p>Comment paragraph ${i} about glaze chemistry, holding schedules and the harbour air during firing week.</p></div>`).join('') +
+        '</article>'),
+    )
+    const d = routePage(doc.document)
+    expect(d.type).toBe('article')
     doc.close()
   })
 
@@ -51,6 +149,23 @@ describe('routePage', () => {
     expect(d.type).toBe('collection')
     expect(d.strategy).toBe('article')
     doc.close()
+  })
+
+  it('reaches all five PageType values', () => {
+    const cases: Array<{ html: string; type: string }> = [
+      { html: wrap('<article><h1>Essay</h1>' + Array.from({ length: 10 }, (_, i) => `<p>Paragraph ${i} with enough prose to satisfy the text length thresholds and count as real content.</p>`).join('') + '</article>'), type: 'article' },
+      { html: wrap('<main><h1>Logs</h1><ul>' + Array.from({ length: 10 }, (_, i) => `<li><a href="/l/${i}">Log ${i}</a></li>`).join('') + '</ul></main>'), type: 'listing' },
+      { html: wrap('<main><h1>Readings</h1><table><tr><th>Station</th><th>Flow</th></tr><tr><td>Meridian</td><td>41</td></tr></table></main>'), type: 'collection' },
+      { html: wrap(`<main><h1>Teapot</h1>${TABLE_SNIPPET}<p>Hand-thrown stoneware.</p></main>`, PRODUCT_LD()), type: 'product' },
+      { html: wrap(`<main><h1>Thread</h1>${POST_SNIPPET(1)}${POST_SNIPPET(2)}</main>`), type: 'forum' },
+    ]
+    const seen = new Set(cases.map((c) => {
+      const doc = parse(c.html)
+      const d = routePage(doc.document)
+      doc.close()
+      return d.type
+    }))
+    expect(seen).toEqual(new Set(['article', 'listing', 'collection', 'product', 'forum']))
   })
 })
 
@@ -91,32 +206,52 @@ describe('extractTf page types', () => {
     )
     const out = extractTf.extract(html)
     expect(out.pageType).toBe('listing')
+    expect(out.strategy).toBe('list')
     expect(out.mainHtml).toContain('Bespoke teapot catalog 01')
     expect(out.mainHtml).toContain('Bespoke teapot catalog 10')
     expect(out.escalate).toBe(false)
   })
 
   it('extracts a product page with the table strategy and keeps the description', () => {
-    const html = wrap(
-      '<main><h1>Four-spout infusion teapot</h1>' +
-        '<table><tr><th>Capacity</th><th>Glaze</th><th>Firing</th></tr><tr><td>600ml</td><td>Cobalt ash</td><td>1260C</td></tr></table>' +
-        '<p>Hand-thrown stoneware with four spouts for even infusion.</p></main>',
-    )
+    const html = wrap(`<main><h1>Four-spout infusion teapot</h1>${TABLE_SNIPPET}<p>Hand-thrown stoneware with four spouts for even infusion.</p></main>`, PRODUCT_LD())
     const out = extractTf.extract(html)
-    expect(out.pageType).toBe('collection')
+    expect(out.pageType).toBe('product')
+    expect(out.strategy).toBe('table')
     expect(out.mainHtml).toContain('Cobalt ash')
+    expect(out.mainHtml).toContain('four spouts')
     expect(out.escalate).toBe(false)
   })
 
-  it('still extracts a forum thread via the article cascade', () => {
+  it('keeps a product page product even when it has no table', () => {
+    // Page type and strategy are independent: no table => article strategy,
+    // but the semantic product signals still hold.
     const html = wrap(
-      '<main><h1>Thread: best kiln temperature</h1>' +
-        '<article class="post"><h2>Re: best kiln temperature</h2><p>We fire stoneware at 1260C and the glaze never crazes over the long winter months.</p></article>' +
-        '<article class="post"><h2>Re: best kiln temperature</h2><p>Our kiln holds 1240C steady, and the harbour air keeps the clay from drying too fast between firings.</p></article>' +
-        '</main>',
+      '<main><h1>Hand-thrown teacup</h1><p>Thrown from harbour clay, glazed with cobalt ash.</p></main>',
+      PRODUCT_LD(),
     )
     const out = extractTf.extract(html)
-    expect(out.mainHtml).toContain('glaze never crazes')
+    expect(out.pageType).toBe('product')
+    expect(out.strategy).toBe('article')
+    expect(out.escalate).toBe(false)
+  })
+
+  it('extracts a forum thread as forum via the article cascade, both posts intact', () => {
+    const html = wrap(`<main><h1>Thread: best kiln temperature</h1>${POST_SNIPPET(1)}${POST_SNIPPET(2)}</main>`)
+    const out = extractTf.extract(html)
+    expect(out.pageType).toBe('forum')
+    expect(out.strategy).toBe('article')
+    expect(out.mainHtml).toContain('Post body 1')
+    expect(out.mainHtml).toContain('Post body 2')
+    expect(out.escalate).toBe(false)
+  })
+
+  it('keeps type and strategy distinct: table strategy is not a product proof', () => {
+    const readings = wrap(
+      '<main><h1>Readings</h1><table><tr><th>Station</th><th>Flow</th></tr><tr><td>Meridian</td><td>41</td></tr></table></main>',
+    )
+    const out = extractTf.extract(readings)
+    expect(out.pageType).toBe('collection')
+    expect(out.strategy).toBe('table')
     expect(out.escalate).toBe(false)
   })
 })
