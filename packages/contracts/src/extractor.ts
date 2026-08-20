@@ -3,6 +3,9 @@
  * (extract-tf, the v0 readability wrapper, and any future tier).
  */
 
+/** Page shape the extractor routed to. */
+export type PageType = 'article' | 'listing' | 'collection' | 'product' | 'forum'
+
 export interface ExtractorOutput {
   /** Page title, or null when none could be found. */
   title: string | null
@@ -15,6 +18,8 @@ export interface ExtractorOutput {
    * The escalation target is intentionally unimplemented in v0.
    */
   escalate: boolean
+  /** Page type the router detected. */
+  pageType: PageType
 }
 
 export interface ExtractorOptions {

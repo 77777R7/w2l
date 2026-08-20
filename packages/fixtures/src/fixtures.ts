@@ -674,6 +674,134 @@ const t_largeColspan: Fixture = {
     ),
 }
 
+// ---------------------------------------------------------------------------
+// Page-type routing
+// ---------------------------------------------------------------------------
+
+const ptListing: Fixture = {
+  truth: {
+    id: 'pt-listing',
+    target: '/pt/listing',
+    kind: 'fixture',
+    category: 'page_type',
+    mustContain: ['Bespoke teapot catalog 04', 'Bespoke teapot catalog 01'],
+    mustNotContain: B,
+    expectedLane: 'http',
+    emptyIsLegit: false,
+    expectedMainTokens: { min: 50, max: 800 },
+    budget: budget(2000),
+    expectedStatus: 'success',
+    notes: 'Listing page (link farm + text descriptions). The list strategy must ' +
+      'return the list, not prose; the article cascade would drop every link.',
+  },
+  respond: () => {
+    const items = Array.from(
+      { length: 10 },
+      (_, i) =>
+        `<li><a href="/pt/item/${i + 1}">Bespoke teapot catalog ${String(i + 1).padStart(2, '0')}</a> — hand-thrown stoneware, glazed cobalt</li>`,
+    ).join('\n')
+    return html(
+      htmlPage({
+        title: 'Bespoke teapot catalog',
+        bodyHtml: `<main><h1>Bespoke teapot catalog</h1><ul>${items}</ul></main>`,
+      }),
+    )
+  },
+}
+
+const ptProduct: Fixture = {
+  truth: {
+    id: 'pt-product',
+    target: '/pt/product',
+    kind: 'fixture',
+    category: 'page_type',
+    mustContain: ['Four-spout infusion teapot'],
+    mustNotContain: B,
+    expectedLane: 'http',
+    emptyIsLegit: false,
+    expectedMainTokens: { min: 40, max: 900 },
+    budget: budget(2000),
+    expectedStatus: 'success',
+    notes: 'Product page (spec table + description paragraphs). The table ' +
+      'strategy must return the spec table without losing the description. ' +
+      'Floor 40 = measured extract-tf 50 / golden 43.',
+  },
+  respond: () =>
+    html(
+      htmlPage({
+        title: 'Four-spout infusion teapot',
+        bodyHtml: `<main>
+<h1>Four-spout infusion teapot</h1>
+<table><tr><th>Capacity</th><th>Glaze</th><th>Firing</th></tr><tr><td>600ml</td><td>Cobalt ash</td><td>1260C</td></tr></table>
+<p>Hand-thrown stoneware with four spouts for even infusion.</p>
+</main>`,
+      }),
+    ),
+}
+
+const ptCollection: Fixture = {
+  truth: {
+    id: 'pt-collection',
+    target: '/pt/collection',
+    kind: 'fixture',
+    category: 'page_type',
+    mustContain: ['Seasonal collection 2026'],
+    mustNotContain: B,
+    expectedLane: 'http',
+    emptyIsLegit: false,
+    expectedMainTokens: { min: 35, max: 900 },
+    budget: budget(2000),
+    expectedStatus: 'success',
+    notes: 'Collection page (multiple sections with links). The collection ' +
+      'strategy uses the article cascade on a page the router classifies as ' +
+      'a collection. Floor 35 = measured extract-tf 79 / golden 37.',
+  },
+  respond: () =>
+    html(
+      htmlPage({
+        title: 'Seasonal collection 2026',
+        bodyHtml: `<main>
+<h1>Seasonal collection 2026</h1>
+<h2>Stoneware</h2>
+<ul><li><a href="/pt/c/1">Cobalt teapot</a></li><li><a href="/pt/c/2">Ash jug</a></li></ul>
+<h2>Porcelain</h2>
+<ul><li><a href="/pt/c/3">Ivory cup</a></li><li><a href="/pt/c/4">Grey saucer</a></li></ul>
+<p>Curated from the winter kiln batch.</p>
+</main>`,
+      }),
+    ),
+}
+
+const ptForum: Fixture = {
+  truth: {
+    id: 'pt-forum',
+    target: '/pt/forum',
+    kind: 'fixture',
+    category: 'page_type',
+    mustContain: ['Thread: best kiln temperature'],
+    mustNotContain: B,
+    expectedLane: 'http',
+    emptyIsLegit: false,
+    expectedMainTokens: { min: 35, max: 900 },
+    budget: budget(2000),
+    expectedStatus: 'success',
+    notes: 'Forum thread page (posts). The router currently has no forum ' +
+      'strategy; it should still extract something sensible via the article ' +
+      'cascade rather than escalate. Floor 35 = measured golden 37.',
+  },
+  respond: () =>
+    html(
+      htmlPage({
+        title: 'Thread: best kiln temperature',
+        bodyHtml: `<main>
+<h1>Thread: best kiln temperature</h1>
+<article class="post"><h2>Re: best kiln temperature</h2><p>We fire stoneware at 1260C and the glaze never crazes over the long winter months.</p></article>
+<article class="post"><h2>Re: best kiln temperature</h2><p>Our kiln holds 1240C steady, and the harbour air keeps the clay from drying too fast between firings.</p></article>
+</main>`,
+      }),
+    ),
+}
+
 const staticList: Fixture = {
   truth: {
     id: 'static-list',
@@ -687,7 +815,8 @@ const staticList: Fixture = {
     expectedMainTokens: { min: 40, max: 600 },
     budget: budget(2000),
     expectedStatus: 'success',
-    notes: 'Index pages have little prose; readability-style extractors often drop them.',
+    notes: 'Index pages have little prose; readability-style extractors often drop them. ' +
+      'The h1 exists so the list strategy has a container.',
   },
   respond: () => {
     const items = Array.from(
@@ -1460,6 +1589,10 @@ export const FIXTURES: readonly Fixture[] = [
   t_large,
   t_colspanAmp,
   t_largeColspan,
+  ptListing,
+  ptProduct,
+  ptCollection,
+  ptForum,
   staticLong,
   staticList,
   malformed,

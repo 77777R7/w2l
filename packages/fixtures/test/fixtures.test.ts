@@ -51,6 +51,7 @@ describe('suite integrity', () => {
       'long_content',
       'retry',
       'table',
+      'page_type',
     ]) {
       expect(categories, `missing category ${required}`).toContain(required)
     }
