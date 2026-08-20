@@ -6,9 +6,10 @@ import { BareHttpSubject } from './subjects/bareHttp.js'
 import { GoldenConverterSubject } from './subjects/goldenConverter.js'
 import { ExtractTfSubject } from './subjects/extractTf.js'
 import { ResilientHttpSubject } from './subjects/resilientHttp.js'
+import { BrowserLocalSubject } from './subjects/browserLocal.js'
 
 /**
- * Open-web canary run: the four arms against curated real pages. This is
+ * Open-web canary run: the five arms against curated real pages. This is
  * the W2L extraction claim's first contact with the real world — the report
  * it writes under research/canary_reports/ is committed evidence, not CI.
  *
@@ -22,6 +23,7 @@ async function main() {
     new GoldenConverterSubject(),
     new ExtractTfSubject(),
     new ResilientHttpSubject(),
+    new BrowserLocalSubject(),
   ]
   const run = await runBenchmark(subjects, CANARY_SUITE.cases, ['http'], {
     interCaseDelayMs: 1000,
@@ -70,8 +72,8 @@ function reportLines(run: Awaited<ReturnType<typeof runBenchmark>>): string[] {
   out.push('')
 
   out.push('## Per-case detail', '')
-  out.push('| case | bare-http | golden | extract-tf | resilient-http |')
-  out.push('|---|---|---|---|---|')
+  out.push('| case | bare-http | golden | extract-tf | resilient-http | browser-local |')
+  out.push('|---|---|---|---|---|---|')
   for (let i = 0; i < run.cases.length; i++) {
     const c = run.cases[i]!
     const cells = run.outcomes.filter((o) => o.caseId === c.id)
@@ -87,7 +89,7 @@ function reportLines(run: Awaited<ReturnType<typeof runBenchmark>>): string[] {
       return `failed (${o.result.failureReason ?? '?'})`
     }
     out.push(
-      `| [${c.id}](${c.target}) | ${brief('bare-http')} | ${brief('golden-converter')} | ${brief('extract-tf')} | ${brief('resilient-http')} |`,
+      `| [${c.id}](${c.target}) | ${brief('bare-http')} | ${brief('golden-converter')} | ${brief('extract-tf')} | ${brief('resilient-http')} | ${brief('browser-local')} |`,
     )
   }
   out.push('')
@@ -105,6 +107,7 @@ function reportLines(run: Awaited<ReturnType<typeof runBenchmark>>): string[] {
   out.push('- bare-http sends no user-agent and no extraction: its blocked/failed counts are the open-web floor, not a regression.')
   out.push('- golden/extract-tf/resilient share the polite UA; differences among them are extraction quality, not politeness.')
   out.push('- Tier 1 is expected to clear on the http lane alone. Tier 2 is NOT: every tier-2 failure mode (bot gate, auth wall, JS shell) is precisely what the browser lane exists to solve — the tier-2 contentful rate IS the browser-lane value case, measured.')
+  out.push('- browser-local is the escalation target the http arms flag into: same extract-tf cascade, real Chromium. Its tier-2 delta against resilient-http is the measured value of the browser lane.')
   out.push('- challenge_text_returned failures on real pages double as bot-gate measurements.')
   out.push('')
   return out

@@ -23,6 +23,7 @@
     "@w2l/extract-tf": "*",
     "@w2l/fixtures": "*",
     "@w2l/http-core": "*",
+    "playwright": "^1.62.1",
     "undici": "^7.4.0"
   }
 }
