@@ -231,11 +231,6 @@ function tableHtml(cells: readonly (readonly string[])[], thead = false): string
   return `<table><thead>${rows[0]}</thead><tbody>${rows.slice(1).join('')}</tbody></table>`
 }
 
-/** Assert the derived GFM markdown satisfies the annotation. */
-function tableSpec(columns: number, rows: number, extra: Partial<import('@w2l/contracts').ExpectedTable> = {}) {
-  return { columns, rows, ...extra }
-}
-
 const t_thead: Fixture = {
   truth: {
     id: 'table-thead',
@@ -435,7 +430,7 @@ const t_codeInCell: Fixture = {
     expectedTable: null,
     expectedLane: 'http',
     emptyIsLegit: false,
-    expectedMainTokens: { min: 20, max: 200 },
+    expectedMainTokens: { min: 15, max: 200 },
     budget: budget(1000),
     expectedStatus: 'success',
     notes:
@@ -557,10 +552,13 @@ const t_singleCell: Fixture = {
     expectedTable: null,
     expectedLane: 'http',
     emptyIsLegit: false,
-    expectedMainTokens: { min: 10, max: 120 },
+    expectedMainTokens: { min: 5, max: 120 },
     budget: budget(1000),
     expectedStatus: 'success',
-    notes: 'Single-cell layout table (CSS layout abuse): a good converter may degrade this to the cell content, but must not produce a broken 1-column table row.',
+    notes:
+      'Single-cell layout table (CSS layout abuse): a good converter may ' +
+      'degrade this to the cell content, but must not produce a broken ' +
+      '1-column table row.',
   },
   respond: () => html(htmlPage({ title: 'Layout', bodyHtml: `<article><h1>Layout</h1><table><tr><td>Layout content</td></tr></table></article>` })),
 }

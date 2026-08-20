@@ -3,6 +3,7 @@ import { startFixtureServer } from '@w2l/fixtures'
 import { bindSuite } from '@w2l/fixtures'
 import { runBenchmark } from './runner.js'
 import { BareHttpSubject } from './subjects/bareHttp.js'
+import { GoldenConverterSubject } from './subjects/goldenConverter.js'
 
 async function main() {
   console.log('Starting benchmark runner...\n')
@@ -15,8 +16,8 @@ async function main() {
   const suite = bindSuite(server.url)
   console.log(`Suite: ${suite.name} v${suite.version} (${suite.cases.length} cases)\n`)
 
-  // Run benchmark with bare HTTP baseline
-  const subjects = [new BareHttpSubject()]
+  // Run benchmark with bare HTTP baseline and the golden converter reference
+  const subjects = [new BareHttpSubject(), new GoldenConverterSubject()]
   const result = await runBenchmark(subjects, suite.cases, ['http', 'browser_local'])
 
   // Print summary
