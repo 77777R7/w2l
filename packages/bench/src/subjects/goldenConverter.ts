@@ -2,6 +2,7 @@ import { estimateTokens, type FetchResult } from '@w2l/contracts'
 import { toGfmTable } from '@w2l/fixtures'
 import { request } from 'undici'
 import type { SubjectAdapter } from '../subject.js'
+import { POLITE_UA } from '../ua.js'
 
 /**
  * Golden converter: fetches the raw HTML, strips the page chrome down to the
@@ -29,6 +30,7 @@ export class GoldenConverterSubject implements SubjectAdapter {
         method: 'GET',
         headersTimeout: 10_000,
         bodyTimeout: 30_000,
+        headers: { 'user-agent': POLITE_UA },
       })
 
       const wallMs = Date.now() - start

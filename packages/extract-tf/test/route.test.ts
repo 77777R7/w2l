@@ -231,6 +231,34 @@ describe('routePage', () => {
     doc.close()
   })
 
+  it('routes a div-based listing to listing with the list strategy', () => {
+    // quotes.toscrape.com shape: 55 links in <div class="quote"> cards, no
+    // <ul>/<ol> at all, high link density (3.2 links/100 chars).
+    const html = wrap(
+      '<main><h1>Quotes</h1><div class="container">' +
+        Array.from({ length: 10 }, (_, i) =>
+          `<div class="quote"><span>Quote ${i} text here</span><a href="/a/${i}">Author ${i}</a><a href="/t/${i}">tag</a></div>`).join('') +
+        '</div></main>',
+    )
+    const d = routePage(parse(html).document)
+    expect(d.type).toBe('listing')
+    expect(d.strategy).toBe('list')
+  })
+
+  it('extracts a div-based listing via the container fallback', () => {
+    const html = wrap(
+      '<main><h1>Quotes</h1><div class="container">' +
+        Array.from({ length: 10 }, (_, i) =>
+          `<div class="quote"><span>Quote ${i} text here</span><a href="/a/${i}">Author ${i}</a><a href="/t/${i}">tag</a></div>`).join('') +
+        '</div></main>',
+    )
+    const out = extractTf.extract(html)
+    expect(out.pageType).toBe('listing')
+    expect(out.escalate).toBe(false)
+    expect(out.mainHtml).toContain('Author 0')
+    expect(out.mainHtml).toContain('Author 9')
+  })
+
   it('reaches all five PageType values', () => {
     const cases: Array<{ html: string; type: string }> = [
       { html: wrap('<article><h1>Essay</h1>' + Array.from({ length: 10 }, (_, i) => `<p>Paragraph ${i} with enough prose to satisfy the text length thresholds and count as real content.</p>`).join('') + '</article>'), type: 'article' },

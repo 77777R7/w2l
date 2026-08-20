@@ -1,4 +1,4 @@
-import type { BenchmarkRun, CaseOutcome, GroundTruth, RunEnvironment, SuiteScore } from '@w2l/contracts'
+import type { BenchmarkRun, CaseOutcome, GroundTruth, RunEnvironment, SuiteScore, SuiteMeta } from '@w2l/contracts'
 import { CONTENTFUL_STATUS } from '@w2l/contracts'
 import type { FetchResult } from '@w2l/contracts'
 import { checkFalseSuccess, isFalseSuccess } from './checker.js'
@@ -14,6 +14,10 @@ import type { SubjectAdapter } from './subject.js'
  * (absolute URLs to real sites) must never receive a /__reset request —
  * derive the origin from the first fixture case, and skip when there is none.
  */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 async function resetStatefulFixtures(cases: readonly GroundTruth[]): Promise<void> {
   const firstFixture = cases.find((c) => c.kind === 'fixture')
   if (!firstFixture) return
@@ -29,13 +33,22 @@ async function resetStatefulFixtures(cases: readonly GroundTruth[]): Promise<voi
  * Run one subject against all cases in a suite.
  * Returns a complete BenchmarkRun with outcomes, scores, and environment metadata.
  */
+export interface RunOptions {
+  /** Delay between cases, for open-web politeness. Fixture runs use 0. */
+  interCaseDelayMs?: number
+  /** Suite identity when cases come from outside the fixture server. */
+  suiteMeta?: SuiteMeta
+}
+
 export async function runBenchmark(
   subjects: readonly SubjectAdapter[],
   cases: readonly GroundTruth[],
   lanesUnderTest: readonly string[],
+  options: RunOptions = {},
 ): Promise<BenchmarkRun> {
   const env = await captureEnvironment()
   const outcomes: CaseOutcome[] = []
+  const { interCaseDelayMs = 0, suiteMeta } = options
 
   for (const subject of subjects) {
     console.log(`\nRunning subject: ${subject.meta.displayName}`)
@@ -43,6 +56,7 @@ export async function runBenchmark(
     await resetStatefulFixtures(cases)
     for (const truth of cases) {
       console.log(`  - ${truth.id}`)
+      if (interCaseDelayMs > 0) await sleep(interCaseDelayMs)
 
       // Wrap fetch in a timeout to prevent hanging fixtures from blocking the
       // pipeline. The timer must be cleared when the case completes normally —
@@ -123,9 +137,9 @@ export async function runBenchmark(
     runId: `run-${Date.now()}`,
     environment: env,
     suite: {
-      name: 'fixtures',
-      version: '0.1.0',
-      curatedAt: new Date().toISOString().split('T')[0]!,
+      name: suiteMeta?.name ?? 'fixtures',
+      version: suiteMeta?.version ?? '0.1.0',
+      curatedAt: suiteMeta?.curatedAt ?? new Date().toISOString().split('T')[0]!,
     },
     subjects: subjects.map((s) => s.meta),
     lanesUnderTest: lanesUnderTest as any,

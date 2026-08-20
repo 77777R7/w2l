@@ -4,6 +4,7 @@ import { toGfmTable } from '@w2l/fixtures'
 import { resilientFetch, type ResilientFetcher } from '@w2l/http-core'
 import { request } from 'undici'
 import type { SubjectAdapter } from '../subject.js'
+import { POLITE_UA } from '../ua.js'
 
 /**
  * Resilient HTTP subject: the resilient transport engine (redirect following
@@ -171,6 +172,7 @@ const undiciFetcher: ResilientFetcher = async (url, init) => {
     method: 'GET',
     headersTimeout: init.headersTimeoutMs,
     bodyTimeout: init.bodyTimeoutMs,
+    headers: { 'user-agent': POLITE_UA },
   })
   const buf = await response.body.arrayBuffer()
   const headers = response.headers

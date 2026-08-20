@@ -3,6 +3,7 @@ import { extractTf } from '@w2l/extract-tf'
 import { toGfmTable } from '@w2l/fixtures'
 import { request } from 'undici'
 import type { SubjectAdapter } from '../subject.js'
+import { POLITE_UA } from '../ua.js'
 
 /**
  * extract-tf subject: undici fetch + the extract-tf cascade. The first
@@ -30,6 +31,7 @@ export class ExtractTfSubject implements SubjectAdapter {
         method: 'GET',
         headersTimeout: 10_000,
         bodyTimeout: 30_000,
+        headers: { 'user-agent': POLITE_UA },
       })
 
       const wallMs = Date.now() - start

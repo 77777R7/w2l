@@ -26,18 +26,23 @@ interface RouterCounts {
   main: number
   textChars: number
   headings: number
+  /** Links per 100 chars of visible text — div-based listings have high density. */
+  linkDensity: number
 }
 
 function countAll(doc: Document): RouterCounts {
+  const textChars = (doc.body?.textContent ?? '').replace(/\s+/g, ' ').trim().length
+  const a = qsa(doc, 'a').length
   return {
     li: qsa(doc, 'li').length,
-    a: qsa(doc, 'a').length,
+    a,
     table: qsa(doc, 'table').length,
     tableInArticle: qsa(doc, 'article table').length,
     article: qsa(doc, 'article').length,
     main: qsa(doc, 'main').length,
     headings: qsa(doc, 'h1,h2,h3').length,
-    textChars: (doc.body?.textContent ?? '').replace(/\s+/g, ' ').trim().length,
+    textChars,
+    linkDensity: textChars > 0 ? (a / textChars) * 100 : 0,
   }
 }
 
@@ -218,6 +223,14 @@ function routeByCounts(c: RouterCounts, s: PageSignals): RouteDecision {
     return { type: 'listing', strategy: 'list' }
   }
 
+  // Div-based listing: no <li> structure, but a high link density means the
+  // page IS its links (quotes.toscrape.com: 55 links/1702 chars = 3.2/100;
+  // Wikipedia prose: ~1/100). The list strategy falls back to picking the
+  // densest link container when no ul/ol qualifies.
+  if (c.a >= 15 && c.linkDensity >= 2 && c.table === 0 && c.article === 0) {
+    return { type: 'listing', strategy: 'list' }
+  }
+
   // Small collection page: some linked sections, not a dominant list.
   if (c.li >= 4 && c.a >= 4 && c.textChars < 2000) {
     return { type: 'collection', strategy: 'article' }
@@ -273,7 +286,28 @@ export function selectList(doc: Document): Element | null {
       best = el
     }
   }
-  return best
+  if (best) return best
+
+  // Div-based listings: no list markup, but the page's content is a set of
+  // link-carrying sibling cards. Pick the container with the most linked
+  // children, preferring the DEEPEST qualifying one so the whole page
+  // wrapper doesn't win by aggregate link count.
+  let bestDiv: Element | null = null
+  let bestDivDepth = -1
+  let bestDivLinks = 0
+  for (const el of qsa(doc, 'div,section')) {
+    const kids = Array.from(el.children)
+    const linkedKids = kids.filter((k) => qsa(k, 'a').length > 0).length
+    if (linkedKids < 3) continue
+    let depth = 0
+    for (let p = el.parentElement; p; p = p.parentElement) depth++
+    if (linkedKids > bestDivLinks || (linkedKids === bestDivLinks && depth > bestDivDepth)) {
+      bestDivLinks = linkedKids
+      bestDivDepth = depth
+      bestDiv = el
+    }
+  }
+  return bestDiv
 }
 
 function commonAncestor(a: Element, b: Element): Element | null {

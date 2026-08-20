@@ -9,6 +9,7 @@
     { "path": "../contracts" },
     { "path": "../fixtures" },
     { "path": "../extract-tf" },
-    { "path": "../http-core" }
+    { "path": "../http-core" },
+    { "path": "../canary" }
   ]
 }

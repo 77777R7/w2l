@@ -50,7 +50,7 @@ export function checkFalseSuccess(
     'Checking your browser',
     'Are you a robot',
     'Access denied',
-    'Cloudflare',
+    'Cloudflare Ray ID',
   ]
   const md = result.markdown ?? ''
   const foundChallenge = challengePatterns.some((p) => md.includes(p))
