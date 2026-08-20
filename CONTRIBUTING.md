@@ -79,6 +79,20 @@ npm test -- packages/http-core
 npm run bench
 ```
 
+## License Gate (CI)
+
+**依赖白名单**（与 MIT SDK 兼容）：MIT / Apache-2.0 / BSD-2 / BSD-3 / ISC / MPL-2.0（MPL 文件须保持未修改、独立成文件）。
+
+**禁止引入**（作为依赖或作为代码阅读/移植来源，写入 review checklist）：
+
+- `crawl4ai` 及其 markdown 路径、Python `html2text`——crawl4ai 宣称 Apache-2.0 但完整内嵌 GPL-3.0-or-later 的 html2text 且零 GPL 声明，任何移植都有衍生作品争议
+- Firecrawl scraper 根、`nodesig`——AGPL-3.0
+- `CycleTLS`——GPL-3.0
+- GPL-3.0-only 过滤列表数据（uAssets、IDCAC、ISDCAC）
+- MinerU-HTML v1.1（腾讯 Hunyuan 社区许可）、ReaderLM-v2 免费权重（CC-BY-NC-4.0）
+
+**澄清**：trafilatura 自 v2.2.0 起是 Apache-2.0（jusText BSD-2-Clause），阅读与重实现其算法无 copyleft 风险；自托管 Firecrawl / Crawl4AI 只可用于 benchmark 对比，不可链接。
+
 ## Questions?
 
 Open an issue with the `question` label.

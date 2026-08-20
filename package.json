@@ -15,6 +15,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.14.0",
+    "linkedom": "^0.18.13",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0",
     "undici": "^7.4.0",

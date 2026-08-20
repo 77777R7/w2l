@@ -65,7 +65,7 @@ fixture 必须经本地 HTTP server 提供，不能走 `file://`（`file://` 正
 - **不基于 Crawlee 构建**（修正 research 文档阶段 0 的建议）：Crawlee 的队列、存储、autoscaling 抽象会与我们的 SQLite task/attempt/step 模型冲突，而**执行循环正是我们差异化（trace、成本、失败分类）所在的层**，必须自己拥有。Crawlee 是 Apify 的漏斗，深度依赖它等于把架构绑在最直接竞争者的路线图上。"不重写浏览器引擎"的原则不变——Playwright 就是浏览器引擎，我们不碰它以下的东西。
 - 具体选型：
   - HTTP lane：`undici`（原生、快、可控超时）
-  - 解析：`cheerio` + `@mozilla/readability`（主内容提取）+ `turndown`（Markdown 转换）——三者都是成熟库，正文清洗不自研算法，先调参
+  - 解析：`cheerio`（廉价选择器）+ `@mozilla/readability`（主内容提取，v0 过渡，包在 Extractor 接口后）+ unified 栈 `rehype-parse → rehype-remark → remark-gfm → remark-stringify`（Markdown 转换，全 MIT）——**Markdown 转换必须在主内容提取之后**（裸 HTML→MD 当提取器 F1 仅 0.15–0.18）；turndown + @joplin/turndown-plugin-gfm 仅作基准对照臂。详见 `research/extraction_precision_deep_research.md`，两个旧 GFM 插件（turndown-plugin-gfm@1.0.2、joplin-turndown-plugin-gfm@1.0.12）硬禁用
   - Token 计数：`tiktoken`（wasm 版）
   - 存储：`better-sqlite3`（同步 API，checkpoint 写入简单可靠）
   - API：`hono`（轻，可同时跑 node/bun）
@@ -193,10 +193,10 @@ Tier 0+1（诚实 header + 限速 + 本地浏览器 + 用户登录态）在长�
 
 ```
 第 0 周：benchmark harness（验收标准见下）
-  30 个 fixture（含 ground truth 标注）+ 20 个线上 canary
+  30 个 fixture（含 ground truth 标注）+ 16 个 table 形状 fixture + 20 个线上 canary
   + 一键运行的评分系统 + 对照组基线跑分
 第 1-2 周：HTTP lane 端到端
-  undici 抓取 → readability/turndown 管线 → 失败分类 + 空结果三分类
+  undici 抓取 → 提取器接口（v0: readability；并行: trafilatura XPath 级联 TS 重实现）→ 后提取规范化（含表 colspan/rowspan 钳制）→ unified 栈转 Markdown → 失败分类 + 空结果三分类
   → SQLite task/attempt/step 落库 → CLI 输出带 trace
   → SSRF 防护 + 取消传播 + 资源上限（§2.6，与功能同步不后补）
   验收：fixture 静态组正确率达门槛；假成功率可自动计算

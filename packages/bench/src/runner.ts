@@ -21,10 +21,12 @@ export async function runBenchmark(
     for (const truth of cases) {
       console.log(`  - ${truth.id}`)
 
-      // Wrap fetch in a timeout to prevent hanging fixtures from blocking the pipeline
-      const fetchPromise = subject.fetch(truth.target)
+      // Wrap fetch in a timeout to prevent hanging fixtures from blocking the
+      // pipeline. The timer must be cleared when the case completes normally —
+      // a resolved-but-uncleared timeout keeps the process alive.
+      let timer: ReturnType<typeof setTimeout> | undefined
       const timeoutPromise = new Promise<FetchResult>((resolve) => {
-        setTimeout(() => {
+        timer = setTimeout(() => {
           resolve({
             requestedUrl: truth.target,
             status: 'budget_exceeded',
@@ -62,7 +64,12 @@ export async function runBenchmark(
         }, 60_000) // 60 second timeout per case
       })
 
-      const result = await Promise.race([fetchPromise, timeoutPromise])
+      let result: FetchResult
+      try {
+        result = await Promise.race([subject.fetch(truth.target), timeoutPromise])
+      } finally {
+        clearTimeout(timer)
+      }
       const checks = checkFalseSuccess(result, truth)
       const statusMatched = result.status === truth.expectedStatus
       const laneMatched = result.lane === truth.expectedLane

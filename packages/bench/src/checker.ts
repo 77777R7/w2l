@@ -1,7 +1,7 @@
 import type { CheckResult, FalseSuccessCheck, GroundTruth } from '@w2l/contracts'
 import { CONTENTFUL_STATUS, EVIDENCE_ONLY_CHECKS } from '@w2l/contracts'
 import type { FetchResult } from '@w2l/contracts'
-import { estimateTokens } from '@w2l/contracts'
+import { estimateTokens, evaluateExpectedTable } from '@w2l/contracts'
 
 /**
  * Run the five false-success checks against a contentful result.
@@ -14,18 +14,32 @@ export function checkFalseSuccess(
   const checks: CheckResult[] = []
 
   // Check 1: missing_required_content
-  if (truth.mustContain.length > 0 && result.markdown) {
+  const hasAnnotation = truth.mustContain.length > 0 || truth.expectedTable != null
+  if (hasAnnotation && result.markdown) {
     const missing = truth.mustContain.filter((s) => !result.markdown!.includes(s))
+    if (truth.expectedTable != null) {
+      const tableCheck = evaluateExpectedTable(result.markdown, truth.expectedTable)
+      if (!tableCheck.pass) missing.push(...tableCheck.issues.map((i) => `[table] ${i}`))
+    }
     checks.push({
       check: 'missing_required_content',
       outcome: missing.length === 0 ? 'pass' : 'fail',
       detail: missing.length > 0 ? `Missing: ${missing.join(', ')}` : null,
     })
+  } else if (hasAnnotation) {
+    // Contentful status with an annotation but empty/no markdown: the required
+    // content is missing by definition. An 'unknown' here would let the most
+    // classic false success (success + empty body) slip through.
+    checks.push({
+      check: 'missing_required_content',
+      outcome: 'fail',
+      detail: 'Contentful status but markdown is empty',
+    })
   } else {
     checks.push({
       check: 'missing_required_content',
       outcome: 'unknown',
-      detail: 'No mustContain annotation or no markdown',
+      detail: 'No mustContain/expectedTable annotation or no markdown',
     })
   }
 
