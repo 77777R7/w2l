@@ -140,6 +140,10 @@ export class BrowserLocalSubject implements SubjectAdapter {
       }
     } catch (err) {
       const wallMs = Date.now() - start
+      // Playwright surfaces deadline misses as TimeoutError; map them to the
+      // contract's timeout reason so the timeout fixtures match, and leave
+      // every other navigation failure as connection_error.
+      const reason = err instanceof Error && err.name === 'TimeoutError' ? 'timeout' : 'connection_error'
       trace.push({
         at: wallMs,
         lane: 'browser_local',
@@ -149,7 +153,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
       return {
         requestedUrl: url,
         status: 'failed',
-        failureReason: 'connection_error',
+        failureReason: reason,
         blockReason: null,
         budgetExceeded: null,
         lane: 'browser_local',
