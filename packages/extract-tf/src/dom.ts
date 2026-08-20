@@ -14,7 +14,14 @@ export interface DomDoc {
 }
 
 export function parse(html: string): DomDoc {
-  const { document } = parseHTML(html)
+  let { document } = parseHTML(html)
+  // linkedom parses '' (and whitespace-only input) to a document whose
+  // documentElement is null; its head/body getters then THROW on access.
+  // Real crawls hit empty 200 bodies constantly (the empty-body fixture),
+  // so normalize to a minimal empty document instead.
+  if ((document as unknown as { documentElement: unknown }).documentElement == null) {
+    ;({ document } = parseHTML('<html><head></head><body></body></html>'))
+  }
   return {
     document: document as unknown as Document,
     close: () => {},

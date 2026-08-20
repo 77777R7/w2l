@@ -7,6 +7,8 @@
   "include": ["src/**/*.ts"],
   "references": [
     { "path": "../contracts" },
-    { "path": "../fixtures" }
+    { "path": "../fixtures" },
+    { "path": "../extract-tf" },
+    { "path": "../http-core" }
   ]
 }

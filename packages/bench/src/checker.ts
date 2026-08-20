@@ -87,17 +87,38 @@ export function checkFalseSuccess(
   }
 
   // Check 4: wrong_page_content
-  // Simplified: if finalUrl differs from requestedUrl and status is success, suspect redirect to home/login.
-  // A real implementation compares content hash against known wrong-page patterns.
-  const wrongPage =
-    result.status === 'success' &&
+  // A followed redirect is only "wrong page" when the annotated facts are
+  // absent from the delivered content. A chain that lands on content carrying
+  // every mustContain fact is a legitimately followed redirect, not a false
+  // success. Without a mustContain annotation the content identity cannot be
+  // decided here (that needs the wrong-page probe) — report unknown and let
+  // expectedStatus mismatches do the catching.
+  const redirected =
     result.evidence.finalUrl !== result.requestedUrl &&
     result.evidence.redirectChain.length > 0
-  checks.push({
-    check: 'wrong_page_content',
-    outcome: wrongPage ? 'fail' : 'pass',
-    detail: wrongPage ? `Redirected to ${result.evidence.finalUrl}` : null,
-  })
+  if (redirected && truth.mustContain.length > 0) {
+    const missing = truth.mustContain.filter((s) => !(result.markdown ?? '').includes(s))
+    checks.push({
+      check: 'wrong_page_content',
+      outcome: missing.length === 0 ? 'pass' : 'fail',
+      detail:
+        missing.length > 0
+          ? `Redirected to ${result.evidence.finalUrl} but missing: ${missing.join(', ')}`
+          : null,
+    })
+  } else if (redirected) {
+    checks.push({
+      check: 'wrong_page_content',
+      outcome: 'unknown',
+      detail: 'Redirected but no mustContain annotation to verify content identity',
+    })
+  } else {
+    checks.push({
+      check: 'wrong_page_content',
+      outcome: 'pass',
+      detail: null,
+    })
+  }
 
   // Check 5: silent_truncation
   const silentTrunc = result.truncated && result.truncatedAt === null

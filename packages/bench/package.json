@@ -21,6 +21,7 @@
     "@w2l/contracts": "*",
     "@w2l/extract-tf": "*",
     "@w2l/fixtures": "*",
+    "@w2l/http-core": "*",
     "undici": "^7.4.0"
   }
 }

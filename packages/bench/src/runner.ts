@@ -5,6 +5,27 @@ import { checkFalseSuccess, isFalseSuccess } from './checker.js'
 import type { SubjectAdapter } from './subject.js'
 
 /**
+ * Reset the fixture server's stateful fixtures before each subject, so every
+ * subject observes attempt 1 (the flaky fixture is global mutable state). The
+ * control route is not part of the suite; this is the runner's contract with
+ * the fixture server, not a subject behaviour.
+ *
+ * Only fixture-kind cases carry a fixture-server origin. A canary suite
+ * (absolute URLs to real sites) must never receive a /__reset request —
+ * derive the origin from the first fixture case, and skip when there is none.
+ */
+async function resetStatefulFixtures(cases: readonly GroundTruth[]): Promise<void> {
+  const firstFixture = cases.find((c) => c.kind === 'fixture')
+  if (!firstFixture) return
+  const origin = new URL(firstFixture.target).origin
+  const res = await fetch(`${origin}/__reset`)
+  if (res.status !== 204) {
+    throw new Error(`fixture reset failed: ${res.status} ${origin}/__reset`)
+  }
+  await res.body?.cancel()
+}
+
+/**
  * Run one subject against all cases in a suite.
  * Returns a complete BenchmarkRun with outcomes, scores, and environment metadata.
  */
@@ -18,6 +39,8 @@ export async function runBenchmark(
 
   for (const subject of subjects) {
     console.log(`\nRunning subject: ${subject.meta.displayName}`)
+    // Every subject must start from attempt 1 of stateful fixtures.
+    await resetStatefulFixtures(cases)
     for (const truth of cases) {
       console.log(`  - ${truth.id}`)
 

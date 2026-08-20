@@ -277,6 +277,15 @@ describe('strategies', () => {
 })
 
 describe('extractTf page types', () => {
+  it('handles an empty body without throwing: escalates, never succeeds', () => {
+    // linkedom parses '' to a document with a null documentElement whose
+    // body getter throws; parse() must normalize that away (empty 200
+    // responses are an everyday crawl case, e.g. the empty-body fixture).
+    const out = extractTf.extract('')
+    expect(out.escalate).toBe(true)
+    expect(out.mainHtml).toBe('')
+  })
+
   it('extracts a listing page as listing with the list strategy', () => {
     const html = wrap(
       '<main><h1>Bespoke teapot catalog</h1><ul>' +
