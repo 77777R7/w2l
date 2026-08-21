@@ -1,5 +1,6 @@
 import { createServer, type Server } from 'node:http'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { verifyLedger } from '@w2l/http-core'
 import { BrowserLocalSubject } from '../src/subjects/browserLocal.js'
 
 /**
@@ -12,9 +13,13 @@ import { BrowserLocalSubject } from '../src/subjects/browserLocal.js'
 let server: Server
 let url: string
 let flakyHits = 0
+let robotsHits = 0
+let privateHits = 0
 
 beforeAll(async () => {
   flakyHits = 0
+  robotsHits = 0
+  privateHits = 0
   server = createServer((req, res) => {
     if (req.url === '/spa') {
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
@@ -48,6 +53,24 @@ beforeAll(async () => {
     } else if (req.url === '/plain-403') {
       res.writeHead(403, { 'content-type': 'text/html; charset=utf-8' })
       res.end('<!doctype html><html><body><h1>403 Forbidden</h1></body></html>')
+    } else if (req.url === '/robots.txt') {
+      robotsHits++
+      res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' })
+      res.end('User-agent: *\nDisallow: /private\nAllow: /private/ok\n')
+    } else if (req.url?.startsWith('/private')) {
+      // Reachable in principle — robots is what must stop us, not the server.
+      // Body is substantive so an extraction escalation can't be mistaken for
+      // a robots refusal on the paths robots actually allows.
+      privateHits++
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+      res.end(
+        '<!doctype html><html><body><article><h1>Private area</h1>' +
+          '<p>This page sits under the /private prefix that robots.txt disallows, and it is served ' +
+          'normally by the origin so that the only thing capable of preventing a fetch is the ' +
+          'crawler honouring the rules it claims to honour.</p>' +
+          '<p>The more specific Allow rule beneath the same prefix is what distinguishes a correct ' +
+          'longest-match implementation from one that simply refuses the whole subtree.</p></article></body></html>',
+      )
     } else {
       res.writeHead(404).end()
     }
@@ -89,10 +112,105 @@ describe('BrowserLocalSubject transport', () => {
       // The honesty check runs inside fetch and, on a clean context, must be
       // silent — a mismatch surfaces as an identity_mismatch trace event.
       expect(out.trace.filter((t) => t.event === 'identity_mismatch')).toHaveLength(0)
-      // robots is recorded as no_robots — this subject does not consult it, and
-      // the record must say so rather than pretend a check happened.
-      expect(record.robots.decision).toBe('no_robots')
+      // robots.txt was really consulted: the record cites the URL it read and
+      // the group that governed the decision, not a placeholder.
+      expect(record.robots.decision).toBe('allowed')
+      expect(record.robots.robotsUrl).toBe(`${url}/robots.txt`)
+      expect(record.robots.robotsSha256).toMatch(/^[0-9a-f]{64}$/)
+      expect(record.robots.matchedUserAgentGroup).toBe('*')
       expect(record.robots.skippedFetch).toBe(false)
+    } finally {
+      await subject.teardown()
+    }
+  })
+
+  it('refuses a robots-disallowed path and still mints a record proving it', async () => {
+    const subject = new BrowserLocalSubject()
+    const before = privateHits
+    try {
+      const out = await subject.fetch(`${url}/private/secret`)
+      // The declared identity claims respectsRobots; the only thing that makes
+      // that claim mean anything is the fetch not happening.
+      expect(privateHits).toBe(before)
+      expect(out.status).toBe('failed')
+      expect(out.failureReason).toBe('policy_denied')
+      expect(out.markdown).toBeNull()
+
+      const record = out.compliance!
+      expect(record.robots.decision).toBe('disallowed')
+      expect(record.robots.skippedFetch).toBe(true)
+      // The rule that did it is cited, so the publisher can check the verdict
+      // against their own robots.txt rather than take our word for it.
+      expect(record.robots.appliedRules.map((r) => r.pattern)).toContain('/private')
+    } finally {
+      await subject.teardown()
+    }
+  })
+
+  it('honours a more-specific Allow beneath a Disallow', async () => {
+    const subject = new BrowserLocalSubject()
+    try {
+      const out = await subject.fetch(`${url}/private/ok`)
+      expect(out.status).toBe('success')
+      const record = out.compliance!
+      expect(record.robots.decision).toBe('allowed')
+      expect(record.robots.appliedRules.map((r) => r.pattern)).toEqual(['/private/ok', '/private'])
+    } finally {
+      await subject.teardown()
+    }
+  })
+
+  it('fetches robots.txt once per origin, not once per page', async () => {
+    const subject = new BrowserLocalSubject()
+    const before = robotsHits
+    try {
+      await subject.fetch(`${url}/spa`)
+      await subject.fetch(`${url}/spa`)
+      await subject.fetch(`${url}/spa`)
+      expect(robotsHits - before).toBe(1)
+    } finally {
+      await subject.teardown()
+    }
+  })
+
+  it('chains every record in a run into one verifiable ledger', async () => {
+    const subject = new BrowserLocalSubject()
+    try {
+      await subject.fetch(`${url}/spa`)
+      await subject.fetch(`${url}/private/secret`) // denied, but still recorded
+      await subject.fetch(`${url}/spa`)
+
+      const ledger = subject.ledger()
+      expect(ledger.records).toHaveLength(3)
+      expect(ledger.records[0]!.prevRecordHash).toBeNull()
+      expect(ledger.records[1]!.prevRecordHash).toBe(ledger.records[0]!.contentHash)
+      expect(ledger.records[2]!.prevRecordHash).toBe(ledger.records[1]!.contentHash)
+
+      const verdict = verifyLedger(ledger)
+      expect(verdict.valid).toBe(true)
+      expect(verdict.headHash).toBe(ledger.records[2]!.contentHash)
+    } finally {
+      await subject.teardown()
+    }
+  })
+
+  it('a ledger with the denied fetch removed fails verification', async () => {
+    // The reason to chain at all: dropping the inconvenient record must be
+    // detectable, or the ledger only proves what we chose to admit.
+    const subject = new BrowserLocalSubject()
+    try {
+      await subject.fetch(`${url}/spa`)
+      await subject.fetch(`${url}/private/secret`)
+      await subject.fetch(`${url}/spa`)
+
+      const ledger = subject.ledger()
+      const scrubbed = {
+        ...ledger,
+        records: [ledger.records[0]!, ledger.records[2]!],
+      }
+      const verdict = verifyLedger(scrubbed)
+      expect(verdict.valid).toBe(false)
+      expect(verdict.violations.some((v) => v.kind === 'broken_link')).toBe(true)
     } finally {
       await subject.teardown()
     }

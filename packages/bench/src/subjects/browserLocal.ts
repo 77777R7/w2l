@@ -6,8 +6,12 @@ import {
   escalationForBlock,
   isRetryableStatus,
   parseRetryAfterMs,
-  buildComplianceRecord,
+  ComplianceChain,
+  evaluateRobots,
+  parseRobotsTxt,
+  sha256Hex,
   type ComplianceRecord,
+  type ComplianceRobotsDecision,
   type ComplianceSentHeader,
 } from '@w2l/http-core'
 import { chromium, type Browser, type Response } from 'playwright'
@@ -23,6 +27,25 @@ import {
 } from '@w2l/contracts'
 
 /**
+ * Whether a content-type is a plain-text document. robots.txt must be
+ * `text/plain` per RFC 9309 §2.3; anything else is a route that happened to
+ * answer, not a rules file.
+ */
+function isPlainText(contentType: string | null): boolean {
+  if (contentType === null) return true // no type declared — take it at face value
+  return contentType.toLowerCase().trimStart().startsWith('text/plain')
+}
+
+/** One origin's robots.txt as fetched for this run. */interface CachedRobots {
+  robotsUrl: string
+  /** Null when robots.txt was absent, unreachable, or not a text document. */
+  robots: ReturnType<typeof parseRobotsTxt> | null
+  sha256: string | null
+  /** True when the server explicitly said there is none (4xx), vs a failure. */
+  absent: boolean
+}
+
+/**
  * Browser-local subject: the escalation target the http lane flags into.
  * Direct Playwright (ADR 0001) — one headless Chromium per run, one fresh
  * page per case, real script execution, real fingerprint.
@@ -32,6 +55,11 @@ import {
  * hints are aligned to it. The declared-vs-sent check (checkIdentityHonesty)
  * runs on every fetch and is recorded into the trace — a UA that Playwright
  * mutates on the wire is surfaced as a mismatch, never papered over.
+ *
+ * robots.txt is fetched per origin and evaluated against the mode's declared
+ * UA before navigation; a disallow ends the fetch as `policy_denied` and still
+ * mints a record. Every record joins one per-run hash chain, so the ledger a
+ * publisher receives is missing-record-evident, not just tamper-evident.
  *
  * The rendered DOM goes through the SAME extract-tf cascade as the http
  * arms, so any score delta against resilient-http is attributable to
@@ -48,8 +76,23 @@ export class BrowserLocalSubject implements SubjectAdapter {
   private browser: Browser | null = null
   /** Per-host last-request timestamp, for honest rate-limit facts. */
   private readonly lastRequestAtMsByHost = new Map<string, number>()
+  /**
+   * Per-host robots.txt, fetched once and reused. Caching is itself a
+   * politeness property — re-fetching robots.txt before every page would be
+   * the opposite of what the file is for.
+   */
+  private readonly robotsByOrigin = new Map<string, CachedRobots>()
+  /** The run's hash chain. Every record this subject mints links into it. */
+  private readonly chain: ComplianceChain
 
-  constructor(private readonly mode: CrawlMode = 'standard') {}
+  constructor(private readonly mode: CrawlMode = 'standard') {
+    this.chain = new ComplianceChain(crypto.randomUUID(), mode)
+  }
+
+  /** Snapshot of the run's ledger, for callers that persist or verify it. */
+  ledger(): ReturnType<ComplianceChain['toLedger']> {
+    return this.chain.toLedger()
+  }
 
   async fetch(url: string): Promise<FetchResult> {
     const start = Date.now()
@@ -65,6 +108,85 @@ export class BrowserLocalSubject implements SubjectAdapter {
       const major = Number(version.split('.')[0] ?? CHROME_MAJOR_FLOOR)
       const identity = modeIdentity(this.mode, Number.isFinite(major) ? major : CHROME_MAJOR_FLOOR)
 
+      // Robots is consulted BEFORE the browser context is opened. Every mode
+      // declares respectsRobots: true, and the only way that claim means
+      // anything is if a disallow actually stops the fetch — a record that
+      // says "disallowed" next to a page we fetched anyway would be a
+      // self-documenting violation.
+      const cachedRobots = await this.robotsFor(url, identity.userAgent)
+      const robotsDecision = this.robotsDecisionFor(cachedRobots, url, identity.userAgent)
+      trace.push({
+        at: Date.now() - start,
+        lane: 'browser_local',
+        event: 'robots_checked',
+        detail: {
+          decision: robotsDecision.decision,
+          robotsUrl: robotsDecision.robotsUrl,
+          matchedGroup: robotsDecision.matchedUserAgentGroup,
+          ruleCount: robotsDecision.appliedRules.length,
+        },
+      })
+
+      const host = this.hostOf(url)
+
+      if (identity.respectsRobots && robotsDecision.decision === 'disallowed') {
+        const wallMs = Date.now() - start
+        const record = this.chain.append({
+          recordId: crypto.randomUUID(),
+          mode: this.mode,
+          requestedUrl: url,
+          finalUrl: null,
+          requestedAt: new Date(start).toISOString(),
+          robots: { ...robotsDecision, skippedFetch: true },
+          sentHeaders: { headers: [] },
+          rateLimit: {
+            previousRequestAtMs: this.lastRequestAtMsByHost.get(host) ?? null,
+            observedDelayMs: null,
+            requiredDelayMs: DEFAULT_NETWORK_POLICY.perHostMinDelayMs,
+            compliant: true,
+            recentSameHostCount: 0,
+          },
+        })
+        trace.push({
+          at: wallMs,
+          lane: 'browser_local',
+          event: 'robots_disallowed',
+          detail: { url, appliedRules: robotsDecision.appliedRules },
+        })
+        return {
+          requestedUrl: url,
+          status: 'failed',
+          failureReason: 'policy_denied',
+          blockReason: null,
+          budgetExceeded: null,
+          lane: 'browser_local',
+          escalations: [],
+          markdown: null,
+          truncated: false,
+          truncatedAt: null,
+          compliance: record,
+          evidence: {
+            finalUrl: url,
+            httpStatus: null,
+            redirectChain: [],
+            contentType: null,
+            rawBodySha256: null,
+            artifacts: [],
+          },
+          usage: {
+            wallMs,
+            bytesWire: 0,
+            bytesDecompressed: 0,
+            requestCount: 0,
+            attemptCount: 0,
+            contentTokens: null,
+            browserMs: 0,
+            externalCostUsd: null,
+          },
+          trace,
+        }
+      }
+
       context = await browser.newContext({
         userAgent: identity.userAgent,
         locale: BROWSER_FINGERPRINT.locale,
@@ -77,7 +199,6 @@ export class BrowserLocalSubject implements SubjectAdapter {
       page = await context.newPage()
 
       // Rate-limit facts for this host, captured before the request.
-      const host = this.hostOf(url)
       const previousRequestAtMs = this.lastRequestAtMsByHost.get(host) ?? null
       const observedDelayMs = previousRequestAtMs === null ? null : Date.now() - previousRequestAtMs
       const requiredDelayMs = DEFAULT_NETWORK_POLICY.perHostMinDelayMs
@@ -130,23 +251,16 @@ export class BrowserLocalSubject implements SubjectAdapter {
         })
       }
 
-      // The per-fetch compliance record. robots decision is recorded as
-      // `no_robots` — this subject does not consult robots.txt, and claiming
-      // otherwise would be the exact lie the record exists to expose.
-      const record: ComplianceRecord = buildComplianceRecord({
+      // The per-fetch compliance record, appended to the run's hash chain so
+      // this fetch commits to every fetch before it. The robots facts are the
+      // ones actually evaluated above, not a placeholder.
+      const record: ComplianceRecord = this.chain.append({
         recordId: crypto.randomUUID(),
         mode: this.mode,
         requestedUrl: url,
         finalUrl,
         requestedAt: new Date(start).toISOString(),
-        robots: {
-          robotsUrl: null,
-          robotsSha256: null,
-          matchedUserAgentGroup: null,
-          appliedRules: [],
-          decision: 'no_robots',
-          skippedFetch: false,
-        },
+        robots: robotsDecision,
         sentHeaders: { headers: sentHeaders },
         rateLimit: {
           previousRequestAtMs,
@@ -155,7 +269,6 @@ export class BrowserLocalSubject implements SubjectAdapter {
           compliant,
           recentSameHostCount: 1,
         },
-        prevRecordHash: null,
       })
 
       const base = {
@@ -329,6 +442,94 @@ export class BrowserLocalSubject implements SubjectAdapter {
       return new URL(url).host
     } catch {
       return url
+    }
+  }
+
+  /**
+   * Fetch and parse robots.txt for a URL's origin, once per origin per run.
+   *
+   * Plain `fetch` rather than the browser: robots.txt is a text file, and
+   * spending a browser context on it would inflate the per-page cost of being
+   * polite. A network failure is recorded as `null` robots — treated as
+   * "no robots.txt" for the decision, but the record still says which URL was
+   * attempted, so "we couldn't reach it" never silently reads as "it allowed
+   * us".
+   */
+  private async robotsFor(url: string, userAgent: string): Promise<CachedRobots | null> {
+    let origin: string
+    let robotsUrl: string
+    try {
+      const parsed = new URL(url)
+      origin = parsed.origin
+      robotsUrl = `${parsed.origin}/robots.txt`
+    } catch {
+      return null
+    }
+
+    const cached = this.robotsByOrigin.get(origin)
+    if (cached) return cached
+
+    let entry: CachedRobots
+    try {
+      const res = await fetch(robotsUrl, {
+        headers: { 'user-agent': userAgent },
+        signal: AbortSignal.timeout(5_000),
+      })
+      if (res.status >= 400) {
+        // 404/410 means the site published no rules — RFC 9309 §2.3.1.3 says
+        // that is a full allow, and it is a different fact from a fetch error.
+        entry = { robotsUrl, robots: null, sha256: null, absent: true }
+      } else if (!isPlainText(res.headers.get('content-type'))) {
+        // A "robots.txt" served as text/html is a soft-404 or a catch-all
+        // route, not a rules document. Parsing it would invent groups out of
+        // markup and let a record claim rules the publisher never wrote.
+        entry = { robotsUrl, robots: null, sha256: null, absent: true }
+      } else {
+        const text = await res.text()
+        entry = {
+          robotsUrl,
+          robots: parseRobotsTxt(text),
+          sha256: sha256Hex(new TextEncoder().encode(text)),
+          absent: false,
+        }
+      }
+    } catch {
+      entry = { robotsUrl, robots: null, sha256: null, absent: false }
+    }
+
+    this.robotsByOrigin.set(origin, entry)
+    return entry
+  }
+
+  /** Turn a robots lookup into the record's robots facts for one path. */
+  private robotsDecisionFor(cached: CachedRobots | null, url: string, userAgent: string): ComplianceRobotsDecision {
+    if (cached === null || cached.robots === null) {
+      return {
+        robotsUrl: cached?.robotsUrl ?? null,
+        robotsSha256: null,
+        matchedUserAgentGroup: null,
+        appliedRules: [],
+        decision: 'no_robots',
+        skippedFetch: false,
+      }
+    }
+
+    let path = '/'
+    try {
+      const parsed = new URL(url)
+      path = parsed.pathname + parsed.search
+    } catch {
+      /* keep '/' */
+    }
+
+    const match = evaluateRobots(cached.robots, userAgent, path)
+    return {
+      robotsUrl: cached.robotsUrl,
+      robotsSha256: cached.sha256,
+      matchedUserAgentGroup: match.matchedAgent,
+      appliedRules: match.appliedRules.map((r) => ({ pattern: r.pattern, allow: r.allow })),
+      decision: match.allowed ? 'allowed' : 'disallowed',
+      skippedFetch: false,
     }
   }
 

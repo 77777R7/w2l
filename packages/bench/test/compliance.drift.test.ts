@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildComplianceRecord,
+  ComplianceChain,
+  verifyLedger,
   type ComplianceMode,
   type ComplianceRateLimitFact,
   type ComplianceRobotsDecision,
@@ -8,6 +10,7 @@ import {
 } from '@w2l/http-core'
 import type {
   CrawlMode,
+  ComplianceLedger as ContractComplianceLedger,
   ComplianceRecord as ContractComplianceRecord,
   RateLimitFact,
   RobotsDecision,
@@ -88,5 +91,35 @@ describe('compliance structural subsets match the contract', () => {
     const asContract: ContractComplianceRecord = built
     expect(asContract.contentHash).toBe(built.contentHash)
     expect(asContract.signature).toBeNull()
+  })
+
+  it('a chained ledger is assignable to the contract ComplianceLedger', () => {
+    const chain = new ComplianceChain('run-drift', 'research')
+    chain.append({
+      recordId: 'rec-drift-1',
+      mode: 'research',
+      requestedUrl: 'https://example.com/',
+      finalUrl: null,
+      requestedAt: '2026-08-21T00:00:00.000Z',
+      robots: {
+        robotsUrl: null,
+        robotsSha256: null,
+        matchedUserAgentGroup: null,
+        appliedRules: [],
+        decision: 'no_robots',
+        skippedFetch: false,
+      },
+      sentHeaders: { headers: [] },
+      rateLimit: {
+        previousRequestAtMs: null,
+        observedDelayMs: null,
+        requiredDelayMs: 250,
+        compliant: true,
+        recentSameHostCount: 0,
+      },
+    })
+    const asContract: ContractComplianceLedger = chain.toLedger()
+    expect(asContract.records).toHaveLength(1)
+    expect(verifyLedger(asContract).valid).toBe(true)
   })
 })
