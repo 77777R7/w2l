@@ -94,6 +94,36 @@ function reportLines(run: Awaited<ReturnType<typeof runBenchmark>>): string[] {
   }
   out.push('')
 
+  out.push('## Gates named', '')
+  out.push('Observed, not graded: a live site\'s gate drifts run-to-run, so no')
+  out.push('canary case carries an `expectedBlockReason`. The right-hand column is')
+  out.push('the honest counterweight — non-contentful results the classifier could')
+  out.push('*not* name. A gate hiding in there reads as a plain failure, which is')
+  out.push('the exact defect this section exists to keep visible.')
+  out.push('')
+  out.push('| Arm | gates named | breakdown | unnamed non-contentful |')
+  out.push('|---|---|---|---|')
+  for (const s of run.scores) {
+    const os = run.outcomes.filter((o) => o.subjectId === s.subjectId)
+    const tally = new Map<string, number>()
+    for (const o of os) {
+      if (o.result.status !== 'blocked') continue
+      const key = o.result.blockReason ?? 'unnamed'
+      tally.set(key, (tally.get(key) ?? 0) + 1)
+    }
+    const named = [...tally.values()].reduce((a, b) => a + b, 0)
+    const breakdown =
+      tally.size === 0
+        ? '—'
+        : [...tally.entries()]
+            .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+            .map(([reason, n]) => `${reason}×${n}`)
+            .join(', ')
+    const unnamed = os.filter((o) => o.result.status === 'failed').length
+    out.push(`| ${s.subjectId} | ${named} | ${breakdown} | ${unnamed} |`)
+  }
+  out.push('')
+
   out.push('## Challenge check tallies (evidence-only on canaries)', '')
   out.push('| Arm | challenge pass | fail | unknown |')
   out.push('|---|---|---|---|')
@@ -109,6 +139,7 @@ function reportLines(run: Awaited<ReturnType<typeof runBenchmark>>): string[] {
   out.push('- Tier 1 is expected to clear on the http lane alone. Tier 2 is NOT: every tier-2 failure mode (bot gate, auth wall, JS shell) is precisely what the browser lane exists to solve — the tier-2 contentful rate IS the browser-lane value case, measured.')
   out.push('- browser-local is the escalation target the http arms flag into: same extract-tf cascade, real Chromium. Its tier-2 delta against resilient-http is the measured value of the browser lane.')
   out.push('- challenge_text_returned failures on real pages double as bot-gate measurements.')
+  out.push('- a gate named `blocked (<reason>)` says the site refused us and which door it used; `failed (http_error)` on a page the curation notes call a bot gate is a classification miss, not a site outage. The Gates-named table is where that distinction is auditable.')
   out.push('')
   return out
 }
