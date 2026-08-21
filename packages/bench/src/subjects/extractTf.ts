@@ -1,6 +1,7 @@
 import { estimateTokens, type FetchResult } from '@w2l/contracts'
 import { extractTf } from '@w2l/extract-tf'
 import { toGfmTable } from '@w2l/fixtures'
+import { classifyGate, escalationForBlock } from '@w2l/http-core'
 import { request } from 'undici'
 import type { SubjectAdapter } from '../subject.js'
 import { POLITE_UA } from '../ua.js'
@@ -69,17 +70,57 @@ export class ExtractTfSubject implements SubjectAdapter {
         }
       }
 
+      // Gate classification. Consulted only once the response is known to be
+      // non-contentful (non-200, or a 200 the extractor declined) — that
+      // precondition is what makes the marker matching safe.
+      const gate = classifyGate({
+        status,
+        header: (name) => {
+          const v = response.headers[name.toLowerCase()]
+          return typeof v === 'string' ? v : Array.isArray(v) ? (v[0] ?? null) : null
+        },
+        body,
+      })
+      const verdict = status !== 200 || escalated ? gate : null
+      const blockEscalation =
+        verdict === null ? null : escalationForBlock(verdict.reason, 'http')
+
+      let terminalStatus: 'success' | 'failed' | 'blocked' = 'success'
+      let failureReason: 'http_error' | 'empty_unverified' | null = null
+      if (verdict !== null) {
+        terminalStatus = 'blocked'
+      } else if (status !== 200) {
+        terminalStatus = 'failed'
+        failureReason = 'http_error'
+      } else if (escalated) {
+        terminalStatus = 'failed'
+        failureReason = 'empty_unverified'
+      }
+
+      const escalations =
+        verdict !== null
+          ? blockEscalation === null
+            ? []
+            : [{ ...blockEscalation, improved: null }]
+          : escalated
+            ? [
+                {
+                  from: 'http' as const,
+                  to: 'browser_local' as const,
+                  trigger: 'extract_low_confidence',
+                  improved: null,
+                },
+              ]
+            : []
+
       return {
         requestedUrl: url,
-        status: status !== 200 ? 'failed' : escalated ? 'failed' : 'success',
-        failureReason:
-          status !== 200 ? 'http_error' : escalated ? 'empty_unverified' : null,
-        blockReason: null,
+        status: terminalStatus,
+        failureReason,
+        blockReason: verdict?.reason ?? null,
         budgetExceeded: null,
         lane: 'http',
-        escalations: escalated
-          ? [{ from: 'http', to: 'browser_local', trigger: 'extract_low_confidence', improved: null }]
-          : [],
+        escalations,
         markdown,
         truncated: false,
         truncatedAt: null,
@@ -106,6 +147,16 @@ export class ExtractTfSubject implements SubjectAdapter {
           { at: wallMs, lane: 'http', event: 'request_complete', detail: { status } },
           ...(routeEvidence !== null
             ? [{ at: wallMs, lane: 'http' as const, event: 'extract', detail: routeEvidence }]
+            : []),
+          ...(verdict !== null
+            ? [
+                {
+                  at: wallMs,
+                  lane: 'http' as const,
+                  event: 'gate_detected',
+                  detail: { blockReason: verdict.reason, signals: verdict.signals, status },
+                },
+              ]
             : []),
         ],
       }

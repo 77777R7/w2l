@@ -1,4 +1,4 @@
-import type { Lane, ResultStatus } from './status.js'
+import type { BlockReason, Lane, ResultStatus } from './status.js'
 import type { ExpectedTable } from './tableMarkdown.js'
 
 /** The five false-success checks. Fixtures evaluate all five; canaries evaluate the evidence-bearing subset. */
@@ -78,6 +78,13 @@ export interface GroundTruth {
   budget: CaseBudget
   /** Expected terminal status. Lets non-success cases (blocked, failed) be asserted too. */
   expectedStatus: ResultStatus
+  /**
+   * Which gate the case is expected to be classified as. Required whenever
+   * `expectedStatus` is 'blocked' — an unscored reason field is a reason field
+   * that silently drifts. Omitted (undefined) for every other case, which the
+   * runner reports as "not graded" rather than as a pass.
+   */
+  expectedBlockReason?: BlockReason | null
   notes?: string
 }
 

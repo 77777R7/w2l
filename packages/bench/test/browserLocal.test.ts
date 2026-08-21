@@ -36,6 +36,18 @@ beforeAll(async () => {
       }
     } else if (req.url === '/hang') {
       // Never respond; the subject's own timeout must fire and map to `timeout`.
+    } else if (req.url === '/gate') {
+      res.writeHead(403, {
+        'content-type': 'text/html; charset=utf-8',
+        'cf-mitigated': 'challenge',
+      })
+      res.end(
+        '<!doctype html><html><head><title>Just a moment...</title></head><body>' +
+          '<h1>Just a moment...</h1><p>Enable JavaScript and cookies to continue.</p></body></html>',
+      )
+    } else if (req.url === '/plain-403') {
+      res.writeHead(403, { 'content-type': 'text/html; charset=utf-8' })
+      res.end('<!doctype html><html><body><h1>403 Forbidden</h1></body></html>')
     } else {
       res.writeHead(404).end()
     }
@@ -84,6 +96,41 @@ describe('BrowserLocalSubject transport', () => {
       expect(out.usage.attemptCount).toBe(2)
       expect(out.usage.requestCount).toBe(2)
       expect(out.trace.filter((t) => t.event === 'retry')).toHaveLength(1)
+    } finally {
+      await subject.teardown()
+    }
+  })
+
+  it('names the gate and escalates to the user-owned proxy, not to itself', async () => {
+    // The browser lane is already the escalation target for an http-lane
+    // interstitial. When the gate holds *here*, the only honest next step is
+    // the user's own network — there is no further capability of ours to offer.
+    const subject = new BrowserLocalSubject()
+    try {
+      const out = await subject.fetch(`${url}/gate`)
+      expect(out.status).toBe('blocked')
+      expect(out.blockReason).toBe('cloudflare_challenge')
+      expect(out.markdown).toBeNull()
+      expect(out.escalations).toEqual([
+        {
+          from: 'browser_local',
+          to: 'browser_proxy',
+          trigger: 'blocked:cloudflare_challenge',
+          improved: null,
+        },
+      ])
+    } finally {
+      await subject.teardown()
+    }
+  })
+
+  it('leaves a bare 403 as an ordinary http_error', async () => {
+    const subject = new BrowserLocalSubject()
+    try {
+      const out = await subject.fetch(`${url}/plain-403`)
+      expect(out.status).toBe('failed')
+      expect(out.failureReason).toBe('http_error')
+      expect(out.blockReason).toBeNull()
     } finally {
       await subject.teardown()
     }

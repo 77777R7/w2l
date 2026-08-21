@@ -1,7 +1,7 @@
 import { estimateTokens, type FetchResult, type TraceEvent } from '@w2l/contracts'
 import { extractTf } from '@w2l/extract-tf'
 import { toGfmTable } from '@w2l/fixtures'
-import { resilientFetch, type ResilientFetcher } from '@w2l/http-core'
+import { resilientFetch, classifyGate, escalationForBlock, type ResilientFetcher } from '@w2l/http-core'
 import { request } from 'undici'
 import type { SubjectAdapter } from '../subject.js'
 import { POLITE_UA } from '../ua.js'
@@ -81,19 +81,38 @@ export class ResilientHttpSubject implements SubjectAdapter {
       }
     }
 
-    // Rate limiting is a block, not a transient failure: the retry policy's
-    // job here is to NOT hammer (429 is never retried by the engine).
-    if (out.status === 429) {
+    // Gate classification. Computed once from the raw body, but only ever
+    // *consulted* on non-contentful paths — that precondition is what makes
+    // the marker matching safe (see classifyGate).
+    const gate = classifyGate({
+      status: out.status,
+      header: (name) => out.headers?.get(name) ?? null,
+      body,
+    })
+    const blocked = (verdict: NonNullable<typeof gate>): FetchResult => {
+      const next = escalationForBlock(verdict.reason, 'http')
+      trace.push({
+        at: wallMs,
+        lane: 'http',
+        event: 'gate_detected',
+        detail: { blockReason: verdict.reason, signals: verdict.signals, status: out.status },
+      })
       return {
         ...base,
         status: 'blocked',
         failureReason: null,
-        blockReason: 'rate_limit',
+        blockReason: verdict.reason,
         budgetExceeded: null,
         lane: 'http',
-        escalations: [],
+        escalations: next === null ? [] : [{ ...next, improved: null }],
         markdown: null,
       }
+    }
+
+    // A gate that answers with a non-200 is a block, not a transient failure.
+    // Note the retry policy never retries 429 — the job here is to not hammer.
+    if (out.status !== 200 && gate !== null) {
+      return blocked(gate)
     }
 
     if (out.status !== 200) {
@@ -126,6 +145,10 @@ export class ResilientHttpSubject implements SubjectAdapter {
     })
 
     if (extracted.escalate) {
+      // A 200 that yields no main content may be a gate that answered with
+      // the challenge instead of the page. Extraction has now declined it, so
+      // the response is non-contentful and the classifier's precondition holds.
+      if (gate !== null) return blocked(gate)
       return {
         ...base,
         status: 'failed',

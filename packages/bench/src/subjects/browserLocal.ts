@@ -1,7 +1,7 @@
 import { estimateTokens, type FetchResult, type TraceEvent } from '@w2l/contracts'
 import { extractTf } from '@w2l/extract-tf'
 import { toGfmTable } from '@w2l/fixtures'
-import { isRetryableStatus, parseRetryAfterMs } from '@w2l/http-core'
+import { classifyGate, escalationForBlock, isRetryableStatus, parseRetryAfterMs } from '@w2l/http-core'
 import { chromium, type Browser } from 'playwright'
 import type { SubjectAdapter } from '../subject.js'
 import { POLITE_UA } from '../ua.js'
@@ -93,19 +93,38 @@ export class BrowserLocalSubject implements SubjectAdapter {
         trace,
       }
 
-      if (status === 429) {
+      // Gate classification, identical policy to the http lane — computed once
+      // from the rendered DOM, consulted only on non-contentful paths.
+      const gate = classifyGate({
+        status,
+        header: (name) => response?.headers()[name.toLowerCase()] ?? null,
+        body,
+      })
+      const blocked = (verdict: NonNullable<typeof gate>): FetchResult => {
+        const next = escalationForBlock(verdict.reason, 'browser_local')
+        trace.push({
+          at: wallMs,
+          lane: 'browser_local',
+          event: 'gate_detected',
+          detail: { blockReason: verdict.reason, signals: verdict.signals, status },
+        })
         return {
           ...base,
           status: 'blocked',
           failureReason: null,
-          blockReason: 'rate_limit',
+          blockReason: verdict.reason,
           budgetExceeded: null,
           lane: 'browser_local',
-          escalations: [],
+          escalations: next === null ? [] : [{ ...next, improved: null }],
           markdown: null,
         }
       }
-      if (status !== 200 && status !== 0) {
+
+      const nonOk = status !== 200 && status !== 0
+      if (nonOk && gate !== null) {
+        return blocked(gate)
+      }
+      if (nonOk) {
         return {
           ...base,
           status: 'failed',
@@ -132,6 +151,11 @@ export class BrowserLocalSubject implements SubjectAdapter {
       })
 
       if (extracted.escalate) {
+        // A rendered page that still yields no main content may be the gate's
+        // own answer rather than the page; classify now that it is known
+        // non-contentful. A browser-lane gate escalates to the user's own
+        // network or session, never to defeating the gate.
+        if (gate !== null) return blocked(gate)
         return {
           ...base,
           status: 'failed',
