@@ -6,7 +6,8 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "w2l-bench": "./dist/cli.js"
+    "w2l-bench": "./dist/cli.js",
+    "w2l-provider": "./dist/providerCli.js"
   },
   "exports": {
     ".": {
