@@ -24,7 +24,7 @@ afterAll(async () => {
 
 const EXPECTED: ReadonlyArray<{ id: string; pageType: string; strategy: string; escalate: boolean }> = [
   { id: 'pt-listing', pageType: 'listing', strategy: 'list', escalate: false },
-  { id: 'pt-product', pageType: 'product', strategy: 'table', escalate: false },
+  { id: 'pt-product', pageType: 'product', strategy: 'product', escalate: false },
   { id: 'pt-collection', pageType: 'collection', strategy: 'article', escalate: false },
   { id: 'pt-forum', pageType: 'forum', strategy: 'article', escalate: false },
 ]

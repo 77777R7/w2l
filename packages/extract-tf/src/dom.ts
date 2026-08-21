@@ -69,3 +69,23 @@ export function children(el: Element): Element[] {
 export function tagOf(el: Element): string {
   return el.tagName.toLowerCase()
 }
+
+/**
+ * Lowest element that contains both `a` and `b`, or null when they are in
+ * different trees. Used wherever a strategy must widen from a single anchor
+ * node (a heading, a price) to the region that actually holds the content.
+ */
+export function commonAncestor(a: Element, b: Element): Element | null {
+  const ancestors = new Set<Element>()
+  let p: Element | null = a.parentElement
+  while (p) {
+    ancestors.add(p)
+    p = p.parentElement
+  }
+  p = b
+  while (p) {
+    if (ancestors.has(p)) return p
+    p = p.parentElement
+  }
+  return null
+}

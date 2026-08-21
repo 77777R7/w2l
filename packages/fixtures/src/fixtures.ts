@@ -737,7 +737,7 @@ const ptProduct: Fixture = {
     expectedMainTokens: { min: 40, max: 900 },
     budget: budget(2000),
     expectedStatus: 'success',
-    notes: 'Product page (spec table + description paragraphs). The table ' +
+    notes: 'Product page (spec table + description paragraphs). The product ' +
       'strategy must return the spec table without losing the description, ' +
       'and the router must see the JSON-LD Product type (title, description ' +
       'and spec cells all asserted). Floor 40 = measured extract-tf 50 / golden 43.',
