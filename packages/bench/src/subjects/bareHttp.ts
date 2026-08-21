@@ -1,4 +1,4 @@
-import type { FetchResult } from '@w2l/contracts'
+import { estimateTokens, type FetchResult } from '@w2l/contracts'
 import { request } from 'undici'
 import type { SubjectAdapter } from '../subject.js'
 
@@ -44,6 +44,7 @@ export class BareHttpSubject implements SubjectAdapter {
         markdown,
         truncated: false,
         truncatedAt: null,
+        compliance: null,
         evidence: {
           finalUrl: url,
           httpStatus: status,
@@ -58,7 +59,7 @@ export class BareHttpSubject implements SubjectAdapter {
           bytesDecompressed: bodyBuffer.byteLength,
           requestCount: 1,
           attemptCount: 1,
-          contentTokens: null,
+          contentTokens: markdown !== null ? estimateTokens(markdown) : null,
           browserMs: 0,
           externalCostUsd: null,
         },
@@ -80,6 +81,7 @@ export class BareHttpSubject implements SubjectAdapter {
         markdown: null,
         truncated: false,
         truncatedAt: null,
+        compliance: null,
         evidence: {
           finalUrl: url,
           httpStatus: null,

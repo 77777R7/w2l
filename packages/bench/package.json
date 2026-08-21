@@ -18,8 +18,12 @@
     "build": "tsc --build"
   },
   "dependencies": {
-    "@w2l/contracts": "workspace:*",
-    "@w2l/fixtures": "workspace:*",
+    "@w2l/canary": "*",
+    "@w2l/contracts": "*",
+    "@w2l/extract-tf": "*",
+    "@w2l/fixtures": "*",
+    "@w2l/http-core": "*",
+    "playwright": "^1.62.1",
     "undici": "^7.4.0"
   }
 }

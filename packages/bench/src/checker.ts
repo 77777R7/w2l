@@ -1,7 +1,7 @@
 import type { CheckResult, FalseSuccessCheck, GroundTruth } from '@w2l/contracts'
 import { CONTENTFUL_STATUS, EVIDENCE_ONLY_CHECKS } from '@w2l/contracts'
 import type { FetchResult } from '@w2l/contracts'
-import { estimateTokens } from '@w2l/contracts'
+import { estimateTokens, evaluateExpectedTable } from '@w2l/contracts'
 
 /**
  * Run the five false-success checks against a contentful result.
@@ -14,18 +14,32 @@ export function checkFalseSuccess(
   const checks: CheckResult[] = []
 
   // Check 1: missing_required_content
-  if (truth.mustContain.length > 0 && result.markdown) {
+  const hasAnnotation = truth.mustContain.length > 0 || truth.expectedTable != null
+  if (hasAnnotation && result.markdown) {
     const missing = truth.mustContain.filter((s) => !result.markdown!.includes(s))
+    if (truth.expectedTable != null) {
+      const tableCheck = evaluateExpectedTable(result.markdown, truth.expectedTable)
+      if (!tableCheck.pass) missing.push(...tableCheck.issues.map((i) => `[table] ${i}`))
+    }
     checks.push({
       check: 'missing_required_content',
       outcome: missing.length === 0 ? 'pass' : 'fail',
       detail: missing.length > 0 ? `Missing: ${missing.join(', ')}` : null,
     })
+  } else if (hasAnnotation) {
+    // Contentful status with an annotation but empty/no markdown: the required
+    // content is missing by definition. An 'unknown' here would let the most
+    // classic false success (success + empty body) slip through.
+    checks.push({
+      check: 'missing_required_content',
+      outcome: 'fail',
+      detail: 'Contentful status but markdown is empty',
+    })
   } else {
     checks.push({
       check: 'missing_required_content',
       outcome: 'unknown',
-      detail: 'No mustContain annotation or no markdown',
+      detail: 'No mustContain/expectedTable annotation or no markdown',
     })
   }
 
@@ -36,7 +50,10 @@ export function checkFalseSuccess(
     'Checking your browser',
     'Are you a robot',
     'Access denied',
-    'Cloudflare',
+    'Cloudflare Ray ID',
+    // Real-world markers found by the tier-2 canary probe:
+    'Please wait', // tiktok.com JS shell
+    'Humans only', // glassdoor.com bot gate
   ]
   const md = result.markdown ?? ''
   const foundChallenge = challengePatterns.some((p) => md.includes(p))
@@ -73,17 +90,38 @@ export function checkFalseSuccess(
   }
 
   // Check 4: wrong_page_content
-  // Simplified: if finalUrl differs from requestedUrl and status is success, suspect redirect to home/login.
-  // A real implementation compares content hash against known wrong-page patterns.
-  const wrongPage =
-    result.status === 'success' &&
+  // A followed redirect is only "wrong page" when the annotated facts are
+  // absent from the delivered content. A chain that lands on content carrying
+  // every mustContain fact is a legitimately followed redirect, not a false
+  // success. Without a mustContain annotation the content identity cannot be
+  // decided here (that needs the wrong-page probe) — report unknown and let
+  // expectedStatus mismatches do the catching.
+  const redirected =
     result.evidence.finalUrl !== result.requestedUrl &&
     result.evidence.redirectChain.length > 0
-  checks.push({
-    check: 'wrong_page_content',
-    outcome: wrongPage ? 'fail' : 'pass',
-    detail: wrongPage ? `Redirected to ${result.evidence.finalUrl}` : null,
-  })
+  if (redirected && truth.mustContain.length > 0) {
+    const missing = truth.mustContain.filter((s) => !(result.markdown ?? '').includes(s))
+    checks.push({
+      check: 'wrong_page_content',
+      outcome: missing.length === 0 ? 'pass' : 'fail',
+      detail:
+        missing.length > 0
+          ? `Redirected to ${result.evidence.finalUrl} but missing: ${missing.join(', ')}`
+          : null,
+    })
+  } else if (redirected) {
+    checks.push({
+      check: 'wrong_page_content',
+      outcome: 'unknown',
+      detail: 'Redirected but no mustContain annotation to verify content identity',
+    })
+  } else {
+    checks.push({
+      check: 'wrong_page_content',
+      outcome: 'pass',
+      detail: null,
+    })
+  }
 
   // Check 5: silent_truncation
   const silentTrunc = result.truncated && result.truncatedAt === null

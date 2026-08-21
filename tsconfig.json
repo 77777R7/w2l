@@ -4,6 +4,9 @@
     { "path": "packages/contracts" },
     { "path": "packages/fixtures" },
     { "path": "packages/http-core" },
-    { "path": "packages/bench" }
+    { "path": "packages/attest" },
+    { "path": "packages/bench" },
+    { "path": "packages/extract-tf" },
+    { "path": "packages/canary" }
   ]
 }

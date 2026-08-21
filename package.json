@@ -11,10 +11,12 @@
   "scripts": {
     "typecheck": "tsc --build",
     "test": "vitest run",
-    "bench": "node --import tsx packages/bench/src/cli.ts"
+    "bench": "tsc --build && node --import tsx packages/bench/src/cli.ts",
+    "canary": "tsc --build && node --import tsx packages/bench/src/canaryCli.ts"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",
+    "linkedom": "^0.18.13",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0",
     "undici": "^7.4.0",

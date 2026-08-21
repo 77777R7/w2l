@@ -1,30 +1,69 @@
-import type { BenchmarkRun, CaseOutcome, GroundTruth, RunEnvironment, SuiteScore } from '@w2l/contracts'
+import type { BenchmarkRun, CaseOutcome, GroundTruth, RunEnvironment, SuiteScore, SuiteMeta } from '@w2l/contracts'
 import { CONTENTFUL_STATUS } from '@w2l/contracts'
 import type { FetchResult } from '@w2l/contracts'
 import { checkFalseSuccess, isFalseSuccess } from './checker.js'
 import type { SubjectAdapter } from './subject.js'
 
 /**
+ * Reset the fixture server's stateful fixtures before each subject, so every
+ * subject observes attempt 1 (the flaky fixture is global mutable state). The
+ * control route is not part of the suite; this is the runner's contract with
+ * the fixture server, not a subject behaviour.
+ *
+ * Only fixture-kind cases carry a fixture-server origin. A canary suite
+ * (absolute URLs to real sites) must never receive a /__reset request —
+ * derive the origin from the first fixture case, and skip when there is none.
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function resetStatefulFixtures(cases: readonly GroundTruth[]): Promise<void> {
+  const firstFixture = cases.find((c) => c.kind === 'fixture')
+  if (!firstFixture) return
+  const origin = new URL(firstFixture.target).origin
+  const res = await fetch(`${origin}/__reset`)
+  if (res.status !== 204) {
+    throw new Error(`fixture reset failed: ${res.status} ${origin}/__reset`)
+  }
+  await res.body?.cancel()
+}
+
+/**
  * Run one subject against all cases in a suite.
  * Returns a complete BenchmarkRun with outcomes, scores, and environment metadata.
  */
+export interface RunOptions {
+  /** Delay between cases, for open-web politeness. Fixture runs use 0. */
+  interCaseDelayMs?: number
+  /** Suite identity when cases come from outside the fixture server. */
+  suiteMeta?: SuiteMeta
+}
+
 export async function runBenchmark(
   subjects: readonly SubjectAdapter[],
   cases: readonly GroundTruth[],
   lanesUnderTest: readonly string[],
+  options: RunOptions = {},
 ): Promise<BenchmarkRun> {
   const env = await captureEnvironment()
   const outcomes: CaseOutcome[] = []
+  const { interCaseDelayMs = 0, suiteMeta } = options
 
   for (const subject of subjects) {
     console.log(`\nRunning subject: ${subject.meta.displayName}`)
+    // Every subject must start from attempt 1 of stateful fixtures.
+    await resetStatefulFixtures(cases)
     for (const truth of cases) {
       console.log(`  - ${truth.id}`)
+      if (interCaseDelayMs > 0) await sleep(interCaseDelayMs)
 
-      // Wrap fetch in a timeout to prevent hanging fixtures from blocking the pipeline
-      const fetchPromise = subject.fetch(truth.target)
+      // Wrap fetch in a timeout to prevent hanging fixtures from blocking the
+      // pipeline. The timer must be cleared when the case completes normally —
+      // a resolved-but-uncleared timeout keeps the process alive.
+      let timer: ReturnType<typeof setTimeout> | undefined
       const timeoutPromise = new Promise<FetchResult>((resolve) => {
-        setTimeout(() => {
+        timer = setTimeout(() => {
           resolve({
             requestedUrl: truth.target,
             status: 'budget_exceeded',
@@ -36,6 +75,7 @@ export async function runBenchmark(
             markdown: null,
             truncated: false,
             truncatedAt: null,
+            compliance: null,
             evidence: {
               finalUrl: truth.target,
               httpStatus: null,
@@ -62,10 +102,22 @@ export async function runBenchmark(
         }, 60_000) // 60 second timeout per case
       })
 
-      const result = await Promise.race([fetchPromise, timeoutPromise])
+      let result: FetchResult
+      try {
+        result = await Promise.race([subject.fetch(truth.target), timeoutPromise])
+      } finally {
+        clearTimeout(timer)
+      }
       const checks = checkFalseSuccess(result, truth)
       const statusMatched = result.status === truth.expectedStatus
       const laneMatched = result.lane === truth.expectedLane
+      // Graded only where the case says which gate it is. An absent annotation
+      // must read as "not graded", not as a pass — otherwise every unannotated
+      // case would inflate the reason score.
+      const blockReasonMatched =
+        truth.expectedBlockReason == null
+          ? null
+          : result.blockReason === truth.expectedBlockReason
       const evaluatedChecks = checks.filter((c) => c.outcome !== 'unknown').map((c) => c.check)
       const budgetRespected =
         result.usage.wallMs <= truth.budget.maxWallMs &&
@@ -78,6 +130,7 @@ export async function runBenchmark(
         result,
         statusMatched,
         laneMatched,
+        blockReasonMatched,
         checks,
         evaluatedChecks,
         isFalseSuccess: isFalseSuccess(result, checks),
@@ -93,9 +146,9 @@ export async function runBenchmark(
     runId: `run-${Date.now()}`,
     environment: env,
     suite: {
-      name: 'fixtures',
-      version: '0.1.0',
-      curatedAt: new Date().toISOString().split('T')[0]!,
+      name: suiteMeta?.name ?? 'fixtures',
+      version: suiteMeta?.version ?? '0.1.0',
+      curatedAt: suiteMeta?.curatedAt ?? new Date().toISOString().split('T')[0]!,
     },
     subjects: subjects.map((s) => s.meta),
     lanesUnderTest: lanesUnderTest as any,
@@ -152,6 +205,8 @@ function scoreSubject(
     subjectId,
     caseCount: subjectOutcomes.length,
     statusMatchCount: subjectOutcomes.filter((o) => o.statusMatched).length,
+    blockReasonMatchCount: subjectOutcomes.filter((o) => o.blockReasonMatched === true).length,
+    blockReasonGradedCount: subjectOutcomes.filter((o) => o.blockReasonMatched !== null).length,
     contentfulCount: contentfulOutcomes.length,
     falseSuccessCount: falseSuccesses.length,
     falseSuccessRate:
