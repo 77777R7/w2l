@@ -29,6 +29,7 @@
  */
 
 import type { Lane } from './status.js'
+import type { AccessFact } from './access.js'
 
 // ---------------------------------------------------------------------------
 // Modes
@@ -216,8 +217,8 @@ export interface RateLimitFact {
 
 /** A single fetch's compliance record. Tamper-evident via the content hash. */
 export interface ComplianceRecord {
-  /** Schema version, bumped on breaking shape change. */
-  schemaVersion: 1
+  /** Schema version, bumped on breaking shape change. v2 added `access`. */
+  schemaVersion: 2
   /** Opaque id, unique per fetch. */
   recordId: string
   /** The mode under which the fetch ran. Bind's the declared identity. */
@@ -231,6 +232,14 @@ export interface ComplianceRecord {
   robots: RobotsDecision
   sentHeaders: SentHeadersFact
   rateLimit: RateLimitFact
+  /**
+   * Whose network and whose session this fetch used, and who accepted
+   * responsibility for that. Credential-free by construction (see access.ts:
+   * proxy passwords and cookie values appear only as hashes). Always present —
+   * operator-owned access is stated explicitly, because "we did not record
+   * this" and "this was ours" are different claims.
+   */
+  access: AccessFact
   /**
    * Hash of the previous record in the run's chain, hex. Null for the first
    * record. Chaining makes deletion or reordering of a run's history evident.

@@ -11,10 +11,11 @@
  * which is a deliberate later step and not something this module pretends to.
  *
  * Pure logic, zero dependencies, no clock — same discipline as compliance.ts.
- * Verification here is chain-structural only; signature verification lives in
- * @w2l/attest because it needs key material.
+ * Verification here is chain-structural plus per-record access coherence;
+ * signature verification lives in @w2l/attest because it needs key material.
  */
 
+import { verifyAccessFact } from './access.js'
 import { buildComplianceRecord, type ComplianceMode, type ComplianceRecord, type ComplianceRecordInput } from './compliance.js'
 
 // ---------------------------------------------------------------------------
@@ -87,6 +88,13 @@ export type LedgerViolationKind =
   | 'duplicate_record_id'
   /** A record's mode disagrees with the ledger's declared mode. */
   | 'mode_mismatch'
+  /**
+   * A record's access fact is internally incoherent — most importantly, it
+   * claims the user's proxy or session without naming anyone who accepted
+   * that transfer. Such a record reads as a responsibility transfer while
+   * proving none, which is worse than claiming nothing at all.
+   */
+  | 'unattested_access'
 
 export interface LedgerViolation {
   kind: LedgerViolationKind
@@ -135,6 +143,7 @@ export function verifyLedger(ledger: ComplianceLedgerShape): LedgerVerdict {
       sentHeaders: record.sentHeaders,
       rateLimit: record.rateLimit,
       prevRecordHash: record.prevRecordHash,
+      access: record.access,
     })
     if (rebuilt.contentHash !== record.contentHash) {
       at('content_hash_mismatch', `stored ${record.contentHash}, recomputed ${rebuilt.contentHash}`)
@@ -147,6 +156,10 @@ export function verifyLedger(ledger: ComplianceLedgerShape): LedgerVerdict {
 
     if (record.mode !== ledger.mode) {
       at('mode_mismatch', `record mode ${record.mode}, ledger mode ${ledger.mode}`)
+    }
+
+    for (const problem of verifyAccessFact(record.access)) {
+      at('unattested_access', problem)
     }
 
     if (index === 0) {

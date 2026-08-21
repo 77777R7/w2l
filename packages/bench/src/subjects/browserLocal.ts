@@ -8,8 +8,11 @@ import {
   parseRetryAfterMs,
   ComplianceChain,
   evaluateRobots,
+  normalizeAccessConfig,
   parseRobotsTxt,
   sha256Hex,
+  type AccessConfigInput,
+  type AccessFactShape,
   type ComplianceRecord,
   type ComplianceRobotsDecision,
   type ComplianceSentHeader,
@@ -61,6 +64,14 @@ function isPlainText(contentType: string | null): boolean {
  * mints a record. Every record joins one per-run hash chain, so the ledger a
  * publisher receives is missing-record-evident, not just tamper-evident.
  *
+ * A caller may supply their own proxy or session (`AccessConfigInput`). Doing
+ * so changes the route and the credentials, never the identity: the UA,
+ * locale, timezone and viewport stay exactly what they were. Who owns that
+ * access is normalized into a credential-free fact and signed inside every
+ * record, so the responsibility transfer is provable rather than asserted.
+ * robots is still evaluated, and a disallow still stops the fetch — bringing
+ * your own network does not buy an exemption from the publisher's rules.
+ *
  * The rendered DOM goes through the SAME extract-tf cascade as the http
  * arms, so any score delta against resilient-http is attributable to
  * render-and-execute alone.
@@ -84,9 +95,27 @@ export class BrowserLocalSubject implements SubjectAdapter {
   private readonly robotsByOrigin = new Map<string, CachedRobots>()
   /** The run's hash chain. Every record this subject mints links into it. */
   private readonly chain: ComplianceChain
+  /**
+   * Who owns the network and session for this run, resolved once at
+   * construction. Normalizing here means a config that cannot be honestly
+   * recorded — a proxy with no attestation, a password in the URL — fails
+   * before a single fetch, rather than half a run in.
+   */
+  private readonly access: AccessFactShape
+  /**
+   * The raw config, kept in memory only, because actually routing through the
+   * user's proxy needs the password the fact deliberately reduced to a hash.
+   * It is never written to a record, a trace, or a log line.
+   */
+  private readonly accessConfig: AccessConfigInput | null
 
-  constructor(private readonly mode: CrawlMode = 'standard') {
+  constructor(
+    private readonly mode: CrawlMode = 'standard',
+    access?: AccessConfigInput | null,
+  ) {
     this.chain = new ComplianceChain(crypto.randomUUID(), mode)
+    this.access = normalizeAccessConfig(access)
+    this.accessConfig = access ?? null
   }
 
   /** Snapshot of the run's ledger, for callers that persist or verify it. */
@@ -146,6 +175,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
             compliant: true,
             recentSameHostCount: 0,
           },
+          access: this.access,
         })
         trace.push({
           at: wallMs,
@@ -195,7 +225,41 @@ export class BrowserLocalSubject implements SubjectAdapter {
         screen: BROWSER_FINGERPRINT.screen,
         deviceScaleFactor: BROWSER_FINGERPRINT.deviceScaleFactor,
         extraHTTPHeaders: identity.clientHints,
+        // The user's egress, if they supplied one. Note what does NOT change
+        // alongside it: the UA, the locale, the timezone, the viewport. A
+        // different address is a different route, not a different identity —
+        // spoofing the rest is the line this product does not cross.
+        ...(this.accessConfig?.proxy
+          ? {
+              proxy: {
+                server: this.access.proxyEndpoint!,
+                ...(this.accessConfig.proxy.username === undefined
+                  ? {}
+                  : { username: this.accessConfig.proxy.username }),
+                ...(this.accessConfig.proxy.password === undefined
+                  ? {}
+                  : { password: this.accessConfig.proxy.password }),
+              },
+            }
+          : {}),
       })
+      // The user's session, if they inherited one to us. Cookies go in through
+      // the context API rather than a header so the browser scopes them the
+      // way the origin expects.
+      const userCookies = this.accessConfig?.session?.cookies ?? []
+      if (userCookies.length > 0) {
+        await context.addCookies(
+          userCookies.map((c) => ({ name: c.name, value: c.value, domain: c.domain, path: c.path })),
+        )
+        trace.push({
+          at: Date.now() - start,
+          lane: 'browser_local',
+          event: 'session_attached',
+          // Count and scope only. A trace that printed cookie values would
+          // leak the user's account into every bench artifact.
+          detail: { cookieCount: userCookies.length, sessionSha256: this.access.sessionSha256 },
+        })
+      }
       page = await context.newPage()
 
       // Rate-limit facts for this host, captured before the request.
@@ -269,6 +333,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
           compliant,
           recentSameHostCount: 1,
         },
+        access: this.access,
       })
 
       const base = {

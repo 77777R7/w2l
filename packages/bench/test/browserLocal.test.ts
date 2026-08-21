@@ -1,6 +1,6 @@
 import { createServer, type Server } from 'node:http'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { verifyLedger } from '@w2l/http-core'
+import { AccessConfigError, verifyLedger } from '@w2l/http-core'
 import { BrowserLocalSubject } from '../src/subjects/browserLocal.js'
 
 /**
@@ -53,6 +53,19 @@ beforeAll(async () => {
     } else if (req.url === '/plain-403') {
       res.writeHead(403, { 'content-type': 'text/html; charset=utf-8' })
       res.end('<!doctype html><html><body><h1>403 Forbidden</h1></body></html>')
+    } else if (req.url === '/echo-cookie') {
+      // Echoes the Cookie header back as page content, so a test can prove the
+      // inherited session really went on the wire rather than just being
+      // recorded as if it had.
+      const cookie = req.headers.cookie ?? '(none)'
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+      res.end(
+        '<!doctype html><html><body><article><h1>Cookie echo</h1>' +
+          `<p>The request arrived carrying ${cookie} in its Cookie header, which is the ` +
+          'evidence that an inherited session was attached to the browser context and used ' +
+          'for the navigation rather than merely written into the compliance record.</p>' +
+          '</article></body></html>',
+      )
     } else if (req.url === '/robots.txt') {
       robotsHits++
       res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8' })
@@ -272,6 +285,140 @@ describe('BrowserLocalSubject transport', () => {
       expect(out.status).toBe('failed')
       expect(out.failureReason).toBe('http_error')
       expect(out.blockReason).toBeNull()
+    } finally {
+      await subject.teardown()
+    }
+  })
+})
+
+describe('BrowserLocalSubject user-owned access', () => {
+  const ATTESTATION = {
+    principal: 'acct_test (tester@example.com)',
+    at: '2026-08-21T09:00:00.000Z',
+    statement: 'I own this session and accept responsibility for fetches made with it.',
+  }
+
+  it('records operator ownership when the caller brings nothing', async () => {
+    const subject = new BrowserLocalSubject()
+    try {
+      const out = await subject.fetch(`${url}/spa`)
+      const access = out.compliance!.access
+      expect(access.egressOwner).toBe('operator')
+      expect(access.sessionOwner).toBe('none')
+      expect(access.attestedBy).toBeNull()
+    } finally {
+      await subject.teardown()
+    }
+  })
+
+  it('attaches an inherited session and records who accepted responsibility', async () => {
+    const subject = new BrowserLocalSubject('standard', {
+      session: {
+        cookies: [{ name: 'sid', value: 'USER-SECRET', domain: '127.0.0.1', path: '/' }],
+      },
+      attestation: ATTESTATION,
+    })
+    try {
+      const out = await subject.fetch(`${url}/echo-cookie`)
+      expect(out.status).toBe('success')
+      // The cookie really reached the origin — the fact is not a claim about
+      // an intent, it describes a request that actually carried the session.
+      expect(out.markdown).toContain('sid=USER-SECRET')
+
+      const access = out.compliance!.access
+      expect(access.sessionOwner).toBe('user')
+      expect(access.sessionSha256).toMatch(/^[0-9a-f]{64}$/)
+      expect(access.attestedBy).toBe(ATTESTATION.principal)
+      expect(access.attestationStatement).toBe(ATTESTATION.statement)
+      // Egress did not move: we attached their session, not their network.
+      expect(access.egressOwner).toBe('operator')
+    } finally {
+      await subject.teardown()
+    }
+  })
+
+  it('keeps the session value out of the record and the trace', async () => {
+    const subject = new BrowserLocalSubject('standard', {
+      session: {
+        cookies: [{ name: 'sid', value: 'USER-SECRET', domain: '127.0.0.1', path: '/' }],
+      },
+      attestation: ATTESTATION,
+    })
+    try {
+      const out = await subject.fetch(`${url}/spa`)
+      expect(JSON.stringify(out.compliance)).not.toContain('USER-SECRET')
+      expect(JSON.stringify(out.trace)).not.toContain('USER-SECRET')
+      // The attachment is still visible as an event — hidden is not the goal,
+      // credential-free is.
+      expect(out.trace.some((t) => t.event === 'session_attached')).toBe(true)
+    } finally {
+      await subject.teardown()
+    }
+  })
+
+  it('does not change the declared identity when a session is inherited', async () => {
+    // The whole No-go: bringing your own access changes the route and the
+    // credentials. It must not change the UA, or we would be spoofing.
+    const plain = new BrowserLocalSubject()
+    const withSession = new BrowserLocalSubject('standard', {
+      session: { cookies: [{ name: 'sid', value: 'x', domain: '127.0.0.1', path: '/' }] },
+      attestation: ATTESTATION,
+    })
+    try {
+      const a = await plain.fetch(`${url}/spa`)
+      const b = await withSession.fetch(`${url}/spa`)
+      const uaOf = (r: typeof a) =>
+        r.compliance!.sentHeaders.headers.find((h) => h.name === 'user-agent')!.value
+      expect(uaOf(b)).toBe(uaOf(a))
+      expect(b.trace.filter((t) => t.event === 'identity_mismatch')).toHaveLength(0)
+    } finally {
+      await plain.teardown()
+      await withSession.teardown()
+    }
+  })
+
+  it('still refuses a robots-disallowed path when the user brought a session', async () => {
+    // The load-bearing one. "I brought my own session" is a transfer of
+    // responsibility, not a licence — robots is the publisher's rule and it
+    // still stops the fetch.
+    const subject = new BrowserLocalSubject('standard', {
+      session: { cookies: [{ name: 'sid', value: 'x', domain: '127.0.0.1', path: '/' }] },
+      attestation: ATTESTATION,
+    })
+    const before = privateHits
+    try {
+      const out = await subject.fetch(`${url}/private/secret`)
+      expect(privateHits).toBe(before)
+      expect(out.status).toBe('failed')
+      expect(out.failureReason).toBe('policy_denied')
+      // And the refusal record still names who was responsible for the access.
+      expect(out.compliance!.access.sessionOwner).toBe('user')
+      expect(out.compliance!.access.attestedBy).toBe(ATTESTATION.principal)
+    } finally {
+      await subject.teardown()
+    }
+  })
+
+  it('refuses to construct when access is supplied with no attestation', () => {
+    expect(
+      () =>
+        new BrowserLocalSubject('standard', {
+          session: { cookies: [{ name: 'sid', value: 'x', domain: '127.0.0.1', path: '/' }] },
+        }),
+    ).toThrow(AccessConfigError)
+  })
+
+  it('produces a ledger that verifies with user access in every record', async () => {
+    const subject = new BrowserLocalSubject('standard', {
+      session: { cookies: [{ name: 'sid', value: 'x', domain: '127.0.0.1', path: '/' }] },
+      attestation: ATTESTATION,
+    })
+    try {
+      await subject.fetch(`${url}/spa`)
+      await subject.fetch(`${url}/private/secret`)
+      const verdict = verifyLedger(subject.ledger())
+      expect(verdict.violations).toEqual([])
+      expect(verdict.valid).toBe(true)
     } finally {
       await subject.teardown()
     }

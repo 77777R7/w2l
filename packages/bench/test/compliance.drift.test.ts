@@ -2,13 +2,17 @@ import { describe, expect, it } from 'vitest'
 import {
   buildComplianceRecord,
   ComplianceChain,
+  normalizeAccessConfig,
   verifyLedger,
+  type AccessFactShape,
   type ComplianceMode,
   type ComplianceRateLimitFact,
   type ComplianceRobotsDecision,
   type ComplianceSentHeadersFact,
 } from '@w2l/http-core'
 import type {
+  AccessConfig,
+  AccessFact,
   CrawlMode,
   ComplianceLedger as ContractComplianceLedger,
   ComplianceRecord as ContractComplianceRecord,
@@ -61,6 +65,49 @@ describe('compliance structural subsets match the contract', () => {
     }
     const asContract: RateLimitFact = r
     expect(asContract).toBe(r)
+  })
+
+  it('AccessFactShape is assignable to AccessFact', () => {
+    const f: AccessFactShape = normalizeAccessConfig({
+      proxy: { url: 'http://gate.proxy.example:8080' },
+      attestation: {
+        principal: 'acct_drift',
+        at: '2026-08-21T00:00:00.000Z',
+        statement: 'I own this proxy.',
+      },
+    })
+    const asContract: AccessFact = f
+    expect(asContract.egressOwner).toBe('user')
+  })
+
+  it('a contract AccessConfig is accepted by normalizeAccessConfig', () => {
+    // The input direction matters as much as the output one: a field the
+    // contract offers callers but http-core cannot read would be a documented
+    // option that silently does nothing.
+    const config: AccessConfig = {
+      proxy: { url: 'http://gate.proxy.example:8080', username: 'u', password: 'p' },
+      session: {
+        cookies: [
+          {
+            name: 'session-id',
+            value: 'v',
+            domain: '.example.com',
+            path: '/',
+            httpOnly: true,
+            secure: true,
+            sameSite: 'lax',
+          },
+        ],
+      },
+      attestation: {
+        principal: 'acct_drift',
+        at: '2026-08-21T00:00:00.000Z',
+        statement: 'I own this proxy and session.',
+      },
+    }
+    const fact = normalizeAccessConfig(config)
+    expect(fact.egressOwner).toBe('user')
+    expect(fact.sessionOwner).toBe('user')
   })
 
   it('a built ComplianceRecord is assignable to the contract ComplianceRecord', () => {
