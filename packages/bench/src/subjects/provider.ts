@@ -63,6 +63,18 @@ export interface ProviderResponse {
   finalUrl: string
   /** Origin response headers, lowercased, for gate classification. */
   headers: Readonly<Record<string, string>>
+  /**
+   * The User-Agent observed on the outgoing request, when the transport could
+   * see it. Null means UNOBSERVED, which is not the same as "matched the
+   * declaration" — the record says which of the two it is.
+   */
+  sentUserAgent?: string | null
+  /**
+   * The UA this fetch was gated under, when the transport tracks it per call.
+   * Lets a mismatch against `sentUserAgent` be caught at the fetch that
+   * carried it rather than inferred later.
+   */
+  declaredUserAgent?: string | null
   /** What the vendor billed us, when it says. Reported, never estimated. */
   costUsd?: number | null
 }
@@ -245,6 +257,31 @@ export class ProviderSubject implements SubjectAdapter {
     }
 
     const wallMs = Date.now() - start
+
+    // What the record should say went on the wire. The declared UA is what the
+    // gate cleared; the observed one is what the transport actually saw. When
+    // they disagree, the observed value is the truth and the disagreement is
+    // itself a finding — a fetch that carried an identity the gate never
+    // evaluated is a bug in the vendor integration, not a detail to smooth
+    // over. Null observed means unobserved, which is not agreement.
+    const observedUa = res.sentUserAgent ?? null
+    const wireUa = observedUa ?? ua
+    if (observedUa !== null && observedUa !== ua) {
+      trace.push({
+        at: wallMs,
+        lane: 'provider',
+        event: 'identity_mismatch',
+        detail: { declared: ua, sent: observedUa },
+      })
+    } else if (observedUa === null) {
+      trace.push({
+        at: wallMs,
+        lane: 'provider',
+        event: 'identity_unobserved',
+        detail: { declared: ua },
+      })
+    }
+
     const record: ComplianceRecord = this.chain.append({
       recordId: crypto.randomUUID(),
       mode: this.mode,
@@ -255,7 +292,7 @@ export class ProviderSubject implements SubjectAdapter {
       // The provider's UA is the honest answer to "what went on the wire".
       // Recording our own UA here would be a lie about a request we did not
       // send — the whole reason the gate evaluates theirs.
-      sentHeaders: { headers: [{ name: 'user-agent', value: ua }] },
+      sentHeaders: { headers: [{ name: 'user-agent', value: wireUa }] },
       rateLimit: {
         previousRequestAtMs,
         observedDelayMs,
