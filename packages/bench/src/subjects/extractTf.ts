@@ -124,6 +124,7 @@ export class ExtractTfSubject implements SubjectAdapter {
         markdown,
         truncated: false,
         truncatedAt: null,
+        compliance: null,
         evidence: {
           finalUrl: url,
           httpStatus: status,
@@ -173,6 +174,7 @@ export class ExtractTfSubject implements SubjectAdapter {
         markdown: null,
         truncated: false,
         truncatedAt: null,
+        compliance: null,
         evidence: {
           finalUrl: url,
           httpStatus: null,

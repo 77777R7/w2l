@@ -1,20 +1,41 @@
 import { estimateTokens, type FetchResult, type TraceEvent } from '@w2l/contracts'
 import { extractTf } from '@w2l/extract-tf'
 import { toGfmTable } from '@w2l/fixtures'
-import { classifyGate, escalationForBlock, isRetryableStatus, parseRetryAfterMs } from '@w2l/http-core'
-import { chromium, type Browser } from 'playwright'
+import {
+  classifyGate,
+  escalationForBlock,
+  isRetryableStatus,
+  parseRetryAfterMs,
+  buildComplianceRecord,
+  type ComplianceRecord,
+  type ComplianceSentHeader,
+} from '@w2l/http-core'
+import { chromium, type Browser, type Response } from 'playwright'
 import type { SubjectAdapter } from '../subject.js'
-import { POLITE_UA } from '../ua.js'
+import {
+  BROWSER_FINGERPRINT,
+  CHROME_MAJOR_FLOOR,
+  DEFAULT_NETWORK_POLICY,
+  checkIdentityHonesty,
+  modeIdentity,
+  type CrawlMode,
+  type HonestyVerdict,
+} from '@w2l/contracts'
 
 /**
  * Browser-local subject: the escalation target the http lane flags into.
  * Direct Playwright (ADR 0001) — one headless Chromium per run, one fresh
- * page per case, real script execution, real fingerprint, polite UA.
+ * page per case, real script execution, real fingerprint.
+ *
+ * Identity is honest by construction: the mode's declared identity is derived
+ * from the *actual* Chromium version (`browser.version()`), and the client
+ * hints are aligned to it. The declared-vs-sent check (checkIdentityHonesty)
+ * runs on every fetch and is recorded into the trace — a UA that Playwright
+ * mutates on the wire is surfaced as a mismatch, never papered over.
  *
  * The rendered DOM goes through the SAME extract-tf cascade as the http
  * arms, so any score delta against resilient-http is attributable to
- * render-and-execute alone. This is the tier-2 canary's whole question:
- * how much of the bot-gated / JS-shell wall does a real browser clear?
+ * render-and-execute alone.
  */
 export class BrowserLocalSubject implements SubjectAdapter {
   readonly meta = {
@@ -25,6 +46,10 @@ export class BrowserLocalSubject implements SubjectAdapter {
   }
 
   private browser: Browser | null = null
+  /** Per-host last-request timestamp, for honest rate-limit facts. */
+  private readonly lastRequestAtMsByHost = new Map<string, number>()
+
+  constructor(private readonly mode: CrawlMode = 'standard') {}
 
   async fetch(url: string): Promise<FetchResult> {
     const start = Date.now()
@@ -34,8 +59,30 @@ export class BrowserLocalSubject implements SubjectAdapter {
     let context
     let page
     try {
-      context = await browser.newContext({ userAgent: POLITE_UA })
+      // Real Chromium major, not the floor constant: declaring a Chrome
+      // version we are not running is an inconsistency, not a feature.
+      const version = browser.version()
+      const major = Number(version.split('.')[0] ?? CHROME_MAJOR_FLOOR)
+      const identity = modeIdentity(this.mode, Number.isFinite(major) ? major : CHROME_MAJOR_FLOOR)
+
+      context = await browser.newContext({
+        userAgent: identity.userAgent,
+        locale: BROWSER_FINGERPRINT.locale,
+        timezoneId: BROWSER_FINGERPRINT.timezoneId,
+        viewport: BROWSER_FINGERPRINT.viewport,
+        screen: BROWSER_FINGERPRINT.screen,
+        deviceScaleFactor: BROWSER_FINGERPRINT.deviceScaleFactor,
+        extraHTTPHeaders: identity.clientHints,
+      })
       page = await context.newPage()
+
+      // Rate-limit facts for this host, captured before the request.
+      const host = this.hostOf(url)
+      const previousRequestAtMs = this.lastRequestAtMsByHost.get(host) ?? null
+      const observedDelayMs = previousRequestAtMs === null ? null : Date.now() - previousRequestAtMs
+      const requiredDelayMs = DEFAULT_NETWORK_POLICY.perHostMinDelayMs
+      const compliant = observedDelayMs === null || observedDelayMs >= requiredDelayMs
+      this.lastRequestAtMsByHost.set(host, Date.now())
 
       // Browser-tier retry: the same transport-independent policy the
       // http engine shares (503 only, once, Retry-After bounded). The
@@ -43,7 +90,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
       // genuinely sees flaky attempt 1 and must retry to survive it.
       const MAX_ATTEMPTS = 2
       let attemptCount = 1
-      let response
+      let response: Response | null = null
       for (;;) {
         trace.push({ at: Date.now() - start, lane: 'browser_local', event: 'navigate', detail: { url, attempt: attemptCount } })
         response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20_000 })
@@ -68,10 +115,54 @@ export class BrowserLocalSubject implements SubjectAdapter {
       const browserMs = wallMs
       trace.push({ at: wallMs, lane: 'browser_local', event: 'rendered', detail: { status, attemptCount } })
 
+      // What actually went on the wire, as Playwright saw it — the fact the
+      // honesty check compares against, and the record signs.
+      const sentHeaders: ComplianceSentHeader[] = Object.entries(response?.request().headers() ?? {})
+        .map(([name, value]) => ({ name: name.toLowerCase(), value }))
+        .sort((a, b) => a.name.localeCompare(b.name))
+      const honesty: HonestyVerdict = checkIdentityHonesty(identity, { headers: sentHeaders })
+      if (!honesty.honest) {
+        trace.push({
+          at: wallMs,
+          lane: 'browser_local',
+          event: 'identity_mismatch',
+          detail: { mismatches: honesty.mismatches },
+        })
+      }
+
+      // The per-fetch compliance record. robots decision is recorded as
+      // `no_robots` — this subject does not consult robots.txt, and claiming
+      // otherwise would be the exact lie the record exists to expose.
+      const record: ComplianceRecord = buildComplianceRecord({
+        recordId: crypto.randomUUID(),
+        mode: this.mode,
+        requestedUrl: url,
+        finalUrl,
+        requestedAt: new Date(start).toISOString(),
+        robots: {
+          robotsUrl: null,
+          robotsSha256: null,
+          matchedUserAgentGroup: null,
+          appliedRules: [],
+          decision: 'no_robots',
+          skippedFetch: false,
+        },
+        sentHeaders: { headers: sentHeaders },
+        rateLimit: {
+          previousRequestAtMs,
+          observedDelayMs,
+          requiredDelayMs,
+          compliant,
+          recentSameHostCount: 1,
+        },
+        prevRecordHash: null,
+      })
+
       const base = {
         requestedUrl: url,
         truncated: false,
         truncatedAt: null,
+        compliance: record,
         evidence: {
           finalUrl,
           httpStatus: status,
@@ -206,6 +297,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
         markdown: null,
         truncated: false,
         truncatedAt: null,
+        compliance: null,
         evidence: {
           finalUrl: url,
           httpStatus: null,
@@ -229,6 +321,14 @@ export class BrowserLocalSubject implements SubjectAdapter {
     } finally {
       await page?.close().catch(() => {})
       await context?.close().catch(() => {})
+    }
+  }
+
+  private hostOf(url: string): string {
+    try {
+      return new URL(url).host
+    } catch {
+      return url
     }
   }
 

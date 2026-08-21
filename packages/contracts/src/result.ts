@@ -1,4 +1,5 @@
 import type { BlockReason, BudgetKind, FailureReason, Lane, ResultStatus } from './status.js'
+import type { ComplianceRecord } from './compliance.js'
 
 /** Why the runtime moved from one lane to the next. Logged for the escalation corpus. */
 export interface Escalation {
@@ -70,6 +71,13 @@ export interface FetchResult {
   truncated: boolean
   /** Character offset where truncation occurred; null when not truncated. */
   truncatedAt: number | null
+  /**
+   * Tamper-evident record of what the fetch actually did (robots.txt decision,
+   * exact headers sent, rate-limit facts). Null until a subject wires the
+   * record builder in; contentful subjects are expected to produce one per
+   * fetch so the premium "provable politeness" tier is not a bolt-on.
+   */
+  compliance: ComplianceRecord | null
   evidence: Evidence
   usage: ResourceUsage
   trace: readonly TraceEvent[]

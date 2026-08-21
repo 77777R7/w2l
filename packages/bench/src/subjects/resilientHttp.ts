@@ -45,6 +45,7 @@ export class ResilientHttpSubject implements SubjectAdapter {
       requestedUrl: url,
       truncated: false,
       truncatedAt: null,
+      compliance: null,
       evidence: {
         finalUrl: out.finalUrl,
         httpStatus: out.status,

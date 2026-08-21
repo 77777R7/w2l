@@ -75,6 +75,29 @@ describe('BrowserLocalSubject transport', () => {
     }
   })
 
+  it('produces a compliance record whose declared identity is honest', async () => {
+    const subject = new BrowserLocalSubject()
+    try {
+      const out = await subject.fetch(`${url}/spa`)
+      expect(out.compliance).not.toBeNull()
+      const record = out.compliance!
+      // The mode's declared UA is derived from the *real* Chromium version, so
+      // the record must carry that UA — not the CHROME_MAJOR_FLOOR placeholder.
+      const declared = record.sentHeaders.headers.find((h) => h.name === 'user-agent')
+      expect(declared).toBeDefined()
+      expect(declared!.value).toMatch(/Chrome\/\d+\.0\.0\.0 Safari/)
+      // The honesty check runs inside fetch and, on a clean context, must be
+      // silent — a mismatch surfaces as an identity_mismatch trace event.
+      expect(out.trace.filter((t) => t.event === 'identity_mismatch')).toHaveLength(0)
+      // robots is recorded as no_robots — this subject does not consult it, and
+      // the record must say so rather than pretend a check happened.
+      expect(record.robots.decision).toBe('no_robots')
+      expect(record.robots.skippedFetch).toBe(false)
+    } finally {
+      await subject.teardown()
+    }
+  })
+
   it('maps a navigation deadline to failureReason timeout', async () => {
     const subject = new BrowserLocalSubject()
     try {

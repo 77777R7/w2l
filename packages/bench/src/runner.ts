@@ -75,6 +75,7 @@ export async function runBenchmark(
             markdown: null,
             truncated: false,
             truncatedAt: null,
+            compliance: null,
             evidence: {
               finalUrl: truth.target,
               httpStatus: null,
