@@ -54,16 +54,17 @@
 - **移动 API 逆向最便宜也最危险**：Frida/mitmproxy 工具链成熟，但 Meta v. Bright Data 不保护它；Bright Data 2026-04 停售新移动代理
 - **架构性绕过（最高投入产出比）**：API/RSS/sitemap → 普通 fetch → 诚实浏览器 + BYO 住宅代理 → 分类上报残余门。一次性工程 + 零持续军备。Crawlora 2026 扫描：53.5% 站点有托管反爬但集中在深层页；Wayback 对付费文章 ~80% 快照覆盖
 
-## 三、法律层：最大的未验证风险区（**必须单独补一轮验证**）
+## 三、法律层：已单独核验（见 [legal_anti_bot_bypass_verified.md](./legal_anti_bot_bypass_verified.md)）
 
-主工作流的验证额度在核验法律 claim 时耗尽（27 个 agent 因预扣费失败报错），**全部 8 条法律结论未确认**。以下只作为"待验证命题"列出，不得作为决策依据：
+主工作流的验证额度曾在核验法律 claim 时耗尽，本段为**后续专门核验轮次**的结论（逐条 [VERIFIED]/[PLAUSIBLE]/[UNRESOLVED] 标签 + 来源 URL）：
 
-- **P1（待验证）**：Reddit v. SerpApi（2026-07 裁决）指向"绕过 bot 检测本身即可触发 DMCA §1201 反规避责任"的可能。
-- **P2（待验证，方向相反）**：Ziff Davis v. OpenAI——忽略 robots.txt **不是**规避技术措施。
-- **P3（待验证，方向一致）**：Google v. SerpApi 接受了"指纹伪造 + 验证码求解 = 规避"的定性（因搜索结果非版权作品才被驳回）。
-- **P4（待验证）**：欧盟 Directive 2013/40 对商业爬虫的定位。
+- **Reddit v. SerpApi（§1201）[VERIFIED]**：2026-07-31 裁决认定 Google SearchGuard（JS/CAPTCHA 反爬）构成 §1201(a)(3)(B) 的"有效控制访问的技术措施"，§1201(a)(1)(A) 对 SerpApi 和 Perplexity 双方、§1201(a)(2) 工具传播对 SerpApi 均存活到 discovery。**但对照案 Google v. SerpApi（11 天前）被驳**——决定性差异不是规避技术，而是门后是否有**受版权保护的内容 + 版权人授权**。当前均为 motion-to-dismiss 裁决，责任未定。
+- **CFAA [VERIFIED]**：robots.txt 是政策信号、不是技术措施（*Ziff Davis v. OpenAI*："keep off the grass" 告示牌类比）。公开免登录页抓取可辩护（*Van Buren*/*hiQ II*）；**C&D + IP 封禁 + 继续规避 = 越权访问**（*Power Ventures* 模式）是真正的红线。礼貌身份 vs 主动解验证码/换 IP 规避封禁，是低风险 vs 高风险的精确分界。
+- **欧盟 [VERIFIED/PLAUSIBLE]**：Directive 2013/40 不把 CAPTCHA 绕过单独定罪，但作为"无权访问"证据；真正暴露面是 **GDPR Art 6(1)(f) 合法利益**——抓个人数据是处理行为，德国 BGH（2024-11）认定"失控"本身即可赔 ~€100/人。
 
-两条专线各自独立接触到的 2026 判例摘要（未经 3 票核验）与上述命题方向一致：**"绕过保护版权作品的门"是法院确认过的危险区**。但主工作流坚持把整块法律列为未验证，应尊重这一保守立场——**把"合规"作为独立课题单跑一轮验证后再动产品定位**。
+**一句话底线 [VERIFIED]**：尊重 robots.txt、礼貌一致身份、诚实限速的公开页爬虫可辩护；**一旦主动解 CAPTCHA、换 IP 规避封禁、或禁用反爬门**，防御性崩塌——因为那是对访问控制措施的规避，门后有版权内容（美国 §1201）或个人数据（欧盟 GDPR）时，两套法律都接上。
+
+（待验证的 P1–P4 已由上述核验轮次取代；唯一剩余 UNRESOLVED：巴黎商事法院 2024 关于 robots.txt 是否满足 DSM Art 4(3) 机器可读 opt-out 的裁决，机构性评论目前反方向。）
 
 ## 四、对"砸不砸招牌"的诚实裁量
 
@@ -86,7 +87,7 @@
 
 ## 五、已知缺口（下一步行动）
 
-1. **法律层整块未验证**（最高优先级）：单独跑一轮法律验证（Reddit v. SerpApi 完整裁决文本、§1201(a)(2) 传播责任、欧盟定位）。
-2. **更高阶防护无数据**：所有已证实数据仅覆盖 Cloudflare 31 目标与 4 类验证码；DataDome/Akamai/Kasada 无第三方头对头测试（反检测对比仓库自己的 Tier D 即"没人测过"）。
+1. ~~法律层整块未验证~~ **已完成**（见 [legal_anti_bot_bypass_verified.md](./legal_anti_bot_bypass_verified.md)）。唯一残留 UNRESOLVED：巴黎商事法院 2024 robots.txt/DSM Art 4(3) 裁决的真伪。
+2. **更高阶防护无数据**：所有已证实数据仅覆盖 Cloudflare 31 目标与 4 类验证码；DataDome/Akamai/Kasada 无第三方头对头测试。
 3. **养号画像经济账无量化**：NanoBrowser 单例证明持久环境可过被动评分，但规模化成本/维护无数据——这决定"环境真实性"路线能否产品化。
 4. **协议层规避的工程现状**：nodriver 证明裸 CDP 优于补丁，但 CDP 握手指纹本身是否已商品化、防御方是否已针对演化，无第三方证据。
