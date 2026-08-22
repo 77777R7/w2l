@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { FetchResult, HandoffRequest } from '@w2l/contracts'
 import { LadderRunner, type Channel, type HumanHandoff } from '../src/routing/ladder.js'
 import { MemoryRoutingHistory } from '../src/routing/vendorRouter.js'
-import type { SessionSnapshot } from '../src/routing/sessionStore.js'
+import { MemorySessionStore, type SessionSnapshot } from '../src/routing/sessionStore.js'
 
 function blockedResult(url: string, blockReason: FetchResult['blockReason']): FetchResult {
   return {
@@ -278,5 +278,128 @@ describe('LadderRunner — human handoff', () => {
     const run = await runner.run('https://example.com/p')
     expect(run.handoffRequested).toBe(true)
     expect(run.channelsTried).toEqual(['provider'])
+  })
+})
+
+describe('LadderRunner — consuming FetchResult.escalations', () => {
+  function thinHttpSuccess(url: string): FetchResult {
+    const r = contentfulResult(url, 'http')
+    return {
+      ...r,
+      usage: { ...r.usage, contentTokens: 60 },
+      trace: [
+        ...r.trace,
+        { at: 10, lane: 'http', event: 'quality_low_yield', detail: { contentTokens: 60, confidence: 0.2 } },
+      ],
+    }
+  }
+
+  function emptyUnverified(url: string): FetchResult {
+    return {
+      ...failedResult(url, 'empty_unverified'),
+      escalations: [{ from: 'http', to: 'browser_local', trigger: 'extract_low_confidence', improved: null }],
+    }
+  }
+
+  it('honours an empty_unverified subject escalation and tries the next rung', async () => {
+    const http = channel('http', [emptyUnverified('https://example.com/p')])
+    const browser = channel('browser_local', [contentfulResult('https://example.com/p', 'browser_local')])
+    const runner = new LadderRunner([http, browser], { mode: 'authed' })
+
+    const run = await runner.run('https://example.com/p')
+    expect(run.result.lane).toBe('browser_local')
+    expect(run.channelsTried).toEqual(['http', 'browser_local'])
+  })
+
+  it('escalates a thin, low-confidence http success to the browser (quality signal)', async () => {
+    const http = channel('http', [thinHttpSuccess('https://example.com/p')])
+    const browser = channel('browser_local', [contentfulResult('https://example.com/p', 'browser_local')])
+    const runner = new LadderRunner([http, browser], { mode: 'authed' })
+
+    const run = await runner.run('https://example.com/p')
+    expect(run.result.lane).toBe('browser_local')
+    expect(run.channelsTried).toEqual(['http', 'browser_local'])
+  })
+
+  it('accepts the browser result even when it is also thin — one quality pass, not a loop', async () => {
+    const http = channel('http', [thinHttpSuccess('https://example.com/p')])
+    const browser = channel('browser_local', [thinHttpSuccess('https://example.com/p')])
+    const runner = new LadderRunner([http, browser], { mode: 'authed' })
+
+    const run = await runner.run('https://example.com/p')
+    expect(run.result.lane).toBe('http') // the browser's thin success IS the answer
+    expect(run.result.trace.some((t) => t.event === 'quality_low_yield')).toBe(true)
+    expect(run.channelsTried).toEqual(['http', 'browser_local'])
+  })
+
+  it('audits every step with channel, vendor and escalation reason', async () => {
+    const http = channel('http', [emptyUnverified('https://example.com/p')])
+    const browser = channel('browser_local', [contentfulResult('https://example.com/p', 'browser_local')])
+    const runner = new LadderRunner([http, browser], { mode: 'authed' })
+
+    const run = await runner.run('https://example.com/p')
+    const steps = run.ladderTrace.filter((t) => t.event === 'ladder_step')
+    expect(steps).toHaveLength(2)
+    expect(steps[0]).toMatchObject({
+      channel: 'http',
+      detail: { status: 'failed', escalate: 'subject_escalations' },
+    })
+    expect(steps[1]).toMatchObject({ channel: 'browser_local', detail: { escalate: null } })
+  })
+})
+
+describe('LadderRunner — session store wiring', () => {
+  it('loads a saved session for the domain when the caller passes none', async () => {
+    const snapshot: SessionSnapshot = {
+      domain: 'example.com',
+      attestedBy: 't',
+      attestedAt: '2026-08-22T00:00:00.000Z',
+      vendor: 'browser_local_authed',
+      cookies: [{ name: 'sid', value: 'v', domain: '.example.com', path: '/' }],
+    }
+    const store = new MemorySessionStore()
+    await store.save(snapshot)
+
+    const received: (SessionSnapshot | null | undefined)[] = []
+    const http = channel('http', [contentfulResult('https://example.com/p', 'http')])
+    const orig = http.fetch
+    http.fetch = async (url, session) => {
+      received.push(session)
+      return orig(url, session)
+    }
+
+    const runner = new LadderRunner([http], { mode: 'authed' }, null, null, store)
+    await runner.run('https://example.com/p')
+
+    expect(received).toHaveLength(1)
+    expect(received[0]?.domain).toBe('example.com')
+    expect(received[0]?.cookies?.[0]?.name).toBe('sid')
+  })
+
+  it('saves the handoff snapshot so the next run resumes', async () => {
+    const session: SessionSnapshot = {
+      domain: 'example.com',
+      attestedBy: 'human',
+      attestedAt: '2026-08-22T00:00:00.000Z',
+      vendor: 'steel',
+      resume: { steelProfileId: 'prof-1' },
+    }
+    const store = new MemorySessionStore()
+    const request: HandoffRequest = {
+      reason: 'captcha_required',
+      liveViewUrl: 'https://live.example/session-1',
+      rationale: 'The target demands human verification.',
+    }
+    const vendor = channel('provider', [
+      { ...blockedResult('https://example.com/p', 'captcha'), handoff: request },
+      contentfulResult('https://example.com/p', 'provider'),
+    ], 'steel')
+    const handoff: HumanHandoff = { async takeOver() { return session } }
+    const runner = new LadderRunner([vendor], { mode: 'authed' }, null, handoff, store)
+
+    await runner.run('https://example.com/p')
+    const saved = await store.load('example.com')
+    expect(saved?.vendor).toBe('steel')
+    expect(saved?.resume).toEqual({ steelProfileId: 'prof-1' })
   })
 })

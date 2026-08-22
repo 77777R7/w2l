@@ -60,14 +60,14 @@
 **改造**:`packages/http-core/src/governance.ts`(新):`CrawlPolicy`(mode + 允许的域名列表 + 哪些通道可用 + 哪些能力可启用)。`LadderRunner` 在每次请求前检查:
 - 默认 mode:只允许 http 与 browser_local,域名必须在白名单里(或明确为 public-only)。
 - authed / provider / handoff 通道只在策略显式授权后可用。
-- 每次通道升级、每次人工接管都追加一条 `audit` trace 事件(记录到 FetchResult.trace),审计记录随合规链签名。
+- 每次通道升级、每次人工接管都追加一条 `ladder_step` 审计事件(渠道、vendorId、升级原因、该步结果),由 `LadderRunner` 产出,CLI 打印并随最终结果返回;合规链签名覆盖的是 subject 自产记录,梯子的审计是与结果并行的证据。
 
 ### 差距 8:没有真实 E2E 对比,只有 fake tests
 
 **现状**:所有 vendor 测试都是注入的 fake。真实 API Key 不存在于本环境。
 
 **改造**:
-- `packages/bench/src/liveCompare.ts`(新)+ CLI `w2l-live-compare`:对同一批 URL 跑 HTTP → 本地浏览器 → (Browserbase,若有 key) → (Steel,若有 key)四个通道,输出每通道的**内容成功率、假成功率、成本、速度、人工介入率**,以及各通道相对 HTTP 基线的增量。
+- `packages/bench/src/liveCompareCli.ts` + CLI `w2l-live-compare`:对同一批 URL 跑 HTTP → 本地浏览器 → (Browserbase,若有 key) → (Steel,若有 key)四个通道,输出每通道的**内容成功率、假成功率、成本、速度、人工介入率**,以及各通道相对 HTTP 基线的增量。每个厂商 arm **复用一个 Subject**(懒创建,首次 fetch 时才建会话),所有成功/失败/超时路径都走 `finally` teardown,arm 超时是真实的 `Promise.race` 截止。
 - 没有 key 的通道诚实输出 `SKIPPED: no API key`,而不是跳过报告。
 - 该 CLI 已用真实网络运行(HTTP 与本地浏览器通道),结果见「实测」一节。厂商通道待 key。
 
@@ -96,7 +96,7 @@
 **仍然失败的原因(每一条都查过,不是猜)**:
 
 - **etsy.com** — 两条通道都 `bot_gate`(403 挑战页)。robots.txt 允许,但站方的 bot 检测拦所有非真人流量。爬过它的唯一方式是解验证码或伪造指纹——两者都是结构性拒绝的能力,所以这是梯子的诚实终点,不是缺失。
-- **amazon.com** — http 和浏览器都是 `bot_gate`。诊断抓到了具体信号:浏览器拿回 **202 + 空文档**(Amazon 吞掉请求而不承认)。`classifyGate` 为此新增了规则:202 对页面 GET 永远是 gate 的形状,即使 gate 在上面渲染了骨架。这个失败现在被正确地叫 bot_gate,而不是伪装成 http_error。
+- **amazon.com** — http 和浏览器都是 `bot_gate`。诊断抓到了具体信号:浏览器拿回 **202 + 空/近空文档**(Amazon 吞掉请求而不承认)。`classifyGate` 的多信号规则:202 只有在**空/近空内容,或同时出现其他 gate 信号**时才判 bot_gate;带实质页面的 202 保持普通 http_error(有负向测试钉住)。这个失败现在被正确地叫 bot_gate,而不是伪装成 http_error。
 - **glassdoor.com** — 后两次被 `login_required`(浏览器通道)。这不是验证码,是登录墙——梯子的正确答案是 `browser_local_authed` 或真人接管,而不是更强的伪装。
 
 这些失败类型全部映射进七类路由分类(bot_gate / captcha_required / login_required / rate_limited / geo_blocked / provider_error / identity_mismatch),挑战页 0 次被算作成功。

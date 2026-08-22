@@ -69,8 +69,11 @@ export function steelSessionBody(
       humanizeInteractions: false,
     },
     solveCaptcha: false,
+    // First use persists the profile so the create response's profileId can
+    // be saved and resumed later; a later run passes the saved profileId.
+    ...(persistEnabled ? { persistProfile: true } : {}),
     ...(persistEnabled && resume?.steelProfileId !== undefined
-      ? { profileId: resume.steelProfileId, persistProfile: true }
+      ? { profileId: resume.steelProfileId }
       : {}),
     ...(persistEnabled && resume?.steelSessionContext !== undefined
       ? { sessionContext: resume.steelSessionContext }
@@ -92,6 +95,17 @@ export function steelOps(
     vendorId: 'steel',
     secrets: [config.apiKey],
     decision,
+
+    /**
+     * First-use persistence: Steel persists the profile when the session is
+     * created with `persistProfile: true`, and the create response carries the
+     * resulting `profileId`. There is no separate "create profile" call — the
+     * session itself is the creation — so this reports null and the profileId
+     * from the create response becomes the resume material the ladder saves.
+     */
+    async ensurePersistence(): Promise<VendorResumeContext | null> {
+      return null
+    },
 
     async createSession(resume?: VendorResumeContext | null): Promise<VendorSession> {
       const body = steelSessionBody(decision, resume ?? null)

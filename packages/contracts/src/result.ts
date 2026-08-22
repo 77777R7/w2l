@@ -85,6 +85,12 @@ export interface FetchResult {
    *  Optional for backward compatibility with existing result producers;
    *  the router and provider lanes always populate it. */
   handoff?: HandoffRequest | null
+  /**
+   * Vendor session resume material (context/profile/storage) that the
+   * provider lane produced, so the ladder can persist it for the next run.
+   * Shape is vendor-specific; it is a credential-free continuation token.
+   */
+  resumeContext?: unknown | null
   /** Extracted main content as Markdown. Null unless status is contentful. */
   markdown: string | null
   /** True when content was cut to fit a token budget. */

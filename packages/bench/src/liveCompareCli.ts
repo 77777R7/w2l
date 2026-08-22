@@ -99,27 +99,54 @@ function classifyResult(arm: string, result: FetchResult): ArmResult {
 
 const ARM_TIMEOUT_MS = 120_000
 
-async function runArm(arm: string, fn: () => Promise<FetchResult>): Promise<ArmOutcome> {
-  const timer = setTimeout(() => {
-    // The fetch itself is not cancellable here; the timeout bounds the WAIT.
-    // The subject's own transport timeouts still apply inside.
-  }, ARM_TIMEOUT_MS)
-  timer.unref?.()
+/**
+ * A REAL deadline: the arm promise races a timer that rejects. The subject
+ * underneath is not abortable (its own transport timeouts still apply), so a
+ * timed-out arm's fetch may keep running in the background — but the REPORT
+ * stops waiting, which is what the deadline is for. The subject is torn down
+ * by compareChannels' finally so the session does not outlive the run.
+ */
+async function runArm(
+  arm: string,
+  fn: () => Promise<FetchResult>,
+  timeoutMs: number = ARM_TIMEOUT_MS,
+): Promise<ArmOutcome> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error(`arm ${arm} timed out after ${timeoutMs}ms`))
+    }, timeoutMs)
+    timer.unref?.()
+  })
   try {
-    const result = await fn()
-    clearTimeout(timer)
+    const result = await Promise.race([fn(), deadline])
     return { arm, ok: true, result: classifyResult(arm, result) }
   } catch (err) {
-    clearTimeout(timer)
     return { arm, ok: false, error: err instanceof Error ? err.message : String(err) }
+  } finally {
+    if (timer !== undefined) clearTimeout(timer)
   }
 }
+
+/** A subject as tests inject it: fetch plus optional release. */
+type FakeSubject = { fetch: (url: string) => Promise<FetchResult>; teardown?: () => Promise<void> }
 
 export async function compareChannels(
   urls: readonly string[],
   opts: {
     policy?: VendorPolicy
     onProgress?: (line: string) => void
+    /** Test seam: arm timeout. */
+    armTimeoutMs?: number
+    /** Test seam: subject factories per arm, so tests need no Chromium and
+     *  no vendor account. Each factory may return a subject with teardown. */
+    overrides?: {
+      http?: () => Promise<FakeSubject>
+      browser_local?: () => Promise<FakeSubject>
+      browserbase?: () => Promise<FakeSubject>
+      steel?: () => Promise<FakeSubject>
+    }
+    keys?: { browserbase?: string; steel?: string }
   } = {},
 ): Promise<{ perUrl: { url: string; arms: ArmOutcome[] }[] }> {
   const log = opts.onProgress ?? (() => {})
@@ -129,62 +156,127 @@ export async function compareChannels(
   const browser = new BrowserLocalSubject('standard')
 
   // Vendor arms exist only with a key. Skipped otherwise — reported, not hidden.
-  const bbKey = process.env.BROWSERBASE_API_KEY ?? ''
-  const steelKey = process.env.STEEL_API_KEY ?? ''
+  const bbKey = opts.keys?.browserbase ?? process.env.BROWSERBASE_API_KEY ?? ''
+  const steelKey = opts.keys?.steel ?? process.env.STEEL_API_KEY ?? ''
   const policy = opts.policy ?? { authorized: [] }
 
-  const arms: { name: string; run: (url: string) => Promise<FetchResult>; available: boolean }[] = [
+  // ONE subject per vendor arm for the whole run, created lazily on the first
+  // fetch that reaches the arm — a fresh paid session per URL would be both
+  // wrong (no reuse) and expensive (a second session per comparison row).
+  let bbFakeSubject: FakeSubject | null = null
+  let steelFakeSubject: FakeSubject | null = null
+  let httpFakeSubject: FakeSubject | null = null
+  let browserFakeSubject: FakeSubject | null = null
+  let bbSubject: Awaited<ReturnType<typeof vendorProviderSubject>> | null = null
+  let steelSubject: Awaited<ReturnType<typeof vendorProviderSubject>> | null = null
+  const bbFake = opts.overrides?.browserbase ?? null
+  const steelFake = opts.overrides?.steel ?? null
+  const httpFake = opts.overrides?.http ?? null
+  const browserFake = opts.overrides?.browser_local ?? null
+
+  interface Arm {
+    name: string
+    run: (url: string) => Promise<FetchResult>
+    available: boolean
+    close: () => Promise<void>
+  }
+
+  const arms: Arm[] = [
     {
       name: 'http',
       available: true,
-      run: (url) => http.fetch(url),
+      run: async (url) => {
+        if (httpFake !== null) {
+          if (httpFakeSubject === null) httpFakeSubject = await httpFake()
+          return httpFakeSubject.fetch(url)
+        }
+        return http.fetch(url)
+      },
+      close: async () => {
+        if (httpFakeSubject !== null) await httpFakeSubject.teardown?.()
+      },
     },
     {
       name: 'browser_local',
       available: true,
-      run: (url) => browser.fetch(url),
+      run: async (url) => {
+        if (browserFake !== null) {
+          if (browserFakeSubject === null) browserFakeSubject = await browserFake()
+          return browserFakeSubject.fetch(url)
+        }
+        return browser.fetch(url)
+      },
+      close: async () => {
+        await browser.teardown()
+        if (browserFakeSubject !== null) await browserFakeSubject.teardown?.()
+      },
     },
     {
       name: 'browserbase',
-      available: bbKey !== '',
+      available: bbKey !== '' || bbFake !== null,
       run: async (url) => {
-        const subject = await vendorProviderSubject(browserbaseOps({ apiKey: bbKey }, undefined, policy))
-        return subject.fetch(url)
+        if (bbFake !== null) {
+          if (bbFakeSubject === null) bbFakeSubject = await bbFake()
+          return bbFakeSubject.fetch(url)
+        }
+        if (bbSubject === null) {
+          bbSubject = await vendorProviderSubject(browserbaseOps({ apiKey: bbKey }, undefined, policy))
+        }
+        return bbSubject.fetch(url)
+      },
+      close: async () => {
+        if (bbSubject !== null) await bbSubject.teardown()
+        if (bbFakeSubject !== null) await bbFakeSubject.teardown?.()
       },
     },
     {
       name: 'steel',
-      available: steelKey !== '',
+      available: steelKey !== '' || steelFake !== null,
       run: async (url) => {
-        const subject = await vendorProviderSubject(steelOps({ apiKey: steelKey }, undefined, policy))
-        return subject.fetch(url)
+        if (steelFake !== null) {
+          if (steelFakeSubject === null) steelFakeSubject = await steelFake()
+          return steelFakeSubject.fetch(url)
+        }
+        if (steelSubject === null) {
+          steelSubject = await vendorProviderSubject(steelOps({ apiKey: steelKey }, undefined, policy))
+        }
+        return steelSubject.fetch(url)
+      },
+      close: async () => {
+        if (steelSubject !== null) await steelSubject.teardown()
+        if (steelFakeSubject !== null) await steelFakeSubject.teardown?.()
       },
     },
   ]
 
   const perUrl: { url: string; arms: ArmOutcome[] }[] = []
-  for (const url of urls) {
-    log(`\n== ${url} ==`)
-    const urlArms: ArmOutcome[] = []
-    for (const arm of arms) {
-      if (!arm.available) {
-        urlArms.push({ arm: arm.name, ok: false, error: 'SKIPPED: no API key in environment' })
-        continue
+  try {
+    for (const url of urls) {
+      log(`\n== ${url} ==`)
+      const urlArms: ArmOutcome[] = []
+      for (const arm of arms) {
+        if (!arm.available) {
+          urlArms.push({ arm: arm.name, ok: false, error: 'SKIPPED: no API key in environment' })
+          continue
+        }
+        log(`  ${arm.name}...`)
+        const outcome = await runArm(arm.name, () => arm.run(url), opts.armTimeoutMs)
+        urlArms.push(outcome)
+        if (outcome.result !== undefined) {
+          log(
+            `    ${outcome.result.status}${outcome.result.failureClass !== null ? ` (${outcome.result.failureClass})` : ''} ` +
+              `${outcome.result.wallMs}ms ${outcome.result.tokens ?? '-'}tok ${outcome.result.costUsd ?? 'cost-unknown'}`,
+          )
+        }
       }
-      log(`  ${arm.name}...`)
-      const outcome = await runArm(arm.name, () => arm.run(url))
-      urlArms.push(outcome)
-      if (outcome.result !== undefined) {
-        log(
-          `    ${outcome.result.status}${outcome.result.failureClass !== null ? ` (${outcome.result.failureClass})` : ''} ` +
-            `${outcome.result.wallMs}ms ${outcome.result.tokens ?? '-'}tok ${outcome.result.costUsd ?? 'cost-unknown'}`,
-        )
-      }
+      perUrl.push({ url, arms: urlArms })
     }
-    perUrl.push({ url, arms: urlArms })
+  } finally {
+    // Success, failure and timeout all land here: every arm's resources are
+    // released before the report leaves this function.
+    await Promise.all(arms.map((a) => a.close().catch(() => {})))
   }
 
-  await browser.teardown()
   return { perUrl }
 }
 

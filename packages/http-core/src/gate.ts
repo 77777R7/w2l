@@ -273,13 +273,21 @@ export function classifyGate(res: GateResponse): GateVerdict | null {
     return { reason: 'bot_detected_generic', signals }
   }
 
-  // A 202 is never a legitimate answer to a page GET. It is the shape a gate
-  // uses to swallow a request without admitting to it (Amazon returns it with
-  // an empty or near-empty document to bot-shaped clients). The body check
-  // would be redundant here: even a rendered skeleton over a 202 is the gate's
-  // page, not the target's content.
+  // A 202 is suspicious — a page GET has no legitimate 202 answer — but it is
+  // NOT decisive on its own: some sites answer 202 while still streaming a
+  // real document. It classifies as a gate only with a second signal:
+  // an empty or near-empty body (the shape of a swallowed request), another
+  // gate signal already firing, or a gate-shaped header. A 202 carrying a
+  // substantive page stays a plain http_error.
   if (res.status === 202) {
-    return { reason: 'bot_detected_generic', signals: ['status_202'] }
+    const bodyNearEmpty = head.trim().length <= 512
+    const gateHeader = VENDOR_HEADERS.some(([name]) => res.header(name) !== null)
+    if (bodyNearEmpty || botWeak.length > 0 || botStrong.length > 0 || gateHeader) {
+      return {
+        reason: 'bot_detected_generic',
+        signals: ['status_202', ...(bodyNearEmpty ? ['empty_body'] : []), ...botWeak, ...botStrong],
+      }
+    }
   }
 
   return null

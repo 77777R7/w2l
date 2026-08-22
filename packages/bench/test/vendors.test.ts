@@ -605,3 +605,50 @@ describe('capability/policy split (transport declares, policy decides)', () => {
     expect(liveSession.handoffUrl).toBe('https://app.steel.dev/session/st_2')
   })
 })
+
+// --- first-use persistence (the ops-level half of the session loop) ---------
+
+describe('vendor first-use persistence', () => {
+  it('browserbase ensurePersistence creates ONE context and returns its id, only when authorized', async () => {
+    const contexts: unknown[] = []
+    const api = new FakeApi((req) =>
+      req.url.endsWith('/v1/contexts')
+        ? (contexts.push(req.body), { status: 201, json: { id: 'ctx-42' } })
+        : { status: 201, json: { id: 'bb_x', connectUrl: 'wss://cdp.example/bb_x' } },
+    )
+
+    const denied = browserbaseOps({ apiKey: 'k' }, api.handler)
+    expect(await denied.ensurePersistence()).toBeNull()
+    expect(contexts).toEqual([])
+
+    const authorized = browserbaseOps({ apiKey: 'k' }, api.handler, {
+      authorized: ['session_persistence'],
+    })
+    const resume = await authorized.ensurePersistence()
+    expect(resume).toEqual({ browserbaseContextId: 'ctx-42' })
+    expect(contexts).toHaveLength(1)
+
+    // The created context id is exactly what a session body should carry next.
+    const session = await authorized.createSession(resume)
+    expect(session.resumeContext).toEqual({ browserbaseContextId: 'ctx-42' })
+  })
+
+  it('steel ensurePersistence is a no-op by design — the create response carries the profileId', async () => {
+    const withProfile = new FakeApi((req) =>
+      req.method === 'POST' && req.url.endsWith('/v1/sessions')
+        ? { status: 201, json: { id: 'st_9', profileId: 'prof-77' } }
+        : { status: 200, json: {} },
+    )
+    const ops = steelOps({ apiKey: 'k' }, withProfile.handler, {
+      authorized: ['session_persistence'],
+    })
+    expect(await ops.ensurePersistence()).toBeNull()
+    const session = await ops.createSession()
+    // The resume material comes from the session itself, saved by the ladder
+    // after a contentful fetch.
+    expect(session.resumeContext).toEqual({ steelProfileId: 'prof-77' })
+    // And the body that created it must have asked Steel to persist.
+    const body = withProfile.requests[0]!.body as Record<string, unknown>
+    expect(body.persistProfile).toBe(true)
+  })
+})

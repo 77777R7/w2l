@@ -1,4 +1,10 @@
-import { estimateTokens, type FetchResult, type TraceEvent } from '@w2l/contracts'
+import {
+  estimateTokens,
+  QUALITY_ESCALATION_MAX_CONFIDENCE,
+  QUALITY_ESCALATION_MAX_TOKENS,
+  type FetchResult,
+  type TraceEvent,
+} from '@w2l/contracts'
 import { extractTf } from '@w2l/extract-tf'
 import { toGfmTable } from '@w2l/fixtures'
 import { resilientFetch, classifyGate, escalationForBlock, type ResilientFetcher } from '@w2l/http-core'
@@ -168,6 +174,28 @@ export class ResilientHttpSubject implements SubjectAdapter {
       /<table\b[\s\S]*?<\/table>/gi,
       (table) => `\n${toGfmTable(table)}\n`,
     )
+    const contentTokens = estimateTokens(markdown)
+
+    // Quality signal: a success whose content is thin AND low-confidence is
+    // a success worth offering to a higher lane. The status stays success —
+    // this is not a rewritten verdict — but the ladder reads this event as
+    // "the HTTP answer is below the quality bar, try the browser".
+    if (
+      contentTokens <= QUALITY_ESCALATION_MAX_TOKENS &&
+      extracted.confidence <= QUALITY_ESCALATION_MAX_CONFIDENCE
+    ) {
+      trace.push({
+        at: wallMs,
+        lane: 'http',
+        event: 'quality_low_yield',
+        detail: {
+          contentTokens,
+          confidence: extracted.confidence,
+          pageType: extracted.pageType,
+          strategy: extracted.strategy,
+        },
+      })
+    }
 
     return {
       ...base,
@@ -178,7 +206,7 @@ export class ResilientHttpSubject implements SubjectAdapter {
       lane: 'http',
       escalations: [],
       markdown,
-      usage: { ...base.usage, contentTokens: estimateTokens(markdown) },
+      usage: { ...base.usage, contentTokens },
     }
   }
 

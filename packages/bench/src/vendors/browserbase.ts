@@ -125,6 +125,19 @@ export function browserbaseOps(
     secrets: [config.apiKey],
     decision,
 
+    /**
+     * First-use persistence: when the policy authorized session_persistence
+     * but no context exists yet, create one. Its id becomes the resume
+     * material the ladder saves; the next independent run passes it back and
+     * the session restores the context's cookies/storage.
+     */
+    async ensurePersistence(): Promise<VendorResumeContext | null> {
+      const persistEnabled = decision.enabled.some((c) => c.capability === 'session_persistence')
+      if (!persistEnabled) return null
+      const id = await browserbaseCreateContext(config, api)
+      return { browserbaseContextId: id }
+    },
+
     async createSession(resume?: VendorResumeContext | null): Promise<VendorSession> {
       const body = browserbaseSessionBody(decision, config.projectId, resume ?? null)
       const res = await api({

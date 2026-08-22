@@ -6,16 +6,25 @@
  * the trace:
  *
  *   success  : contentful share of attempts (0 when no data)
- *   latency  : median wall time, inverted and normalized (0 when no data)
+ *   latency  : TRUE MEDIAN wall time across stored samples, inverted and
+ *              normalized (0 when no data). Samples are kept per attempt —
+ *              an average of outliers is not a statistic a router may
+ *              decide on.
  *   cost     : cumulative reported vendor cost, inverted (0 when no data)
  *   explore  : a small flat bonus when the vendor has no history here yet,
  *              so a new vendor gets ONE chance to prove itself per domain
  *              rather than riding an unearned reputation from elsewhere.
  *
- * Fallback: when the chosen vendor fails with a vendor-level failure
- * (provider_error / identity_mismatch), the next fetch for that domain starts
- * from the next vendor in the ranking. Site-level blocks (bot_gate etc.) do
- * NOT count against the vendor — the vendor did not break, the site said no.
+ * Failure attribution, stated once and implemented the same way in both the
+ * ranking and the rotation:
+ *   - EVERY non-contentful attempt lowers the vendor's success rate,
+ *     including site-level blocks (bot_gate etc.). The site refused the
+ *     vendor's request; "the vendor did not break" does not make the fetch
+ *     successful.
+ *   - ROTATION (startingVendor) reacts only to vendor-level failures
+ *     (provider_error / identity_mismatch): the vendor broke, so the next
+ *     attempt starts elsewhere. A site-level bot_gate does not rotate —
+ *     switching vendors does not answer the site's refusal.
  */
 
 import type { RoutingFailureClass } from '@w2l/http-core'
@@ -27,6 +36,8 @@ export interface VendorHistoryEntry {
   attempts: number
   contentful: number
   latencyTotalMs: number
+  /** One sample per attempt, so the ranker can take a true median. */
+  latencySamplesMs: number[]
   costTotalUsd: number
   lastFailureClass: RoutingFailureClass | null
 }
@@ -49,6 +60,29 @@ export interface VendorOutcome {
   failureClass: RoutingFailureClass | null
 }
 
+/** Fresh history entry for a vendor a domain has never used. */
+function freshEntry(): VendorHistoryEntry {
+  return {
+    attempts: 0,
+    contentful: 0,
+    latencyTotalMs: 0,
+    latencySamplesMs: [],
+    costTotalUsd: 0,
+    lastFailureClass: null,
+  }
+}
+
+/** Apply one outcome to an entry. Shared by both stores so their arithmetic
+ *  cannot drift apart. */
+function applyOutcome(entry: VendorHistoryEntry, outcome: VendorOutcome): void {
+  entry.attempts += 1
+  if (outcome.contentful) entry.contentful += 1
+  entry.latencyTotalMs += outcome.wallMs
+  entry.latencySamplesMs.push(outcome.wallMs)
+  entry.costTotalUsd += outcome.costUsd
+  entry.lastFailureClass = outcome.failureClass
+}
+
 export class MemoryRoutingHistory implements RoutingHistory {
   private readonly domains = new Map<string, DomainHistory>()
 
@@ -58,18 +92,8 @@ export class MemoryRoutingHistory implements RoutingHistory {
 
   async record(domain: string, vendorId: string, outcome: VendorOutcome): Promise<void> {
     const history = this.domains.get(domain) ?? { vendors: {}, lastVendor: null }
-    const entry = history.vendors[vendorId] ?? {
-      attempts: 0,
-      contentful: 0,
-      latencyTotalMs: 0,
-      costTotalUsd: 0,
-      lastFailureClass: null,
-    }
-    entry.attempts += 1
-    if (outcome.contentful) entry.contentful += 1
-    entry.latencyTotalMs += outcome.wallMs
-    entry.costTotalUsd += outcome.costUsd
-    entry.lastFailureClass = outcome.failureClass
+    const entry = history.vendors[vendorId] ?? freshEntry()
+    applyOutcome(entry, outcome)
     history.vendors[vendorId] = entry
     history.lastVendor = vendorId
     this.domains.set(domain, history)
@@ -106,18 +130,8 @@ export class FileRoutingHistory implements RoutingHistory {
   async record(domain: string, vendorId: string, outcome: VendorOutcome): Promise<void> {
     const all = await this.all()
     const history = all[domain] ?? { vendors: {}, lastVendor: null }
-    const entry = history.vendors[vendorId] ?? {
-      attempts: 0,
-      contentful: 0,
-      latencyTotalMs: 0,
-      costTotalUsd: 0,
-      lastFailureClass: null,
-    }
-    entry.attempts += 1
-    if (outcome.contentful) entry.contentful += 1
-    entry.latencyTotalMs += outcome.wallMs
-    entry.costTotalUsd += outcome.costUsd
-    entry.lastFailureClass = outcome.failureClass
+    const entry = history.vendors[vendorId] ?? freshEntry()
+    applyOutcome(entry, outcome)
     history.vendors[vendorId] = entry
     history.lastVendor = vendorId
     all[domain] = history
@@ -155,14 +169,17 @@ export function rankVendors(
       continue
     }
     const successRate = entry.contentful / entry.attempts
-    const median = entry.latencyTotalMs / entry.attempts
+    // True median over stored samples. `latencyTotalMs` remains for display
+    // and volume; the ranker must not be moved by one pathological outlier.
+    const samples = [...entry.latencySamplesMs].sort((a, b) => a - b)
+    const mid = samples.length > 0 ? samples[Math.floor(samples.length / 2)]! : 0
     const cost = entry.costTotalUsd
-    const score = successRate + 0.3 / (1 + median / 1_000) + 0.1 / (1 + cost / 0.1)
+    const score = successRate + 0.3 / (1 + mid / 1_000) + 0.1 / (1 + cost / 0.1)
     scores.push({
       vendorId: id,
       score,
       successRate,
-      medianLatencyMs: median,
+      medianLatencyMs: mid,
       totalCostUsd: cost,
     })
   }

@@ -86,6 +86,14 @@ export interface VendorOps {
   decision: PolicyDecision
   createSession(resume?: VendorResumeContext | null): Promise<VendorSession>
   releaseSession(sessionId: string): Promise<void>
+  /**
+   * Establish first-use persistence, when the policy authorized
+   * session_persistence and no saved resume context exists yet: Browserbase
+   * creates a persistent context and returns its id, Steel ensures the
+   * profile is created so a later response can persist it. Returns resume
+   * material, or null when the vendor has no such operation.
+   */
+  ensurePersistence?(): Promise<VendorResumeContext | null>
 }
 
 interface LiveSession {

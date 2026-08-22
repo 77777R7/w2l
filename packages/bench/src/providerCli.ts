@@ -125,6 +125,13 @@ async function main(): Promise<void> {
 
   console.log(`vendor : ${args.vendor}`)
   console.log(`target : ${args.url}`)
+  // The flags' observable effect: what the policy layer decided. Session
+  // persistence and live view appear here only when the operator asked for
+  // them — a run with neither flag must say exactly that.
+  const enabled = ops.decision.enabled.map((c) => c.capability)
+  console.log(
+    `policy : ${enabled.length > 0 ? enabled.join(', ') : 'route capabilities only (no persistence, no live view)'}`,
+  )
   console.log('opening session (captcha solving and fingerprint forging declined)...')
 
   const { declaration, transport } = await connectVendor(ops)

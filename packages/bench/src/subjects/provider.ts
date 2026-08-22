@@ -320,6 +320,10 @@ export class ProviderSubject implements SubjectAdapter {
       truncated: false,
       truncatedAt: null,
       compliance: record,
+      // The vendor's session continuation material, when the policy enabled
+      // persistence and the vendor produced it. The ladder saves this so an
+      // independent next run resumes the same login state.
+      resumeContext: res.resumeContext ?? null,
       evidence: {
         finalUrl: res.finalUrl,
         httpStatus: res.status,

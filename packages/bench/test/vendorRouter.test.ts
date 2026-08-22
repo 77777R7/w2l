@@ -6,11 +6,13 @@ import {
   type DomainHistory,
 } from '../src/routing/vendorRouter.js'
 
-function entry(partial: Partial<{ attempts: number; contentful: number; latency: number; cost: number; last: string | null }>) {
+function entry(partial: Partial<{ attempts: number; contentful: number; latency: number; cost: number; last: string | null; samples: number[] }>) {
+  const samples = partial.samples ?? [partial.latency ?? 0]
   return {
     attempts: partial.attempts ?? 1,
     contentful: partial.contentful ?? 0,
     latencyTotalMs: partial.latency ?? 0,
+    latencySamplesMs: samples,
     costTotalUsd: partial.cost ?? 0,
     lastFailureClass: (partial.last ?? null) as DomainHistory['vendors'][string]['lastFailureClass'],
   }
@@ -55,6 +57,23 @@ describe('rankVendors', () => {
     }
     const ranked = rankVendors(history, ['slow', 'fast'])
     expect(ranked[0]!.vendorId).toBe('fast')
+  })
+
+  it('ranks on the TRUE MEDIAN, so one outlier attempt cannot buy or break a vendor', () => {
+    // steady has median 100 (one 5s outlier); spiky has median 800 (one 100ms
+    // outlier). An average would rank spiky's cheap outlier over steady's
+    // consistent performance — the median must not.
+    const history: DomainHistory = {
+      vendors: {
+        steady: entry({ attempts: 5, contentful: 5, samples: [100, 100, 100, 100, 5_000], cost: 0.1 }),
+        spiky: entry({ attempts: 5, contentful: 5, samples: [100, 800, 800, 800, 800], cost: 0.1 }),
+      },
+      lastVendor: null,
+    }
+    const ranked = rankVendors(history, ['spiky', 'steady'])
+    expect(ranked[0]!.vendorId).toBe('steady')
+    expect(ranked[0]!.medianLatencyMs).toBe(100)
+    expect(ranked[1]!.medianLatencyMs).toBe(800)
   })
 })
 
