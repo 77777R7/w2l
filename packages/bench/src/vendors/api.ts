@@ -11,9 +11,10 @@ export interface VendorApiRequest {
   url: string
   headers: Readonly<Record<string, string>>
   body?: unknown
-  /** Cancellation. Vendor APIs are HTTP calls; a caller that stops waiting
-   *  should be able to stop the call, not just ignore its answer. */
-  signal?: AbortSignal
+  /** Absolute deadline (epoch ms). The caller's remaining budget bounds the
+   *  request; passed explicitly so no layer ever reads AbortSignal.timeout's
+   *  non-standard property. */
+  deadlineMs?: number
 }
 
 export interface VendorApiResponse {
@@ -24,11 +25,14 @@ export interface VendorApiResponse {
 export type VendorApi = (req: VendorApiRequest) => Promise<VendorApiResponse>
 
 export const fetchVendorApi: VendorApi = async (req) => {
+  // Remaining budget computed from the deadline, not from any signal
+  // property. No deadline = the vendor-call default.
+  const remaining = req.deadlineMs === undefined ? 30_000 : Math.max(1, req.deadlineMs - Date.now())
   const res = await fetch(req.url, {
     method: req.method,
     headers: { 'content-type': 'application/json', ...req.headers },
     body: req.body === undefined ? undefined : JSON.stringify(req.body),
-    signal: req.signal ?? AbortSignal.timeout(30_000),
+    signal: AbortSignal.timeout(remaining),
   })
   const text = await res.text()
   let json: unknown = null

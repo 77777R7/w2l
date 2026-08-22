@@ -19,6 +19,7 @@ import {
 } from '@w2l/http-core'
 import { DEFAULT_NETWORK_POLICY, type CrawlMode } from '@w2l/contracts'
 import type { SubjectAdapter } from '../subject.js'
+import { identityCompromised } from '../routing/identity.js'
 import type { VendorResumeContext } from '../vendors/transport.js'
 
 /**
@@ -53,7 +54,7 @@ export interface ProviderTransport {
    * status of the vendor's own API — a 200 from the vendor wrapping a 403
    * from the target is a 403.
    */
-  fetch(url: string, signal?: AbortSignal): Promise<ProviderResponse>
+  fetch(url: string, deadlineMs?: number): Promise<ProviderResponse>
   close?(): Promise<void>
 }
 
@@ -160,7 +161,7 @@ export class ProviderSubject implements SubjectAdapter {
     return this.chain.toLedger()
   }
 
-  async fetch(url: string, signal?: AbortSignal): Promise<FetchResult> {
+  async fetch(url: string, deadlineMs?: number): Promise<FetchResult> {
     const start = Date.now()
     const trace: TraceEvent[] = [
       { at: 0, lane: 'provider', event: 'provider_selected', detail: { provider: this.provider.id } },
@@ -223,7 +224,7 @@ export class ProviderSubject implements SubjectAdapter {
 
     let res: ProviderResponse
     try {
-      res = await this.transport.fetch(url, signal)
+      res = await this.transport.fetch(url, deadlineMs)
     } catch (err) {
       const wallMs = Date.now() - start
       trace.push({
@@ -440,6 +441,27 @@ export class ProviderSubject implements SubjectAdapter {
       /<table\b[\s\S]*?<\/table>/gi,
       (table) => `\n${toGfmTable(table)}\n`,
     )
+
+    // THE UNIFIED IDENTITY RULE (ProviderSubject, LadderRunner, w2l-provider,
+    // RoutingHistory all follow it): a fetch whose wire identity was
+    // contradicted (identity_mismatch) or unobservable (identity_unobserved)
+    // is NEVER delivered as success — not here, not on the last channel, not
+    // after a handoff retry. The trace keeps which of the two findings
+    // applied; the result is a clear, non-contentful failure.
+    if (identityCompromised(trace)) {
+      return {
+        ...base,
+        status: 'failed',
+        failureReason: 'identity_compromised',
+        blockReason: null,
+        budgetExceeded: null,
+        lane: 'provider',
+        escalations: [],
+        markdown: null,
+        usage: { ...base.usage, contentTokens: null },
+      }
+    }
+
     return {
       ...base,
       status: 'success',

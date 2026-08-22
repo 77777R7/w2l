@@ -192,3 +192,49 @@ describe('w2l-live-compare resource handling', () => {
     expect(teardowns).toBe(1)
   })
 })
+
+describe('live-compare deadline plumbing', () => {
+  it('the REAL subject-creation promise is tracked: a slow creation is awaited and released exactly once, no late fetch', async () => {
+    let fetches = 0
+    let teardowns = 0
+    const { perUrl } = await compareChannels(['https://a.example/1'], {
+      armTimeoutMs: 60,
+      keys: { browserbase: 'fake-key' },
+      overrides: {
+        http: countingFactory([]).factory,
+        browser_local: countingFactory([]).factory,
+      },
+      vendorProviderSubjectImpl: async () => {
+        // The REAL subject creation takes longer than the arm deadline.
+        await new Promise((r) => setTimeout(r, 120))
+        return {
+          fetch: async () => {
+            fetches++
+            return okResult('https://a.example/1')
+          },
+          teardown: async () => {
+            teardowns++
+          },
+        }
+      },
+    })
+
+    const arm = perUrl[0]!.arms.find((a) => a.arm === 'browserbase')!
+    expect(arm.ok).toBe(false)
+    expect(arm.error).toContain('timed out')
+
+    // close() awaited the pending REAL creation: after compareChannels
+    // returns there is no background session creation in flight, the fetch
+    // that the run abandoned never happened, and teardown ran exactly once.
+    expect(fetches).toBe(0)
+    expect(teardowns).toBe(1)
+  })
+
+  it('a 1234ms deadline maps to a 1234ms navigation timeout, never the 20000ms default', async () => {
+    const { navigationTimeout } = await import('../src/vendors/cdp.js')
+    const now = Date.now()
+    expect(navigationTimeout(now + 1234, now)).toBe(1234)
+    expect(navigationTimeout(now + 30_000, now)).toBe(20_000) // capped
+    expect(navigationTimeout(undefined, now)).toBe(20_000) // no caller deadline
+  })
+})

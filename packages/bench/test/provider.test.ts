@@ -32,7 +32,10 @@ const PAGE =
 
 class CountingTransport implements ProviderTransport {
   calls: string[] = []
-  constructor(private readonly response: Partial<ProviderResponse> = {}) {}
+  constructor(
+    private readonly response: Partial<ProviderResponse> = {},
+    private readonly declaredUa: string | null = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/140.0.0.0 Safari/537.36',
+  ) {}
   async fetch(url: string): Promise<ProviderResponse> {
     this.calls.push(url)
     return {
@@ -40,6 +43,10 @@ class CountingTransport implements ProviderTransport {
       body: PAGE,
       finalUrl: url,
       headers: { 'content-type': 'text/html; charset=utf-8' },
+      // The gate cleared this UA; the transport observed exactly it. A test
+      // that wants an unobserved identity passes sentUserAgent: null (or
+      // leaves declaredUa null to simulate "the transport cannot see it").
+      sentUserAgent: this.declaredUa,
       ...this.response,
     }
   }
@@ -142,7 +149,7 @@ describe('ProviderSubject robots gate', () => {
     const { fetcher } = robotsServing(AMAZON_SHAPED)
     const subject = new ProviderSubject(
       decl({ declaredUserAgent: 'ProviderBot/2.0' }),
-      new CountingTransport(),
+      new CountingTransport({}, 'ProviderBot/2.0'),
       'standard',
       null,
       fetcher,

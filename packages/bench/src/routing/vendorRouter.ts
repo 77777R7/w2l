@@ -99,19 +99,36 @@ function applyOutcome(entry: VendorHistoryEntry, outcome: VendorOutcome): void {
 function normalizeEntry(raw: Partial<VendorHistoryEntry> | undefined): VendorHistoryEntry | undefined {
   if (raw === undefined) return undefined
   const entry = freshEntry()
-  entry.attempts = typeof raw.attempts === 'number' ? raw.attempts : 0
-  entry.contentful = typeof raw.contentful === 'number' ? raw.contentful : 0
-  entry.latencyTotalMs = typeof raw.latencyTotalMs === 'number' ? raw.latencyTotalMs : 0
-  entry.costTotalUsd = typeof raw.costTotalUsd === 'number' ? raw.costTotalUsd : 0
+  entry.attempts =
+    typeof raw.attempts === 'number' && Number.isFinite(raw.attempts) && raw.attempts >= 0
+      ? Math.floor(raw.attempts)
+      : 0
+  entry.contentful =
+    typeof raw.contentful === 'number' && Number.isFinite(raw.contentful) && raw.contentful >= 0
+      ? Math.floor(raw.contentful)
+      : 0
+  entry.latencyTotalMs =
+    typeof raw.latencyTotalMs === 'number' && Number.isFinite(raw.latencyTotalMs)
+      ? raw.latencyTotalMs
+      : 0
+  entry.costTotalUsd =
+    typeof raw.costTotalUsd === 'number' && Number.isFinite(raw.costTotalUsd)
+      ? raw.costTotalUsd
+      : 0
   entry.lastFailureClass = raw.lastFailureClass ?? null
   if (Array.isArray(raw.latencySamplesMs)) {
     entry.latencySamplesMs = raw.latencySamplesMs
-      .filter((s): s is number => typeof s === 'number' && Number.isFinite(s))
+      .filter((s): s is number => typeof s === 'number' && Number.isFinite(s) && s >= 0)
       .slice(-MAX_LATENCY_SAMPLES)
   } else if (entry.attempts > 0 && entry.latencyTotalMs > 0) {
-    // Legacy: one mean per attempt is the only honest reconstruction.
+    // Legacy: one mean per attempt is the only honest reconstruction. The
+    // SAME cap as live recording applies — a reconstructed array must not
+    // outgrow what applyOutcome would have kept.
     const mean = Math.round(entry.latencyTotalMs / entry.attempts)
-    entry.latencySamplesMs = Array.from({ length: entry.attempts }, () => mean)
+    entry.latencySamplesMs = Array.from(
+      { length: Math.min(entry.attempts, MAX_LATENCY_SAMPLES) },
+      () => mean,
+    )
   }
   return entry
 }

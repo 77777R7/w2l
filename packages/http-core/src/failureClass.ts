@@ -80,6 +80,10 @@ export function classifyFetchFailure(result: RoutableFetchResult): RoutingFailur
     return null // nothing to route on
   }
 
+  // identity_compromised is the canonical failure reason for BOTH findings:
+  // a contradicted identity and an unobservable one. The trace keeps the
+  // distinction; the router only needs to know the channel is not acceptable.
+  if (result.failureReason === 'identity_compromised') return 'identity_mismatch'
   if (result.trace.some((t) => t.event === 'identity_mismatch')) return 'identity_mismatch'
   if (result.failureReason === 'provider_error') return 'provider_error'
 

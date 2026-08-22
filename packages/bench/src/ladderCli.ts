@@ -24,7 +24,7 @@
  */
 
 import { pathToFileURL } from 'node:url'
-import type { FetchResult, SessionConfig } from '@w2l/contracts'
+import type { FetchResult, SessionConfig, TraceEvent } from '@w2l/contracts'
 import { CONTENTFUL_STATUS } from '@w2l/contracts'
 import { LadderRunner, type Channel, type HumanHandoff } from './routing/ladder.js'
 import type { AccessConfigInput, CrawlPolicy } from '@w2l/http-core'
@@ -114,6 +114,12 @@ export function buildChannels(
     robotsFetcher?: import('./subjects/provider.js').RobotsFetcher
     /** Product policy for the vendor adapters (persistence / live view). */
     vendorPolicy?: import('@w2l/http-core').VendorPolicy
+    /** Test seam: override the local http/browser subjects entirely, so a
+     *  composition test can drive the ladder without real network. */
+    localSubjects?: {
+      http?: { fetch: (url: string) => Promise<FetchResult>; teardown?: () => Promise<void> }
+      browser_local?: { fetch: (url: string) => Promise<FetchResult>; teardown?: () => Promise<void> }
+    }
   } = {},
 ): Channel[] {
   // One subject per channel for the life of the run. A fresh Chromium per
@@ -133,12 +139,7 @@ export function buildChannels(
   // Browserbase (or vice versa) is rejected rather than misapplied.
   // ----------------------------------------------------------------------
   const authedSubjects = new Map<string, BrowserLocalSubject>()
-  const authedSubjectFor = (session: SessionSnapshot, urlHost: string): BrowserLocalSubject => {
-    if (session.domain !== urlHost || session.vendor !== 'browser_local_authed') {
-      throw new Error(
-        `session for ${session.domain}/${session.vendor} does not match ${urlHost}/browser_local_authed`,
-      )
-    }
+  const authedSubjectFor = (session: SessionSnapshot): BrowserLocalSubject => {
     let subject = authedSubjects.get(session.domain)
     if (subject === undefined) {
       const access: AccessConfigInput = {
@@ -160,15 +161,22 @@ export function buildChannels(
   const channels: Channel[] = [
     {
       id: 'http',
-      fetch: (url) => http.fetch(url),
-      close: async () => {},
+      fetch: (url) =>
+        opts.localSubjects?.http !== undefined ? opts.localSubjects.http.fetch(url) : http.fetch(url),
+      close: async () => {
+        await opts.localSubjects?.http?.teardown?.()
+      },
     },
     {
       id: 'browser_local',
       // No session here, ever: the plain rung is the public browser.
-      fetch: (url) => plainBrowser.fetch(url),
+      fetch: (url) =>
+        opts.localSubjects?.browser_local !== undefined
+          ? opts.localSubjects.browser_local.fetch(url)
+          : plainBrowser.fetch(url),
       close: async () => {
         await plainBrowser.teardown()
+        await opts.localSubjects?.browser_local?.teardown?.()
       },
     },
   ]
@@ -177,16 +185,34 @@ export function buildChannels(
     channels.push({
       id: 'authed_session',
       fetch: async (url, session) => {
-        if (session === undefined || session === null) {
-          // No login state to offer: the rung declines without a fetch.
-          const refusal: FetchResult = {
+        const host = new URL(url).hostname.toLowerCase()
+        // Skip, never terminal, never a throw: without a local session this
+        // rung has nothing to offer, and the ladder must move on to the
+        // providers. A mismatched snapshot is audited and skipped the same
+        // way — it belongs to another rung, and "does not apply" is a
+        // routing fact, not an error.
+        if (session === undefined || session === null || session.vendor !== 'browser_local_authed' || session.domain !== host) {
+          const trace: TraceEvent[] = [
+            {
+              at: 0,
+              lane: 'browser_local_authed',
+              event: 'authed_session_skipped',
+              detail:
+                session === undefined || session === null
+                  ? { reason: 'no_local_session' }
+                  : { reason: 'session_does_not_apply', sessionVendor: session.vendor, sessionDomain: session.domain, host },
+            },
+          ]
+          const skip: FetchResult = {
             requestedUrl: url,
             status: 'failed',
             failureReason: 'policy_denied',
             blockReason: null,
             budgetExceeded: null,
             lane: 'browser_local_authed',
-            escalations: [],
+            escalations: [
+              { from: 'browser_local_authed', to: 'provider', trigger: 'session_unavailable', improved: null },
+            ],
             handoff: null,
             markdown: null,
             truncated: false,
@@ -210,14 +236,11 @@ export function buildChannels(
               browserMs: 0,
               externalCostUsd: null,
             },
-            trace: [
-              { at: 0, lane: 'browser_local_authed', event: 'authed_session_unavailable', detail: {} },
-            ],
+            trace,
           }
-          return refusal
+          return skip
         }
-        const host = new URL(url).hostname.toLowerCase()
-        return authedSubjectFor(session, host).fetch(url)
+        return authedSubjectFor(session).fetch(url)
       },
       close: async () => {
         for (const subject of authedSubjects.values()) await subject.teardown()
@@ -282,14 +305,18 @@ export function buildChannels(
           session.vendor === vendorId &&
           session.domain === host
         if (session !== undefined && session !== null && !sessionApplies) {
-          const refusal: FetchResult = {
+          // Audited skip, not a throw and not terminal: a Steel snapshot
+          // handed to Browserbase does not apply here. The ladder moves on.
+          const skip: FetchResult = {
             requestedUrl: url,
             status: 'failed',
             failureReason: 'policy_denied',
             blockReason: null,
             budgetExceeded: null,
             lane: 'provider',
-            escalations: [],
+            escalations: [
+              { from: 'provider', to: 'provider', trigger: 'session_not_for_this_vendor', improved: null },
+            ],
             handoff: null,
             markdown: null,
             truncated: false,
@@ -322,17 +349,24 @@ export function buildChannels(
               },
             ],
           }
-          return refusal
+          return skip
         }
-        // ORDER MATTERS: persistence (first-use context creation) must
-        // complete BEFORE the first session exists. connectVendor measures
-        // the UA by opening a session; if the context is created after that,
-        // the session that the gate cleared was not the session on offer.
-        await preparePersistence()
-        const { declaration, transport } = await ensureConnected()
+        // ORDER MATTERS: resume material — from a saved session OR from
+        // first-use persistence — must be on the transport BEFORE the first
+        // session exists. connectVendor measures the UA by opening a
+        // session; if the context is created (or the saved one restored)
+        // after that, the session the gate cleared was not the session on
+        // offer.
         if (sessionApplies && session!.resume !== undefined && session!.resume !== null) {
-          transport.useResumedSession(session!.resume as VendorResumeContext)
-        } else if (pendingResume !== null) {
+          // A saved resume exists: skip first-use ensurePersistence entirely
+          // and restore the saved context/profile into the FIRST session.
+          pendingResume = session!.resume as VendorResumeContext
+          persistenceAttempted = true
+        } else {
+          await preparePersistence()
+        }
+        const { declaration, transport } = await ensureConnected()
+        if (pendingResume !== null) {
           transport.useResumedSession(pendingResume)
         }
         const { ProviderSubject } = await import('./subjects/provider.js')
@@ -367,9 +401,6 @@ export function buildChannels(
   return channels
 }
 
-/** The terminal handoff prompt: ask, wait, and hand the answer to the ladder
- *  as a SessionSnapshot. This is an interactive prompt for a real human — it
- *  is not the human, and it does not claim to be. */
 /**
  * The terminal handoff prompt: ask, wait, and hand the answer to the ladder.
  * After the human finishes in the live view, the session they produced is

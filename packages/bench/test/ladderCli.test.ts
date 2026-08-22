@@ -3,6 +3,8 @@ import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { buildChannels, parseArgs } from '../src/ladderCli.js'
 import { LadderRunner } from '../src/routing/ladder.js'
+import { MemoryRoutingHistory } from '../src/routing/vendorRouter.js'
+import { MemorySessionStore } from '../src/routing/sessionStore.js'
 import { evaluateVendorPolicy, REFUSED_CAPABILITIES } from '@w2l/http-core'
 import type { SessionSnapshot } from '../src/routing/sessionStore.js'
 import type { CdpBrowser } from '../src/vendors/cdp.js'
@@ -159,7 +161,15 @@ function fakeBrowser(): CdpBrowser {
   }
 }
 
-function fakeVendorOps(vendorId: string, onCreate: (resume: unknown) => void, opts: { persist?: boolean } = {}): VendorOps {
+function fakeVendorOps(
+  vendorId: string,
+  onCreate: (resume: unknown) => void,
+  opts: {
+    persist?: boolean
+    onEnsure?: () => void
+    savedResume?: { browserbaseContextId: string } | { steelProfileId: string }
+  } = {},
+): VendorOps {
   return {
     vendorId,
     secrets: [],
@@ -169,11 +179,14 @@ function fakeVendorOps(vendorId: string, onCreate: (resume: unknown) => void, op
       { capability: 'captcha_solving', vendorDefaultOn: true, enableKey: 'captcha_solving' },
     ]),
     async ensurePersistence() {
+      opts.onEnsure?.()
       return opts.persist === true ? { browserbaseContextId: 'ctx-from-ensure' } : null
     },
-    async createSession(resume?: unknown): Promise<VendorSession> {
+    async createSession(resume?: unknown, deadlineMs?: number): Promise<VendorSession> {
+      void deadlineMs
       onCreate(resume ?? null)
       const contextId = (resume as { browserbaseContextId?: string } | null)?.browserbaseContextId
+      const profileId = (resume as { steelProfileId?: string } | null)?.steelProfileId
       return {
         sessionId: 'fake-1',
         connectUrl: 'wss://fake.example/session',
@@ -181,7 +194,9 @@ function fakeVendorOps(vendorId: string, onCreate: (resume: unknown) => void, op
         resumeContext:
           contextId !== undefined && contextId !== null
             ? { browserbaseContextId: contextId }
-            : null,
+            : profileId !== undefined && profileId !== null
+              ? { steelProfileId: profileId }
+              : null,
       }
     },
     async releaseSession() {},
@@ -298,7 +313,7 @@ describe('authed_session rung (real BrowserLocalSubject)', () => {
     }
   })
 
-  it('a snapshot scoped to another domain is refused, not misapplied', async () => {
+  it('a snapshot scoped to another domain is audited and skipped, not misapplied', async () => {
     const channels = buildChannels('authed')
     const authed = channels.find((c) => c.id === 'authed_session')!
     const snapshot: SessionSnapshot = {
@@ -309,15 +324,18 @@ describe('authed_session rung (real BrowserLocalSubject)', () => {
       cookies: [{ name: 'sid', value: 'secret-value', domain: 'other.example', path: '/' }],
     }
     try {
-      await expect(authed.fetch(`${authBase}/echo-cookie`, snapshot)).rejects.toThrow(
-        /does not match/,
-      )
+      const result = await authed.fetch(`${authBase}/echo-cookie`, snapshot)
+      // Skip, not a throw: the ladder moves on to the next rung.
+      expect(result.status).toBe('failed')
+      expect(result.failureReason).toBe('policy_denied')
+      expect(result.trace.some((t) => t.event === 'authed_session_skipped')).toBe(true)
+      expect(result.escalations.some((e) => e.trigger === 'session_unavailable')).toBe(true)
     } finally {
       await Promise.all(channels.map((c) => c.close?.().catch(() => {})))
     }
   })
 
-  it('a vendor resume handed to the authed rung is refused as a mismatch', async () => {
+  it('a vendor resume handed to the authed rung is audited and skipped, not misapplied', async () => {
     const channels = buildChannels('authed')
     const authed = channels.find((c) => c.id === 'authed_session')!
     const snapshot: SessionSnapshot = {
@@ -328,11 +346,167 @@ describe('authed_session rung (real BrowserLocalSubject)', () => {
       resume: { steelProfileId: 'prof-1' },
     }
     try {
-      await expect(authed.fetch(`${authBase}/echo-cookie`, snapshot)).rejects.toThrow(
-        /does not match/,
-      )
+      const result = await authed.fetch(`${authBase}/echo-cookie`, snapshot)
+      expect(result.status).toBe('failed')
+      expect(result.trace.some((t) => t.event === 'authed_session_skipped')).toBe(true)
+      expect(result.trace.find((t) => t.event === 'authed_session_skipped')!.detail).toMatchObject({
+        reason: 'session_does_not_apply',
+        sessionVendor: 'steel',
+      })
     } finally {
       await Promise.all(channels.map((c) => c.close?.().catch(() => {})))
     }
+  })
+})
+
+// --- composition: buildChannels + LadderRunner with session semantics -------
+
+function failingSubject(reason: FetchResult['failureReason']): {
+  fetch: () => Promise<FetchResult>
+  teardown: () => Promise<void>
+} {
+  return {
+    fetch: async () => ({
+      requestedUrl: 'https://example.com/p',
+      status: 'failed',
+      failureReason: reason,
+      blockReason: null,
+      budgetExceeded: null,
+      lane: 'http',
+      // Like the real resilientHttp subject: an unresolved escalation is the
+      // subject asking the ladder to keep going.
+      escalations: [{ from: 'http', to: 'browser_local', trigger: 'extract_low_confidence', improved: null }],
+      handoff: null,
+      markdown: null,
+      truncated: false,
+      truncatedAt: null,
+      compliance: null,
+      evidence: { finalUrl: 'https://example.com/p', httpStatus: null, redirectChain: [], contentType: null, rawBodySha256: null, artifacts: [] },
+      usage: { wallMs: 1, bytesWire: 0, bytesDecompressed: 0, requestCount: 0, attemptCount: 0, contentTokens: null, browserMs: 0, externalCostUsd: null },
+      trace: [],
+    }),
+    teardown: async () => {},
+  }
+}
+
+describe('buildChannels + LadderRunner session composition', () => {
+  const vendorEnv = () => ({
+    vendorConnector: async () => fakeBrowser(),
+    robotsFetcher: async () => ({ text: 'User-agent: *\nDisallow:\n', status: 200, contentType: 'text/plain' }),
+  })
+
+  it('empty session store: authed_session skips and the vendor rung wins', async () => {
+    const created: string[] = []
+    const channels = buildChannels('authed', {
+      localSubjects: { http: failingSubject('empty_unverified'), browser_local: failingSubject('empty_unverified') },
+      vendorOps: { steel: fakeVendorOps('steel', () => created.push('steel')) },
+      ...vendorEnv(),
+    })
+    const runner = new LadderRunner(channels, { mode: 'authed' }, new MemoryRoutingHistory(), null, new MemorySessionStore())
+    const run = await runner.run('https://example.com/p')
+
+    // The authed rung had no local session: it must decline and let the
+    // ladder continue to the provider — never a terminal policy_denied.
+    expect(run.channelsTried).toContain('authed_session')
+    expect(run.result.status).toBe('success')
+    expect(run.result.lane).toBe('provider')
+    expect(created).toEqual(['steel'])
+    await Promise.all(channels.map((c) => c.close?.().catch(() => {})))
+  })
+
+  it('a saved Browserbase context is injected into the FIRST session; ensurePersistence is skipped', async () => {
+    const resumes: unknown[] = []
+    let ensureCalls = 0
+    const channels = buildChannels('research', {
+      vendorOps: {
+        browserbase: fakeVendorOps('browserbase', (r) => resumes.push(r), { onEnsure: () => ensureCalls++ }),
+      },
+      ...vendorEnv(),
+    })
+    const provider = channels.find((c) => c.vendorId === 'browserbase')!
+    const snapshot: SessionSnapshot = {
+      domain: 'example.com',
+      attestedBy: 'operator',
+      attestedAt: '2026-08-22T00:00:00.000Z',
+      vendor: 'browserbase',
+      resume: { browserbaseContextId: 'saved-ctx-9' },
+    }
+    const result = await provider.fetch('https://example.com/p', snapshot)
+
+    expect(result.status).toBe('success')
+    // The saved context, not a fresh one from ensurePersistence.
+    expect(resumes[0]).toEqual({ browserbaseContextId: 'saved-ctx-9' })
+    expect(ensureCalls).toBe(0)
+    expect(result.resumeContext).toEqual({ browserbaseContextId: 'saved-ctx-9' })
+    await Promise.all(channels.map((c) => c.close?.().catch(() => {})))
+  })
+
+  it('a saved Steel profile is injected into the FIRST session; ensurePersistence is skipped', async () => {
+    const resumes: unknown[] = []
+    let ensureCalls = 0
+    const channels = buildChannels('research', {
+      vendorOps: {
+        steel: fakeVendorOps('steel', (r) => resumes.push(r), { onEnsure: () => ensureCalls++ }),
+      },
+      ...vendorEnv(),
+    })
+    const provider = channels.find((c) => c.vendorId === 'steel')!
+    const snapshot: SessionSnapshot = {
+      domain: 'example.com',
+      attestedBy: 'operator',
+      attestedAt: '2026-08-22T00:00:00.000Z',
+      vendor: 'steel',
+      resume: { steelProfileId: 'saved-prof-7' },
+    }
+    const result = await provider.fetch('https://example.com/p', snapshot)
+
+    expect(result.status).toBe('success')
+    expect(resumes[0]).toEqual({ steelProfileId: 'saved-prof-7' })
+    expect(ensureCalls).toBe(0)
+    expect(result.resumeContext).toEqual({ steelProfileId: 'saved-prof-7' })
+    await Promise.all(channels.map((c) => c.close?.().catch(() => {})))
+  })
+
+  it('no saved resume: ensurePersistence runs and its context reaches the FIRST session', async () => {
+    const resumes: unknown[] = []
+    let ensureCalls = 0
+    const channels = buildChannels('research', {
+      vendorOps: {
+        browserbase: fakeVendorOps('browserbase', (r) => resumes.push(r), { persist: true, onEnsure: () => ensureCalls++ }),
+      },
+      ...vendorEnv(),
+    })
+    const provider = channels.find((c) => c.vendorId === 'browserbase')!
+    const result = await provider.fetch('https://example.com/p')
+
+    expect(result.status).toBe('success')
+    expect(ensureCalls).toBe(1)
+    expect(resumes[0]).toEqual({ browserbaseContextId: 'ctx-from-ensure' })
+    await Promise.all(channels.map((c) => c.close?.().catch(() => {})))
+  })
+
+  it('a Steel snapshot handed to the Browserbase channel is audited and skipped', async () => {
+    const created: string[] = []
+    const channels = buildChannels('research', {
+      vendorOps: { browserbase: fakeVendorOps('browserbase', () => created.push('browserbase')) },
+      ...vendorEnv(),
+    })
+    const provider = channels.find((c) => c.vendorId === 'browserbase')!
+    const snapshot: SessionSnapshot = {
+      domain: 'example.com',
+      attestedBy: 'operator',
+      attestedAt: '2026-08-22T00:00:00.000Z',
+      vendor: 'steel',
+      resume: { steelProfileId: 'prof-1' },
+    }
+    const result = await provider.fetch('https://example.com/p', snapshot)
+
+    expect(result.status).toBe('failed')
+    expect(result.failureReason).toBe('policy_denied')
+    expect(result.trace.some((t) => t.event === 'session_vendor_mismatch')).toBe(true)
+    expect(result.escalations.some((e) => e.trigger === 'session_not_for_this_vendor')).toBe(true)
+    // The mismatched snapshot never created a session.
+    expect(created).toEqual([])
+    await Promise.all(channels.map((c) => c.close?.().catch(() => {})))
   })
 })

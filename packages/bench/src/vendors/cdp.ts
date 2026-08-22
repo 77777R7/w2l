@@ -52,15 +52,18 @@ export interface CdpBrowser {
   close(): Promise<void>
 }
 
-export type CdpConnector = (wsUrl: string) => Promise<CdpBrowser>
+export type CdpConnector = (wsUrl: string, deadlineMs?: number) => Promise<CdpBrowser>
 
 /**
  * Real connector: Playwright over CDP. Imported lazily so a test run that
- * fakes the seam never loads a browser engine.
+ * fakes the seam never loads a browser engine. The caller's deadline becomes
+ * the connect timeout — an explicit remaining-ms computation, never a read
+ * of a non-standard signal property.
  */
-export const playwrightConnector: CdpConnector = async (wsUrl) => {
+export const playwrightConnector: CdpConnector = async (wsUrl, deadlineMs) => {
   const { chromium } = await import('playwright')
-  return chromium.connectOverCDP(wsUrl, { timeout: 30_000 })
+  const remaining = deadlineMs === undefined ? 30_000 : Math.max(1, deadlineMs - Date.now())
+  return chromium.connectOverCDP(wsUrl, { timeout: remaining })
 }
 
 /** The vendor's default context, or a clear error if it provisioned none. */
@@ -122,23 +125,32 @@ export interface NavigationOutcome {
  * not. That difference is the vendor's architecture, and a bench comparison
  * should know about it rather than have it papered over.
  */
+/**
+ * The page-goto budget for a caller deadline: remaining time, capped at the
+ * navigation default. Exported so the "1234ms must not become 20000ms" rule
+ * is a pure-function unit test, not an accident of integration timing.
+ */
+export function navigationTimeout(deadlineMs: number | undefined, nowMs: number): number {
+  if (deadlineMs === undefined) return 20_000
+  return Math.min(20_000, Math.max(1, deadlineMs - nowMs))
+}
+
 export async function navigateOnce(
   browser: CdpBrowser,
   url: string,
-  signal?: AbortSignal,
+  deadlineMs?: number,
 ): Promise<NavigationOutcome> {
-  // `timeout` is the non-standard property AbortSignal.timeout() sets; the
-  // cast is to a structural view of it. Absent signal = no caller deadline.
-  const msLeft =
-    signal === undefined ? undefined : (signal as AbortSignal & { timeout?: number }).timeout
-  const timeout =
-    signal?.aborted === true ? 1 : Math.min(20_000, msLeft === undefined ? 20_000 : msLeft)
+  // The caller's absolute deadline maps onto the page's own navigation
+  // timeout. Remaining budget is computed explicitly from the deadline —
+  // no AbortSignal.timeout property is read anywhere.
+  const timeout = navigationTimeout(deadlineMs, Date.now())
   const page = await defaultContext(browser).newPage()
   try {
     const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout })
     // JS shells need a beat after first paint; networkidle never fires on
     // long-polling pages, so a bounded settle instead (same as browser_local).
-    await page.waitForTimeout(1500)
+    const settleMs = Math.min(1500, deadlineMs === undefined ? 1500 : Math.max(1, deadlineMs - Date.now()))
+    await page.waitForTimeout(settleMs)
 
     const headers: Record<string, string> = {}
     for (const [name, value] of Object.entries(response?.headers() ?? {})) {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { FetchResult, HandoffRequest } from '@w2l/contracts'
+import { CONTENTFUL_STATUS, type FetchResult, type HandoffRequest } from '@w2l/contracts'
 import { LadderRunner, type Channel, type HumanHandoff } from '../src/routing/ladder.js'
 import { MemoryRoutingHistory } from '../src/routing/vendorRouter.js'
 import { MemorySessionStore, type SessionSnapshot } from '../src/routing/sessionStore.js'
@@ -538,6 +538,74 @@ describe('LadderRunner — identity on contentful results', () => {
     expect(run.channelsTried).toEqual(['provider', 'provider'])
     expect(run.result.status).toBe('success')
     expect(run.result.trace.some((t) => t.event === 'identity_unobserved')).toBe(false)
+  })
+
+  it('ONLY vendor + mismatch = a clear non-contentful failure, never a success', async () => {
+    const bb = channel('provider', [mismatchedContentful('https://example.com/p')], 'browserbase')
+    const runner = new LadderRunner([bb], { mode: 'research' })
+
+    const run = await runner.run('https://example.com/p')
+    expect(run.result.status).toBe('failed')
+    expect(run.result.failureReason).toBe('identity_compromised')
+    expect(run.result.markdown).toBeNull()
+    expect(CONTENTFUL_STATUS.has(run.result.status)).toBe(false)
+  })
+
+  it('LAST vendor + unobserved = a clear non-contentful failure too', async () => {
+    const bb = channel('provider', [blockedResult('https://example.com/p', 'bot_detected_generic')], 'browserbase')
+    const steel = channel('provider', [
+      {
+        ...contentfulResult('https://example.com/p', 'provider'),
+        trace: [{ at: 1, lane: 'provider', event: 'identity_unobserved', detail: { declared: 'A' } }],
+      },
+    ], 'steel')
+    const runner = new LadderRunner([bb, steel], { mode: 'research' })
+
+    const run = await runner.run('https://example.com/p')
+    expect(run.result.status).toBe('failed')
+    expect(run.result.failureReason).toBe('identity_compromised')
+    expect(CONTENTFUL_STATUS.has(run.result.status)).toBe(false)
+  })
+
+  it('a handoff retry with an identity anomaly cannot slip through as success', async () => {
+    const request: HandoffRequest = {
+      reason: 'captcha_required',
+      liveViewUrl: 'https://live.example/session-1',
+      rationale: 'The target demands human verification.',
+    }
+    const session: SessionSnapshot = {
+      domain: 'example.com',
+      attestedBy: 'human',
+      attestedAt: '2026-08-22T00:00:00.000Z',
+      vendor: 'browserbase',
+    }
+    const bb = channel('provider', [
+      { ...blockedResult('https://example.com/p', 'captcha'), handoff: request },
+      mismatchedContentful('https://example.com/p'),
+    ], 'browserbase')
+    const handoff: HumanHandoff = { async takeOver() { return session } }
+    const runner = new LadderRunner([bb], { mode: 'authed' }, null, handoff)
+
+    const run = await runner.run('https://example.com/p')
+    expect(run.channelsTried).toEqual(['provider', 'provider(retry)'])
+    expect(run.result.status).toBe('failed')
+    expect(run.result.failureReason).toBe('identity_compromised')
+    expect(CONTENTFUL_STATUS.has(run.result.status)).toBe(false)
+    expect(run.handoffRequested).toBe(false)
+  })
+
+  it('history records contentful=0 with failureClass=identity_mismatch for a mismatched fetch', async () => {
+    const history = new MemoryRoutingHistory()
+    const bb = channel('provider', [mismatchedContentful('https://example.com/p')], 'browserbase')
+    const runner = new LadderRunner([bb], { mode: 'research' }, history)
+
+    await runner.run('https://example.com/p')
+    const domain = await history.read('example.com')
+    expect(domain.vendors.browserbase).toMatchObject({
+      attempts: 1,
+      contentful: 0,
+      lastFailureClass: 'identity_mismatch',
+    })
   })
 })
 

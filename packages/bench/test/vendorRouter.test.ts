@@ -173,6 +173,52 @@ describe('FileRoutingHistory — legacy and caps', () => {
     await rm(dir, { recursive: true, force: true })
   })
 
+  it('legacy reconstruction is capped at MAX_LATENCY_SAMPLES (200) like live recording', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'w2l-hist-'))
+    const file = join(dir, 'history.json')
+    await writeFile(
+      file,
+      JSON.stringify({
+        'example.com': {
+          vendors: {
+            steel: { attempts: 5000, contentful: 4000, latencyTotalMs: 500_000, costTotalUsd: 1, lastFailureClass: null },
+          },
+          lastVendor: 'steel',
+        },
+      }),
+    )
+    const history = new FileRoutingHistory(file)
+    const read = await history.read('example.com')
+    // Mean = 100 per attempt, but the array must not outgrow the live cap.
+    expect(read.vendors.steel!.latencySamplesMs).toHaveLength(200)
+    expect(read.vendors.steel!.latencySamplesMs[0]).toBe(100)
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  it('legacy attempts is validated as a finite non-negative integer', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'w2l-hist-'))
+    const file = join(dir, 'history.json')
+    await writeFile(
+      file,
+      JSON.stringify({
+        'example.com': {
+          vendors: {
+            bad: { attempts: -3, contentful: 2, latencyTotalMs: 100, costTotalUsd: 0, lastFailureClass: null },
+            nan: { attempts: 'twelve', contentful: 2, latencyTotalMs: 100, costTotalUsd: 0, lastFailureClass: null },
+          },
+          lastVendor: 'bad',
+        },
+      }),
+    )
+    const history = new FileRoutingHistory(file)
+    const read = await history.read('example.com')
+    // Invalid attempts normalize to 0: no negative-size arrays, no NaN math.
+    expect(read.vendors.bad!.attempts).toBe(0)
+    expect(read.vendors.bad!.latencySamplesMs).toEqual([])
+    expect(read.vendors.nan!.attempts).toBe(0)
+    await rm(dir, { recursive: true, force: true })
+  })
+
   it('an even number of samples takes the mean of the two middle values', () => {
     const history: DomainHistory = {
       vendors: {

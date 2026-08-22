@@ -20,6 +20,7 @@
  */
 
 import { pathToFileURL } from 'node:url'
+import { CONTENTFUL_STATUS, type FetchResult } from '@w2l/contracts'
 import { verifyLedger } from '@w2l/http-core'
 import { ProviderSubject } from './subjects/provider.js'
 import { browserbaseOps } from './vendors/browserbase.js'
@@ -109,57 +110,69 @@ function opsFor(args: Args): VendorOps {
   return steelOps({ apiKey }, fetchVendorApi, policy)
 }
 
-async function main(): Promise<void> {
-  const args = parseArgs(process.argv.slice(2))
-  // Resolved before anything is announced, so a missing key never prints a
-  // line claiming we opened something.
-  const ops = opsFor(args)
+export interface ProviderRunDeps {
+  /** Test seam: replaces the real connectVendor + ProviderSubject wiring. */
+  subject?: { fetch: (url: string) => Promise<FetchResult>; teardown?: () => Promise<void> }
+  log?: (line: string) => void
+}
 
-  console.log(`vendor : ${args.vendor}`)
-  console.log(`target : ${args.url}`)
-  // The flags' observable effect: what the policy layer decided. Session
-  // persistence and live view appear here only when the operator asked for
-  // them — a run with neither flag must say exactly that.
+/** Run one provider fetch and report; returns the process exit code.
+ *  Deps exist so the exit-code contract (identity_compromised ⇒ 1) is
+ *  testable without a vendor account. */
+export async function runProvider(
+  args: Args,
+  ops: VendorOps,
+  deps: ProviderRunDeps = {},
+): Promise<number> {
+  const log = deps.log ?? ((line: string) => console.log(line))
+  log(`vendor : ${args.vendor}`)
+  log(`target : ${args.url}`)
   const enabled = ops.decision.enabled.map((c) => c.capability)
-  console.log(
+  log(
     `policy : ${enabled.length > 0 ? enabled.join(', ') : 'route capabilities only (no persistence, no live view)'}`,
   )
-  console.log('opening session (captcha solving and fingerprint forging declined)...')
 
-  const { declaration, transport } = await connectVendor(ops)
-  // Printed before the fetch, because this is the string the gate is about to
-  // evaluate robots.txt against — and it is the vendor's own, measured off the
-  // live session, not one we picked. Expect HeadlessChrome. That is the point.
-  console.log(`measured UA : ${declaration.declaredUserAgent}`)
-  const subject = new ProviderSubject(declaration, transport)
+  let subject: { fetch: (url: string) => Promise<FetchResult>; teardown?: () => Promise<void> }
+  if (deps.subject !== undefined) {
+    subject = deps.subject
+  } else {
+    log('opening session (captcha solving and fingerprint forging declined)...')
+    const { declaration, transport } = await connectVendor(ops)
+    // Printed before the fetch, because this is the string the gate is about
+    // to evaluate robots.txt against — and it is the vendor's own, measured
+    // off the live session, not one we picked. Expect HeadlessChrome. That
+    // is the point.
+    log(`measured UA : ${declaration.declaredUserAgent}`)
+    subject = new ProviderSubject(declaration, transport)
+  }
 
   try {
     const result = await subject.fetch(args.url)
 
-    console.log('')
-    console.log(`status         : ${result.status}`)
-    console.log(`failureReason  : ${result.failureReason ?? '-'}`)
-    console.log(`blockReason    : ${result.blockReason ?? '-'}`)
-    console.log(`httpStatus     : ${result.evidence.httpStatus ?? '-'}`)
-    console.log(`finalUrl       : ${result.evidence.finalUrl}`)
-    console.log(`contentTokens  : ${result.usage.contentTokens ?? '-'}`)
-    console.log(`wallMs         : ${result.usage.wallMs}`)
-    console.log(`vendor cost    : ${result.usage.externalCostUsd ?? 'not reported by vendor'}`)
+    log('')
+    log(`status         : ${result.status}`)
+    log(`failureReason  : ${result.failureReason ?? '-'}`)
+    log(`blockReason    : ${result.blockReason ?? '-'}`)
+    log(`httpStatus     : ${result.evidence.httpStatus ?? '-'}`)
+    log(`finalUrl       : ${result.evidence.finalUrl}`)
+    log(`contentTokens  : ${result.usage.contentTokens ?? '-'}`)
+    log(`wallMs         : ${result.usage.wallMs}`)
+    log(`vendor cost    : ${result.usage.externalCostUsd ?? 'not reported by vendor'}`)
 
     const record = result.compliance
     if (record !== null) {
-      console.log('')
-      console.log('robots')
-      console.log(`  url          : ${record.robots.robotsUrl ?? '-'}`)
-      console.log(`  sha256       : ${record.robots.robotsSha256 ?? '-'}`)
-      console.log(`  matchedGroup : ${record.robots.matchedUserAgentGroup ?? '-'}`)
-      console.log(`  decision     : ${record.robots.decision}`)
+      log('')
+      log('robots')
+      log(`  url          : ${record.robots.robotsUrl ?? '-'}`)
+      log(`  sha256       : ${record.robots.robotsSha256 ?? '-'}`)
+      log(`  matchedGroup : ${record.robots.matchedUserAgentGroup ?? '-'}`)
+      log(`  decision     : ${record.robots.decision}`)
       const rules = record.robots.appliedRules
         .map((r) => `${r.allow ? 'Allow' : 'Disallow'}: ${r.pattern}`)
         .join('  ')
-      console.log(`  appliedRules : ${rules || '-'}`)
-      console.log('sent headers')
-      for (const h of record.sentHeaders.headers) console.log(`  ${h.name}: ${h.value}`)
+      log(`  appliedRules : ${rules || '-'}`)
+      log('sent headers')
+      for (const h of record.sentHeaders.headers) log(`  ${h.name}: ${h.value}`)
     }
 
     // The identity events are the point of the lane, so they are surfaced
@@ -167,32 +180,50 @@ async function main(): Promise<void> {
     // identity the gate never cleared, and "unobserved" is not agreement.
     for (const event of result.trace) {
       if (event.event === 'identity_mismatch' || event.event === 'identity_unobserved') {
-        console.log('')
-        console.log(`identity: ${event.event} ${JSON.stringify(event.detail)}`)
+        log('')
+        log(`identity: ${event.event} ${JSON.stringify(event.detail)}`)
       }
     }
 
-    const ledger = subject.ledger()
-    console.log('')
-    console.log(`ledger : ${ledger.records.length} record(s), verified=${verifyLedger(ledger).valid}`)
+    const maybeLedger = (subject as { ledger?: () => Parameters<typeof verifyLedger>[0] }).ledger?.()
+    if (maybeLedger !== undefined) {
+      log('')
+      log(`ledger : ${maybeLedger.records.length} record(s), verified=${verifyLedger(maybeLedger).valid}`)
+    }
 
     if (result.markdown !== null) {
-      console.log('')
-      console.log('--- extracted ---')
-      console.log(result.markdown.slice(0, 2000))
+      log('')
+      log('--- extracted ---')
+      log(result.markdown.slice(0, 2000))
     }
+    // Non-contentful outcomes — including identity_compromised — exit
+    // non-zero, same rule as w2l-fetch: a caller must be able to react to
+    // "we did not get usable content" without parsing stdout.
+    return CONTENTFUL_STATUS.has(result.status) ? 0 : 1
   } finally {
     // Always: an unreleased session keeps running on the vendor's meter.
-    await subject.teardown()
+    await subject.teardown?.()
   }
+}
+
+async function main(): Promise<number> {
+  const args = parseArgs(process.argv.slice(2))
+  // Resolved before anything is announced, so a missing key never prints a
+  // line claiming we opened something.
+  const ops = opsFor(args)
+  return runProvider(args, ops)
 }
 
 // Guarded so a test can import `parseArgs` without the CLI opening a vendor
 // session as a side effect of the import.
 const entry = process.argv[1]
 if (entry !== undefined && import.meta.url === pathToFileURL(entry).href) {
-  main().catch((err: unknown) => {
-    console.error(err instanceof Error ? err.message : String(err))
-    process.exit(1)
-  })
+  main()
+    .then((code) => {
+      process.exitCode = code
+    })
+    .catch((err: unknown) => {
+      console.error(err instanceof Error ? err.message : String(err))
+      process.exitCode = 1
+    })
 }

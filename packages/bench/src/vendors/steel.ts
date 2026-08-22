@@ -103,17 +103,19 @@ export function steelOps(
      * session itself is the creation — so this reports null and the profileId
      * from the create response becomes the resume material the ladder saves.
      */
-    async ensurePersistence(): Promise<VendorResumeContext | null> {
+    async ensurePersistence(deadlineMs?: number): Promise<VendorResumeContext | null> {
+      void deadlineMs
       return null
     },
 
-    async createSession(resume?: VendorResumeContext | null): Promise<VendorSession> {
+    async createSession(resume?: VendorResumeContext | null, deadlineMs?: number): Promise<VendorSession> {
       const body = steelSessionBody(decision, resume ?? null)
       const res = await api({
         method: 'POST',
         url: `${base}/v1/sessions`,
         headers,
         body,
+        deadlineMs,
       })
       if (res.status !== 200 && res.status !== 201) {
         throw new Error(`steel: session create returned ${res.status}`)
@@ -139,11 +141,12 @@ export function steelOps(
       return { sessionId: json.id, connectUrl, handoffUrl, resumeContext }
     },
 
-    async releaseSession(sessionId: string): Promise<void> {
+    async releaseSession(sessionId: string, deadlineMs?: number): Promise<void> {
       await api({
         method: 'POST',
         url: `${base}/v1/sessions/${sessionId}/release`,
         headers,
+        deadlineMs,
       })
     },
   }

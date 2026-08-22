@@ -27,6 +27,7 @@ import {
 } from '@w2l/http-core'
 import type { RoutingHistory, VendorOutcome } from './vendorRouter.js'
 import { rankVendors, startingVendor } from './vendorRouter.js'
+import { identityCompromised } from './identity.js'
 import type { SessionSnapshot, SessionStore } from './sessionStore.js'
 
 /** One channel: a lane implementation the ladder can try. */
@@ -61,9 +62,11 @@ export interface LadderRunResult {
   handoffRequested: boolean
   /**
    * One event per ladder step: which channel ran, under which vendor, what
-   * the result was, and (when it escalated) why. The caller is expected to
-   * append these to the final result's trace so the escalation audit is part
-   * of the signed record.
+   * the result was, and (when it escalated) why. This is the ladder's OWN
+   * audit — it is printed by the CLI and returned to the caller, but it is
+   * NOT part of the signed compliance record: the signed record covers the
+   * winning subject's own fetch facts, and the ladder cannot rewrite those.
+   * The two are delivered side by side; nothing here claims they are one.
    */
   ladderTrace: readonly { at: number; event: string; channel: string; detail: Record<string, unknown> }[]
 }
@@ -81,25 +84,33 @@ function resultRequestsEscalation(result: FetchResult): boolean {
   )
 }
 
-/**
- * A contentful result whose identity on the wire was either contradicted
- * (identity_mismatch) or not observable (identity_unobserved) is NOT an
- * acceptable success. The gate cleared one identity; if the wire carried
- * another — or we cannot prove which — the fetch cannot be reported as a
- * win. Both mark the result for rejection so the ladder keeps going (the
- * next vendor is the fallback).
- */
-function identityCompromised(result: FetchResult): boolean {
-  return result.trace.some(
-    (t) => t.event === 'identity_mismatch' || t.event === 'identity_unobserved',
-  )
-}
-
 /** Content size as the ladder's improvement metric: main-content tokens,
  *  with markdown length as a tiebreaker. Deterministic, no magic. */
 function contentSize(result: FetchResult): number {
   const tokens = result.usage.contentTokens ?? 0
   return tokens * 1_000 + (result.markdown?.length ?? 0)
+}
+
+/**
+ * The boundary guard: whatever a channel hands back, a contentful result
+ * whose identity was contradicted or unobserved is NEVER delivered as
+ * success. ProviderSubject already converts such results to
+ * failed/identity_compromised; this guard exists for any channel that does
+ * not, so the rule holds even for the last rung and after a handoff retry.
+ */
+function sanitizeResult(result: FetchResult): FetchResult {
+  if (CONTENTFUL_STATUS.has(result.status) && identityCompromised(result.trace)) {
+    return {
+      ...result,
+      status: 'failed',
+      failureReason: 'identity_compromised',
+      blockReason: null,
+      budgetExceeded: null,
+      markdown: null,
+      usage: { ...result.usage, contentTokens: null },
+    }
+  }
+  return result
 }
 
 export class LadderRunner {
@@ -130,8 +141,9 @@ export class LadderRunner {
    *      asks, not re-derived;
    *   3. `quality_low_yield` — a thin, low-confidence success from the http
    *      lane gets offered to a higher lane instead of being the answer.
-   * All of it lands in `ladderTrace`, which the CLI appends to the final
-   * result's trace before the record is signed.
+   * All of it lands in `ladderTrace`. The signed compliance record remains
+   * the winning subject's own; the ladder audit travels alongside it,
+   * unrewritten and unsigned — that boundary is deliberate.
    */
   async run(url: string, session?: SessionSnapshot | null): Promise<LadderRunResult> {
     const decision = evaluateGovernance(url, this.policy)
@@ -195,11 +207,14 @@ export class LadderRunner {
       last = result
 
       // Vendor attribution happens for every attempt, successful or not —
-      // a vendor's win IS its history. Record before the contentful early
-      // return so domain stats never miss an outcome.
+      // a vendor's win IS its history. The outcome is judged on the
+      // SANITIZED result: an identity-compromised fetch counts as
+      // contentful=0 with failureClass=identity_mismatch, exactly the
+      // semantics every other layer uses.
       if (channel.vendorId !== undefined && this.history !== null) {
-        const cls = classifyFetchFailure(result)
-        await this.recordVendorOutcome(url, channel.vendorId, result, cls)
+        const judged = sanitizeResult(result)
+        const cls = classifyFetchFailure(judged)
+        await this.recordVendorOutcome(url, channel.vendorId, judged, cls)
       }
 
       if (CONTENTFUL_STATUS.has(result.status)) {
@@ -208,7 +223,7 @@ export class LadderRunner {
         // one we could not observe). Keep it as best-so-far only if it is
         // genuinely the best content we have, but never return it as the
         // answer — the ladder continues to the next vendor.
-        const compromised = identityCompromised(result)
+        const compromised = identityCompromised(result.trace)
         const size = contentSize(result)
         // Worse-than-best is decided against the PREVIOUS best, before this
         // result can become it — comparing against itself would make every
@@ -393,9 +408,9 @@ export class LadderRunner {
       }
     }
 
+    const final = best ?? last ?? this.governanceRefusal(url, 'no permitted channel was configured')
     return {
-      result:
-        best ?? last ?? this.governanceRefusal(url, 'no permitted channel was configured'),
+      result: sanitizeResult(final),
       channelsTried,
       handoffRequested: false,
       ladderTrace,
@@ -483,11 +498,11 @@ export class LadderRunner {
 
     if (this.handoff === null) {
       // No human configured: report the pause point rather than loop forever.
-      return { result: best ?? result, channelsTried, handoffRequested: true, ladderTrace }
+      return { result: sanitizeResult(best ?? result), channelsTried, handoffRequested: true, ladderTrace }
     }
     const snapshot = await this.handoff.takeOver(url, result.handoff!)
     if (snapshot === null) {
-      return { result: best ?? result, channelsTried, handoffRequested: true, ladderTrace }
+      return { result: sanitizeResult(best ?? result), channelsTried, handoffRequested: true, ladderTrace }
     }
     // Persist the human's session so the NEXT run — including an independent
     // process — resumes with it instead of asking again.
@@ -510,7 +525,7 @@ export class LadderRunner {
       channel: `${channel.id}(retry)`,
       detail: { vendorId: channel.vendorId ?? null, status: retry.status, afterHandoff: true },
     })
-    if (!CONTENTFUL_STATUS.has(retry.status) || identityCompromised(retry)) {
+    if (!CONTENTFUL_STATUS.has(retry.status) || identityCompromised(retry.trace)) {
       // The human's pass did not yield acceptable content. Keep the best we
       // had and say plainly that the handoff did not clear it — never
       // "still needs a human" after the human already acted.
@@ -521,14 +536,14 @@ export class LadderRunner {
         detail: { status: retry.status },
       })
       return {
-        result: best ?? retry,
+        result: sanitizeResult(best ?? retry),
         channelsTried: [...channelsTried, `${channel.id}(retry)`],
         handoffRequested: false,
         ladderTrace,
       }
     }
     return {
-      result: retry,
+      result: sanitizeResult(retry),
       channelsTried: [...channelsTried, `${channel.id}(retry)`],
       handoffRequested: false,
       ladderTrace,

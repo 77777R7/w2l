@@ -100,21 +100,19 @@ function classifyResult(arm: string, result: FetchResult): ArmResult {
 const ARM_TIMEOUT_MS = 120_000
 
 /**
- * A REAL deadline: the arm promise races a timer that rejects. The subject
- * underneath is not abortable (its own transport timeouts still apply), so a
- * timed-out arm's fetch may keep running in the background — but the REPORT
- * stops waiting, which is what the deadline is for. The subject is torn down
- * by compareChannels' finally so the session does not outlive the run.
+ * A REAL deadline: the arm promise races a timer that rejects, and the same
+ * absolute deadline (epoch ms) is threaded down to the subject — vendor API
+ * calls, session creation, CDP connect and navigation each take it and bound
+ * themselves by it. Nothing here reads AbortSignal.timeout's non-standard
+ * `timeout` property; the remaining budget is computed from the deadline
+ * explicitly wherever a bounded wait happens.
  */
 async function runArm(
   arm: string,
-  fn: (signal: AbortSignal) => Promise<FetchResult>,
+  fn: (deadlineMs: number) => Promise<FetchResult>,
   timeoutMs: number = ARM_TIMEOUT_MS,
 ): Promise<ArmOutcome> {
-  // The arm's own cancellation signal: the same deadline that stops the
-  // report also reaches the vendor transport, so the navigation (and the
-  // paid session behind it) knows the run is over.
-  const signal = AbortSignal.timeout(timeoutMs)
+  const deadlineMs = Date.now() + timeoutMs
   let timer: ReturnType<typeof setTimeout> | undefined
   const deadline = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
@@ -123,7 +121,7 @@ async function runArm(
     timer.unref?.()
   })
   try {
-    const result = await Promise.race([fn(signal), deadline])
+    const result = await Promise.race([fn(deadlineMs), deadline])
     return { arm, ok: true, result: classifyResult(arm, result) }
   } catch (err) {
     return { arm, ok: false, error: err instanceof Error ? err.message : String(err) }
@@ -154,6 +152,13 @@ export async function compareChannels(
       steel?: () => Promise<FakeSubject>
     }
     keys?: { browserbase?: string; steel?: string }
+    /** Test seam: replaces the real vendorProviderSubject, so the REAL
+     *  subject-creation promise path (bbRealPending) can be exercised with a
+     *  slow promise and no account. */
+    vendorProviderSubjectImpl?: (
+      ops: ReturnType<typeof browserbaseOps>,
+      opts: { deadlineMs?: number },
+    ) => Promise<{ fetch: (url: string, deadlineMs?: number) => Promise<FetchResult>; teardown?: () => Promise<void> }>
   } = {},
 ): Promise<{ perUrl: { url: string; arms: ArmOutcome[] }[] }> {
   const log = opts.onProgress ?? (() => {})
@@ -183,25 +188,49 @@ export async function compareChannels(
 
   interface Arm {
     name: string
-    run: (url: string, signal?: AbortSignal) => Promise<FetchResult>
+    run: (url: string, deadlineMs?: number) => Promise<FetchResult>
     available: boolean
     close: () => Promise<void>
   }
 
-  // Pending subject-creation promises, so close() can await a factory that
-  // was still running when the arm deadline fired — then tear the subject
-  // down instead of leaking a session the run already abandoned.
+  // Pending subject-creation promises — fake AND real — so close() can await
+  // a factory that was still running when the arm deadline fired, then tear
+  // the subject down instead of leaking a session the run already abandoned.
+  type SubjectFactory = (
+    ops: ReturnType<typeof browserbaseOps>,
+  ) => Promise<{ fetch: (url: string, deadlineMs?: number) => Promise<FetchResult>; teardown?: () => Promise<void> }>
+  const bbFactory = (opts.vendorProviderSubjectImpl ?? vendorProviderSubject) as unknown as SubjectFactory
+  const steelFactory = (opts.vendorProviderSubjectImpl ?? vendorProviderSubject) as unknown as SubjectFactory
   let bbFakePending: Promise<FakeSubject> | null = null
   let steelFakePending: Promise<FakeSubject> | null = null
+  let bbRealPending: Promise<Awaited<ReturnType<typeof vendorProviderSubject>>> | null = null
+  let steelRealPending: Promise<Awaited<ReturnType<typeof vendorProviderSubject>>> | null = null
+  let bbClosed = false
+  let steelClosed = false
+
+  /** Convert an arm deadline to an AbortSignal for the FAKE seam only: fake
+   *  subjects are test doubles and have no deadline plumbing of their own. */
+  const signalFor = (deadlineMs?: number): AbortSignal | undefined =>
+    deadlineMs === undefined
+      ? undefined
+      : AbortSignal.timeout(Math.max(1, deadlineMs - Date.now()))
+
+  /** The deadline itself, checked directly: after it passed there is nothing
+   *  left to do, whatever the plumbing underneath can or cannot cancel. */
+  const ensureDeadline = (deadlineMs?: number): void => {
+    if (deadlineMs !== undefined && Date.now() > deadlineMs) {
+      throw new Error('arm cancelled before the subject was ready')
+    }
+  }
 
   const arms: Arm[] = [
     {
       name: 'http',
       available: true,
-      run: async (url, signal) => {
+      run: async (url, deadlineMs) => {
         if (httpFake !== null) {
           if (httpFakeSubject === null) httpFakeSubject = await httpFake()
-          return httpFakeSubject.fetch(url, signal)
+          return httpFakeSubject.fetch(url, signalFor(deadlineMs))
         }
         return http.fetch(url)
       },
@@ -212,10 +241,10 @@ export async function compareChannels(
     {
       name: 'browser_local',
       available: true,
-      run: async (url, signal) => {
+      run: async (url, deadlineMs) => {
         if (browserFake !== null) {
           if (browserFakeSubject === null) browserFakeSubject = await browserFake()
-          return browserFakeSubject.fetch(url, signal)
+          return browserFakeSubject.fetch(url, signalFor(deadlineMs))
         }
         return browser.fetch(url)
       },
@@ -227,7 +256,7 @@ export async function compareChannels(
     {
       name: 'browserbase',
       available: bbKey !== '' || bbFake !== null,
-      run: async (url, signal) => {
+      run: async (url, deadlineMs) => {
         if (bbFake !== null) {
           if (bbFakeSubject === null) {
             bbFakePending = bbFake().then((s) => {
@@ -238,19 +267,31 @@ export async function compareChannels(
           }
           // The arm deadline may have fired while the factory was still
           // running. A fetch now would be work the run already abandoned.
-          if (signal?.aborted === true) {
-            throw new Error('arm cancelled before the subject was ready')
-          }
-          return bbFakeSubject.fetch(url, signal)
+          ensureDeadline(deadlineMs)
+          return bbFakeSubject.fetch(url, signalFor(deadlineMs))
         }
-        if (bbSubject === null) {
-          bbSubject = await vendorProviderSubject(browserbaseOps({ apiKey: bbKey }, undefined, policy))
+        if (bbSubject === null && bbRealPending === null) {
+          bbRealPending = bbFactory(
+            browserbaseOps({ apiKey: bbKey }, undefined, policy),
+          ) as Promise<Awaited<ReturnType<typeof vendorProviderSubject>>>
+          bbSubject = (await bbRealPending) as Awaited<ReturnType<typeof vendorProviderSubject>>
+        } else if (bbSubject === null && bbRealPending !== null) {
+          bbSubject = await bbRealPending
         }
-        return bbSubject.fetch(url, signal)
+        ensureDeadline(deadlineMs)
+        const bb = bbSubject!
+        return bb.fetch(url, deadlineMs)
       },
       close: async () => {
+        if (bbClosed) return
+        bbClosed = true
         if (bbFakePending !== null) {
           await bbFakePending.catch(() => {})
+        }
+        if (bbRealPending !== null) {
+          // The deadline fired mid-creation: wait for the real subject to
+          // appear, then release it immediately. Exactly once, ever.
+          await bbRealPending.catch(() => {})
         }
         if (bbSubject !== null) await bbSubject.teardown()
         if (bbFakeSubject !== null) await bbFakeSubject.teardown?.()
@@ -259,7 +300,7 @@ export async function compareChannels(
     {
       name: 'steel',
       available: steelKey !== '' || steelFake !== null,
-      run: async (url, signal) => {
+      run: async (url, deadlineMs) => {
         if (steelFake !== null) {
           if (steelFakeSubject === null) {
             steelFakePending = steelFake().then((s) => {
@@ -268,21 +309,29 @@ export async function compareChannels(
             })
             steelFakeSubject = await steelFakePending
           }
-          // The arm deadline may have fired while the factory was still
-          // running. A fetch now would be work the run already abandoned.
-          if (signal?.aborted === true) {
-            throw new Error('arm cancelled before the subject was ready')
-          }
-          return steelFakeSubject.fetch(url, signal)
+          ensureDeadline(deadlineMs)
+          return steelFakeSubject.fetch(url, signalFor(deadlineMs))
         }
-        if (steelSubject === null) {
-          steelSubject = await vendorProviderSubject(steelOps({ apiKey: steelKey }, undefined, policy))
+        if (steelSubject === null && steelRealPending === null) {
+          steelRealPending = steelFactory(
+            steelOps({ apiKey: steelKey }, undefined, policy),
+          ) as Promise<Awaited<ReturnType<typeof vendorProviderSubject>>>
+          steelSubject = (await steelRealPending) as Awaited<ReturnType<typeof vendorProviderSubject>>
+        } else if (steelSubject === null && steelRealPending !== null) {
+          steelSubject = await steelRealPending
         }
-        return steelSubject.fetch(url, signal)
+        ensureDeadline(deadlineMs)
+        const st = steelSubject!
+        return st.fetch(url, deadlineMs)
       },
       close: async () => {
+        if (steelClosed) return
+        steelClosed = true
         if (steelFakePending !== null) {
           await steelFakePending.catch(() => {})
+        }
+        if (steelRealPending !== null) {
+          await steelRealPending.catch(() => {})
         }
         if (steelSubject !== null) await steelSubject.teardown()
         if (steelFakeSubject !== null) await steelFakeSubject.teardown?.()
@@ -301,7 +350,7 @@ export async function compareChannels(
           continue
         }
         log(`  ${arm.name}...`)
-        const outcome = await runArm(arm.name, (signal) => arm.run(url, signal), opts.armTimeoutMs)
+        const outcome = await runArm(arm.name, (deadlineMs) => arm.run(url, deadlineMs), opts.armTimeoutMs)
         urlArms.push(outcome)
         if (outcome.result !== undefined) {
           log(

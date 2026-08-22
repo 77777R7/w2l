@@ -84,8 +84,8 @@ export interface VendorOps {
   secrets: readonly string[]
   /** The policy decision this ops instance obeys (three-layer split). */
   decision: PolicyDecision
-  createSession(resume?: VendorResumeContext | null): Promise<VendorSession>
-  releaseSession(sessionId: string): Promise<void>
+  createSession(resume?: VendorResumeContext | null, deadlineMs?: number): Promise<VendorSession>
+  releaseSession(sessionId: string, deadlineMs?: number): Promise<void>
   /**
    * Establish first-use persistence, when the policy authorized
    * session_persistence and no saved resume context exists yet: Browserbase
@@ -93,7 +93,7 @@ export interface VendorOps {
    * profile is created so a later response can persist it. Returns resume
    * material, or null when the vendor has no such operation.
    */
-  ensurePersistence?(): Promise<VendorResumeContext | null>
+  ensurePersistence?(deadlineMs?: number): Promise<VendorResumeContext | null>
 }
 
 interface LiveSession {
@@ -130,24 +130,24 @@ export class CdpVendorTransport implements ProviderTransport {
    * for reuse: paying for a throwaway probe session would double the price of
    * being honest.
    */
-  async resolveUserAgent(): Promise<string> {
+  async resolveUserAgent(deadlineMs?: number): Promise<string> {
     if (this.declaredUserAgent !== null) return this.declaredUserAgent
-    const { browser } = await this.ensureSession()
+    const { browser } = await this.ensureSession(deadlineMs)
     try {
       const ua = await measureUserAgent(browser)
       this.declaredUserAgent = ua
       return ua
     } catch (err) {
-      await this.dropSession()
+      await this.dropSession(deadlineMs)
       throw new Error(this.scrub(err instanceof Error ? err.message : String(err)))
     }
   }
 
-  async fetch(url: string, signal?: AbortSignal): Promise<ProviderResponse> {
-    const declared = await this.resolveUserAgent()
-    const { browser } = await this.ensureSession()
+  async fetch(url: string, deadlineMs?: number): Promise<ProviderResponse> {
+    const declared = await this.resolveUserAgent(deadlineMs)
+    const { browser } = await this.ensureSession(deadlineMs)
     try {
-      const res = await navigateOnce(browser, url, signal)
+      const res = await navigateOnce(browser, url, deadlineMs)
       return {
         status: res.status,
         body: res.body,
@@ -169,7 +169,7 @@ export class CdpVendorTransport implements ProviderTransport {
     } catch (err) {
       // The session is the likely casualty; drop it so the next fetch starts
       // clean rather than replaying against a dead browser.
-      await this.dropSession()
+      await this.dropSession(deadlineMs)
       throw new Error(this.scrub(err instanceof Error ? err.message : String(err)))
     }
   }
@@ -178,21 +178,21 @@ export class CdpVendorTransport implements ProviderTransport {
     await this.dropSession()
   }
 
-  private async ensureSession(): Promise<LiveSession> {
+  private async ensureSession(deadlineMs?: number): Promise<LiveSession> {
     if (this.live !== null) return this.live
 
     let session: VendorSession
     try {
-      session = await this.ops.createSession(this.resume)
+      session = await this.ops.createSession(this.resume, deadlineMs)
     } catch (err) {
       throw new Error(this.scrub(err instanceof Error ? err.message : String(err)))
     }
 
     let browser: CdpBrowser
     try {
-      browser = await this.connector(session.connectUrl)
+      browser = await this.connector(session.connectUrl, deadlineMs)
     } catch (err) {
-      await this.ops.releaseSession(session.sessionId).catch(() => {})
+      await this.ops.releaseSession(session.sessionId, deadlineMs).catch(() => {})
       throw new Error(this.scrub(err instanceof Error ? err.message : String(err)))
     }
 
@@ -203,12 +203,12 @@ export class CdpVendorTransport implements ProviderTransport {
         current = await measureUserAgent(browser)
       } catch (err) {
         await browser.close().catch(() => {})
-        await this.ops.releaseSession(session.sessionId).catch(() => {})
+        await this.ops.releaseSession(session.sessionId, deadlineMs).catch(() => {})
         throw new Error(this.scrub(err instanceof Error ? err.message : String(err)))
       }
       if (current !== this.declaredUserAgent) {
         await browser.close().catch(() => {})
-        await this.ops.releaseSession(session.sessionId).catch(() => {})
+        await this.ops.releaseSession(session.sessionId, deadlineMs).catch(() => {})
         throw new Error(
           `${this.ops.vendorId}: session user agent changed from "${this.declaredUserAgent}" to ` +
             `"${current}". The identity the robots gate evaluated is not the identity on offer; ` +
@@ -226,12 +226,12 @@ export class CdpVendorTransport implements ProviderTransport {
     return this.live
   }
 
-  private async dropSession(): Promise<void> {
+  private async dropSession(deadlineMs?: number): Promise<void> {
     const live = this.live
     this.live = null
     if (live === null) return
     await live.browser.close().catch(() => {})
-    await this.ops.releaseSession(live.sessionId).catch(() => {})
+    await this.ops.releaseSession(live.sessionId, deadlineMs).catch(() => {})
   }
 
   private scrub(message: string): string {

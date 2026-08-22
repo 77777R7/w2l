@@ -60,7 +60,7 @@
 **改造**:`packages/http-core/src/governance.ts`(新):`CrawlPolicy`(mode + 允许的域名列表 + 哪些通道可用 + 哪些能力可启用)。`LadderRunner` 在每次请求前检查:
 - 默认 mode:只允许 http 与 browser_local,域名必须在白名单里(或明确为 public-only)。
 - authed / provider / handoff 通道只在策略显式授权后可用。
-- 每次通道升级、每次人工接管都追加一条 `ladder_step` 审计事件(渠道、vendorId、升级原因、该步结果),由 `LadderRunner` 产出,CLI 打印并随最终结果返回;合规链签名覆盖的是 subject 自产记录,梯子的审计是与结果并行的证据。
+- 每次通道升级、每次人工接管都追加一条 `ladder_step` 审计事件(渠道、vendorId、升级原因、该步结果),由 `LadderRunner` 产出,CLI 打印并随最终结果返回。**审计边界如实陈述**:`ladderTrace` 是梯子自己的路由审计,不进入合规记录的签名内容——签名记录只覆盖获胜 subject 自产的抓取事实(robots 决策、发送头、限速、access fact)。两者并列交付,互不冒充。
 
 ### 差距 8:没有真实 E2E 对比,只有 fake tests
 
@@ -135,9 +135,9 @@
 
 ### 5. liveCompare 超时资源泄漏
 
-- 每个 arm 建立 `AbortSignal.timeout`;signal 贯穿 `VendorApiRequest` → `fetchVendorApi` → `navigateOnce`(映射成 `page.goto` 的 timeout)→ `ProviderSubject.fetch`。
-- pending subject 创建被跟踪:截止时间到了、factory 还没完成,`close()` 等它完成后立即 teardown,绝不产生一次迟到 fetch。
-- 回归测试:慢 factory 返回后 fetch 次数 = 0、teardown 恰好 1 次;挂起的 fetch 被 signal 中止且 teardown 恰好 1 次。
+- arm 截止是一个**显式绝对 deadline(epoch ms)**,从 `runArm` 一路传到 `VendorApiRequest.deadlineMs` → `fetchVendorApi`(按剩余时间折算内部 AbortSignal.timeout)→ `ops.createSession/ensurePersistence/releaseSession` → `playwrightConnector`(connectOverCDP 的 timeout)→ `navigateOnce`(goto/settle 的 timeout)。**任何地方都不读取 `AbortSignal.timeout` 这个非标准属性**——剩余预算都是从 deadline 显式算出来的。1234ms 的 deadline 会变成 ≤1234ms 的 timeout,不会变回默认 20000ms。
+- pending subject 创建被跟踪(真实与 fake 的 promise 都算):截止时间到了、创建还没完成,`close()` 等它完成后立即 teardown,恰好一次,绝不产生一次迟到 fetch。底层不能原生取消时(如已在途的 CDP connect),迟到完成后立即 release/teardown。
+- 回归测试:慢 factory 返回后 fetch 次数 = 0、teardown 恰好 1 次;挂起的 fetch 到点中止且 teardown 恰好 1 次;deadline 折算有测试钉住。
 
 ### 6. identity 事件不能算成功
 
@@ -154,3 +154,29 @@
 
 - 代码注释与文档已按上述语义同步(202 多信号、真中位数、authed rung、fallback)。
 - PR #6 的 base 是 `fix/robots-redos`,**不是 main**;GitHub 仓库当前没有配置 CI checks——合并前的一切验证都是本地跑出来的,PR 页面上不会有绿色对勾可看。
+
+## 第三轮门禁返修(组合级问题,4 项)
+
+### 1. 统一身份异常的接受语义
+
+- 新 `FailureReason: 'identity_compromised'`(contracts),单一共享谓词 `identityCompromised(trace)`(bench/src/routing/identity.ts)被 ProviderSubject、LadderRunner、w2l-provider、RoutingHistory 共用——同一语义,不靠四份拷贝。
+- **ProviderSubject**:`identity_mismatch` / `identity_unobserved` 的内容型抓取一律返回 `failed/identity_compromised`,markdown 置空;trace 保留哪个发现触发了它。唯一通道、最后一个通道都一样。
+- **LadderRunner**:`sanitizeResult` 边界守卫——任何通道上交的内容型结果若身份异常,即使没有干净 best,也返回明确失败(CLI exit 1)。handoff retry 走 `best ?? retry` 前同样 sanitize。
+- **RoutingHistory**:按 sanitize 后的结果记账——`contentful=0, failureClass=identity_mismatch`(回归测试钉住)。
+- **w2l-provider**:exit code 契约与 w2l-fetch 一致:非 contentful(含 identity_compromised)⇒ 1,测试通过注入 subject 验证,不需要真实账号。
+
+### 2. session 的通道适用性与恢复顺序
+
+- `authed_session` 没有本地 session 时返回**可继续的 skip**(trace `authed_session_skipped` + escalation),梯子继续走厂商 rung,不再是 terminal `policy_denied`。
+- 快照按 vendor + domain 双重匹配:vendor snapshot 只传给匹配的 vendor rung;不匹配当前 rung 的快照审计后跳过(`session_vendor_mismatch` / `session_does_not_apply`),不抛错、不终止梯子。
+- **恢复顺序**:有已保存 resume → 跳过 first-use `ensurePersistence`,把保存的 context/profile 经 `connectVendor(resume)` 注入到**第一次 createSession / UA probe 之前**;没有保存 resume 才运行 `ensurePersistence`。组合测试覆盖:空 store→vendor、Browserbase ctx-saved、Steel prof-saved、本地 snapshot、跨 vendor mismatch。
+
+### 3. liveCompare deadline 真正闭合
+
+- 显式绝对 deadline(epoch ms)从 `runArm` 传入;`fetchVendorApi`、`connectOverCDP`、`navigateOnce`(含 settle)各自按 `deadline - now` 计算剩余预算,`navigationTimeout` 是纯函数(测试:1234ms 不会变 20000ms)。**任何地方都不读取 `AbortSignal.timeout` 的非标准属性**。
+- 真实 vendor subject 创建 promise 与 fake promise 都被跟踪:`close()` 等 pending 创建完成后立即 teardown,恰好一次;迟到的 fetch 前有 `ensureDeadline` 直接拒绝。测试证明:报告返回后 0 次迟到 fetch、1 次 release/teardown、无后台 API/session 创建继续失控。
+
+### 4. 审计事实修正
+
+- `ladderTrace` 不再声称进入签名记录:它是梯子自己的路由审计,CLI 打印、随结果返回;签名记录只覆盖获胜 subject 自产的抓取事实。文档与代码注释已同步。
+- 旧 RoutingHistory 的重建样本同样限到 200;`attempts` 校验为有限非负整数(负数/非数字归 0),有测试。

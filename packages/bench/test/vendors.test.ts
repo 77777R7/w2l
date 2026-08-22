@@ -432,10 +432,12 @@ describe('vendor transport behind the provider gate', () => {
     expect(verifyLedger(subject.ledger()).valid).toBe(true)
   })
 
-  it('flags a mismatch when the wire UA is not the gated UA', async () => {
+  it('flags a mismatch when the wire UA is not the gated UA — and never delivers it as success', async () => {
     // The integration bug this design exists to catch: the gate cleared one
     // identity and the request carried another. Record the truth (what was
-    // sent) and say so, rather than record the flattering version.
+    // sent) and say so, rather than record the flattering version. The
+    // unified identity rule then turns the contentful fetch into a CLEAR
+    // failure — a mismatch is never contentful success.
     const api = sessionServing('bb_1')
     const bb = fakeBrowser({ requestHeaders: { 'User-Agent': 'SomethingElse/9' } })
     const { connector } = connectorFor(bb)
@@ -447,6 +449,9 @@ describe('vendor transport behind the provider gate', () => {
     const subject = new ProviderSubject(declaration, transport, 'standard', null, fetcher)
 
     const out = await subject.fetch('https://shop.example/dp/B0TEST')
+    expect(out.status).toBe('failed')
+    expect(out.failureReason).toBe('identity_compromised')
+    expect(out.markdown).toBeNull()
     expect(out.compliance!.sentHeaders.headers).toEqual([
       { name: 'user-agent', value: 'SomethingElse/9' },
     ])
@@ -455,7 +460,7 @@ describe('vendor transport behind the provider gate', () => {
     expect(mismatch!.detail).toMatchObject({ declared: VENDOR_UA, sent: 'SomethingElse/9' })
   })
 
-  it('says "unobserved" rather than assuming agreement', async () => {
+  it('says "unobserved" rather than assuming agreement — and also never success', async () => {
     const api = sessionServing('bb_1')
     const bb = fakeBrowser({ hideRequestHeaders: true })
     const { connector } = connectorFor(bb)
@@ -467,10 +472,13 @@ describe('vendor transport behind the provider gate', () => {
     const subject = new ProviderSubject(declaration, transport, 'standard', null, fetcher)
 
     const out = await subject.fetch('https://shop.example/dp/B0TEST')
+    expect(out.status).toBe('failed')
+    expect(out.failureReason).toBe('identity_compromised')
+    expect(out.markdown).toBeNull()
     expect(out.trace.some((t) => t.event === 'identity_unobserved')).toBe(true)
     expect(out.trace.some((t) => t.event === 'identity_mismatch')).toBe(false)
-    // Falls back to the declared UA, which is the gated one — but the trace
-    // records that this was a fallback, not a confirmation.
+    // The record still says what went on the wire — the declared UA was the
+    // only identity we had, and the trace says we could not confirm it.
     expect(out.compliance!.sentHeaders.headers).toEqual([{ name: 'user-agent', value: VENDOR_UA }])
   })
 

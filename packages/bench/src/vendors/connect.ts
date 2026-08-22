@@ -54,12 +54,13 @@ export async function connectVendor(
    *  session). Order matters — a context added after the probe would mean the
    *  session the gate cleared was not the session on offer. */
   resume?: VendorResumeContext | null,
+  deadlineMs?: number,
 ): Promise<ConnectedVendor> {
   const transport = new CdpVendorTransport(ops, connector)
   if (resume !== undefined && resume !== null) {
     transport.useResumedSession(resume)
   }
-  const declaredUserAgent = await transport.resolveUserAgent()
+  const declaredUserAgent = await transport.resolveUserAgent(deadlineMs)
   const declaration: ProviderDeclaration = {
     id: ops.vendorId,
     declaredUserAgent,
@@ -80,9 +81,11 @@ export async function vendorProviderSubject(
     access?: AccessConfigInput | null
     connector?: CdpConnector
     robotsFetcher?: RobotsFetcher
+    /** Absolute deadline (epoch ms) for session create + CDP connect. */
+    deadlineMs?: number
   } = {},
 ): Promise<ProviderSubject> {
-  const { declaration, transport } = await connectVendor(ops, opts.connector)
+  const { declaration, transport } = await connectVendor(ops, opts.connector, undefined, opts.deadlineMs)
   return new ProviderSubject(
     declaration,
     transport,

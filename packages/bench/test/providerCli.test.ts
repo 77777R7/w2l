@@ -88,3 +88,100 @@ describe('provider CLI arguments', () => {
     expect(parseArgs(['https://example.com/p']).vendor).toBe('steel')
   })
 })
+
+// --- the exit-code contract, testable without a vendor account -------------
+
+import { runProvider } from '../src/providerCli.js'
+import type { VendorOps } from '../src/vendors/transport.js'
+import { evaluateVendorPolicy } from '@w2l/http-core'
+import type { FetchResult } from '@w2l/contracts'
+
+function fakeOps(): VendorOps {
+  return {
+    vendorId: 'browserbase',
+    secrets: [],
+    decision: evaluateVendorPolicy([
+      { capability: 'headless_browser', vendorDefaultOn: true, enableKey: null },
+    ]),
+    async createSession() {
+      throw new Error('must not be called in this test')
+    },
+    async releaseSession() {},
+  }
+}
+
+function fakeResult(overrides: Partial<FetchResult>): FetchResult {
+  return {
+    requestedUrl: 'https://example.com/p',
+    status: 'success',
+    failureReason: null,
+    blockReason: null,
+    budgetExceeded: null,
+    lane: 'provider',
+    escalations: [],
+    handoff: null,
+    markdown: 'MAIN CONTENT',
+    truncated: false,
+    truncatedAt: null,
+    compliance: null,
+    evidence: { finalUrl: 'https://example.com/p', httpStatus: 200, redirectChain: [], contentType: 'text/html', rawBodySha256: null, artifacts: [] },
+    usage: { wallMs: 5, bytesWire: 1, bytesDecompressed: 1, requestCount: 1, attemptCount: 1, contentTokens: 12, browserMs: 0, externalCostUsd: null },
+    trace: [],
+    ...overrides,
+  }
+}
+
+describe('w2l-provider exit codes', () => {
+  it('a contentful result exits 0', async () => {
+    let tornDown = 0
+    const code = await runProvider(
+      { url: 'https://example.com/p', vendor: 'browserbase' },
+      fakeOps(),
+      {
+        subject: {
+          fetch: async () => fakeResult({}),
+          teardown: async () => { tornDown++ },
+        },
+        log: () => {},
+      },
+    )
+    expect(code).toBe(0)
+    expect(tornDown).toBe(1)
+  })
+
+  it('an identity_compromised result exits 1 — same unified rule as w2l-fetch', async () => {
+    const code = await runProvider(
+      { url: 'https://example.com/p', vendor: 'browserbase' },
+      fakeOps(),
+      {
+        subject: {
+          fetch: async () =>
+            fakeResult({
+              status: 'failed',
+              failureReason: 'identity_compromised',
+              markdown: null,
+              trace: [{ at: 0, lane: 'provider', event: 'identity_mismatch', detail: {} }],
+            }),
+          teardown: async () => {},
+        },
+        log: () => {},
+      },
+    )
+    expect(code).toBe(1)
+  })
+
+  it('a failed result of any kind exits 1', async () => {
+    const code = await runProvider(
+      { url: 'https://example.com/p', vendor: 'browserbase' },
+      fakeOps(),
+      {
+        subject: {
+          fetch: async () => fakeResult({ status: 'failed', failureReason: 'provider_error', markdown: null }),
+          teardown: async () => {},
+        },
+        log: () => {},
+      },
+    )
+    expect(code).toBe(1)
+  })
+})
