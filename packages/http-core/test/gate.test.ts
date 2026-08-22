@@ -206,10 +206,24 @@ describe('classifyGate — generic bot gate thresholds', () => {
   it('classifies a 202 with an empty body as a swallowed request', () => {
     const v = classifyGate(res({ status: 202, body: '' }))
     expect(v?.reason).toBe('bot_detected_generic')
-    expect(v?.signals).toEqual(['status_202_empty_body'])
+    expect(v?.signals).toContain('status_202')
+    expect(v?.signals).toContain('empty_body')
   })
 
-  it('does NOT classify a 202 that actually carries a page', () => {
+  it('classifies a 202 with a near-empty body as a swallowed request', () => {
+    const v = classifyGate(res({ status: 202, body: '<html><body><div id="root"></div></body></html>' }))
+    expect(v?.reason).toBe('bot_detected_generic')
+  })
+
+  it('classifies a 202 carrying another gate signal as a gate', () => {
+    const v = classifyGate(res({ status: 202, body: 'Just a moment while we check your browser' }))
+    expect(v?.reason).toBe('bot_detected_generic')
+    expect(v?.signals).toContain('status_202')
+  })
+
+  it('does NOT classify a 202 that actually carries a substantive page — multi-signal rule', () => {
+    // A site may answer 202 and still stream a real document. Without an
+    // empty body or another gate signal, this is a plain http_error upstream.
     expect(classifyGate(res({ status: 202, body: ARTICLE.repeat(20) }))).toBeNull()
   })
 })

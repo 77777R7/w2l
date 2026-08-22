@@ -72,9 +72,6 @@ export interface GateVerdict {
  */
 const HEAD_BYTES = 65_536
 
-/** A body at or below this size carries no article — used with anomalous statuses. */
-const EMPTY_BODY_BYTES = 512
-
 /** Vendor headers that identify a bot-management product outright. */
 const VENDOR_HEADERS: readonly (readonly [name: string, reason: GateBlockReason, signal: string])[] = [
   ['cf-mitigated', 'cloudflare_challenge', 'header_cf_mitigated'],
@@ -276,10 +273,21 @@ export function classifyGate(res: GateResponse): GateVerdict | null {
     return { reason: 'bot_detected_generic', signals }
   }
 
-  // A 202 with no body is never a legitimate answer to a page GET; it is the
-  // shape a gate uses to swallow a request without admitting to it.
-  if (res.status === 202 && head.trim().length <= EMPTY_BODY_BYTES) {
-    return { reason: 'bot_detected_generic', signals: ['status_202_empty_body'] }
+  // A 202 is suspicious — a page GET has no legitimate 202 answer — but it is
+  // NOT decisive on its own: some sites answer 202 while still streaming a
+  // real document. It classifies as a gate only with a second signal:
+  // an empty or near-empty body (the shape of a swallowed request), another
+  // gate signal already firing, or a gate-shaped header. A 202 carrying a
+  // substantive page stays a plain http_error.
+  if (res.status === 202) {
+    const bodyNearEmpty = head.trim().length <= 512
+    const gateHeader = VENDOR_HEADERS.some(([name]) => res.header(name) !== null)
+    if (bodyNearEmpty || botWeak.length > 0 || botStrong.length > 0 || gateHeader) {
+      return {
+        reason: 'bot_detected_generic',
+        signals: ['status_202', ...(bodyNearEmpty ? ['empty_body'] : []), ...botWeak, ...botStrong],
+      }
+    }
   }
 
   return null

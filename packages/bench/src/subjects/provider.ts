@@ -19,6 +19,8 @@ import {
 } from '@w2l/http-core'
 import { DEFAULT_NETWORK_POLICY, type CrawlMode } from '@w2l/contracts'
 import type { SubjectAdapter } from '../subject.js'
+import { identityCompromised } from '../routing/identity.js'
+import type { VendorResumeContext } from '../vendors/transport.js'
 
 /**
  * Provider lane: hand the fetch to a third-party that fights anti-bot systems
@@ -52,7 +54,7 @@ export interface ProviderTransport {
    * status of the vendor's own API — a 200 from the vendor wrapping a 403
    * from the target is a 403.
    */
-  fetch(url: string): Promise<ProviderResponse>
+  fetch(url: string, deadlineMs?: number): Promise<ProviderResponse>
   close?(): Promise<void>
 }
 
@@ -63,8 +65,31 @@ export interface ProviderResponse {
   finalUrl: string
   /** Origin response headers, lowercased, for gate classification. */
   headers: Readonly<Record<string, string>>
+  /**
+   * The User-Agent observed on the outgoing request, when the transport could
+   * see it. Null means UNOBSERVED, which is not the same as "matched the
+   * declaration" — the record says which of the two it is.
+   */
+  sentUserAgent?: string | null
+  /**
+   * The UA this fetch was gated under, when the transport tracks it per call.
+   * Lets a mismatch against `sentUserAgent` be caught at the fetch that
+   * carried it rather than inferred later.
+   */
+  declaredUserAgent?: string | null
   /** What the vendor billed us, when it says. Reported, never estimated. */
   costUsd?: number | null
+  /**
+   * A live-view door for human handoff, when the policy enabled
+   * live_view_handoff and the session could produce one. Null means no door
+   * was opened — not that a door does not exist.
+   */
+  handoffUrl?: string | null
+  /**
+   * Vendor resume material for this session (context/profile/storage), when
+   * session_persistence is enabled. Null when not authorized or unsupported.
+   */
+  resumeContext?: VendorResumeContext | null
 }
 
 /**
@@ -136,7 +161,7 @@ export class ProviderSubject implements SubjectAdapter {
     return this.chain.toLedger()
   }
 
-  async fetch(url: string): Promise<FetchResult> {
+  async fetch(url: string, deadlineMs?: number): Promise<FetchResult> {
     const start = Date.now()
     const trace: TraceEvent[] = [
       { at: 0, lane: 'provider', event: 'provider_selected', detail: { provider: this.provider.id } },
@@ -199,7 +224,7 @@ export class ProviderSubject implements SubjectAdapter {
 
     let res: ProviderResponse
     try {
-      res = await this.transport.fetch(url)
+      res = await this.transport.fetch(url, deadlineMs)
     } catch (err) {
       const wallMs = Date.now() - start
       trace.push({
@@ -245,6 +270,31 @@ export class ProviderSubject implements SubjectAdapter {
     }
 
     const wallMs = Date.now() - start
+
+    // What the record should say went on the wire. The declared UA is what the
+    // gate cleared; the observed one is what the transport actually saw. When
+    // they disagree, the observed value is the truth and the disagreement is
+    // itself a finding — a fetch that carried an identity the gate never
+    // evaluated is a bug in the vendor integration, not a detail to smooth
+    // over. Null observed means unobserved, which is not agreement.
+    const observedUa = res.sentUserAgent ?? null
+    const wireUa = observedUa ?? ua
+    if (observedUa !== null && observedUa !== ua) {
+      trace.push({
+        at: wallMs,
+        lane: 'provider',
+        event: 'identity_mismatch',
+        detail: { declared: ua, sent: observedUa },
+      })
+    } else if (observedUa === null) {
+      trace.push({
+        at: wallMs,
+        lane: 'provider',
+        event: 'identity_unobserved',
+        detail: { declared: ua },
+      })
+    }
+
     const record: ComplianceRecord = this.chain.append({
       recordId: crypto.randomUUID(),
       mode: this.mode,
@@ -255,7 +305,7 @@ export class ProviderSubject implements SubjectAdapter {
       // The provider's UA is the honest answer to "what went on the wire".
       // Recording our own UA here would be a lie about a request we did not
       // send — the whole reason the gate evaluates theirs.
-      sentHeaders: { headers: [{ name: 'user-agent', value: ua }] },
+      sentHeaders: { headers: [{ name: 'user-agent', value: wireUa }] },
       rateLimit: {
         previousRequestAtMs,
         observedDelayMs,
@@ -271,6 +321,10 @@ export class ProviderSubject implements SubjectAdapter {
       truncated: false,
       truncatedAt: null,
       compliance: record,
+      // The vendor's session continuation material, when the policy enabled
+      // persistence and the vendor produced it. The ladder saves this so an
+      // independent next run resumes the same login state.
+      resumeContext: res.resumeContext ?? null,
       evidence: {
         finalUrl: res.finalUrl,
         httpStatus: res.status,
@@ -321,6 +375,23 @@ export class ProviderSubject implements SubjectAdapter {
         lane: 'provider',
         escalations: next === null ? [] : [{ ...next, improved: null }],
         markdown: null,
+        // A captcha or login wall with an open live-view door is a handoff
+        // point: the ladder pauses here and asks a human, exactly because
+        // the refused capabilities (auto-solving) are not on the table. A
+        // bot_gate with a live view is NOT handed off — a human staring at
+        // Cloudflare is not a capability either.
+        handoff:
+          res.handoffUrl !== null && res.handoffUrl !== undefined &&
+          (v.reason === 'captcha' || v.reason === 'login_wall')
+            ? {
+                reason: v.reason === 'captcha' ? 'captcha_required' : 'login_required',
+                liveViewUrl: res.handoffUrl,
+                rationale:
+                  v.reason === 'captcha'
+                    ? 'The target demands human verification. We do not solve captchas; a human can, in the live session.'
+                    : 'The target requires an account. We do not create or share accounts; a human can sign in in the live session.',
+              }
+            : null,
       }
     }
 
@@ -370,6 +441,27 @@ export class ProviderSubject implements SubjectAdapter {
       /<table\b[\s\S]*?<\/table>/gi,
       (table) => `\n${toGfmTable(table)}\n`,
     )
+
+    // THE UNIFIED IDENTITY RULE (ProviderSubject, LadderRunner, w2l-provider,
+    // RoutingHistory all follow it): a fetch whose wire identity was
+    // contradicted (identity_mismatch) or unobservable (identity_unobserved)
+    // is NEVER delivered as success — not here, not on the last channel, not
+    // after a handoff retry. The trace keeps which of the two findings
+    // applied; the result is a clear, non-contentful failure.
+    if (identityCompromised(trace)) {
+      return {
+        ...base,
+        status: 'failed',
+        failureReason: 'identity_compromised',
+        blockReason: null,
+        budgetExceeded: null,
+        lane: 'provider',
+        escalations: [],
+        markdown: null,
+        usage: { ...base.usage, contentTokens: null },
+      }
+    }
+
     return {
       ...base,
       status: 'success',
