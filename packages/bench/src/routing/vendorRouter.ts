@@ -72,6 +72,11 @@ function freshEntry(): VendorHistoryEntry {
   }
 }
 
+/** Upper bound on retained latency samples per vendor per domain. Older
+ *  samples are dropped, not averaged — the ranking window is the most recent
+ *  MAX_LATENCY_SAMPLES attempts. */
+const MAX_LATENCY_SAMPLES = 200
+
 /** Apply one outcome to an entry. Shared by both stores so their arithmetic
  *  cannot drift apart. */
 function applyOutcome(entry: VendorHistoryEntry, outcome: VendorOutcome): void {
@@ -79,8 +84,50 @@ function applyOutcome(entry: VendorHistoryEntry, outcome: VendorOutcome): void {
   if (outcome.contentful) entry.contentful += 1
   entry.latencyTotalMs += outcome.wallMs
   entry.latencySamplesMs.push(outcome.wallMs)
+  if (entry.latencySamplesMs.length > MAX_LATENCY_SAMPLES) {
+    entry.latencySamplesMs = entry.latencySamplesMs.slice(-MAX_LATENCY_SAMPLES)
+  }
   entry.costTotalUsd += outcome.costUsd
   entry.lastFailureClass = outcome.failureClass
+}
+
+/**
+ * Normalize one entry read from disk. Legacy JSON predates `latencySamplesMs`;
+ * such files must keep working — the samples are reconstructed as the mean of
+ * the stored totals, and the ranker gets the same shape it always expects.
+ */
+function normalizeEntry(raw: Partial<VendorHistoryEntry> | undefined): VendorHistoryEntry | undefined {
+  if (raw === undefined) return undefined
+  const entry = freshEntry()
+  entry.attempts = typeof raw.attempts === 'number' ? raw.attempts : 0
+  entry.contentful = typeof raw.contentful === 'number' ? raw.contentful : 0
+  entry.latencyTotalMs = typeof raw.latencyTotalMs === 'number' ? raw.latencyTotalMs : 0
+  entry.costTotalUsd = typeof raw.costTotalUsd === 'number' ? raw.costTotalUsd : 0
+  entry.lastFailureClass = raw.lastFailureClass ?? null
+  if (Array.isArray(raw.latencySamplesMs)) {
+    entry.latencySamplesMs = raw.latencySamplesMs
+      .filter((s): s is number => typeof s === 'number' && Number.isFinite(s))
+      .slice(-MAX_LATENCY_SAMPLES)
+  } else if (entry.attempts > 0 && entry.latencyTotalMs > 0) {
+    // Legacy: one mean per attempt is the only honest reconstruction.
+    const mean = Math.round(entry.latencyTotalMs / entry.attempts)
+    entry.latencySamplesMs = Array.from({ length: entry.attempts }, () => mean)
+  }
+  return entry
+}
+
+/** Normalize a whole domain history read from disk. */
+function normalizeHistory(raw: unknown): DomainHistory {
+  const parsed = (typeof raw === 'object' && raw !== null ? raw : {}) as {
+    vendors?: Record<string, Partial<VendorHistoryEntry>>
+    lastVendor?: string | null
+  }
+  const vendors: Record<string, VendorHistoryEntry> = {}
+  for (const [id, entry] of Object.entries(parsed.vendors ?? {})) {
+    const normalized = normalizeEntry(entry)
+    if (normalized !== undefined) vendors[id] = normalized
+  }
+  return { vendors, lastVendor: typeof parsed.lastVendor === 'string' ? parsed.lastVendor : null }
 }
 
 export class MemoryRoutingHistory implements RoutingHistory {
@@ -108,7 +155,12 @@ export class FileRoutingHistory implements RoutingHistory {
   private async all(): Promise<Record<string, DomainHistory>> {
     try {
       const raw = await readFile(this.file, 'utf8')
-      return JSON.parse(raw) as Record<string, DomainHistory>
+      const parsed = JSON.parse(raw) as Record<string, unknown>
+      const out: Record<string, DomainHistory> = {}
+      for (const [domain, history] of Object.entries(parsed)) {
+        out[domain] = normalizeHistory(history)
+      }
+      return out
     } catch {
       return {}
     }
@@ -171,8 +223,17 @@ export function rankVendors(
     const successRate = entry.contentful / entry.attempts
     // True median over stored samples. `latencyTotalMs` remains for display
     // and volume; the ranker must not be moved by one pathological outlier.
+    // Even sample counts take the mean of the two middle values — that IS
+    // the median of an even-length sample.
     const samples = [...entry.latencySamplesMs].sort((a, b) => a - b)
-    const mid = samples.length > 0 ? samples[Math.floor(samples.length / 2)]! : 0
+    let mid = 0
+    if (samples.length > 0) {
+      const half = Math.floor(samples.length / 2)
+      mid =
+        samples.length % 2 === 0
+          ? (samples[half - 1]! + samples[half]!) / 2
+          : samples[half]!
+    }
     const cost = entry.costTotalUsd
     const score = successRate + 0.3 / (1 + mid / 1_000) + 0.1 / (1 + cost / 0.1)
     scores.push({
@@ -187,18 +248,27 @@ export function rankVendors(
 }
 
 /**
- * Pick the starting vendor for a domain. Normally the top-ranked; when the
- * last attempt on this domain failed at the vendor level, start from the next
- * one down so one broken vendor does not eat every attempt.
+ * Pick the starting vendor for a domain.
+ *   - normal request: the actual top of the ranking, `ranked[0]`;
+ *   - provider failure: when the last attempt on this domain failed at the
+ *     VENDOR level (provider_error / identity_mismatch), start from the next
+ *     vendor down so one broken vendor does not eat every attempt.
+ * A site-level block (bot_gate etc.) does NOT rotate — the site refused the
+ * vendor; switching vendors does not answer the refusal.
  */
 export function startingVendor(ranked: readonly VendorScore[], history: DomainHistory): string | null {
   if (ranked.length === 0) return null
   const last = history.lastVendor
-  if (last === null) return ranked[0]!.vendorId
-  const lastEntry = history.vendors[last]
-  if (lastEntry !== undefined && lastEntry.lastFailureClass !== null && VENDOR_LEVEL_FAILURE_CLASS.has(lastEntry.lastFailureClass)) {
-    const idx = ranked.findIndex((r) => r.vendorId === last)
-    return ranked[(idx + 1) % ranked.length]!.vendorId
+  if (last !== null) {
+    const lastEntry = history.vendors[last]
+    if (
+      lastEntry !== undefined &&
+      lastEntry.lastFailureClass !== null &&
+      VENDOR_LEVEL_FAILURE_CLASS.has(lastEntry.lastFailureClass)
+    ) {
+      const idx = ranked.findIndex((r) => r.vendorId === last)
+      return ranked[(idx + 1) % ranked.length]!.vendorId
+    }
   }
-  return last
+  return ranked[0]!.vendorId
 }

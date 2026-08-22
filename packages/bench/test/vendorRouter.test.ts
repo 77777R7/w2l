@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
 import {
+  FileRoutingHistory,
   MemoryRoutingHistory,
   rankVendors,
   startingVendor,
@@ -138,5 +142,58 @@ describe('MemoryRoutingHistory', () => {
     expect(example.vendors.steel).toMatchObject({ attempts: 2, contentful: 1, latencyTotalMs: 300 })
     const other = await h.read('other.example')
     expect(other.vendors.steel).toMatchObject({ attempts: 1, contentful: 1 })
+  })
+})
+
+describe('FileRoutingHistory — legacy and caps', () => {
+  it('reads legacy JSON without latencySamplesMs and synthesizes samples instead of crashing', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'w2l-hist-'))
+    const file = join(dir, 'history.json')
+    await writeFile(
+      file,
+      JSON.stringify({
+        'example.com': {
+          vendors: {
+            steel: { attempts: 2, contentful: 1, latencyTotalMs: 300, costTotalUsd: 0.02, lastFailureClass: null },
+          },
+          lastVendor: 'steel',
+        },
+      }),
+    )
+    const history = new FileRoutingHistory(file)
+    const read = await history.read('example.com')
+    expect(read.vendors.steel).toBeDefined()
+    // Legacy mean = 300/2 = 150 per attempt.
+    expect(read.vendors.steel!.latencySamplesMs).toEqual([150, 150])
+    // And recording a new outcome still works on the normalized entry.
+    await history.record('example.com', 'steel', { contentful: true, wallMs: 90, costUsd: 0.01, failureClass: null })
+    const after = await history.read('example.com')
+    expect(after.vendors.steel!.attempts).toBe(3)
+    expect(after.vendors.steel!.latencySamplesMs).toHaveLength(3)
+    await rm(dir, { recursive: true, force: true })
+  })
+
+  it('an even number of samples takes the mean of the two middle values', () => {
+    const history: DomainHistory = {
+      vendors: {
+        even: entry({ attempts: 4, contentful: 4, samples: [100, 200, 300, 400], cost: 0.1 }),
+      },
+      lastVendor: null,
+    }
+    const ranked = rankVendors(history, ['even'])
+    // True median of [100,200,300,400] is (200+300)/2.
+    expect(ranked[0]!.medianLatencyMs).toBe(250)
+  })
+
+  it('caps retained latency samples at MAX_LATENCY_SAMPLES (200)', async () => {
+    const history = new MemoryRoutingHistory()
+    for (let i = 0; i < 205; i++) {
+      await history.record('example.com', 'steel', { contentful: true, wallMs: i, costUsd: 0, failureClass: null })
+    }
+    const read = await history.read('example.com')
+    const samples = read.vendors.steel!.latencySamplesMs
+    expect(samples).toHaveLength(200)
+    expect(samples[samples.length - 1]).toBe(204)
+    expect(samples[0]).toBe(5) // the oldest retained
   })
 })

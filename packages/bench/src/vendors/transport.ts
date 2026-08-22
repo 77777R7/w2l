@@ -143,11 +143,11 @@ export class CdpVendorTransport implements ProviderTransport {
     }
   }
 
-  async fetch(url: string): Promise<ProviderResponse> {
+  async fetch(url: string, signal?: AbortSignal): Promise<ProviderResponse> {
     const declared = await this.resolveUserAgent()
     const { browser } = await this.ensureSession()
     try {
-      const res = await navigateOnce(browser, url)
+      const res = await navigateOnce(browser, url, signal)
       return {
         status: res.status,
         body: res.body,

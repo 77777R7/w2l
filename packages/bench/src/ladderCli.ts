@@ -122,22 +122,37 @@ export function buildChannels(
   const http = new ResilientHttpSubject()
   const plainBrowser = new BrowserLocalSubject(mode)
 
-  // The browser rung materializes the user's session when one exists: the
-  // subject that carries an AccessConfig is per-fetch (sessions differ per
-  // domain), the plain subject is shared. The real mode reaches the subject
-  // either way — a research/authed run must be recorded as itself, never as
-  // 'standard'.
-  const sessionBrowserCache = new Map<string, BrowserLocalSubject>()
-  const browserSubjectFor = (session: SessionSnapshot | null): BrowserLocalSubject => {
-    if (session === null) return plainBrowser
-    const key = session.domain
-    let subject = sessionBrowserCache.get(key)
+  // ----------------------------------------------------------------------
+  // authed_session: the ONLY rung that uses login state. It exists solely in
+  // authed mode; the plain browser_local rung above never receives a session
+  // (standard/research must not load or use one — a user's account in a
+  // public run is a leak, not a feature).
+  //
+  // Session acceptance is strict: the snapshot must be scoped to the URL's
+  // own domain and must belong to this lane. A Steel resume handed to
+  // Browserbase (or vice versa) is rejected rather than misapplied.
+  // ----------------------------------------------------------------------
+  const authedSubjects = new Map<string, BrowserLocalSubject>()
+  const authedSubjectFor = (session: SessionSnapshot, urlHost: string): BrowserLocalSubject => {
+    if (session.domain !== urlHost || session.vendor !== 'browser_local_authed') {
+      throw new Error(
+        `session for ${session.domain}/${session.vendor} does not match ${urlHost}/browser_local_authed`,
+      )
+    }
+    let subject = authedSubjects.get(session.domain)
     if (subject === undefined) {
-      const access: AccessConfigInput = { session: {} as SessionConfig }
+      const access: AccessConfigInput = {
+        session: {} as SessionConfig,
+        attestation: {
+          principal: session.principal ?? session.attestedBy,
+          at: session.attestedAt,
+          statement: session.statement ?? 'session authorized by user for this domain',
+        },
+      }
       if (session.cookies !== undefined) access.session!.cookies = session.cookies
       if (session.storageState !== undefined) access.session!.storageState = session.storageState
-      subject = new BrowserLocalSubject(mode, access)
-      sessionBrowserCache.set(key, subject)
+      subject = new BrowserLocalSubject('authed', access)
+      authedSubjects.set(session.domain, subject)
     }
     return subject
   }
@@ -150,13 +165,65 @@ export function buildChannels(
     },
     {
       id: 'browser_local',
-      fetch: (url, session) => browserSubjectFor(session ?? null).fetch(url),
+      // No session here, ever: the plain rung is the public browser.
+      fetch: (url) => plainBrowser.fetch(url),
       close: async () => {
         await plainBrowser.teardown()
-        for (const subject of sessionBrowserCache.values()) await subject.teardown()
       },
     },
   ]
+
+  if (mode === 'authed') {
+    channels.push({
+      id: 'authed_session',
+      fetch: async (url, session) => {
+        if (session === undefined || session === null) {
+          // No login state to offer: the rung declines without a fetch.
+          const refusal: FetchResult = {
+            requestedUrl: url,
+            status: 'failed',
+            failureReason: 'policy_denied',
+            blockReason: null,
+            budgetExceeded: null,
+            lane: 'browser_local_authed',
+            escalations: [],
+            handoff: null,
+            markdown: null,
+            truncated: false,
+            truncatedAt: null,
+            compliance: null,
+            evidence: {
+              finalUrl: url,
+              httpStatus: null,
+              redirectChain: [],
+              contentType: null,
+              rawBodySha256: null,
+              artifacts: [],
+            },
+            usage: {
+              wallMs: 0,
+              bytesWire: 0,
+              bytesDecompressed: 0,
+              requestCount: 0,
+              attemptCount: 0,
+              contentTokens: null,
+              browserMs: 0,
+              externalCostUsd: null,
+            },
+            trace: [
+              { at: 0, lane: 'browser_local_authed', event: 'authed_session_unavailable', detail: {} },
+            ],
+          }
+          return refusal
+        }
+        const host = new URL(url).hostname.toLowerCase()
+        return authedSubjectFor(session, host).fetch(url)
+      },
+      close: async () => {
+        for (const subject of authedSubjects.values()) await subject.teardown()
+      },
+    })
+  }
 
   // Provider rungs exist only when a key is present AND the mode permits the
   // lane. connectVendor is deferred to the first fetch.
@@ -174,11 +241,26 @@ export function buildChannels(
     let establishedResume: VendorResumeContext | null = null
     let persistenceAttempted = false
 
+    /** The resume context that must be on the transport BEFORE the first
+     *  session is created. */
+    let pendingResume: VendorResumeContext | null = null
+
+    const preparePersistence = async (): Promise<void> => {
+      if (persistenceAttempted) return
+      persistenceAttempted = true
+      if (typeof ops.ensurePersistence !== 'function') return
+      establishedResume = await ops.ensurePersistence()
+      if (establishedResume !== null) pendingResume = establishedResume
+    }
+
     const ensureConnected = async () => {
       if (connected !== null) return connected
       if (pending === null) {
         opts.onVendorConnect?.(vendorId)
-        pending = connectVendor(ops, opts.vendorConnector).then((c) => {
+        // pendingResume was established by preparePersistence BEFORE this
+        // point, so the very first session the transport creates already
+        // carries the context — the UA probe and the fetch share it.
+        pending = connectVendor(ops, opts.vendorConnector, pendingResume ?? null).then((c) => {
           connected = c
           return c
         })
@@ -190,19 +272,68 @@ export function buildChannels(
       id: 'provider',
       vendorId,
       fetch: async (url, session) => {
+        // Session resume acceptance is strict: only this vendor's own
+        // material, only for this domain. A Steel profile never reaches
+        // Browserbase.
+        const host = new URL(url).hostname.toLowerCase()
+        const sessionApplies =
+          session !== undefined &&
+          session !== null &&
+          session.vendor === vendorId &&
+          session.domain === host
+        if (session !== undefined && session !== null && !sessionApplies) {
+          const refusal: FetchResult = {
+            requestedUrl: url,
+            status: 'failed',
+            failureReason: 'policy_denied',
+            blockReason: null,
+            budgetExceeded: null,
+            lane: 'provider',
+            escalations: [],
+            handoff: null,
+            markdown: null,
+            truncated: false,
+            truncatedAt: null,
+            compliance: null,
+            evidence: {
+              finalUrl: url,
+              httpStatus: null,
+              redirectChain: [],
+              contentType: null,
+              rawBodySha256: null,
+              artifacts: [],
+            },
+            usage: {
+              wallMs: 0,
+              bytesWire: 0,
+              bytesDecompressed: 0,
+              requestCount: 0,
+              attemptCount: 0,
+              contentTokens: null,
+              browserMs: 0,
+              externalCostUsd: null,
+            },
+            trace: [
+              {
+                at: 0,
+                lane: 'provider',
+                event: 'session_vendor_mismatch',
+                detail: { sessionVendor: session.vendor, sessionDomain: session.domain, vendorId, host },
+              },
+            ],
+          }
+          return refusal
+        }
+        // ORDER MATTERS: persistence (first-use context creation) must
+        // complete BEFORE the first session exists. connectVendor measures
+        // the UA by opening a session; if the context is created after that,
+        // the session that the gate cleared was not the session on offer.
+        await preparePersistence()
         const { declaration, transport } = await ensureConnected()
-        // A saved session for this domain carries the vendor's resume context
-        // (Browserbase contextId / Steel profileId). Forwarding it is what
-        // makes the second run resume the first run's login state.
-        if (session?.resume !== undefined && session.resume !== null) {
-          transport.useResumedSession(session.resume as VendorResumeContext)
-        } else if (!persistenceAttempted && typeof ops.ensurePersistence === 'function') {
-          // First use with persistence authorized and no saved context:
-          // establish one (Browserbase creates the context here), once per
-          // channel lifetime.
-          persistenceAttempted = true
-          establishedResume = await ops.ensurePersistence()
-          if (establishedResume !== null) transport.useResumedSession(establishedResume)
+        if (sessionApplies && session!.resume !== undefined && session!.resume !== null) {
+          transport.useResumedSession(session!.resume as VendorResumeContext)
+        } else if (pendingResume !== null) {
+          transport.useResumedSession(pendingResume)
         }
         const { ProviderSubject } = await import('./subjects/provider.js')
         const subject = new ProviderSubject(

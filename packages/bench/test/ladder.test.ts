@@ -253,7 +253,30 @@ describe('LadderRunner — human handoff', () => {
     expect(received[0]!.request.liveViewUrl).toBe('https://live.example/session-1')
     expect(run.result.status).toBe('success')
     expect(run.channelsTried).toEqual(['provider', 'provider(retry)'])
-    expect(run.handoffRequested).toBe(true)
+    // The human acted and the retry succeeded: the run is DONE, not still
+    // asking. "Still needs a human" must never follow a completed takeover.
+    expect(run.handoffRequested).toBe(false)
+  })
+
+  it('a failed retry after the human acts is reported as a failed retry, not as still needing a human', async () => {
+    const session: SessionSnapshot = {
+      domain: 'example.com',
+      attestedBy: 'human',
+      attestedAt: '2026-08-22T00:00:00.000Z',
+      vendor: 'steel',
+    }
+    const vendor = channel('provider', [
+      { ...blockedResult('https://example.com/p', 'captcha'), handoff: handoffRequest },
+      blockedResult('https://example.com/p', 'captcha'),
+    ], 'steel')
+    const handoff: HumanHandoff = { async takeOver() { return session } }
+    const runner = new LadderRunner([vendor], { mode: 'authed' }, null, handoff)
+
+    const run = await runner.run('https://example.com/p')
+    expect(run.channelsTried).toEqual(['provider', 'provider(retry)'])
+    expect(run.result.status).toBe('blocked')
+    expect(run.handoffRequested).toBe(false)
+    expect(run.ladderTrace.some((t) => t.event === 'ladder_handoff_retry_failed')).toBe(true)
   })
 
   it('aborts when the human declines', async () => {
@@ -313,7 +336,13 @@ describe('LadderRunner — consuming FetchResult.escalations', () => {
 
   it('escalates a thin, low-confidence http success to the browser (quality signal)', async () => {
     const http = channel('http', [thinHttpSuccess('https://example.com/p')])
-    const browser = channel('browser_local', [contentfulResult('https://example.com/p', 'browser_local')])
+    // The browser genuinely improves on the thin http answer.
+    const browser = channel('browser_local', [
+      {
+        ...contentfulResult('https://example.com/p', 'browser_local'),
+        usage: { ...contentfulResult('https://example.com/p', 'browser_local').usage, contentTokens: 800 },
+      },
+    ])
     const runner = new LadderRunner([http, browser], { mode: 'authed' })
 
     const run = await runner.run('https://example.com/p')
@@ -401,5 +430,162 @@ describe('LadderRunner — session store wiring', () => {
     const saved = await store.load('example.com')
     expect(saved?.vendor).toBe('steel')
     expect(saved?.resume).toEqual({ steelProfileId: 'prof-1' })
+  })
+})
+
+describe('LadderRunner — best-so-far content', () => {
+  function thinHttp(url: string): FetchResult {
+    return {
+      ...contentfulResult(url, 'http'),
+      usage: { ...contentfulResult(url, 'http').usage, contentTokens: 20 },
+      trace: [
+        { at: 0, lane: 'http', event: 'extract', detail: {} },
+        { at: 5, lane: 'http', event: 'quality_low_yield', detail: { contentTokens: 20, confidence: 0.1 } },
+      ],
+    }
+  }
+
+  it('HTTP success then browser timeout returns the HTTP content, not the failure', async () => {
+    const http = channel('http', [thinHttp('https://example.com/p')])
+    const browser = channel('browser_local', [
+      failedResult('https://example.com/p', 'timeout'),
+    ])
+    const runner = new LadderRunner([http, browser], { mode: 'authed' })
+
+    const run = await runner.run('https://example.com/p')
+    expect(run.channelsTried).toEqual(['http', 'browser_local'])
+    expect(run.result.lane).toBe('http')
+    expect(run.result.status).toBe('success')
+    expect(run.result.markdown).toBe('MAIN CONTENT')
+  })
+
+  it('browser content that is WORSE than the thin http result is discarded in favour of the http result', async () => {
+    const http = channel('http', [thinHttp('https://example.com/p')])
+    // The browser answered, but with less content than the http result that
+    // triggered the escalation in the first place.
+    const browser = channel('browser_local', [
+      {
+        ...contentfulResult('https://example.com/p', 'browser_local'),
+        usage: { ...contentfulResult('https://example.com/p', 'browser_local').usage, contentTokens: 8 },
+      },
+    ])
+    const runner = new LadderRunner([http, browser], { mode: 'authed' })
+
+    const run = await runner.run('https://example.com/p')
+    expect(run.result.lane).toBe('http')
+    expect(run.result.usage.contentTokens).toBe(20)
+    // The quality hop did not improve things — the record says so.
+    expect(run.result.escalations).toContainEqual(
+      expect.objectContaining({ from: 'http', to: 'browser_local', improved: false }),
+    )
+  })
+
+  it('better browser content replaces the http result and the escalation is marked improved', async () => {
+    const http = channel('http', [thinHttp('https://example.com/p')])
+    const browser = channel('browser_local', [
+      {
+        ...contentfulResult('https://example.com/p', 'browser_local'),
+        usage: { ...contentfulResult('https://example.com/p', 'browser_local').usage, contentTokens: 800 },
+      },
+    ])
+    const runner = new LadderRunner([http, browser], { mode: 'authed' })
+
+    const run = await runner.run('https://example.com/p')
+    expect(run.result.lane).toBe('browser_local')
+    expect(run.result.usage.contentTokens).toBe(800)
+    expect(run.result.escalations.some((e) => e.improved === true)).toBe(true)
+  })
+})
+
+describe('LadderRunner — identity on contentful results', () => {
+  function mismatchedContentful(url: string): FetchResult {
+    return {
+      ...contentfulResult(url, 'provider'),
+      trace: [
+        {
+          at: 1,
+          lane: 'provider',
+          event: 'identity_mismatch',
+          detail: { declared: 'A', sent: 'B' },
+        },
+      ],
+    }
+  }
+
+  it('an identity_mismatch on a contentful 200 is NOT the answer — the next channel runs', async () => {
+    const bb = channel('provider', [mismatchedContentful('https://example.com/p')], 'browserbase')
+    const steel = channel('provider', [contentfulResult('https://example.com/p', 'provider')], 'steel')
+    const runner = new LadderRunner([bb, steel], { mode: 'research' })
+
+    const run = await runner.run('https://example.com/p')
+    expect(run.channelsTried).toEqual(['provider', 'provider'])
+    expect(run.result.status).toBe('success')
+    expect(run.result.trace.some((t) => t.event === 'identity_mismatch')).toBe(false)
+    expect(run.ladderTrace.some((t) => t.detail.escalate === 'identity_rejected')).toBe(true)
+  })
+
+  it('identity_unobserved on a contentful 200 is also rejected — unobserved is not agreement', async () => {
+    const bb = channel('provider', [
+      {
+        ...contentfulResult('https://example.com/p', 'provider'),
+        trace: [{ at: 1, lane: 'provider', event: 'identity_unobserved', detail: { declared: 'A' } }],
+      },
+    ], 'browserbase')
+    const steel = channel('provider', [contentfulResult('https://example.com/p', 'provider')], 'steel')
+    const runner = new LadderRunner([bb, steel], { mode: 'research' })
+
+    const run = await runner.run('https://example.com/p')
+    expect(run.channelsTried).toEqual(['provider', 'provider'])
+    expect(run.result.status).toBe('success')
+    expect(run.result.trace.some((t) => t.event === 'identity_unobserved')).toBe(false)
+  })
+})
+
+describe('LadderRunner — session gating by mode', () => {
+  const handoffRequest: HandoffRequest = {
+    reason: 'captcha_required',
+    liveViewUrl: 'https://live.example/session-1',
+    rationale: 'The target demands human verification.',
+  }
+
+  it('standard mode never loads a saved session, even when the store has one', async () => {
+    const store = new MemorySessionStore()
+    await store.save({
+      domain: 'example.com',
+      attestedBy: 't',
+      attestedAt: '2026-08-22T00:00:00.000Z',
+      vendor: 'browser_local_authed',
+      cookies: [{ name: 'sid', value: 'v', domain: '.example.com', path: '/' }],
+    })
+    const seen: (SessionSnapshot | null | undefined)[] = []
+    const http = channel('http', [contentfulResult('https://example.com/p', 'http')])
+    const orig = http.fetch
+    http.fetch = async (url, session) => {
+      seen.push(session)
+      return orig(url, session)
+    }
+    const runner = new LadderRunner([http], { mode: 'standard' }, null, null, store)
+
+    await runner.run('https://example.com/p')
+    expect(seen).toEqual([null])
+  })
+
+  it('a handoff request in standard mode is denied, not executed', async () => {
+    const http = channel('http', [
+      { ...blockedResult('https://example.com/p', 'captcha'), handoff: handoffRequest },
+    ])
+    const calls: string[] = []
+    const handoff: HumanHandoff = {
+      async takeOver(url) {
+        calls.push(url)
+        return null
+      },
+    }
+    const runner = new LadderRunner([http], { mode: 'standard' }, null, handoff)
+
+    const run = await runner.run('https://example.com/p')
+    expect(calls).toEqual([])
+    expect(run.handoffRequested).toBe(false)
+    expect(run.ladderTrace.some((t) => t.detail.handoff === 'denied: mode is not authed')).toBe(true)
   })
 })

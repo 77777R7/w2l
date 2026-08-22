@@ -31,16 +31,10 @@ import type { VendorOps } from './vendors/transport.js'
 export interface Args {
   url: string
   vendor: 'browserbase' | 'steel'
-  /** Enable session_persistence: reuse a saved vendor context/profile. */
-  persistSession: boolean
-  /** Enable live_view_handoff: open the live-view door for human takeover. */
-  liveView: boolean
 }
 
 export function parseArgs(argv: readonly string[]): Args {
   let vendor: Args['vendor'] | null = null
-  let persistSession = false
-  let liveView = false
   const positional: string[] = []
 
   for (let i = 0; i < argv.length; i++) {
@@ -57,10 +51,12 @@ export function parseArgs(argv: readonly string[]): Args {
         throw new Error(`--vendor must be browserbase or steel, got ${value}`)
       }
       vendor = value
-    } else if (arg === '--persist-session') {
-      persistSession = true
-    } else if (arg === '--live-view') {
-      liveView = true
+    } else if (arg === '--persist-session' || arg === '--live-view') {
+      // These two were accepted by earlier builds without doing anything in
+      // this single-fetch CLI. Session persistence and live-view handoff live
+      // in w2l-fetch (the ladder), where they are real; here they were a
+      // promise this CLI could not keep, so they are rejected now.
+      throw new Error(`${arg} belongs to w2l-fetch (the ladder), not w2l-provider`)
     } else if (arg.startsWith('-')) {
       throw new Error(`unknown flag ${arg}`)
     } else {
@@ -69,7 +65,7 @@ export function parseArgs(argv: readonly string[]): Args {
   }
 
   const url = positional[0]
-  if (url === undefined) throw new Error('usage: w2l-provider [--vendor browserbase|steel] [--persist-session] [--live-view] <url>')
+  if (url === undefined) throw new Error('usage: w2l-provider [--vendor browserbase|steel] <url>')
   try {
     new URL(url)
   } catch {
@@ -93,19 +89,15 @@ export function parseArgs(argv: readonly string[]): Args {
     vendor = hasBb ? 'browserbase' : 'steel'
   }
 
-  return { url, vendor, persistSession, liveView }
+  return { url, vendor }
 }
 
 function opsFor(args: Args): VendorOps {
-  // The policy the vendor adapters evaluate. Only the two authorizable
-  // capabilities can ever be turned on, and only by an explicit operator
-  // flag on this CLI — never by a default.
-  const policy = {
-    authorized: [
-      ...(args.persistSession ? ['session_persistence'] : []),
-      ...(args.liveView ? ['live_view_handoff'] : []),
-    ] as const,
-  }
+  // No authorizable capabilities in this single-fetch CLI. Session
+  // persistence and live-view handoff are ladder concerns (w2l-fetch);
+  // accepting flags for them here without implementing the loop would be a
+  // promise this CLI could not keep. Default policy, explicitly.
+  const policy = { authorized: [] as const }
   if (args.vendor === 'browserbase') {
     const apiKey = process.env.BROWSERBASE_API_KEY ?? ''
     if (apiKey === '') throw new Error('BROWSERBASE_API_KEY is not set')

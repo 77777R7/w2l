@@ -122,4 +122,73 @@ describe('w2l-live-compare resource handling', () => {
     expect(arms.find((a) => a.arm === 'browserbase')?.error).toContain('SKIPPED')
     expect(arms.find((a) => a.arm === 'steel')?.error).toContain('SKIPPED')
   })
+
+  it('a slow subject factory is still awaited and torn down EXACTLY once; no fetch runs after the deadline', async () => {
+    let fetches = 0
+    let teardowns = 0
+
+    const run = compareChannels(['https://a.example/1'], {
+      armTimeoutMs: 60,
+      overrides: {
+        http: countingFactory([]).factory,
+        browser_local: countingFactory([]).factory,
+        steel: async () => {
+          // The factory finishes AFTER the arm deadline fired.
+          await new Promise((r) => setTimeout(r, 120))
+          return {
+            fetch: async () => {
+              fetches++
+              return okResult('https://a.example/1')
+            },
+            teardown: async () => {
+              teardowns++
+            },
+          }
+        },
+      },
+    })
+
+    const { perUrl } = await run
+    const steelArm = perUrl[0]!.arms.find((a) => a.arm === 'steel')!
+    expect(steelArm.ok).toBe(false)
+    expect(steelArm.error).toContain('timed out')
+
+    // Give the slow factory time to finish (compareChannels already awaited
+    // the pending creation in its teardown path before returning).
+    await new Promise((r) => setTimeout(r, 250))
+
+    // The subject was created late, but it was released — exactly once — and
+    // never ran a fetch the run had already abandoned.
+    expect(fetches).toBe(0)
+    expect(teardowns).toBe(1)
+  })
+
+  it('a hanging fetch aborts on the arm signal and teardown still runs once', async () => {
+    let teardowns = 0
+    const { perUrl } = await compareChannels(['https://a.example/1'], {
+      armTimeoutMs: 60,
+      overrides: {
+        http: countingFactory([]).factory,
+        browser_local: countingFactory([]).factory,
+        steel: async () => ({
+          fetch: async (_url, signal) => {
+            await new Promise<void>((resolve, reject) => {
+              signal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true })
+            })
+            return okResult('https://a.example/1')
+          },
+          teardown: async () => {
+            teardowns++
+          },
+        }),
+      },
+    })
+
+    const steelArm = perUrl[0]!.arms.find((a) => a.arm === 'steel')!
+    expect(steelArm.ok).toBe(false)
+    // The deadline and the abort race each other; either way the run stops
+    // and the resource is released.
+    expect(steelArm.error).toMatch(/timed out|aborted/)
+    expect(teardowns).toBe(1)
+  })
 })

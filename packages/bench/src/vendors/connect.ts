@@ -33,7 +33,7 @@ import type {
 } from '@w2l/http-core'
 import { ProviderSubject, type RobotsFetcher } from '../subjects/provider.js'
 import { playwrightConnector, type CdpConnector } from './cdp.js'
-import { CdpVendorTransport, type VendorOps } from './transport.js'
+import { CdpVendorTransport, type VendorOps, type VendorResumeContext } from './transport.js'
 
 export interface ConnectedVendor {
   declaration: ProviderDeclaration
@@ -49,8 +49,16 @@ export interface ConnectedVendor {
 export async function connectVendor(
   ops: VendorOps,
   connector: CdpConnector = playwrightConnector,
+  /** Resume context to inject BEFORE the first session is created (first-use
+   *  persistence: Browserbase's context must exist before the UA probe's
+   *  session). Order matters — a context added after the probe would mean the
+   *  session the gate cleared was not the session on offer. */
+  resume?: VendorResumeContext | null,
 ): Promise<ConnectedVendor> {
   const transport = new CdpVendorTransport(ops, connector)
+  if (resume !== undefined && resume !== null) {
+    transport.useResumedSession(resume)
+  }
   const declaredUserAgent = await transport.resolveUserAgent()
   const declaration: ProviderDeclaration = {
     id: ops.vendorId,

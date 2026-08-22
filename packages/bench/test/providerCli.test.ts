@@ -29,21 +29,20 @@ describe('provider CLI arguments', () => {
     expect(parseArgs(['https://example.com/p'])).toEqual({
       url: 'https://example.com/p',
       vendor: 'browserbase',
-      persistSession: false,
-      liveView: false,
     })
 
     setKeys(null, 'steel_key')
     expect(parseArgs(['https://example.com/p']).vendor).toBe('steel')
   })
 
-  it('reads the capability flags, defaulting them off', () => {
+  it('rejects --persist-session / --live-view: ladder features, not this CLI', () => {
     setKeys('bb_key', null)
-    expect(parseArgs(['--persist-session', '--live-view', 'https://example.com/p'])).toMatchObject({
-      persistSession: true,
-      liveView: true,
-    })
-    expect(parseArgs(['https://example.com/p'])).toMatchObject({ persistSession: false, liveView: false })
+    expect(() => parseArgs(['--persist-session', 'https://example.com/p'])).toThrow(
+      /belongs to w2l-fetch/,
+    )
+    expect(() => parseArgs(['--live-view', 'https://example.com/p'])).toThrow(
+      /belongs to w2l-fetch/,
+    )
   })
 
   it('refuses to guess which account to bill when both keys are set', () => {

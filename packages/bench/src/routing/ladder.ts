@@ -16,7 +16,7 @@
  * content is caught by the false-success checks upstream.
  */
 
-import type { FetchResult, HandoffRequest } from '@w2l/contracts'
+import type { Escalation, FetchResult, HandoffRequest } from '@w2l/contracts'
 import { CONTENTFUL_STATUS } from '@w2l/contracts'
 import {
   classifyFetchFailure,
@@ -81,6 +81,27 @@ function resultRequestsEscalation(result: FetchResult): boolean {
   )
 }
 
+/**
+ * A contentful result whose identity on the wire was either contradicted
+ * (identity_mismatch) or not observable (identity_unobserved) is NOT an
+ * acceptable success. The gate cleared one identity; if the wire carried
+ * another — or we cannot prove which — the fetch cannot be reported as a
+ * win. Both mark the result for rejection so the ladder keeps going (the
+ * next vendor is the fallback).
+ */
+function identityCompromised(result: FetchResult): boolean {
+  return result.trace.some(
+    (t) => t.event === 'identity_mismatch' || t.event === 'identity_unobserved',
+  )
+}
+
+/** Content size as the ladder's improvement metric: main-content tokens,
+ *  with markdown length as a tiebreaker. Deterministic, no magic. */
+function contentSize(result: FetchResult): number {
+  const tokens = result.usage.contentTokens ?? 0
+  return tokens * 1_000 + (result.markdown?.length ?? 0)
+}
+
 export class LadderRunner {
   constructor(
     /** Channels in escalation order. Providers go after browser_local. */
@@ -117,14 +138,19 @@ export class LadderRunner {
     const channelsTried: string[] = []
     const ladderTrace: LadderRunResult['ladderTrace'][number][] = []
 
-    // The caller may hand a session in; otherwise the store's snapshot for
-    // this domain is the session, so a handoff saved last run resumes here.
-    const effectiveSession =
-      session !== undefined && session !== null
-        ? session
-        : this.sessionStore !== null
-          ? await this.sessionStore.load(safeHost(url))
-          : null
+    // Sessions exist for authed mode ONLY. standard/research never load or
+    // use login state — a session in a public run is a leak of the user's
+    // account into a lane they did not authorize.
+    const sessionsPermitted = this.policy.mode === 'authed'
+    let effectiveSession: SessionSnapshot | null = null
+    if (sessionsPermitted) {
+      effectiveSession =
+        session !== undefined && session !== null
+          ? session
+          : this.sessionStore !== null
+            ? await this.sessionStore.load(safeHost(url))
+            : null
+    }
     if (effectiveSession !== null) {
       ladderTrace.push({
         at: 0,
@@ -157,6 +183,12 @@ export class LadderRunner {
     const ordered = [...local, ...(await this.orderProviders(url, providers))]
 
     let last: FetchResult | null = null
+    let best: FetchResult | null = null
+    let bestSize = -1
+    let bestChannel: Channel | null = null
+    /** The quality hop the ladder itself proposed (http → next lane), so the
+     *  final result can stamp whether that hop actually improved things. */
+    let qualityEscalation: Escalation | null = null
     for (const channel of ordered) {
       channelsTried.push(channel.id)
       const result = await channel.fetch(url, effectiveSession)
@@ -171,11 +203,29 @@ export class LadderRunner {
       }
 
       if (CONTENTFUL_STATUS.has(result.status)) {
+        // An identity-compromised contentful result is NOT an acceptable
+        // success: the wire carried an identity the gate never cleared (or
+        // one we could not observe). Keep it as best-so-far only if it is
+        // genuinely the best content we have, but never return it as the
+        // answer — the ladder continues to the next vendor.
+        const compromised = identityCompromised(result)
+        const size = contentSize(result)
+        // Worse-than-best is decided against the PREVIOUS best, before this
+        // result can become it — comparing against itself would make every
+        // first success "worse" and send every run down the whole ladder.
+        const worseThanBest = !compromised && best !== null && size <= bestSize
+        if (!compromised && size > bestSize) {
+          best = result
+          bestSize = size
+          bestChannel = channel
+        }
+
         // A contentful vendor fetch may carry resume material (Browserbase
         // contextId / Steel profileId). Persisting it now is what lets the
         // NEXT independent process resume this session instead of starting
         // one from zero.
         if (
+          !compromised &&
           channel.vendorId !== undefined &&
           this.sessionStore !== null &&
           result.resumeContext !== undefined &&
@@ -203,26 +253,76 @@ export class LadderRunner {
         // token count; the ladder just isn't done yet.
         const thinHttp =
           channel.id === 'http' && result.trace.some((t) => t.event === 'quality_low_yield')
-        if (thinHttp) {
+
+        // Worse-than-best: a later channel DID answer, but with less content
+        // than an earlier one already produced. That is not an improvement —
+        // the ladder keeps going, and if nothing better shows up the best
+        // result is the answer.
+        if (thinHttp || worseThanBest) {
+          if (thinHttp && qualityEscalation === null) {
+            // The ladder itself proposed this hop; remember it so the final
+            // result can say whether it improved things or not.
+            qualityEscalation = {
+              from: 'http',
+              to: 'browser_local',
+              trigger: 'quality_low_yield',
+              improved: null,
+            }
+          }
           ladderTrace.push({
             at: result.usage.wallMs,
             event: 'ladder_step',
             channel: channel.id,
-            detail: { vendorId: channel.vendorId ?? null, status: result.status, escalate: 'quality_low_yield' },
+            detail: {
+              vendorId: channel.vendorId ?? null,
+              status: result.status,
+              escalate: thinHttp ? 'quality_low_yield' : 'worse_than_best',
+            },
           })
           continue
         }
+
         ladderTrace.push({
           at: result.usage.wallMs,
           event: 'ladder_step',
           channel: channel.id,
-          detail: { vendorId: channel.vendorId ?? null, status: result.status, escalate: null },
+          detail: {
+            vendorId: channel.vendorId ?? null,
+            status: result.status,
+            escalate: compromised ? 'identity_rejected' : null,
+          },
         })
-        return { result, channelsTried, handoffRequested: false, ladderTrace }
+        if (compromised) {
+          // The next provider is the fallback; this content was not
+          // trustworthy enough to be the answer.
+          continue
+        }
+        // A clean contentful win. If it followed a quality hop the ladder
+        // proposed, the hop is stamped improved on the way out.
+        const withImprovement = qualityEscalation === null
+          ? result.escalations
+          : [...result.escalations, { ...qualityEscalation, improved: true }]
+        return {
+          result: { ...result, escalations: withImprovement },
+          channelsTried,
+          handoffRequested: false,
+          ladderTrace,
+        }
       }
 
       if (result.handoff) {
-        return await this.attemptHandoff(url, result, channelsTried, channel, effectiveSession, ladderTrace)
+        if (!sessionsPermitted) {
+          // handoff exists only in authed mode; a handoff request under a
+          // public policy is misconfiguration, reported, not executed.
+          ladderTrace.push({
+            at: result.usage.wallMs,
+            event: 'ladder_step',
+            channel: channel.id,
+            detail: { status: result.status, handoff: 'denied: mode is not authed' },
+          })
+          continue
+        }
+        return await this.attemptHandoff(url, result, channelsTried, channel, effectiveSession, ladderTrace, best)
       }
 
       const cls = classifyFetchFailure(result)
@@ -242,14 +342,17 @@ export class LadderRunner {
 
       if (cls === null && !subjectAsked) {
         // Infrastructure failure or a terminal refusal, and the subject did
-        // not ask for anything higher. Stop here and report honestly rather
-        // than burn every channel on a problem none of them can fix.
+        // not ask for anything higher. If an earlier channel produced real
+        // content, that content is still the answer — the failure does not
+        // erase it. Otherwise stop and report honestly.
+        if (best !== null) break
         return { result, channelsTried, handoffRequested: false, ladderTrace }
       }
 
       if (cls !== null && !LADDER_CONTINUES_FAILURE_CLASS.has(cls) && !subjectAsked) {
         // rate_limited — a class that deliberately stops the ladder even
         // though it is "classified". Nothing higher answers a rate limit.
+        if (best !== null) break
         return { result, channelsTried, handoffRequested: false, ladderTrace }
       }
 
@@ -259,9 +362,40 @@ export class LadderRunner {
       // asked for a higher lane. Either way the loop continues.
     }
 
+    if (best !== null && bestChannel !== null && best !== last) {
+      // The later rungs failed or came back worse: the best-so-far content is
+      // the answer. Mark the improvement verdict on the escalations so the
+      // record says which hops paid off and which did not.
+      const finalEscalations = best.escalations.map((e) =>
+        e.improved === null ? { ...e, improved: false } : e,
+      )
+      // The quality hop the ladder proposed (http → next lane) did not pay
+      // off — the best result is still the http one. Record that verdict.
+      if (
+        qualityEscalation !== null &&
+        !finalEscalations.some(
+          (e) => e.from === qualityEscalation!.from && e.to === qualityEscalation!.to,
+        )
+      ) {
+        finalEscalations.push({ ...qualityEscalation, improved: false })
+      }
+      ladderTrace.push({
+        at: best.usage.wallMs,
+        event: 'ladder_best_kept',
+        channel: bestChannel.id,
+        detail: { channel: bestChannel.id, vendorId: bestChannel.vendorId ?? null, size: bestSize },
+      })
+      return {
+        result: { ...best, escalations: finalEscalations },
+        channelsTried,
+        handoffRequested: false,
+        ladderTrace,
+      }
+    }
+
     return {
       result:
-        last ?? this.governanceRefusal(url, 'no permitted channel was configured'),
+        best ?? last ?? this.governanceRefusal(url, 'no permitted channel was configured'),
       channelsTried,
       handoffRequested: false,
       ladderTrace,
@@ -308,6 +442,7 @@ export class LadderRunner {
     channel: Channel,
     session: SessionSnapshot | null,
     ladderTrace: LadderRunResult['ladderTrace'][number][],
+    best: FetchResult | null,
   ): Promise<LadderRunResult> {
     ladderTrace.push({
       at: result.usage.wallMs,
@@ -320,13 +455,39 @@ export class LadderRunner {
         liveViewUrl: result.handoff?.liveViewUrl ?? null,
       },
     })
+
+    // The blocked fetch may already carry vendor resume material (the
+    // session the human is about to take over). Save it BEFORE prompting:
+    // if the human acts in the live view, the very session they unblocked
+    // is the one the retry must resume.
+    if (
+      this.sessionStore !== null &&
+      result.resumeContext !== undefined &&
+      result.resumeContext !== null
+    ) {
+      const blockedSnapshot: SessionSnapshot = {
+        domain: safeHost(url),
+        attestedBy: 'operator',
+        attestedAt: new Date().toISOString(),
+        vendor: channel.vendorId ?? 'browser_local_authed',
+        resume: result.resumeContext as SessionSnapshot['resume'],
+      }
+      await this.sessionStore.save(blockedSnapshot)
+      ladderTrace.push({
+        at: result.usage.wallMs,
+        event: 'ladder_session_saved',
+        channel: channel.id,
+        detail: { domain: blockedSnapshot.domain, vendor: blockedSnapshot.vendor, phase: 'before_handoff' },
+      })
+    }
+
     if (this.handoff === null) {
       // No human configured: report the pause point rather than loop forever.
-      return { result, channelsTried, handoffRequested: true, ladderTrace }
+      return { result: best ?? result, channelsTried, handoffRequested: true, ladderTrace }
     }
     const snapshot = await this.handoff.takeOver(url, result.handoff!)
     if (snapshot === null) {
-      return { result, channelsTried, handoffRequested: true, ladderTrace }
+      return { result: best ?? result, channelsTried, handoffRequested: true, ladderTrace }
     }
     // Persist the human's session so the NEXT run — including an independent
     // process — resumes with it instead of asking again.
@@ -339,7 +500,8 @@ export class LadderRunner {
         detail: { domain: snapshot.domain, vendor: snapshot.vendor },
       })
     }
-    // Retry on the same channel with the fresh session. One retry only:
+    // Retry on the same channel with the fresh session — the SAME still-live
+    // vendor session the human unblocked, not a new one. One retry only:
     // a human who cannot clear it on the second pass cannot clear it.
     const retry = await channel.fetch(url, snapshot)
     ladderTrace.push({
@@ -348,10 +510,27 @@ export class LadderRunner {
       channel: `${channel.id}(retry)`,
       detail: { vendorId: channel.vendorId ?? null, status: retry.status, afterHandoff: true },
     })
+    if (!CONTENTFUL_STATUS.has(retry.status) || identityCompromised(retry)) {
+      // The human's pass did not yield acceptable content. Keep the best we
+      // had and say plainly that the handoff did not clear it — never
+      // "still needs a human" after the human already acted.
+      ladderTrace.push({
+        at: retry.usage.wallMs,
+        event: 'ladder_handoff_retry_failed',
+        channel: `${channel.id}(retry)`,
+        detail: { status: retry.status },
+      })
+      return {
+        result: best ?? retry,
+        channelsTried: [...channelsTried, `${channel.id}(retry)`],
+        handoffRequested: false,
+        ladderTrace,
+      }
+    }
     return {
       result: retry,
       channelsTried: [...channelsTried, `${channel.id}(retry)`],
-      handoffRequested: true,
+      handoffRequested: false,
       ladderTrace,
     }
   }

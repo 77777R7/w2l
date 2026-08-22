@@ -11,6 +11,9 @@ export interface VendorApiRequest {
   url: string
   headers: Readonly<Record<string, string>>
   body?: unknown
+  /** Cancellation. Vendor APIs are HTTP calls; a caller that stops waiting
+   *  should be able to stop the call, not just ignore its answer. */
+  signal?: AbortSignal
 }
 
 export interface VendorApiResponse {
@@ -25,7 +28,7 @@ export const fetchVendorApi: VendorApi = async (req) => {
     method: req.method,
     headers: { 'content-type': 'application/json', ...req.headers },
     body: req.body === undefined ? undefined : JSON.stringify(req.body),
-    signal: AbortSignal.timeout(30_000),
+    signal: req.signal ?? AbortSignal.timeout(30_000),
   })
   const text = await res.text()
   let json: unknown = null

@@ -106,3 +106,51 @@
 - `captcha_solving`、`fingerprint_spoofing`、`cdp_patching`、`identity_rotation` 在任何策略下都不可启用 —— 策略层没有对应开关。
 - 绕过 robots.txt 的通道不存在;每个通道(包括厂商)都在发送前用自己的 robots 实现评估目标 UA。
 - 挑战页不算成功:提取器输出为空时返回 `empty_unverified`,挑战页标记命中时 false-success 检查失败;升级链不会把挑战页内容当作内容成功。
+
+## 第二轮门禁返修(组合级缺陷,8 项)
+
+### 1. best-so-far 保底内容
+
+梯子不再用「最后一个结果」覆盖之前的成功。`quality_low_yield` 触发升级后,如果更高通道失败、超时或拿回**更少**内容,最终返回最初的 HTTP 成功;只有新结果确实更优(主内容 token 数,markdown 长度作平局裁决)才替换。`escalation.improved` 在最终结果上盖章:`true` = 该跳换来了被采纳的内容,`false` = 该跳没换来更好的东西。回归测试覆盖「HTTP success → browser timeout → 返回 HTTP fallback」。
+
+### 2. authed_session 独立 rung
+
+- `standard`/`research` 模式**不加载、不使用**任何登录态;handoff 只在 `authed` 模式执行(否则 `denied: mode is not authed`)。
+- 明确新增 `authed_session` rung(通道 id 为 `authed_session`,对应 lane `browser_local_authed`),与公共 `browser_local` 分开。
+- `SessionSnapshot` 携带完整 attestation(principal/statement/attestedBy/attestedAt),由 rung 构建 `AccessConfig`。
+- `browser_local` 的 `newContext` 真正恢复 Playwright `storageState`(解析 JSON blob 直传);cookies 走 `addCookies` 保持原路径。真实 `BrowserLocalSubject` 的构造测试验证两种 cookie 都上了线。
+- 快照域名校验:snapshot.domain 必须等于目标 URL host;vendor 必须匹配 rung(Steel 的 resume 交给 browser_local_authed 会被拒,反之亦然)。
+
+### 3. Browserbase 首次持久化顺序
+
+`ensurePersistence()` 现在在 `connectVendor` **之前**执行,产出的 contextId 通过 `connectVendor(ops, connector, resume)` 注入 transport,再触发 UA 探针——第一个 `createSession` 拿到的就是带 context 的会话。组合测试(`buildChannels` + fake `VendorOps`)断言第一次 `createSession` 的 resume 参数与 `result.resumeContext` 都是该 contextId。
+
+### 4. Human Handoff 真正闭合
+
+- 阻断结果里的 `resumeContext` 在提示真人**之前**写入 session store(真人在 live view 解开的正是这个会话)。
+- 重试走**同一个存活会话**,不再新建。
+- 空 store 的首跑也能完成:阻断 → 真人 → 保存 → 同通道重试(有测试)。
+- 真人完成后重试失败:报告失败重试(`ladder_handoff_retry_failed`),`handoffRequested=false`——不再打印「仍需要真人」。
+- `w2l-provider` 的 `--persist-session`/`--live-view` 已删除:单次 fetch 的 CLI 实现不了这个闭环,留着就是误导性参数;现在传这两个 flag 直接报错并指向 `w2l-fetch`。
+
+### 5. liveCompare 超时资源泄漏
+
+- 每个 arm 建立 `AbortSignal.timeout`;signal 贯穿 `VendorApiRequest` → `fetchVendorApi` → `navigateOnce`(映射成 `page.goto` 的 timeout)→ `ProviderSubject.fetch`。
+- pending subject 创建被跟踪:截止时间到了、factory 还没完成,`close()` 等它完成后立即 teardown,绝不产生一次迟到 fetch。
+- 回归测试:慢 factory 返回后 fetch 次数 = 0、teardown 恰好 1 次;挂起的 fetch 被 signal 中止且 teardown 恰好 1 次。
+
+### 6. identity 事件不能算成功
+
+`identity_mismatch` / `identity_unobserved` 出现在 contentful 结果上时,该结果**不进 best-so-far 的候选**,梯子继续尝试下一个 vendor。组合测试:HTTP 200 + 正文 + identity_mismatch → 下一家成功,返回结果不含 mismatch。
+
+### 7. RoutingHistory
+
+- 旧 JSON schema(没有 `latencySamplesMs`)读取时归一化:按 `latencyTotalMs/attempts` 重建样本,不崩溃,可继续 record。
+- 偶数样本取中位 = 两个中间值的平均(有测试)。
+- 样本上限 200(只留最近窗口)。
+- `startingVendor`:正常请求一律从真实 `ranked[0]` 开始;仅当上一家失败类别是 vendor 级(`provider_error`/`identity_mismatch`)才轮换到下一家;bot_gate 等站点级失败不轮换。
+
+### 8. 文档与 PR 元数据
+
+- 代码注释与文档已按上述语义同步(202 多信号、真中位数、authed rung、fallback)。
+- PR #6 的 base 是 `fix/robots-redos`,**不是 main**;GitHub 仓库当前没有配置 CI checks——合并前的一切验证都是本地跑出来的,PR 页面上不会有绿色对勾可看。

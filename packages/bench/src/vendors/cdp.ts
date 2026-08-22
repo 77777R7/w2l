@@ -122,10 +122,20 @@ export interface NavigationOutcome {
  * not. That difference is the vendor's architecture, and a bench comparison
  * should know about it rather than have it papered over.
  */
-export async function navigateOnce(browser: CdpBrowser, url: string): Promise<NavigationOutcome> {
+export async function navigateOnce(
+  browser: CdpBrowser,
+  url: string,
+  signal?: AbortSignal,
+): Promise<NavigationOutcome> {
+  // `timeout` is the non-standard property AbortSignal.timeout() sets; the
+  // cast is to a structural view of it. Absent signal = no caller deadline.
+  const msLeft =
+    signal === undefined ? undefined : (signal as AbortSignal & { timeout?: number }).timeout
+  const timeout =
+    signal?.aborted === true ? 1 : Math.min(20_000, msLeft === undefined ? 20_000 : msLeft)
   const page = await defaultContext(browser).newPage()
   try {
-    const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20_000 })
+    const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout })
     // JS shells need a beat after first paint; networkidle never fires on
     // long-polling pages, so a bounded settle instead (same as browser_local).
     await page.waitForTimeout(1500)

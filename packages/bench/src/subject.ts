@@ -11,7 +11,7 @@ export interface SubjectAdapter {
    * Execute one case: fetch the target URL and return a FetchResult.
    * The adapter translates its internal result shape into the canonical contract.
    */
-  fetch(url: string): Promise<FetchResult>
+  fetch(url: string, signal?: AbortSignal): Promise<FetchResult>
 
   /**
    * Clean up any persistent state (browser contexts, connection pools).

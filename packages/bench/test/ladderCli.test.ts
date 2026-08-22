@@ -1,9 +1,42 @@
-import { describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { createServer, type Server } from 'node:http'
+import type { AddressInfo } from 'node:net'
 import { buildChannels, parseArgs } from '../src/ladderCli.js'
 import { LadderRunner } from '../src/routing/ladder.js'
 import { evaluateVendorPolicy, REFUSED_CAPABILITIES } from '@w2l/http-core'
+import type { SessionSnapshot } from '../src/routing/sessionStore.js'
 import type { CdpBrowser } from '../src/vendors/cdp.js'
 import type { VendorOps, VendorSession } from '../src/vendors/transport.js'
+
+// A real server for the authed-session rung test: proves the REAL
+// BrowserLocalSubject sends the session's cookies, not that a fake channel
+// was handed a snapshot.
+let authServer: Server
+let authBase: string
+
+beforeAll(async () => {
+  authServer = createServer((req, res) => {
+    if (req.url === '/echo-cookie') {
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+      const cookie = req.headers.cookie ?? '(none)'
+      res.end(
+        '<html><body><article><h1>Cookie echo</h1>' +
+        `<p>${cookie}</p>` +
+        '<p>The session cookies sent by the real browser are echoed back above. This paragraph exists so the extractor has real content to work with, and the sentence continues at some length.</p>' +
+        '</article></body></html>',
+      )
+    } else {
+      res.writeHead(404)
+      res.end('not found')
+    }
+  })
+  await new Promise<void>((resolve) => authServer.listen(0, '127.0.0.1', resolve))
+  authBase = `http://127.0.0.1:${(authServer.address() as AddressInfo).port}`
+})
+
+afterAll(async () => {
+  await new Promise<void>((resolve) => authServer.close(() => resolve()))
+})
 
 describe('ladder CLI arguments', () => {
   it('defaults to standard mode (http + browser only)', () => {
@@ -126,7 +159,7 @@ function fakeBrowser(): CdpBrowser {
   }
 }
 
-function fakeVendorOps(vendorId: string, onCreate: () => void): VendorOps {
+function fakeVendorOps(vendorId: string, onCreate: (resume: unknown) => void, opts: { persist?: boolean } = {}): VendorOps {
   return {
     vendorId,
     secrets: [],
@@ -135,13 +168,20 @@ function fakeVendorOps(vendorId: string, onCreate: () => void): VendorOps {
       { capability: 'datacenter_proxy', vendorDefaultOn: true, enableKey: null },
       { capability: 'captcha_solving', vendorDefaultOn: true, enableKey: 'captcha_solving' },
     ]),
-    async createSession(): Promise<VendorSession> {
-      onCreate()
+    async ensurePersistence() {
+      return opts.persist === true ? { browserbaseContextId: 'ctx-from-ensure' } : null
+    },
+    async createSession(resume?: unknown): Promise<VendorSession> {
+      onCreate(resume ?? null)
+      const contextId = (resume as { browserbaseContextId?: string } | null)?.browserbaseContextId
       return {
         sessionId: 'fake-1',
         connectUrl: 'wss://fake.example/session',
         handoffUrl: null,
-        resumeContext: null,
+        resumeContext:
+          contextId !== undefined && contextId !== null
+            ? { browserbaseContextId: contextId }
+            : null,
       }
     },
     async releaseSession() {},
@@ -200,7 +240,99 @@ describe('lazy vendor connection', () => {
     await Promise.all(channels.map((c) => c.close?.().catch(() => {})))
   })
 
+  it('first-use persistence: ensurePersistence runs BEFORE the first session, which receives the contextId', async () => {
+    const createdResumes: unknown[] = []
+    const channels = buildChannels('research', {
+      vendorOps: {
+        steel: fakeVendorOps('steel', (resume) => createdResumes.push(resume), { persist: true }),
+      },
+      vendorConnector: async () => fakeBrowser(),
+      robotsFetcher: async () => ({ text: 'User-agent: *\nDisallow:\n', status: 200, contentType: 'text/plain' }),
+    })
+    const provider = channels.find((c) => c.vendorId === 'steel')!
+    const result = await provider.fetch('https://example.com/p')
+
+    // The FIRST createSession already carries the context the gate was
+    // evaluated for — never a second session created after the fact.
+    expect(createdResumes[0]).toEqual({ browserbaseContextId: 'ctx-from-ensure' })
+    expect(result.status).toBe('success')
+    expect(result.resumeContext).toEqual({ browserbaseContextId: 'ctx-from-ensure' })
+    await Promise.all(channels.map((c) => c.close?.().catch(() => {})))
+  })
+
   it('the refusal posture stays intact in the test ops — REFUSED_CAPABILITIES unchanged', () => {
     expect(REFUSED_CAPABILITIES).toContain('captcha_solving')
+  })
+})
+
+describe('authed_session rung (real BrowserLocalSubject)', () => {
+  it('the real browser sends the session cookies restored from the snapshot', async () => {
+    const channels = buildChannels('authed')
+    const authed = channels.find((c) => c.id === 'authed_session')!
+    expect(authed).toBeDefined()
+
+    const host = new URL(authBase).hostname
+    const snapshot: SessionSnapshot = {
+      domain: host,
+      attestedBy: 'operator@example.com',
+      attestedAt: '2026-08-22T00:00:00.000Z',
+      vendor: 'browser_local_authed',
+      principal: 'operator@example.com',
+      statement: 'I authorize fetches under this session for this domain.',
+      cookies: [{ name: 'sid', value: 'secret-value', domain: host, path: '/' }],
+      // A Playwright storageState blob carrying a second cookie: the real
+      // context creation must restore it alongside the explicit cookies.
+      storageState: JSON.stringify({
+        cookies: [{ name: 'ss-cookie', value: 'from-storage-state', domain: host, path: '/', expires: -1, httpOnly: false, secure: false, sameSite: 'Lax' }],
+        origins: [],
+      }),
+    }
+
+    try {
+      const result = await authed.fetch(`${authBase}/echo-cookie`, snapshot)
+      expect(result.status).toBe('success')
+      expect(result.markdown).toContain('sid=secret-value')
+      expect(result.markdown).toContain('ss-cookie=from-storage-state')
+    } finally {
+      await Promise.all(channels.map((c) => c.close?.().catch(() => {})))
+    }
+  })
+
+  it('a snapshot scoped to another domain is refused, not misapplied', async () => {
+    const channels = buildChannels('authed')
+    const authed = channels.find((c) => c.id === 'authed_session')!
+    const snapshot: SessionSnapshot = {
+      domain: 'other.example',
+      attestedBy: 'operator@example.com',
+      attestedAt: '2026-08-22T00:00:00.000Z',
+      vendor: 'browser_local_authed',
+      cookies: [{ name: 'sid', value: 'secret-value', domain: 'other.example', path: '/' }],
+    }
+    try {
+      await expect(authed.fetch(`${authBase}/echo-cookie`, snapshot)).rejects.toThrow(
+        /does not match/,
+      )
+    } finally {
+      await Promise.all(channels.map((c) => c.close?.().catch(() => {})))
+    }
+  })
+
+  it('a vendor resume handed to the authed rung is refused as a mismatch', async () => {
+    const channels = buildChannels('authed')
+    const authed = channels.find((c) => c.id === 'authed_session')!
+    const snapshot: SessionSnapshot = {
+      domain: new URL(authBase).hostname,
+      attestedBy: 'operator@example.com',
+      attestedAt: '2026-08-22T00:00:00.000Z',
+      vendor: 'steel',
+      resume: { steelProfileId: 'prof-1' },
+    }
+    try {
+      await expect(authed.fetch(`${authBase}/echo-cookie`, snapshot)).rejects.toThrow(
+        /does not match/,
+      )
+    } finally {
+      await Promise.all(channels.map((c) => c.close?.().catch(() => {})))
+    }
   })
 })

@@ -30,7 +30,10 @@ export interface StoredCookie {
  * A user-authorized session for one domain. `vendor` names the lane that
  * produced it (browser_local_authed or a vendor id); `resume` is the
  * vendor-specific continuation material (context/profile/storage) when the
- * session lives vendor-side.
+ * session lives vendor-side. The attestation fields (attestedBy/attestedAt
+ * plus the optional principal/statement) are what `normalizeAccessConfig`
+ * needs to build an AccessConfig for the authed browser rung — a session
+ * without them cannot be honestly recorded.
  */
 export interface SessionSnapshot {
   /** Domain this session is scoped to. The ladder only applies it there. */
@@ -44,6 +47,10 @@ export interface SessionSnapshot {
   storageState?: string
   /** Vendor resume context (Browserbase contextId / Steel profileId+context). */
   resume?: Record<string, unknown> | null
+  /** AccessAttestation.principal — the accepting principal. */
+  principal?: string
+  /** AccessAttestation.statement — what was accepted, verbatim. */
+  statement?: string
 }
 
 export interface SessionStore {

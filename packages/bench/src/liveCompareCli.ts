@@ -108,9 +108,13 @@ const ARM_TIMEOUT_MS = 120_000
  */
 async function runArm(
   arm: string,
-  fn: () => Promise<FetchResult>,
+  fn: (signal: AbortSignal) => Promise<FetchResult>,
   timeoutMs: number = ARM_TIMEOUT_MS,
 ): Promise<ArmOutcome> {
+  // The arm's own cancellation signal: the same deadline that stops the
+  // report also reaches the vendor transport, so the navigation (and the
+  // paid session behind it) knows the run is over.
+  const signal = AbortSignal.timeout(timeoutMs)
   let timer: ReturnType<typeof setTimeout> | undefined
   const deadline = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
@@ -119,7 +123,7 @@ async function runArm(
     timer.unref?.()
   })
   try {
-    const result = await Promise.race([fn(), deadline])
+    const result = await Promise.race([fn(signal), deadline])
     return { arm, ok: true, result: classifyResult(arm, result) }
   } catch (err) {
     return { arm, ok: false, error: err instanceof Error ? err.message : String(err) }
@@ -129,7 +133,10 @@ async function runArm(
 }
 
 /** A subject as tests inject it: fetch plus optional release. */
-type FakeSubject = { fetch: (url: string) => Promise<FetchResult>; teardown?: () => Promise<void> }
+type FakeSubject = {
+  fetch: (url: string, signal?: AbortSignal) => Promise<FetchResult>
+  teardown?: () => Promise<void>
+}
 
 export async function compareChannels(
   urls: readonly string[],
@@ -176,19 +183,25 @@ export async function compareChannels(
 
   interface Arm {
     name: string
-    run: (url: string) => Promise<FetchResult>
+    run: (url: string, signal?: AbortSignal) => Promise<FetchResult>
     available: boolean
     close: () => Promise<void>
   }
+
+  // Pending subject-creation promises, so close() can await a factory that
+  // was still running when the arm deadline fired — then tear the subject
+  // down instead of leaking a session the run already abandoned.
+  let bbFakePending: Promise<FakeSubject> | null = null
+  let steelFakePending: Promise<FakeSubject> | null = null
 
   const arms: Arm[] = [
     {
       name: 'http',
       available: true,
-      run: async (url) => {
+      run: async (url, signal) => {
         if (httpFake !== null) {
           if (httpFakeSubject === null) httpFakeSubject = await httpFake()
-          return httpFakeSubject.fetch(url)
+          return httpFakeSubject.fetch(url, signal)
         }
         return http.fetch(url)
       },
@@ -199,10 +212,10 @@ export async function compareChannels(
     {
       name: 'browser_local',
       available: true,
-      run: async (url) => {
+      run: async (url, signal) => {
         if (browserFake !== null) {
           if (browserFakeSubject === null) browserFakeSubject = await browserFake()
-          return browserFakeSubject.fetch(url)
+          return browserFakeSubject.fetch(url, signal)
         }
         return browser.fetch(url)
       },
@@ -214,17 +227,31 @@ export async function compareChannels(
     {
       name: 'browserbase',
       available: bbKey !== '' || bbFake !== null,
-      run: async (url) => {
+      run: async (url, signal) => {
         if (bbFake !== null) {
-          if (bbFakeSubject === null) bbFakeSubject = await bbFake()
-          return bbFakeSubject.fetch(url)
+          if (bbFakeSubject === null) {
+            bbFakePending = bbFake().then((s) => {
+              bbFakeSubject = s
+              return s
+            })
+            bbFakeSubject = await bbFakePending
+          }
+          // The arm deadline may have fired while the factory was still
+          // running. A fetch now would be work the run already abandoned.
+          if (signal?.aborted === true) {
+            throw new Error('arm cancelled before the subject was ready')
+          }
+          return bbFakeSubject.fetch(url, signal)
         }
         if (bbSubject === null) {
           bbSubject = await vendorProviderSubject(browserbaseOps({ apiKey: bbKey }, undefined, policy))
         }
-        return bbSubject.fetch(url)
+        return bbSubject.fetch(url, signal)
       },
       close: async () => {
+        if (bbFakePending !== null) {
+          await bbFakePending.catch(() => {})
+        }
         if (bbSubject !== null) await bbSubject.teardown()
         if (bbFakeSubject !== null) await bbFakeSubject.teardown?.()
       },
@@ -232,17 +259,31 @@ export async function compareChannels(
     {
       name: 'steel',
       available: steelKey !== '' || steelFake !== null,
-      run: async (url) => {
+      run: async (url, signal) => {
         if (steelFake !== null) {
-          if (steelFakeSubject === null) steelFakeSubject = await steelFake()
-          return steelFakeSubject.fetch(url)
+          if (steelFakeSubject === null) {
+            steelFakePending = steelFake().then((s) => {
+              steelFakeSubject = s
+              return s
+            })
+            steelFakeSubject = await steelFakePending
+          }
+          // The arm deadline may have fired while the factory was still
+          // running. A fetch now would be work the run already abandoned.
+          if (signal?.aborted === true) {
+            throw new Error('arm cancelled before the subject was ready')
+          }
+          return steelFakeSubject.fetch(url, signal)
         }
         if (steelSubject === null) {
           steelSubject = await vendorProviderSubject(steelOps({ apiKey: steelKey }, undefined, policy))
         }
-        return steelSubject.fetch(url)
+        return steelSubject.fetch(url, signal)
       },
       close: async () => {
+        if (steelFakePending !== null) {
+          await steelFakePending.catch(() => {})
+        }
         if (steelSubject !== null) await steelSubject.teardown()
         if (steelFakeSubject !== null) await steelFakeSubject.teardown?.()
       },
@@ -260,7 +301,7 @@ export async function compareChannels(
           continue
         }
         log(`  ${arm.name}...`)
-        const outcome = await runArm(arm.name, () => arm.run(url), opts.armTimeoutMs)
+        const outcome = await runArm(arm.name, (signal) => arm.run(url, signal), opts.armTimeoutMs)
         urlArms.push(outcome)
         if (outcome.result !== undefined) {
           log(

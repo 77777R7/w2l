@@ -225,6 +225,12 @@ export class BrowserLocalSubject implements SubjectAdapter {
         screen: BROWSER_FINGERPRINT.screen,
         deviceScaleFactor: BROWSER_FINGERPRINT.deviceScaleFactor,
         extraHTTPHeaders: identity.clientHints,
+        // Restore the user's full session state (cookies, localStorage,
+        // sessionStorage) when they inherited a storageState blob — the
+        // serialized JSON IS the Playwright shape, passed through verbatim.
+        ...(this.accessConfig?.session?.storageState
+          ? { storageState: JSON.parse(this.accessConfig.session.storageState) }
+          : {}),
         // The user's egress, if they supplied one. Note what does NOT change
         // alongside it: the UA, the locale, the timezone, the viewport. A
         // different address is a different route, not a different identity —

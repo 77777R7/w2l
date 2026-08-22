@@ -53,7 +53,7 @@ export interface ProviderTransport {
    * status of the vendor's own API — a 200 from the vendor wrapping a 403
    * from the target is a 403.
    */
-  fetch(url: string): Promise<ProviderResponse>
+  fetch(url: string, signal?: AbortSignal): Promise<ProviderResponse>
   close?(): Promise<void>
 }
 
@@ -160,7 +160,7 @@ export class ProviderSubject implements SubjectAdapter {
     return this.chain.toLedger()
   }
 
-  async fetch(url: string): Promise<FetchResult> {
+  async fetch(url: string, signal?: AbortSignal): Promise<FetchResult> {
     const start = Date.now()
     const trace: TraceEvent[] = [
       { at: 0, lane: 'provider', event: 'provider_selected', detail: { provider: this.provider.id } },
@@ -223,7 +223,7 @@ export class ProviderSubject implements SubjectAdapter {
 
     let res: ProviderResponse
     try {
-      res = await this.transport.fetch(url)
+      res = await this.transport.fetch(url, signal)
     } catch (err) {
       const wallMs = Date.now() - start
       trace.push({
