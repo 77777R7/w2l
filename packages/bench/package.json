@@ -7,7 +7,9 @@
   "types": "./dist/index.d.ts",
   "bin": {
     "w2l-bench": "./dist/cli.js",
-    "w2l-provider": "./dist/providerCli.js"
+    "w2l-provider": "./dist/providerCli.js",
+    "w2l-live-compare": "./dist/liveCompareCli.js",
+    "w2l-fetch": "./dist/ladderCli.js"
   },
   "exports": {
     ".": {

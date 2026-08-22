@@ -29,10 +29,21 @@ describe('provider CLI arguments', () => {
     expect(parseArgs(['https://example.com/p'])).toEqual({
       url: 'https://example.com/p',
       vendor: 'browserbase',
+      persistSession: false,
+      liveView: false,
     })
 
     setKeys(null, 'steel_key')
     expect(parseArgs(['https://example.com/p']).vendor).toBe('steel')
+  })
+
+  it('reads the capability flags, defaulting them off', () => {
+    setKeys('bb_key', null)
+    expect(parseArgs(['--persist-session', '--live-view', 'https://example.com/p'])).toMatchObject({
+      persistSession: true,
+      liveView: true,
+    })
+    expect(parseArgs(['https://example.com/p'])).toMatchObject({ persistSession: false, liveView: false })
   })
 
   it('refuses to guess which account to bill when both keys are set', () => {

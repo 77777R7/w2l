@@ -25,7 +25,12 @@
  */
 
 import type { CrawlMode } from '@w2l/contracts'
-import type { AccessConfigInput, ProviderDeclaration } from '@w2l/http-core'
+import type {
+  AccessConfigInput,
+  PolicyDecision,
+  ProviderDeclaration,
+  VendorPolicy,
+} from '@w2l/http-core'
 import { ProviderSubject, type RobotsFetcher } from '../subjects/provider.js'
 import { playwrightConnector, type CdpConnector } from './cdp.js'
 import { CdpVendorTransport, type VendorOps } from './transport.js'
@@ -50,9 +55,10 @@ export async function connectVendor(
   const declaration: ProviderDeclaration = {
     id: ops.vendorId,
     declaredUserAgent,
-    // As configured by this package's session bodies: a real browser engine
-    // egressing from the vendor's addresses, nothing that forges identity.
-    capabilities: ['headless_browser', 'datacenter_proxy'],
+    // As decided by the policy layer (evaluateVendorPolicy), not written
+    // here: the three-layer split means the vendor adapter declares what it
+    // CAN do, policy decides what we WILL use, and this list is the result.
+    capabilities: ops.decision.enabled.map((c) => c.capability),
     honoursCallerUserAgent: false,
   }
   return { declaration, transport }

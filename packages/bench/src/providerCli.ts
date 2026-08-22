@@ -24,16 +24,23 @@ import { verifyLedger } from '@w2l/http-core'
 import { ProviderSubject } from './subjects/provider.js'
 import { browserbaseOps } from './vendors/browserbase.js'
 import { steelOps } from './vendors/steel.js'
+import { fetchVendorApi } from './vendors/api.js'
 import { connectVendor } from './vendors/connect.js'
 import type { VendorOps } from './vendors/transport.js'
 
 export interface Args {
   url: string
   vendor: 'browserbase' | 'steel'
+  /** Enable session_persistence: reuse a saved vendor context/profile. */
+  persistSession: boolean
+  /** Enable live_view_handoff: open the live-view door for human takeover. */
+  liveView: boolean
 }
 
 export function parseArgs(argv: readonly string[]): Args {
   let vendor: Args['vendor'] | null = null
+  let persistSession = false
+  let liveView = false
   const positional: string[] = []
 
   for (let i = 0; i < argv.length; i++) {
@@ -50,6 +57,10 @@ export function parseArgs(argv: readonly string[]): Args {
         throw new Error(`--vendor must be browserbase or steel, got ${value}`)
       }
       vendor = value
+    } else if (arg === '--persist-session') {
+      persistSession = true
+    } else if (arg === '--live-view') {
+      liveView = true
     } else if (arg.startsWith('-')) {
       throw new Error(`unknown flag ${arg}`)
     } else {
@@ -58,7 +69,7 @@ export function parseArgs(argv: readonly string[]): Args {
   }
 
   const url = positional[0]
-  if (url === undefined) throw new Error('usage: w2l-provider [--vendor browserbase|steel] <url>')
+  if (url === undefined) throw new Error('usage: w2l-provider [--vendor browserbase|steel] [--persist-session] [--live-view] <url>')
   try {
     new URL(url)
   } catch {
@@ -82,29 +93,38 @@ export function parseArgs(argv: readonly string[]): Args {
     vendor = hasBb ? 'browserbase' : 'steel'
   }
 
-  return { url, vendor }
+  return { url, vendor, persistSession, liveView }
 }
 
-function opsFor(vendor: Args['vendor']): VendorOps {
-  if (vendor === 'browserbase') {
+function opsFor(args: Args): VendorOps {
+  // The policy the vendor adapters evaluate. Only the two authorizable
+  // capabilities can ever be turned on, and only by an explicit operator
+  // flag on this CLI — never by a default.
+  const policy = {
+    authorized: [
+      ...(args.persistSession ? ['session_persistence'] : []),
+      ...(args.liveView ? ['live_view_handoff'] : []),
+    ] as const,
+  }
+  if (args.vendor === 'browserbase') {
     const apiKey = process.env.BROWSERBASE_API_KEY ?? ''
     if (apiKey === '') throw new Error('BROWSERBASE_API_KEY is not set')
     const projectId = process.env.BROWSERBASE_PROJECT_ID
-    return browserbaseOps({ apiKey, ...(projectId ? { projectId } : {}) })
+    return browserbaseOps({ apiKey, ...(projectId ? { projectId } : {}) }, fetchVendorApi, policy)
   }
   const apiKey = process.env.STEEL_API_KEY ?? ''
   if (apiKey === '') throw new Error('STEEL_API_KEY is not set')
-  return steelOps({ apiKey })
+  return steelOps({ apiKey }, fetchVendorApi, policy)
 }
 
 async function main(): Promise<void> {
-  const { url, vendor } = parseArgs(process.argv.slice(2))
+  const args = parseArgs(process.argv.slice(2))
   // Resolved before anything is announced, so a missing key never prints a
   // line claiming we opened something.
-  const ops = opsFor(vendor)
+  const ops = opsFor(args)
 
-  console.log(`vendor : ${vendor}`)
-  console.log(`target : ${url}`)
+  console.log(`vendor : ${args.vendor}`)
+  console.log(`target : ${args.url}`)
   console.log('opening session (captcha solving and fingerprint forging declined)...')
 
   const { declaration, transport } = await connectVendor(ops)
@@ -115,7 +135,7 @@ async function main(): Promise<void> {
   const subject = new ProviderSubject(declaration, transport)
 
   try {
-    const result = await subject.fetch(url)
+    const result = await subject.fetch(args.url)
 
     console.log('')
     console.log(`status         : ${result.status}`)

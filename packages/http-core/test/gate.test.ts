@@ -203,14 +203,19 @@ describe('classifyGate — generic bot gate thresholds', () => {
     expect(classifyGate(res({ status: 200, body: '<p>Please wait</p>' }))).toBeNull()
   })
 
-  it('classifies a 202 with an empty body as a swallowed request', () => {
+  it('classifies a 202 as a swallowed request — no page GET legitimately returns it', () => {
     const v = classifyGate(res({ status: 202, body: '' }))
     expect(v?.reason).toBe('bot_detected_generic')
-    expect(v?.signals).toEqual(['status_202_empty_body'])
+    expect(v?.signals).toEqual(['status_202'])
   })
 
-  it('does NOT classify a 202 that actually carries a page', () => {
-    expect(classifyGate(res({ status: 202, body: ARTICLE.repeat(20) }))).toBeNull()
+  it('classifies a 202 even when the gate rendered a skeleton over it', () => {
+    // The 202 itself is the gate's shape; the body is the gate's page either
+    // way. (Amazon: 202 + empty document; the rendered DOM still is not the
+    // target's content.)
+    expect(classifyGate(res({ status: 202, body: ARTICLE.repeat(20) }))?.reason).toBe(
+      'bot_detected_generic',
+    )
   })
 })
 

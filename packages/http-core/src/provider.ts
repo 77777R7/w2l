@@ -39,45 +39,24 @@
  */
 
 import { evaluateRobots, type RobotsTxt } from './robots.js'
+import type { ProviderCapability } from './vendor.js'
+import { REFUSED_CAPABILITIES } from './vendor.js'
 
 // ---------------------------------------------------------------------------
 // Provider declarations
 // ---------------------------------------------------------------------------
 
 /**
- * A capability a provider may offer. The split is not "nice" vs "naughty" —
- * it is whether the capability changes the ROUTE (acceptable) or forges the
- * IDENTITY (refused).
+ * Capability taxonomy and the product's refusal posture now live in
+ * `vendor.ts` (three-layer split: transport / capability / policy). Re-export
+ * here so existing imports keep working; the gate below consumes the same
+ * types.
  */
-export type ProviderCapability =
-  /** Runs a real browser engine remotely. Route change. Fine. */
-  | 'headless_browser'
-  /** Egress from the provider's addresses. Route change. Fine. */
-  | 'datacenter_proxy'
-  /** Egress from consumer ISP addresses. Route change; sourcing is the
-   *  caller's diligence, not something this gate can verify. */
-  | 'residential_proxy'
-  /** Retries, backoff, queueing. Fine. */
-  | 'retry_orchestration'
-  /** Forges navigator/TLS/canvas signals to defeat detection. REFUSED. */
-  | 'fingerprint_spoofing'
-  /** Hides the automation channel from the page. REFUSED. */
-  | 'cdp_patching'
-  /** Solves or bypasses a human-verification challenge. REFUSED. */
-  | 'captcha_solving'
-  /** Cycles identities to outlast a ban. REFUSED. */
-  | 'identity_rotation'
+export type { ProviderCapability } from './vendor.js'
+export { REFUSED_CAPABILITIES } from './vendor.js'
 
-/**
- * Capabilities that are a stealth layer by another name. Buying one is the
- * same act as building one; the only difference is the invoice.
- */
-export const REFUSED_CAPABILITIES: readonly ProviderCapability[] = [
-  'fingerprint_spoofing',
-  'cdp_patching',
-  'captcha_solving',
-  'identity_rotation',
-]
+export { evaluateVendorPolicy, DEFAULT_VENDOR_POLICY, AUTHORIZABLE_POLICY_KEYS } from './vendor.js'
+export type { CapabilityOffer, EnabledCapability, PolicyDecision, VendorPolicy } from './vendor.js'
 
 export interface ProviderDeclaration {
   /** Stable id for the record, e.g. `browserbase`. */

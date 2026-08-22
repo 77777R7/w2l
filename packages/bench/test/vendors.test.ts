@@ -521,3 +521,87 @@ describe('scrubSecret', () => {
     expect(scrubSecret('untouched', '')).toBe('untouched')
   })
 })
+
+// --- three-layer split: capability manifest vs product policy ----------------
+
+describe('capability/policy split (transport declares, policy decides)', () => {
+  it('browserbase default decision enables route capabilities only, and refuses the evasion set', () => {
+    const ops = browserbaseOps({ apiKey: 'k' }, sessionServing('bb_1').handler)
+    const enabled = ops.decision.enabled.map((c) => c.capability)
+    expect(enabled).toEqual(['headless_browser', 'datacenter_proxy'])
+    expect(ops.decision.refused).toContain('captcha_solving')
+    expect(ops.decision.refused).toContain('fingerprint_spoofing')
+  })
+
+  it('steel default decision enables route capabilities only, and refuses the evasion set', () => {
+    const ops = steelOps({ apiKey: 'k' }, sessionServing('st_1').handler)
+    const enabled = ops.decision.enabled.map((c) => c.capability)
+    expect(enabled).toEqual(['headless_browser', 'datacenter_proxy'])
+    expect(ops.decision.refused).toContain('captcha_solving')
+    expect(ops.decision.refused).toContain('fingerprint_spoofing')
+  })
+
+  it('browserbase session body gains context persistence ONLY when authorized', async () => {
+    const plain = sessionServing('bb_1')
+    await browserbaseOps({ apiKey: 'k' }, plain.handler).createSession()
+    const plainBody = plain.requests[0]!.body as { browserSettings: Record<string, unknown> }
+    expect(plainBody.browserSettings.context).toBeUndefined()
+
+    const persisted = sessionServing('bb_2')
+    const ops = browserbaseOps({ apiKey: 'k' }, persisted.handler, {
+      authorized: ['session_persistence'],
+    })
+    await ops.createSession({ browserbaseContextId: 'ctx-123' })
+    const persistedBody = persisted.requests[0]!.body as {
+      browserSettings: { context?: { id: string; persist: boolean } }
+    }
+    expect(persistedBody.browserSettings.context).toEqual({ id: 'ctx-123', persist: true })
+  })
+
+  it('steel session body carries profileId/persistProfile only when authorized', async () => {
+    const plain = sessionServing('st_1')
+    await steelOps({ apiKey: 'k' }, plain.handler).createSession()
+    const plainBody = plain.requests[0]!.body as Record<string, unknown>
+    expect(plainBody.profileId).toBeUndefined()
+    expect(plainBody.persistProfile).toBeUndefined()
+
+    const persisted = sessionServing('st_2')
+    const ops = steelOps({ apiKey: 'k' }, persisted.handler, { authorized: ['session_persistence'] })
+    await ops.createSession({ steelProfileId: 'prof-9' })
+    const persistedBody = persisted.requests[0]!.body as Record<string, unknown>
+    expect(persistedBody.profileId).toBe('prof-9')
+    expect(persistedBody.persistProfile).toBe(true)
+  })
+
+  it('browserbase fetches the live-view URL only when handoff is authorized', async () => {
+    const plain = sessionServing('bb_1')
+    const session = await browserbaseOps({ apiKey: 'k' }, plain.handler).createSession()
+    expect(session.handoffUrl).toBeNull()
+    expect(plain.requests.some((r) => r.url.includes('/debug'))).toBe(false)
+
+    const withLive = new FakeApi((req) =>
+      req.url.endsWith('/debug')
+        ? { status: 200, json: { debuggerFullscreenUrl: 'https://live.bb/session/1' } }
+        : { status: 201, json: { id: 'bb_2', connectUrl: 'wss://cdp.example/bb_2' } },
+    )
+    const ops = browserbaseOps({ apiKey: 'k' }, withLive.handler, { authorized: ['live_view_handoff'] })
+    const liveSession = await ops.createSession()
+    expect(liveSession.handoffUrl).toBe('https://live.bb/session/1')
+    expect(withLive.requests.some((r) => r.url.includes('/debug'))).toBe(true)
+  })
+
+  it('steel handoff url comes from sessionViewerUrl when authorized', async () => {
+    const plain = sessionServing('st_1')
+    const session = await steelOps({ apiKey: 'k' }, plain.handler).createSession()
+    expect(session.handoffUrl).toBeNull()
+
+    const withViewer = new FakeApi((req) =>
+      req.method === 'POST' && req.url.endsWith('/v1/sessions')
+        ? { status: 201, json: { id: 'st_2', sessionViewerUrl: 'https://app.steel.dev/session/st_2' } }
+        : { status: 200, json: {} },
+    )
+    const ops = steelOps({ apiKey: 'k' }, withViewer.handler, { authorized: ['live_view_handoff'] })
+    const liveSession = await ops.createSession()
+    expect(liveSession.handoffUrl).toBe('https://app.steel.dev/session/st_2')
+  })
+})

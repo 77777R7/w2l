@@ -19,6 +19,7 @@ import {
 } from '@w2l/http-core'
 import { DEFAULT_NETWORK_POLICY, type CrawlMode } from '@w2l/contracts'
 import type { SubjectAdapter } from '../subject.js'
+import type { VendorResumeContext } from '../vendors/transport.js'
 
 /**
  * Provider lane: hand the fetch to a third-party that fights anti-bot systems
@@ -77,6 +78,17 @@ export interface ProviderResponse {
   declaredUserAgent?: string | null
   /** What the vendor billed us, when it says. Reported, never estimated. */
   costUsd?: number | null
+  /**
+   * A live-view door for human handoff, when the policy enabled
+   * live_view_handoff and the session could produce one. Null means no door
+   * was opened — not that a door does not exist.
+   */
+  handoffUrl?: string | null
+  /**
+   * Vendor resume material for this session (context/profile/storage), when
+   * session_persistence is enabled. Null when not authorized or unsupported.
+   */
+  resumeContext?: VendorResumeContext | null
 }
 
 /**
@@ -358,6 +370,23 @@ export class ProviderSubject implements SubjectAdapter {
         lane: 'provider',
         escalations: next === null ? [] : [{ ...next, improved: null }],
         markdown: null,
+        // A captcha or login wall with an open live-view door is a handoff
+        // point: the ladder pauses here and asks a human, exactly because
+        // the refused capabilities (auto-solving) are not on the table. A
+        // bot_gate with a live view is NOT handed off — a human staring at
+        // Cloudflare is not a capability either.
+        handoff:
+          res.handoffUrl !== null && res.handoffUrl !== undefined &&
+          (v.reason === 'captcha' || v.reason === 'login_wall')
+            ? {
+                reason: v.reason === 'captcha' ? 'captcha_required' : 'login_required',
+                liveViewUrl: res.handoffUrl,
+                rationale:
+                  v.reason === 'captcha'
+                    ? 'The target demands human verification. We do not solve captchas; a human can, in the live session.'
+                    : 'The target requires an account. We do not create or share accounts; a human can sign in in the live session.',
+              }
+            : null,
       }
     }
 

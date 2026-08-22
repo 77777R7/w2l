@@ -16,6 +16,7 @@
  * holds.
  */
 
+import type { PolicyDecision } from '@w2l/http-core'
 import type { ProviderResponse, ProviderTransport } from '../subjects/provider.js'
 import { scrubSecret } from './api.js'
 import {
@@ -30,6 +31,50 @@ export interface VendorSession {
   sessionId: string
   /** CDP websocket endpoint. May embed a credential (Steel does). */
   connectUrl: string
+  /**
+   * A live view for a human to take over the session, when the policy
+   * enabled live_view_handoff and the vendor could produce one. Null means
+   * "no handoff door was opened", not "there is no door".
+   */
+  handoffUrl: string | null
+  /**
+   * What to pass to a future createSession to restore this session's state
+   * (cookies, storage, profile). Null when the vendor cannot persist or the
+   * policy did not authorize session_persistence.
+   */
+  resumeContext: VendorResumeContext | null
+}
+
+/**
+ * Vendor-specific resume material. The session store persists this per domain;
+ * the ops layer translates it to wire fields (Browserbase context.id,
+ * Steel profileId / sessionContext).
+ */
+export interface VendorResumeContext {
+  browserbaseContextId?: string
+  steelProfileId?: string
+  steelSessionContext?: SteelSessionContextLike
+}
+
+/**
+ * Structural shape of Steel's sessionContext (cookies + storage), declared
+ * here so the session store can hold it without importing vendor types.
+ */
+export interface SteelSessionContextLike {
+  cookies?: readonly SteelCookieLike[]
+  localStorage?: Record<string, Record<string, string>>
+  sessionStorage?: Record<string, Record<string, string>>
+}
+
+export interface SteelCookieLike {
+  name: string
+  value: string
+  domain?: string
+  path?: string
+  expires?: number
+  httpOnly?: boolean
+  secure?: boolean
+  sameSite?: 'Strict' | 'Lax' | 'None'
 }
 
 /** What differs between vendors: how sessions start and stop, and which
@@ -37,23 +82,38 @@ export interface VendorSession {
 export interface VendorOps {
   vendorId: string
   secrets: readonly string[]
-  createSession(): Promise<VendorSession>
+  /** The policy decision this ops instance obeys (three-layer split). */
+  decision: PolicyDecision
+  createSession(resume?: VendorResumeContext | null): Promise<VendorSession>
   releaseSession(sessionId: string): Promise<void>
 }
 
 interface LiveSession {
   sessionId: string
   browser: CdpBrowser
+  handoffUrl: string | null
+  resumeContext: VendorResumeContext | null
 }
 
 export class CdpVendorTransport implements ProviderTransport {
   private live: LiveSession | null = null
   private declaredUserAgent: string | null = null
+  private resume: VendorResumeContext | null = null
 
   constructor(
     private readonly ops: VendorOps,
     private readonly connector: CdpConnector = playwrightConnector,
   ) {}
+
+  /**
+   * Route this transport's sessions through a previously saved vendor
+   * context (cookies, profile, storage) — the mechanism by which an
+   * authorized persistent session survives across runs. Only the ops layer
+   * knows how to encode the context on the wire.
+   */
+  useResumedSession(resume: VendorResumeContext | null): void {
+    this.resume = resume
+  }
 
   /**
    * Open the session if needed and report the UA it actually runs. Costs one
@@ -92,6 +152,11 @@ export class CdpVendorTransport implements ProviderTransport {
         // Neither vendor states a per-request price in its API response, and
         // an estimate in this field would read as a measurement.
         costUsd: null,
+        // The live-view door and the resume context come from the session the
+        // fetch actually ran in — they are facts about that session, not
+        // about the transport's wishes.
+        handoffUrl: this.live?.handoffUrl ?? null,
+        resumeContext: this.live?.resumeContext ?? null,
       }
     } catch (err) {
       // The session is the likely casualty; drop it so the next fetch starts
@@ -110,7 +175,7 @@ export class CdpVendorTransport implements ProviderTransport {
 
     let session: VendorSession
     try {
-      session = await this.ops.createSession()
+      session = await this.ops.createSession(this.resume)
     } catch (err) {
       throw new Error(this.scrub(err instanceof Error ? err.message : String(err)))
     }
@@ -144,7 +209,12 @@ export class CdpVendorTransport implements ProviderTransport {
       }
     }
 
-    this.live = { sessionId: session.sessionId, browser }
+    this.live = {
+      sessionId: session.sessionId,
+      browser,
+      handoffUrl: session.handoffUrl,
+      resumeContext: session.resumeContext,
+    }
     return this.live
   }
 

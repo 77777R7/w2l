@@ -72,9 +72,6 @@ export interface GateVerdict {
  */
 const HEAD_BYTES = 65_536
 
-/** A body at or below this size carries no article — used with anomalous statuses. */
-const EMPTY_BODY_BYTES = 512
-
 /** Vendor headers that identify a bot-management product outright. */
 const VENDOR_HEADERS: readonly (readonly [name: string, reason: GateBlockReason, signal: string])[] = [
   ['cf-mitigated', 'cloudflare_challenge', 'header_cf_mitigated'],
@@ -276,10 +273,13 @@ export function classifyGate(res: GateResponse): GateVerdict | null {
     return { reason: 'bot_detected_generic', signals }
   }
 
-  // A 202 with no body is never a legitimate answer to a page GET; it is the
-  // shape a gate uses to swallow a request without admitting to it.
-  if (res.status === 202 && head.trim().length <= EMPTY_BODY_BYTES) {
-    return { reason: 'bot_detected_generic', signals: ['status_202_empty_body'] }
+  // A 202 is never a legitimate answer to a page GET. It is the shape a gate
+  // uses to swallow a request without admitting to it (Amazon returns it with
+  // an empty or near-empty document to bot-shaped clients). The body check
+  // would be redundant here: even a rendered skeleton over a 202 is the gate's
+  // page, not the target's content.
+  if (res.status === 202) {
+    return { reason: 'bot_detected_generic', signals: ['status_202'] }
   }
 
   return null
