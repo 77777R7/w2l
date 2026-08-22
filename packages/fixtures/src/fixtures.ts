@@ -737,7 +737,7 @@ const ptProduct: Fixture = {
     expectedMainTokens: { min: 40, max: 900 },
     budget: budget(2000),
     expectedStatus: 'success',
-    notes: 'Product page (spec table + description paragraphs). The table ' +
+    notes: 'Product page (spec table + description paragraphs). The product ' +
       'strategy must return the spec table without losing the description, ' +
       'and the router must see the JSON-LD Product type (title, description ' +
       'and spec cells all asserted). Floor 40 = measured extract-tf 50 / golden 43.',
@@ -1025,9 +1025,12 @@ const blockChallenge: Fixture = {
     expectedMainTokens: null,
     budget: budget(500),
     expectedStatus: 'blocked',
+    expectedBlockReason: 'cloudflare_challenge',
     notes:
       'The canonical false-success trap: HTTP 403 carrying an interstitial. Returning ' +
-      'this text as article content trips check 2 (challenge_text_returned).',
+      'this text as article content trips check 2 (challenge_text_returned). The ' +
+      '`cf-mitigated` header names the vendor outright, so the gate is classifiable ' +
+      'from headers alone.',
   },
   respond: () => ({
     status: 403,
@@ -1052,9 +1055,12 @@ const blockChallenge200: Fixture = {
     expectedMainTokens: null,
     budget: budget(500),
     expectedStatus: 'blocked',
+    expectedBlockReason: 'cloudflare_challenge',
     notes:
       'Same interstitial served with HTTP 200 — status-code-only detection fails here. ' +
-      'This is where most crawlers report a confident false success.',
+      'This is where most crawlers report a confident false success. No vendor header: ' +
+      'the gate is only nameable from the interstitial copy, which is the weaker of the ' +
+      'two attribution routes and must still land on the right reason.',
   },
   respond: () => ({
     status: 200,
@@ -1078,6 +1084,7 @@ const blockRateLimit: Fixture = {
     expectedMainTokens: null,
     budget: budget(500, 10_000, 2),
     expectedStatus: 'blocked',
+    expectedBlockReason: 'rate_limit',
     notes: 'Retry-After must be honoured rather than hammered.',
   },
   respond: () => ({
@@ -1100,9 +1107,11 @@ const blockLoginWall: Fixture = {
     expectedMainTokens: null,
     budget: budget(500),
     expectedStatus: 'blocked',
+    expectedBlockReason: 'login_wall',
     notes:
       'Tier 1b (user-supplied session) is the correct escalation target; the public ' +
-      'canary suite never exercises it.',
+      'canary suite never exercises it. Served with HTTP 200, so the wall is only ' +
+      'visible structurally: a password input plus a sign-in-to-continue heading.',
   },
   respond: () => ({
     status: 200,

@@ -75,6 +75,7 @@ export async function runBenchmark(
             markdown: null,
             truncated: false,
             truncatedAt: null,
+            compliance: null,
             evidence: {
               finalUrl: truth.target,
               httpStatus: null,
@@ -110,6 +111,13 @@ export async function runBenchmark(
       const checks = checkFalseSuccess(result, truth)
       const statusMatched = result.status === truth.expectedStatus
       const laneMatched = result.lane === truth.expectedLane
+      // Graded only where the case says which gate it is. An absent annotation
+      // must read as "not graded", not as a pass — otherwise every unannotated
+      // case would inflate the reason score.
+      const blockReasonMatched =
+        truth.expectedBlockReason == null
+          ? null
+          : result.blockReason === truth.expectedBlockReason
       const evaluatedChecks = checks.filter((c) => c.outcome !== 'unknown').map((c) => c.check)
       const budgetRespected =
         result.usage.wallMs <= truth.budget.maxWallMs &&
@@ -122,6 +130,7 @@ export async function runBenchmark(
         result,
         statusMatched,
         laneMatched,
+        blockReasonMatched,
         checks,
         evaluatedChecks,
         isFalseSuccess: isFalseSuccess(result, checks),
@@ -196,6 +205,8 @@ function scoreSubject(
     subjectId,
     caseCount: subjectOutcomes.length,
     statusMatchCount: subjectOutcomes.filter((o) => o.statusMatched).length,
+    blockReasonMatchCount: subjectOutcomes.filter((o) => o.blockReasonMatched === true).length,
+    blockReasonGradedCount: subjectOutcomes.filter((o) => o.blockReasonMatched !== null).length,
     contentfulCount: contentfulOutcomes.length,
     falseSuccessCount: falseSuccesses.length,
     falseSuccessRate:

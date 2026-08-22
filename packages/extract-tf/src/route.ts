@@ -15,7 +15,7 @@
  */
 
 import type { PageType } from '@w2l/contracts'
-import { qsa } from './dom.js'
+import { commonAncestor, qsa } from './dom.js'
 
 interface RouterCounts {
   li: number
@@ -48,11 +48,11 @@ function countAll(doc: Document): RouterCounts {
 
 export interface RouteDecision {
   type: PageType
-  /** Which strategy's result to use: 'article' | 'list' | 'table'. */
-  strategy: 'article' | 'list' | 'table'
+  /** Which strategy's result to use. */
+  strategy: 'article' | 'list' | 'table' | 'product'
 }
 
-interface PageSignals {
+export interface PageSignals {
   /** Normalized JSON-LD @type names, collected by real JSON parsing. */
   jsonLdTypes: string[]
   /** itemprop tokens (split on HTML whitespace, lower-cased). */
@@ -190,12 +190,14 @@ function hasForumSignals(s: PageSignals): boolean {
 }
 
 function routeByCounts(c: RouterCounts, s: PageSignals): RouteDecision {
-  // Semantic product signals. Falls back to the table strategy when the page
-  // carries a spec-table shape; the strategy handles "no table" itself.
+  // Semantic product signals get the dedicated PDP strategy: a product page's
+  // payload is a name/price/spec region, not the longest run of prose, and
+  // scoring by text volume on a PDP reliably picks the recommendation grid.
+  // The strategy reports null when no defensible product region exists, and
+  // the extractor falls back to the article cascade — recording the strategy
+  // that actually produced the output, not the one it hoped for.
   if (hasProductSignals(s)) {
-    return c.tableInArticle === 0 && c.table >= 1
-      ? { type: 'product', strategy: 'table' }
-      : { type: 'product', strategy: 'article' }
+    return { type: 'product', strategy: 'product' }
   }
 
   // OfferCatalog is a collection of products, not one product.
@@ -308,21 +310,6 @@ export function selectList(doc: Document): Element | null {
     }
   }
   return bestDiv
-}
-
-function commonAncestor(a: Element, b: Element): Element | null {
-  const ancestors = new Set<Element>()
-  let p: Element | null = a.parentElement
-  while (p) {
-    ancestors.add(p)
-    p = p.parentElement
-  }
-  p = b
-  while (p) {
-    if (ancestors.has(p)) return p
-    p = p.parentElement
-  }
-  return null
 }
 
 /**

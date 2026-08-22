@@ -39,6 +39,13 @@ export const FAILURE_REASON = [
   'loop_detected',
   'policy_denied',
   'provider_error',
+  /**
+   * The fetch produced content, but the identity on the wire was either
+   * contradicted (identity_mismatch) or not observable (identity_unobserved).
+   * Such a result is NEVER delivered as success — it is a clear failure,
+   * and the trace carries which of the two findings applied.
+   */
+  'identity_compromised',
   'internal_error',
 ] as const
 
