@@ -86,6 +86,22 @@ export interface SuiteScore {
   p95WallMs: number
   medianContentTokens: number | null
   budgetViolations: number
+  /** Ground-truth quality split by L0 identity, L1 HTTP, and L2 browser cases. */
+  qualityByTier: Readonly<Record<'L0' | 'L1' | 'L2', TierScore>>
+  /** Contentful outcomes whose reported execution cost is fully known. */
+  verifiedCompletionRate: number | null
+  knownCostPerContentfulPageUsd: number | null
+  escalationCount: number
+}
+
+export interface TierScore {
+  caseCount: number
+  statusMatchCount: number
+  contentfulCount: number
+  falseSuccessCount: number
+  falseSuccessRate: number | null
+  p95WallMs: number
+  knownCostPerContentfulPageUsd: number | null
 }
 
 export interface BenchmarkRun {
