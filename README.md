@@ -120,6 +120,7 @@ docs/
 - [x] Bounded multi-page workers, shared host scheduling, conditional browser settling, and runtime resource reuse
 - [x] Phase 1 Local Reliability Gate: Chromium-backed full test suite and GitHub Actions
 - [x] Phase 2 L0-L2 quality benchmark: W2L ladder, verified completion, false-success, P95, escalation, and tiered reports
+- [x] Phase 3 Benchmark Gate harness: fixed W2L run, comparator evidence, and blocked-until-real-comparators decision
 - [ ] Hosted Egress Gate: browser subresource policy enforcement and DNS-to-connection binding
 
 See [PRODUCT_PLAN_V2.md](PRODUCT_PLAN_V2.md) for the full plan.
