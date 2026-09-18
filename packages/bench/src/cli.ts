@@ -7,6 +7,9 @@ import { GoldenConverterSubject } from './subjects/goldenConverter.js'
 import { ExtractTfSubject } from './subjects/extractTf.js'
 import { ResilientHttpSubject } from './subjects/resilientHttp.js'
 import { BrowserLocalSubject } from './subjects/browserLocal.js'
+import { LadderSubject } from './subjects/ladderSubject.js'
+import { renderQualityReport } from './qualityReport.js'
+import { writeFile } from 'node:fs/promises'
 
 async function main() {
   console.log('Starting benchmark runner...\n')
@@ -28,8 +31,15 @@ async function main() {
     new ExtractTfSubject(),
     new ResilientHttpSubject(),
     new BrowserLocalSubject(),
+    new LadderSubject(),
   ]
   const result = await runBenchmark(subjects, suite.cases, ['http', 'browser_local'])
+  const outputDir = process.env.W2L_BENCHMARK_OUT_DIR ?? 'output/benchmark'
+  const { mkdir } = await import('node:fs/promises')
+  await mkdir(outputDir, { recursive: true })
+  await writeFile(`${outputDir}/benchmark-l0-l2.json`, JSON.stringify(result, null, 2) + '\n')
+  await writeFile(`${outputDir}/benchmark-l0-l2.md`, renderQualityReport(result))
+  console.log(`Reports: ${outputDir}/benchmark-l0-l2.json and ${outputDir}/benchmark-l0-l2.md`)
 
   // Print summary
   console.log('\n=== Benchmark Results ===\n')
@@ -49,6 +59,9 @@ async function main() {
       `  False success rate: ${score.falseSuccessRate !== null ? (score.falseSuccessRate * 100).toFixed(1) + '%' : 'N/A'}`,
     )
     console.log(`  Median wall time: ${score.medianWallMs}ms`)
+    console.log(`  P95 wall time: ${score.p95WallMs}ms`)
+    console.log(`  Verified completion: ${score.verifiedCompletionRate === null ? 'unknown' : (score.verifiedCompletionRate * 100).toFixed(1) + '%'}`)
+    console.log(`  Escalations: ${score.escalationCount}`)
     console.log(`  Budget violations: ${score.budgetViolations}`)
     console.log()
   }

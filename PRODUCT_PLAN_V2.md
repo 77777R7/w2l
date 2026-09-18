@@ -174,6 +174,8 @@ MCP server、Firecrawl 迁移垫片、benchmark 报告（对比 Firecrawl 自托
 9. **Dogfood + Design Partners**：用 W2L 跑自己的市场研究任务，再找 3–5 个客户跑真实、可重复的字段级任务。
 10. **仍不做**：`map`、Python SDK、语义压缩、session 池、默认 headed、SEO 或其他垂直分支，直到 Gate 通过并由真实重复任务决定分支。
 
+**Phase 2 状态（2026-09-19）**：已加入 `w2l-ladder` benchmark subject，并按 L0 身份/策略完整性、L1 HTTP、L2 Browser 输出 verified completion、false-success rate、P95 wall time、升级次数和成本可观测性。`npm run bench` 生成 `output/benchmark/benchmark-l0-l2.json` 与 `.md`；原始 JSON 不提交，Markdown 摘要可作为运行证据归档。当前仍是 W2L 内部 fixture 对比，不等同于 Benchmark Gate，尚未加入自托管 Firecrawl/Crawl4AI。
+
 ### 继续/终止门槛（沿用 research 文档 §7 并加两条）
 
 原有六条不变（10/20 完成首抓、5 人两周内复跑、5 人迁移真实任务、3 人明确付费意愿、benchmark 至少一项明显领先、失败可分类解释），新增：

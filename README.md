@@ -118,7 +118,9 @@ docs/
 - [x] Firecrawl `/scrape` `/crawl` migration shim (snapshot 2026-09-18; not a compatibility layer)
 - [x] Task-level ladder accounting, preserved per-channel attempts, and honest unknown cost/evidence fields
 - [x] Bounded multi-page workers, shared host scheduling, conditional browser settling, and runtime resource reuse
-- [ ] Phase 1 reliability gate: recovery edge cases, production hash/loop semantics, empty-result contract, browser egress isolation, and CI
+- [x] Phase 1 Local Reliability Gate: Chromium-backed full test suite and GitHub Actions
+- [x] Phase 2 L0-L2 quality benchmark: W2L ladder, verified completion, false-success, P95, escalation, and tiered reports
+- [ ] Hosted Egress Gate: browser subresource policy enforcement and DNS-to-connection binding
 
 See [PRODUCT_PLAN_V2.md](PRODUCT_PLAN_V2.md) for the full plan.
 

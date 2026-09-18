@@ -199,6 +199,16 @@ function scoreSubject(
   const medianContentTokens =
     tokenCounts.length > 0 ? tokenCounts[Math.floor(tokenCounts.length / 2)]! : null
 
+  const qualityByTier = {
+    L0: identityTierScore(subjectOutcomes),
+    L1: tierScore(subjectOutcomes, cases, 'L1'),
+    L2: tierScore(subjectOutcomes, cases, 'L2'),
+  } as const
+  const knownCostOutcomes = subjectOutcomes.filter((o) => CONTENTFUL_STATUS.has(o.result.status) && o.result.usage.externalCostUsd !== null)
+  const contentfulCost = knownCostOutcomes.reduce((sum, o) => sum + (o.result.usage.externalCostUsd ?? 0), 0)
+  const verifiedContentful = contentfulOutcomes.filter((outcome) => !outcome.isFalseSuccess).length
+  const escalationCount = subjectOutcomes.reduce((sum, o) => sum + o.result.escalations.length, 0)
+
   return {
     suite: {
       name: 'fixtures',
@@ -222,7 +232,56 @@ function scoreSubject(
     p95WallMs,
     medianContentTokens,
     budgetViolations: subjectOutcomes.filter((o) => !o.budgetRespected).length,
+    qualityByTier,
+    verifiedCompletionRate: subjectOutcomes.length > 0 ? verifiedContentful / subjectOutcomes.length : null,
+    knownCostPerContentfulPageUsd: knownCostOutcomes.length === verifiedContentful && verifiedContentful > 0 ? contentfulCost / verifiedContentful : null,
+    escalationCount,
   }
+}
+
+function tierScore(
+  outcomes: readonly CaseOutcome[],
+  cases: readonly GroundTruth[],
+  tier: 'L0' | 'L1' | 'L2',
+): import('@w2l/contracts').TierScore {
+  const tierCases = new Set(cases.filter((truth) => tierFor(truth) === tier).map((truth) => truth.id))
+  const rows = outcomes.filter((outcome) => tierCases.has(outcome.caseId))
+  const contentful = rows.filter((row) => CONTENTFUL_STATUS.has(row.result.status))
+  const falseSuccesses = rows.filter((row) => row.isFalseSuccess)
+  const knownCosts = contentful.filter((row) => row.result.usage.externalCostUsd !== null)
+  const walls = rows.map((row) => row.result.usage.wallMs).sort((a, b) => a - b)
+  const knownCost = knownCosts.reduce((sum, row) => sum + (row.result.usage.externalCostUsd ?? 0), 0)
+  return {
+    caseCount: rows.length,
+    statusMatchCount: rows.filter((row) => row.statusMatched).length,
+    contentfulCount: contentful.length,
+    falseSuccessCount: falseSuccesses.length,
+    falseSuccessRate: contentful.length > 0 ? falseSuccesses.length / contentful.length : null,
+    p95WallMs: walls.length > 0 ? walls[Math.min(walls.length - 1, Math.floor(walls.length * 0.95))]! : 0,
+    knownCostPerContentfulPageUsd: knownCosts.length === contentful.length && contentful.length > 0 ? knownCost / contentful.length : null,
+  }
+}
+
+function identityTierScore(outcomes: readonly CaseOutcome[]): import('@w2l/contracts').TierScore {
+  const violations = outcomes.filter((outcome) => outcome.result.trace.some((event) => event.event === 'identity_mismatch' || event.event === 'identity_unobserved'))
+  const contentful = outcomes.filter((outcome) => CONTENTFUL_STATUS.has(outcome.result.status))
+  const falseSuccesses = outcomes.filter((outcome) => outcome.isFalseSuccess)
+  const walls = outcomes.map((outcome) => outcome.result.usage.wallMs).sort((a, b) => a - b)
+  return {
+    caseCount: outcomes.length,
+    statusMatchCount: outcomes.length - violations.length,
+    contentfulCount: contentful.length,
+    falseSuccessCount: falseSuccesses.length,
+    falseSuccessRate: contentful.length > 0 ? falseSuccesses.length / contentful.length : null,
+    p95WallMs: walls.length > 0 ? walls[Math.min(walls.length - 1, Math.floor(walls.length * 0.95))]! : 0,
+    knownCostPerContentfulPageUsd: null,
+  }
+}
+
+function tierFor(truth: GroundTruth): 'L0' | 'L1' | 'L2' {
+  if (truth.category === 'identity' || truth.category === 'policy') return 'L0'
+  if (truth.category === 'spa' || truth.expectedLane === 'browser_local') return 'L2'
+  return 'L1'
 }
 
 async function captureEnvironment(): Promise<RunEnvironment> {
