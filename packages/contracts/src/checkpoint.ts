@@ -9,7 +9,7 @@
  */
 
 import type { CrawlMode } from './compliance.js'
-import type { FetchResult } from './result.js'
+import type { FetchResult, LadderRunAudit } from './result.js'
 import type { BudgetKind, Lane, ResultStatus } from './status.js'
 
 export const TASK_STATUS = ['pending', 'running', 'paused', 'completed', 'failed', 'cancelled'] as const
@@ -74,7 +74,7 @@ export interface Attempt {
   endedAt: string | null
   pagesFetched: number
   wallMs: number
-  costUsd: number
+  costUsd: number | null
   contentTokens: number
   /** Which budget dimension stopped this attempt, if any. */
   budgetExceeded: BudgetKind | null
@@ -100,6 +100,7 @@ export interface StepRecord {
   contentHash: string | null
   cached: boolean
   result: FetchResult | null
+  audit?: LadderRunAudit
   createdAt: string
   updatedAt: string
 }

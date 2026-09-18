@@ -23,6 +23,7 @@ import {
   type ScrapeRequest,
   type StepRecord,
   type Task,
+  type LadderRunAudit,
 } from '@w2l/contracts'
 import type { CrawlPolicy } from '@w2l/http-core'
 import { CrawlOrchestrator, crawlReportFromStore, SqliteTaskStore } from '@w2l/runtime'
@@ -33,7 +34,7 @@ export interface CrawlWithSteps {
 }
 
 export interface ApiEngine {
-  scrape(req: ScrapeRequest): Promise<FetchResult>
+  scrape(req: ScrapeRequest): Promise<FetchResult & LadderRunAudit>
   startCrawl(req: CrawlStartRequest): Promise<CrawlAccepted>
   getCrawl(taskId: string): Promise<CrawlReport | null>
   getCrawlWithSteps(taskId: string): Promise<CrawlWithSteps | null>
@@ -87,7 +88,12 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
       const runner = new LadderRunner(channels, policy, new MemoryRoutingHistory())
       try {
         const run = await runner.run(req.url)
-        return run.result
+        return {
+          ...run.result,
+          channelsTried: run.channelsTried,
+          ladderTrace: run.ladderTrace,
+          summary: run.summary,
+        }
       } finally {
         await Promise.all(channels.map((channel) => channel.close?.().catch(() => {})))
       }

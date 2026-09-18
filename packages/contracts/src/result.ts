@@ -14,7 +14,7 @@ export interface Escalation {
 export interface ResourceUsage {
   wallMs: number
   /** Bytes received on the wire (compressed). */
-  bytesWire: number
+  bytesWire: number | null
   /** Bytes after decompression. Guarded by a decompressed-size cap. */
   bytesDecompressed: number
   requestCount: number
@@ -47,6 +47,31 @@ export interface TraceEvent {
   lane: Lane
   event: string
   detail?: Record<string, unknown>
+}
+
+export interface LadderAttempt {
+  channel: string
+  result: FetchResult
+}
+
+export interface LadderExecutionSummary {
+  channelsTried: readonly string[]
+  attempts: readonly LadderAttempt[]
+  wallMs: number
+  browserMs: number
+  bytesWire: number | null
+  bytesDecompressed: number
+  requestCount: number
+  attemptCount: number
+  contentTokens: number | null
+  externalCostUsd: number | null
+  artifacts: readonly string[]
+}
+
+export interface LadderRunAudit {
+  channelsTried: readonly string[]
+  ladderTrace: readonly { at: number; event: string; channel: string; detail: Record<string, unknown> }[]
+  summary: LadderExecutionSummary
 }
 
 /**

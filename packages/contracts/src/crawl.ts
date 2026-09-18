@@ -7,12 +7,13 @@
 
 import type { CrawlBudget, TaskStatus } from './checkpoint.js'
 import type { CrawlMode } from './compliance.js'
-import type { FetchResult } from './result.js'
+import type { FetchResult, LadderRunAudit } from './result.js'
 import type { BudgetKind } from './status.js'
 
 export interface ScrapeOutcome {
   result: FetchResult
   links: readonly string[]
+  audit?: LadderRunAudit
 }
 
 /**
@@ -45,6 +46,9 @@ export interface CrawlReport {
   cachedPages: number
   budgetExceeded: BudgetKind | null
   loopDetected: boolean
+  wallMs: number
+  costUsd: number | null
+  contentTokens: number | null
 }
 
 export const DEFAULT_CRAWL_SPEC: Omit<CrawlSpec, 'seedUrl' | 'taskDir'> = {

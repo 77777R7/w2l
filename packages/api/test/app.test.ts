@@ -52,6 +52,9 @@ describe('REST /v1/scrape and /v1/crawl', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.status).toBe('success')
+    expect(body.channelsTried).toEqual(['http'])
+    expect(body.ladderTrace).toEqual(expect.any(Array))
+    expect(body.summary.wallMs).toBeGreaterThanOrEqual(0)
     expect(body.markdown).toContain('Harbour lantern catalog')
     expect(body.links).toEqual(
       expect.arrayContaining([

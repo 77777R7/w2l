@@ -16,7 +16,7 @@
  * content is caught by the false-success checks upstream.
  */
 
-import type { Escalation, FetchResult, HandoffRequest, IdentityBundle } from '@w2l/contracts'
+import type { Escalation, FetchResult, HandoffRequest, IdentityBundle, LadderExecutionSummary } from '@w2l/contracts'
 import { CONTENTFUL_STATUS, identityBundleIssues } from '@w2l/contracts'
 import {
   classifyFetchFailure,
@@ -75,6 +75,30 @@ export interface LadderRunResult {
    * The two are delivered side by side; nothing here claims they are one.
    */
   ladderTrace: readonly { at: number; event: string; channel: string; detail: Record<string, unknown> }[]
+  summary: LadderExecutionSummary
+}
+
+function summarize(channelsTried: readonly string[], attempts: readonly { channel: string; result: FetchResult }[]): LadderExecutionSummary {
+  const costKnown = attempts.every(({ result }) => result.usage.externalCostUsd !== null)
+  return {
+    channelsTried,
+    attempts,
+    wallMs: attempts.reduce((sum, item) => sum + item.result.usage.wallMs, 0),
+    browserMs: attempts.reduce((sum, item) => sum + item.result.usage.browserMs, 0),
+    bytesWire: attempts.every(({ result }) => result.usage.bytesWire !== null)
+      ? attempts.reduce((sum, item) => sum + (item.result.usage.bytesWire ?? 0), 0)
+      : null,
+    bytesDecompressed: attempts.reduce((sum, item) => sum + item.result.usage.bytesDecompressed, 0),
+    requestCount: attempts.reduce((sum, item) => sum + item.result.usage.requestCount, 0),
+    attemptCount: attempts.reduce((sum, item) => sum + item.result.usage.attemptCount, 0),
+    contentTokens: attempts.every(({ result }) => result.usage.contentTokens !== null)
+      ? attempts.reduce((sum, item) => sum + (item.result.usage.contentTokens ?? 0), 0)
+      : null,
+    externalCostUsd: costKnown
+      ? attempts.reduce((sum, item) => sum + (item.result.usage.externalCostUsd ?? 0), 0)
+      : null,
+    artifacts: attempts.flatMap((item) => item.result.evidence.artifacts),
+  }
 }
 
 /**
@@ -156,6 +180,14 @@ export class LadderRunner {
     const decision = evaluateGovernance(url, this.policy)
     const channelsTried: string[] = []
     const ladderTrace: LadderRunResult['ladderTrace'][number][] = []
+    const attempts: { channel: string; result: FetchResult }[] = []
+    const finish = (result: FetchResult, handoffRequested: boolean): LadderRunResult => ({
+      result,
+      channelsTried,
+      handoffRequested,
+      ladderTrace,
+      summary: summarize(channelsTried, attempts),
+    })
 
     // Sessions exist for authed mode ONLY. standard/research never load or
     // use login state — a session in a public run is a leak of the user's
@@ -186,12 +218,7 @@ export class LadderRunner {
         channel: '—',
         detail: { reason: decision.reason ?? 'governance refused this url' },
       })
-      return {
-        result: this.governanceRefusal(url, decision.reason ?? 'governance refused this url'),
-        channelsTried,
-        handoffRequested: false,
-        ladderTrace,
-      }
+      return finish(this.governanceRefusal(url, decision.reason ?? 'governance refused this url'), false)
     }
 
     const permitted = new Set(decision.permittedChannels)
@@ -222,15 +249,11 @@ export class LadderRunner {
               issues: identityBlock.trace[0]?.detail?.issues ?? [],
             },
           })
-          return {
-            result: identityBlock,
-            channelsTried,
-            handoffRequested: false,
-            ladderTrace,
-          }
+          return finish(identityBlock, false)
         }
         channelsTried.push(channel.id)
         const result = await channel.fetch(url, effectiveSession)
+        attempts.push({ channel: channel.id, result })
       last = result
 
       // Vendor attribution happens for every attempt, successful or not —
@@ -344,12 +367,7 @@ export class LadderRunner {
         const withImprovement = qualityEscalation === null
           ? result.escalations
           : [...result.escalations, { ...qualityEscalation, improved: true }]
-        return {
-          result: { ...result, escalations: withImprovement },
-          channelsTried,
-          handoffRequested: false,
-          ladderTrace,
-        }
+        return finish({ ...result, escalations: withImprovement }, false)
       }
 
       if (result.handoff) {
@@ -364,7 +382,7 @@ export class LadderRunner {
           })
           continue
         }
-        return await this.attemptHandoff(url, result, channelsTried, channel, effectiveSession, ladderTrace, best)
+        return await this.attemptHandoff(url, result, channelsTried, channel, effectiveSession, ladderTrace, best, attempts)
       }
 
       const cls = classifyFetchFailure(result)
@@ -388,14 +406,14 @@ export class LadderRunner {
         // content, that content is still the answer — the failure does not
         // erase it. Otherwise stop and report honestly.
         if (best !== null) break
-        return { result, channelsTried, handoffRequested: false, ladderTrace }
+        return finish(result, false)
       }
 
       if (cls !== null && !LADDER_CONTINUES_FAILURE_CLASS.has(cls) && !subjectAsked) {
         // rate_limited — a class that deliberately stops the ladder even
         // though it is "classified". Nothing higher answers a rate limit.
         if (best !== null) break
-        return { result, channelsTried, handoffRequested: false, ladderTrace }
+        return finish(result, false)
       }
 
       // cls is bot_gate / captcha_required / login_required / geo_blocked
@@ -427,21 +445,11 @@ export class LadderRunner {
         channel: bestChannel.id,
         detail: { channel: bestChannel.id, vendorId: bestChannel.vendorId ?? null, size: bestSize },
       })
-      return {
-        result: { ...best, escalations: finalEscalations },
-        channelsTried,
-        handoffRequested: false,
-        ladderTrace,
-      }
+      return finish({ ...best, escalations: finalEscalations }, false)
     }
 
     const final = best ?? last ?? this.governanceRefusal(url, 'no permitted channel was configured')
-    return {
-      result: sanitizeResult(final),
-      channelsTried,
-      handoffRequested: false,
-      ladderTrace,
-    }
+    return finish(sanitizeResult(final), false)
   }
 
   // -------------------------------------------------------------------------
@@ -485,6 +493,7 @@ export class LadderRunner {
     session: SessionSnapshot | null,
     ladderTrace: LadderRunResult['ladderTrace'][number][],
     best: FetchResult | null,
+    attempts: { channel: string; result: FetchResult }[],
   ): Promise<LadderRunResult> {
     ladderTrace.push({
       at: result.usage.wallMs,
@@ -525,11 +534,11 @@ export class LadderRunner {
 
     if (this.handoff === null) {
       // No human configured: report the pause point rather than loop forever.
-      return { result: sanitizeResult(best ?? result), channelsTried, handoffRequested: true, ladderTrace }
+      return { result: sanitizeResult(best ?? result), channelsTried, handoffRequested: true, ladderTrace, summary: summarize(channelsTried, attempts) }
     }
     const snapshot = await this.handoff.takeOver(url, result.handoff!)
     if (snapshot === null) {
-      return { result: sanitizeResult(best ?? result), channelsTried, handoffRequested: true, ladderTrace }
+      return { result: sanitizeResult(best ?? result), channelsTried, handoffRequested: true, ladderTrace, summary: summarize(channelsTried, attempts) }
     }
     // Persist the human's session so the NEXT run — including an independent
     // process — resumes with it instead of asking again.
@@ -561,9 +570,11 @@ export class LadderRunner {
         channelsTried: [...channelsTried, `${channel.id}(retry)`],
         handoffRequested: false,
         ladderTrace,
+        summary: summarize([...channelsTried, `${channel.id}(retry)`], attempts),
       }
     }
     const retry = await channel.fetch(url, snapshot)
+    attempts.push({ channel: `${channel.id}(retry)`, result: retry })
     ladderTrace.push({
       at: retry.usage.wallMs,
       event: 'ladder_step',
@@ -580,19 +591,11 @@ export class LadderRunner {
         channel: `${channel.id}(retry)`,
         detail: { status: retry.status },
       })
-      return {
-        result: sanitizeResult(best ?? retry),
-        channelsTried: [...channelsTried, `${channel.id}(retry)`],
-        handoffRequested: false,
-        ladderTrace,
-      }
+      const tried = [...channelsTried, `${channel.id}(retry)`]
+      return { result: sanitizeResult(best ?? retry), channelsTried: tried, handoffRequested: false, ladderTrace, summary: summarize(tried, attempts) }
     }
-    return {
-      result: sanitizeResult(retry),
-      channelsTried: [...channelsTried, `${channel.id}(retry)`],
-      handoffRequested: false,
-      ladderTrace,
-    }
+    const tried = [...channelsTried, `${channel.id}(retry)`]
+    return { result: sanitizeResult(retry), channelsTried: tried, handoffRequested: false, ladderTrace, summary: summarize(tried, attempts) }
   }
 
   private governanceRefusal(url: string, reason: string): FetchResult {
