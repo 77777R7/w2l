@@ -65,7 +65,7 @@ export class ResilientHttpSubject implements SubjectAdapter {
     }
   }
 
-  async fetch(url: string): Promise<FetchResult> {
+  async fetch(url: string, _deadlineMs?: number, signal?: AbortSignal): Promise<FetchResult> {
     const start = Date.now()
     const trace: TraceEvent[] = []
     const honest = recordHttpIdentity(this.prepared, trace, 0)
@@ -98,6 +98,7 @@ export class ResilientHttpSubject implements SubjectAdapter {
       }
     }
 
+    if (signal?.aborted) return this.denied(url, start, trace, 'timeout')
     const out = await resilientFetch(url, this.fetcher, {
       maxRedirects: this.networkPolicy.maxRedirects,
       assertUrl: (target) => assertSafeUrl(target, this.networkPolicy),
@@ -286,7 +287,7 @@ export class ResilientHttpSubject implements SubjectAdapter {
     }
   }
 
-  private denied(url: string, start: number, trace: TraceEvent[], failureReason: 'identity_compromised' | 'policy_denied'): FetchResult {
+  private denied(url: string, start: number, trace: TraceEvent[], failureReason: FetchResult['failureReason']): FetchResult {
     const wallMs = Date.now() - start
     return {
       requestedUrl: url,

@@ -1,0 +1,26 @@
+name: Local Reliability Gate
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run typecheck
+      - run: npm test
+      - name: Check for orphaned Chromium processes
+        run: |
+          if pgrep -af '[m]s-playwright|[c]hromium_headless_shell|[c]hrome-headless-shell' >/tmp/w2l-chromium-processes.txt; then
+            cat /tmp/w2l-chromium-processes.txt
+            exit 1
+          fi

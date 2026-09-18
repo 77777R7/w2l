@@ -15,7 +15,8 @@ export class BareHttpSubject implements SubjectAdapter {
     hosting: 'self_hosted' as const,
   }
 
-  async fetch(url: string): Promise<FetchResult> {
+  async fetch(url: string, _deadlineMs?: number, signal?: AbortSignal): Promise<FetchResult> {
+    if (signal?.aborted) throw new Error('aborted')
     const start = Date.now()
     try {
       const response = await request(url, {

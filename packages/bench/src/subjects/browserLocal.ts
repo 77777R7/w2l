@@ -113,7 +113,8 @@ export class BrowserLocalSubject implements SubjectAdapter {
     return this.chain.toLedger()
   }
 
-  async fetch(url: string): Promise<FetchResult> {
+  async fetch(url: string, _deadlineMs?: number, signal?: AbortSignal): Promise<FetchResult> {
+    if (signal?.aborted) return this.denied(url, Date.now(), [], new Error('aborted'))
     const start = Date.now()
     const trace: TraceEvent[] = [{ at: 0, lane: 'browser_local', event: 'browser_start' }]
     try {
@@ -121,7 +122,8 @@ export class BrowserLocalSubject implements SubjectAdapter {
     } catch (err) {
       return this.denied(url, start, trace, err)
     }
-    const browser = await this.getBrowser()
+      const browser = await this.getBrowser()
+      if (signal?.aborted) return this.denied(url, Date.now(), [], new Error('aborted'))
 
     let context
     let page
@@ -530,11 +532,15 @@ export class BrowserLocalSubject implements SubjectAdapter {
     failureReason: FetchResult['failureReason'] = 'policy_denied',
   ): FetchResult {
     const wallMs = Date.now() - start
-    const reason = err instanceof Error && err.name === 'BodyTooLargeError' ? 'body_too_large' : failureReason
+    const reason = err instanceof Error && err.message === 'aborted'
+      ? 'timeout'
+      : err instanceof Error && err.name === 'BodyTooLargeError'
+        ? 'body_too_large'
+        : failureReason
     trace.push({
       at: wallMs,
       lane: 'browser_local',
-      event: reason === 'body_too_large' ? 'body_too_large' : 'ssrf_denied',
+      event: reason === 'body_too_large' ? 'body_too_large' : reason === 'timeout' ? 'cancelled' : 'ssrf_denied',
       detail: { error: err instanceof Error ? err.message.slice(0, 200) : String(err) },
     })
     return {

@@ -109,6 +109,7 @@ describe('w2l-live-compare resource handling', () => {
     expect(teardowns.filter((t) => t === 'teardown-1')).toHaveLength(3)
   })
 
+
   it('a skipped vendor arm (no key, no override) is reported as SKIPPED, not silent', async () => {
     const teardowns: string[] = []
     const { perUrl } = await compareChannels(['https://a.example/1'], {

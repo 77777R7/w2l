@@ -38,6 +38,7 @@ export interface RunOptions {
   interCaseDelayMs?: number
   /** Suite identity when cases come from outside the fixture server. */
   suiteMeta?: SuiteMeta
+  caseTimeoutMs?: number
 }
 
 export async function runBenchmark(
@@ -48,7 +49,7 @@ export async function runBenchmark(
 ): Promise<BenchmarkRun> {
   const env = await captureEnvironment()
   const outcomes: CaseOutcome[] = []
-  const { interCaseDelayMs = 0, suiteMeta } = options
+  const { interCaseDelayMs = 0, suiteMeta, caseTimeoutMs = 60_000 } = options
 
   for (const subject of subjects) {
     console.log(`\nRunning subject: ${subject.meta.displayName}`)
@@ -62,8 +63,10 @@ export async function runBenchmark(
       // pipeline. The timer must be cleared when the case completes normally —
       // a resolved-but-uncleared timeout keeps the process alive.
       let timer: ReturnType<typeof setTimeout> | undefined
+      const controller = new AbortController()
       const timeoutPromise = new Promise<FetchResult>((resolve) => {
         timer = setTimeout(() => {
+          controller.abort()
           resolve({
             requestedUrl: truth.target,
             status: 'budget_exceeded',
@@ -99,12 +102,12 @@ export async function runBenchmark(
               { at: 60_000, lane: 'http', event: 'timeout', detail: { reason: 'case_timeout_60s' } },
             ],
           })
-        }, 60_000) // 60 second timeout per case
+        }, caseTimeoutMs)
       })
 
       let result: FetchResult
       try {
-        result = await Promise.race([subject.fetch(truth.target), timeoutPromise])
+        result = await Promise.race([subject.fetch(truth.target, caseTimeoutMs, controller.signal), timeoutPromise])
       } finally {
         clearTimeout(timer)
       }
