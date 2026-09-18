@@ -10,6 +10,7 @@
     { "path": "../fixtures" },
     { "path": "../extract-tf" },
     { "path": "../http-core" },
-    { "path": "../canary" }
+    { "path": "../canary" },
+    { "path": "../runtime" }
   ]
 }

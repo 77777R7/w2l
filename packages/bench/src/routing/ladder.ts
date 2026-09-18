@@ -113,6 +113,7 @@ function sanitizeResult(result: FetchResult): FetchResult {
       blockReason: null,
       budgetExceeded: null,
       markdown: null,
+      links: [],
       usage: { ...result.usage, contentTokens: null },
     }
   }

@@ -1,5 +1,5 @@
 import { estimateTokens, vendorIdentityIssues, type FetchResult, type TraceEvent } from '@w2l/contracts'
-import { extractTf, htmlToMarkdown } from '@w2l/extract-tf'
+import { collectLinks, extractTf, htmlToMarkdown } from '@w2l/extract-tf'
 import {
   classifyGate,
   escalationForBlock,
@@ -431,6 +431,7 @@ export class ProviderSubject implements SubjectAdapter {
     }
 
     const extracted = extractTf.extract(res.body)
+    const links = collectLinks(res.body, res.finalUrl)
     trace.push({
       at: wallMs,
       lane: 'provider',
@@ -440,6 +441,7 @@ export class ProviderSubject implements SubjectAdapter {
         strategy: extracted.strategy,
         confidence: extracted.confidence,
         escalate: extracted.escalate,
+        linkCount: links.length,
       },
     })
 
@@ -488,6 +490,7 @@ export class ProviderSubject implements SubjectAdapter {
       lane: 'provider',
       escalations: [],
       markdown,
+      links,
       usage: { ...base.usage, contentTokens: estimateTokens(markdown) },
     }
   }

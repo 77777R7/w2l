@@ -1,6 +1,6 @@
 {
   "name": "@w2l/bench",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
@@ -28,6 +28,7 @@
     "@w2l/extract-tf": "*",
     "@w2l/fixtures": "*",
     "@w2l/http-core": "*",
+    "@w2l/runtime": "*",
     "playwright": "^1.62.1",
     "undici": "^7.4.0"
   }
