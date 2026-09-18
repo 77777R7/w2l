@@ -5,8 +5,9 @@
  * Resume restores frontier membership from prior steps. Default is refetch;
  * --use-cached is the only skip-fetch path.
  *
- * Loop stop this slice: the same rawBodySha256 on two distinct canonical
- * URLs. DOM-fingerprint N is out of scope.
+ * Same rawBodySha256 on two distinct canonical URLs is duplicate content,
+ * not a crawl loop. The duplicate is recorded and skipped; the crawl
+ * continues. DOM-fingerprint N / pagination stall is out of this slice.
  */
 
 import {
@@ -79,7 +80,6 @@ export class CrawlOrchestrator {
     let costUsd = 0
     let contentTokens = 0
     let budgetExceeded: BudgetKind | null = null
-    let loopDetected = false
     let failed: unknown = null
     let task: Task | undefined
     let attempt: Attempt | undefined
@@ -145,13 +145,13 @@ export class CrawlOrchestrator {
           if (hash !== null && CONTENTFUL_STATUS.has(result.status)) {
             const prior = seenHash.get(hash)
             if (prior !== undefined && prior !== item.canonicalUrl) {
-              result = loopResult(item.url, result)
+              result = duplicateResult(item.url, result, prior)
               links = []
-              loopDetected = true
             } else {
               seenHash.set(hash, item.canonicalUrl)
             }
           }
+          const contentHash = result.evidence.rawBodySha256
 
           const at = new Date(this.clock.now()).toISOString()
           const step: StepRecord = {
@@ -163,7 +163,7 @@ export class CrawlOrchestrator {
             depth: item.depth,
             status: stepStatusFromResult(result.status),
             lane: result.lane,
-            contentHash: hash,
+            contentHash,
             cached: cachedPage,
             result,
             createdAt: at,
@@ -173,14 +173,14 @@ export class CrawlOrchestrator {
 
           if (cachedPage) cachedPages += 1
           else pagesFetched += 1
-          costUsd += result.usage.externalCostUsd ?? 0
-          contentTokens += result.usage.contentTokens ?? 0
+          if (result.status !== 'duplicate') {
+            costUsd += result.usage.externalCostUsd ?? 0
+            contentTokens += result.usage.contentTokens ?? 0
+          }
 
           if (CONTENTFUL_STATUS.has(result.status)) {
             for (const href of links) frontier.enqueue(href, item.depth + 1, item.canonicalUrl)
           }
-
-          if (loopDetected) break
         } finally {
           frontier.release(item.canonicalUrl)
         }
@@ -197,7 +197,7 @@ export class CrawlOrchestrator {
     }
 
     const endedAt = new Date(this.clock.now()).toISOString()
-    const status = failed !== null || loopDetected ? 'failed' : 'completed'
+    const status = failed !== null ? 'failed' : 'completed'
     const finishedAttempt: Attempt = {
       ...attempt,
       status,
@@ -221,7 +221,7 @@ export class CrawlOrchestrator {
     }
     if (failed !== null) throw failed
 
-    return reportFromTaskAttempt(finished, finishedAttempt, cachedPages, loopDetected)
+    return reportFromTaskAttempt(finished, finishedAttempt, cachedPages)
   }
 
   private async openRun(spec: CrawlSpec, startedAt: string): Promise<{ task: Task; attempt: Attempt }> {
@@ -315,16 +315,34 @@ function newAttempt(id: string, taskId: string, startedAt: string): Attempt {
   }
 }
 
-function loopResult(url: string, prior: FetchResult): FetchResult {
+function duplicateResult(url: string, prior: FetchResult, firstCanonicalUrl: string): FetchResult {
   return {
     ...prior,
     requestedUrl: url,
-    status: 'failed',
-    failureReason: 'loop_detected',
+    status: 'duplicate',
+    failureReason: null,
     blockReason: null,
     budgetExceeded: null,
     markdown: null,
     links: [],
-    usage: { ...EMPTY_USAGE, wallMs: prior.usage.wallMs, requestCount: prior.usage.requestCount, attemptCount: prior.usage.attemptCount },
+    usage: {
+      ...EMPTY_USAGE,
+      wallMs: prior.usage.wallMs,
+      bytesWire: prior.usage.bytesWire,
+      bytesDecompressed: prior.usage.bytesDecompressed,
+      requestCount: prior.usage.requestCount,
+      attemptCount: prior.usage.attemptCount,
+      browserMs: prior.usage.browserMs,
+      externalCostUsd: prior.usage.externalCostUsd,
+    },
+    trace: [
+      ...prior.trace,
+      {
+        at: prior.usage.wallMs,
+        lane: prior.lane,
+        event: 'duplicate_content',
+        detail: { firstCanonicalUrl, rawBodySha256: prior.evidence.rawBodySha256 },
+      },
+    ],
   }
 }

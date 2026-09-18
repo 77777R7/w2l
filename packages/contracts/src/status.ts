@@ -13,6 +13,7 @@ export const RESULT_STATUS = [
   'failed',
   'cancelled',
   'budget_exceeded',
+  'duplicate',
 ] as const
 
 export type ResultStatus = (typeof RESULT_STATUS)[number]

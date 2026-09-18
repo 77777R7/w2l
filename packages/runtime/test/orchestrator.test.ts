@@ -164,7 +164,7 @@ describe('CrawlOrchestrator with a fake scrape atom', () => {
     expect(twoPage.fetches).toEqual([SEED])
   })
 
-  it('reports loop_detected when two distinct URLs share a content hash', async () => {
+  it('marks a later URL with the same body as duplicate and keeps crawling', async () => {
     const atom = new FakeAtom(
       new Map([
         [SEED, outcome(SEED, [ITEM_A, ITEM_B], 'same-body')],
@@ -174,14 +174,19 @@ describe('CrawlOrchestrator with a fake scrape atom', () => {
     )
     const { store, go } = runWith(atom, { seedUrl: SEED, taskDir: '/tmp/w2l-crawl' })
     const report = await go()
-    expect(report.loopDetected).toBe(true)
-    expect(report.status).toBe('failed')
-    expect(atom.fetches).toEqual([SEED, ITEM_A])
+    expect(report.loopDetected).toBe(false)
+    expect(report.status).toBe('completed')
+    expect(atom.fetches).toEqual([SEED, ITEM_A, ITEM_B])
     const steps = await store.listSteps(report.taskId, report.attemptId)
-    const looped = steps.find((s) => s.canonicalUrl === ITEM_A)
-    expect(looped?.status).toBe('failed')
-    expect(looped?.result?.failureReason).toBe('loop_detected')
-    expect(looped?.result?.markdown).toBeNull()
+    const dup = steps.find((s) => s.canonicalUrl === ITEM_A)
+    expect(dup?.status).toBe('duplicate')
+    expect(dup?.result?.status).toBe('duplicate')
+    expect(dup?.contentHash).toBe('same-body')
+    expect(dup?.result?.failureReason).toBeNull()
+    expect(dup?.result?.markdown).toBeNull()
+    expect(dup?.result?.trace.some((t) => t.event === 'duplicate_content')).toBe(true)
+    const other = steps.find((s) => s.canonicalUrl === ITEM_B)
+    expect(other?.status).toBe('success')
   })
 
   it('restores the queue on resume and refetches by default', async () => {

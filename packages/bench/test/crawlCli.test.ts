@@ -134,6 +134,24 @@ describe('w2l crawl against the fixture graph', () => {
     }
   })
 
+  it('fills rawBodySha256 on the HTTP arm for identical fixture bodies', async () => {
+    const host = new URL(server.url).hostname
+    const policy = { mode: 'standard' as const, allowlistedDomains: [host] }
+    const channels = buildChannels('standard', {
+      localSubjects: { browser_local: { fetch: async () => { throw new Error('CI crawl must stay on HTTP; browser arm was reached') } } },
+    })
+    const runner = new LadderRunner(channels, policy, new MemoryRoutingHistory())
+    const atom = new LadderScrapeAtom(runner)
+    try {
+      const a = await atom.scrape(`${server.url}/duplicate/a`)
+      const b = await atom.scrape(`${server.url}/duplicate/b`)
+      expect(a.result.evidence.rawBodySha256).toMatch(/^[0-9a-f]{64}$/)
+      expect(b.result.evidence.rawBodySha256).toBe(a.result.evidence.rawBodySha256)
+    } finally {
+      await Promise.all(channels.map((c) => c.close?.().catch(() => {})))
+    }
+  })
+
   it('resumes a kill before the first contentful step by reseeding the seed URL', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'w2l-crawl-empty-'))
     const seed = `${server.url}/crawl/listing`
