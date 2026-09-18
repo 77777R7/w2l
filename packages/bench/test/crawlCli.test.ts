@@ -133,4 +133,71 @@ describe('w2l crawl against the fixture graph', () => {
       await rm(dir, { recursive: true, force: true })
     }
   })
+
+  it('resumes a kill before the first contentful step by reseeding the seed URL', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'w2l-crawl-empty-'))
+    const seed = `${server.url}/crawl/listing`
+    const host = new URL(server.url).hostname
+    const policy = { mode: 'standard' as const, allowlistedDomains: [host] }
+    const now = new Date().toISOString()
+    const taskId = crypto.randomUUID()
+    const killed = SqliteTaskStore.open(dir)
+    try {
+      await killed.putTask({
+        id: taskId,
+        seedUrl: seed,
+        taskDir: dir,
+        mode: 'standard',
+        status: 'running',
+        budget: { maxPages: null, maxWallMs: null, maxCostUsd: null, maxTokens: null },
+        createdAt: now,
+        updatedAt: now,
+      })
+      await killed.putAttempt({
+        id: crypto.randomUUID(),
+        taskId,
+        status: 'running',
+        startedAt: now,
+        endedAt: null,
+        pagesFetched: 0,
+        wallMs: 0,
+        costUsd: 0,
+        contentTokens: 0,
+        budgetExceeded: null,
+      })
+      expect(await killed.listSteps(taskId)).toEqual([])
+    } finally {
+      await killed.close()
+    }
+
+    const reopened = SqliteTaskStore.open(dir)
+    const resumeChannels = buildChannels('standard', {
+      localSubjects: { browser_local: { fetch: async () => { throw new Error('CI crawl must stay on HTTP; browser arm was reached') } } },
+    })
+    const resumeRunner = new LadderRunner(resumeChannels, policy, new MemoryRoutingHistory())
+    const resumeAtom = new LadderScrapeAtom(resumeRunner)
+    const second = new CrawlOrchestrator({ store: reopened, atom: resumeAtom })
+    try {
+      const resumed = await second.run({
+        seedUrl: seed,
+        taskDir: dir,
+        resumeFrom: taskId,
+        allowlistedDomains: [host],
+        budget: { maxPages: 20, maxWallMs: null, maxCostUsd: null, maxTokens: null },
+      })
+      expect(resumed.taskId).toBe(taskId)
+      expect(resumed.status).toBe('completed')
+      expect(resumed.pagesFetched).toBeGreaterThanOrEqual(4)
+      const steps = await reopened.listSteps(resumed.taskId)
+      const urls = new Set(steps.map((s) => s.canonicalUrl))
+      expect(urls.has(seed)).toBe(true)
+      expect(urls.has(`${server.url}/crawl/item/1`)).toBe(true)
+      expect(urls.has(`${server.url}/crawl/item/2`)).toBe(true)
+      expect(urls.has(`${server.url}/crawl/item/3`)).toBe(true)
+    } finally {
+      await Promise.all(resumeChannels.map((c) => c.close?.().catch(() => {})))
+      await reopened.close()
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
 })

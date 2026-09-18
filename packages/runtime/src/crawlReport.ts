@@ -17,10 +17,21 @@ export async function crawlReportFromStore(store: TaskStore, taskId: string): Pr
       loopDetected: false,
     }
   }
-  return reportFromTaskAttempt(task, latest, await cachedCount(store, taskId, latest.id))
+  const steps = await store.listSteps(taskId, latest.id)
+  return reportFromTaskAttempt(
+    task,
+    latest,
+    steps.filter((step) => step.cached).length,
+    steps.some((step) => step.result?.failureReason === 'loop_detected'),
+  )
 }
 
-export function reportFromTaskAttempt(task: Task, attempt: Attempt, cachedPages: number): CrawlReport {
+export function reportFromTaskAttempt(
+  task: Task,
+  attempt: Attempt,
+  cachedPages: number,
+  loopDetected = false,
+): CrawlReport {
   return {
     taskId: task.id,
     attemptId: attempt.id,
@@ -28,11 +39,6 @@ export function reportFromTaskAttempt(task: Task, attempt: Attempt, cachedPages:
     pagesFetched: attempt.pagesFetched,
     cachedPages,
     budgetExceeded: attempt.budgetExceeded,
-    loopDetected: attempt.status === 'failed' && task.status === 'failed',
+    loopDetected,
   }
-}
-
-async function cachedCount(store: TaskStore, taskId: string, attemptId: string): Promise<number> {
-  const steps = await store.listSteps(taskId, attemptId)
-  return steps.filter((step) => step.cached).length
 }

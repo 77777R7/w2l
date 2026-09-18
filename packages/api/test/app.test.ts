@@ -3,6 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { startFixtureServer, type FixtureServer } from '@w2l/fixtures'
+import { identityForRoute } from '@w2l/contracts'
 import { W2L } from '@w2l/sdk'
 import { buildChannels } from '@w2l/bench'
 import { createApp } from '../src/app.js'
@@ -102,6 +103,42 @@ describe('REST /v1/scrape and /v1/crawl', () => {
     const report = await client.getCrawl(accepted.taskId)
     expect(report.taskId).toBe(accepted.taskId)
     expect(report.pagesFetched).toBe(1)
+  })
+
+  it('GET /v1/crawl/:id is failed when scrape throws, not left running', async () => {
+    const throwingRoot = await mkdtemp(join(tmpdir(), 'w2l-api-fail-'))
+    const throwing = createApiEngine({
+      taskRoot: throwingRoot,
+      channelsFor: () => [
+        {
+          id: 'http',
+          identity: identityForRoute('standard'),
+          fetch: async () => {
+            throw new Error('scrape exploded')
+          },
+        },
+      ],
+    })
+    try {
+      const app = createApp(throwing)
+      const started = await app.request('/v1/crawl', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ url: `${server.url}/crawl/listing`, maxPages: 1 }),
+      })
+      expect(started.status).toBe(202)
+      const { taskId } = (await started.json()) as { taskId: string }
+      await throwing.close()
+      const got = await app.request(`/v1/crawl/${taskId}`)
+      expect(got.status).toBe(200)
+      const report = await got.json()
+      expect(report.taskId).toBe(taskId)
+      expect(report.status).toBe('failed')
+      expect(report.loopDetected).toBe(false)
+    } finally {
+      await throwing.close()
+      await rm(throwingRoot, { recursive: true, force: true })
+    }
   })
 
   it('hosted token rejects missing or wrong bearer, accepts the matching one', async () => {

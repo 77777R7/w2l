@@ -73,14 +73,6 @@ export class CrawlOrchestrator {
     const startedAtMs = this.clock.now()
     const startedAt = new Date(startedAtMs).toISOString()
 
-    const { task, attempt } = await this.openRun(spec, startedAt)
-    const frontier = new Frontier({
-      seedUrl: task.seedUrl,
-      maxDepth: spec.maxDepth,
-      allowlistedDomains: spec.allowlistedDomains,
-    })
-    await this.restoreFrontier(frontier, task, spec)
-
     const seenHash = new Map<string, string>()
     let pagesFetched = 0
     let cachedPages = 0
@@ -88,8 +80,21 @@ export class CrawlOrchestrator {
     let contentTokens = 0
     let budgetExceeded: BudgetKind | null = null
     let loopDetected = false
+    let failed: unknown = null
+    let task: Task | undefined
+    let attempt: Attempt | undefined
 
     try {
+      const opened = await this.openRun(spec, startedAt)
+      task = opened.task
+      attempt = opened.attempt
+      const frontier = new Frontier({
+        seedUrl: task.seedUrl,
+        maxDepth: spec.maxDepth,
+        allowlistedDomains: spec.allowlistedDomains,
+      })
+      await this.restoreFrontier(frontier, task, spec)
+
       for (;;) {
         const now = this.clock.now()
         const spent: CrawlBudgetSpent = {
@@ -180,39 +185,43 @@ export class CrawlOrchestrator {
           frontier.release(item.canonicalUrl)
         }
       }
+    } catch (err) {
+      failed = err
     } finally {
       await this.atom.close().catch(() => {})
     }
 
+    if (task === undefined || attempt === undefined) {
+      if (failed !== null) throw failed
+      throw new Error('crawl did not open a task')
+    }
+
     const endedAt = new Date(this.clock.now()).toISOString()
-    const status = loopDetected ? 'failed' : 'completed'
-    await this.store.putAttempt({
+    const status = failed !== null || loopDetected ? 'failed' : 'completed'
+    const finishedAttempt: Attempt = {
       ...attempt,
-      status: loopDetected ? 'failed' : 'completed',
+      status,
       endedAt,
       pagesFetched: pagesFetched + cachedPages,
       wallMs: this.clock.now() - startedAtMs,
       costUsd,
       contentTokens,
       budgetExceeded,
-    })
+    }
     const finished: Task = { ...task, status, updatedAt: endedAt }
-    await this.store.putTask(finished)
+    try {
+      await this.store.putAttempt(finishedAttempt)
+    } catch (err) {
+      if (failed === null) failed = err
+    }
+    try {
+      await this.store.putTask(finished)
+    } catch (err) {
+      if (failed === null) failed = err
+    }
+    if (failed !== null) throw failed
 
-    return reportFromTaskAttempt(
-      finished,
-      {
-        ...attempt,
-        status: loopDetected ? 'failed' : 'completed',
-        endedAt,
-        pagesFetched: pagesFetched + cachedPages,
-        wallMs: this.clock.now() - startedAtMs,
-        costUsd,
-        contentTokens,
-        budgetExceeded,
-      },
-      cachedPages,
-    )
+    return reportFromTaskAttempt(finished, finishedAttempt, cachedPages, loopDetected)
   }
 
   private async openRun(spec: CrawlSpec, startedAt: string): Promise<{ task: Task; attempt: Attempt }> {
@@ -259,13 +268,8 @@ export class CrawlOrchestrator {
     }
     const prior = await this.store.listSteps(task.id)
     const contentful = prior.filter((step) => step.result !== null && CONTENTFUL_STATUS.has(step.result.status))
-    if (!spec.useCached) {
-      for (const step of contentful) frontier.seed(step.url, step.depth)
-      for (const step of contentful) {
-        for (const href of linksOf(step.result!)) {
-          frontier.enqueue(href, step.depth + 1, step.canonicalUrl)
-        }
-      }
+    if (contentful.length === 0) {
+      frontier.seed(task.seedUrl)
       return
     }
     for (const step of contentful) frontier.seed(step.url, step.depth)
@@ -274,7 +278,6 @@ export class CrawlOrchestrator {
         frontier.enqueue(href, step.depth + 1, step.canonicalUrl)
       }
     }
-    if (contentful.length === 0) frontier.seed(task.seedUrl)
   }
 }
 
