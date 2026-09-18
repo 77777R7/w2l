@@ -48,6 +48,11 @@ const GATES: ReadonlyArray<{
     why: '200 with the interstitial copy — the case status codes cannot catch',
   },
   {
+    path: '/block/challenge-200-prose',
+    reason: 'cloudflare_challenge',
+    why: '200 with extractable prose plus CF challenge-platform plumbing — empty-extract cannot catch this',
+  },
+  {
     path: '/block/rate-limit',
     reason: 'rate_limit',
     why: '429, decisive from the status',
@@ -112,6 +117,13 @@ describe.each([
     const out = await subject.fetch(`${server.url}/static/article`)
     expect(out.status).toBe('success')
     expect(out.blockReason).toBeNull()
+  })
+
+  it('does not block an article that embeds a captcha widget', async () => {
+    const out = await subject.fetch(`${server.url}/static/article-widget`)
+    expect(out.status).toBe('success')
+    expect(out.blockReason).toBeNull()
+    expect(out.markdown).toContain('The kiln reached 1240 degrees')
   })
 })
 

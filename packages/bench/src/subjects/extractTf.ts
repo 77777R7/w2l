@@ -69,18 +69,14 @@ export class ExtractTfSubject implements SubjectAdapter {
         }
       }
 
-      // Gate classification. Consulted only once the response is known to be
-      // non-contentful (non-200, or a 200 the extractor declined) — that
-      // precondition is what makes the marker matching safe.
-      const gate = classifyGate({
-        status,
-        header: (name) => {
-          const v = response.headers[name.toLowerCase()]
-          return typeof v === 'string' ? v : Array.isArray(v) ? (v[0] ?? null) : null
-        },
-        body,
-      })
-      const verdict = status !== 200 || escalated ? gate : null
+      const header = (name: string) => {
+        const v = response.headers[name.toLowerCase()]
+        return typeof v === 'string' ? v : Array.isArray(v) ? (v[0] ?? null) : null
+      }
+      const gate = classifyGate({ status, header, body })
+      const decisive =
+        status === 200 && !escalated ? classifyGate({ status, header, body, contentful: true }) : null
+      const verdict = status !== 200 || escalated ? gate : decisive
       const blockEscalation =
         verdict === null ? null : escalationForBlock(verdict.reason, 'http')
 
@@ -88,6 +84,7 @@ export class ExtractTfSubject implements SubjectAdapter {
       let failureReason: 'http_error' | 'empty_unverified' | null = null
       if (verdict !== null) {
         terminalStatus = 'blocked'
+        markdown = null
       } else if (status !== 200) {
         terminalStatus = 'failed'
         failureReason = 'http_error'

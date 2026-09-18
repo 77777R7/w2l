@@ -159,9 +159,9 @@ export class ResilientHttpSubject implements SubjectAdapter {
       }
     }
 
-    // Gate classification. Computed once from the raw body, but only ever
-    // *consulted* on non-contentful paths — that precondition is what makes
-    // the marker matching safe (see classifyGate).
+    // Gate classification on the raw body. Non-contentful paths use the full
+    // classifier. A 200 that extracted a main body still consults decisive
+    // challenge evidence (vendor header / CF plumbing / interstitial pair).
     const gate = classifyGate({
       status: out.status,
       header: (name) => out.headers?.get(name) ?? null,
@@ -225,9 +225,6 @@ export class ResilientHttpSubject implements SubjectAdapter {
     })
 
     if (extracted.escalate) {
-      // A 200 that yields no main content may be a gate that answered with
-      // the challenge instead of the page. Extraction has now declined it, so
-      // the response is non-contentful and the classifier's precondition holds.
       if (gate !== null) return blocked(gate)
       return {
         ...base,
@@ -242,6 +239,14 @@ export class ResilientHttpSubject implements SubjectAdapter {
         markdown: null,
       }
     }
+
+    const decisive = classifyGate({
+      status: out.status,
+      header: (name) => out.headers?.get(name) ?? null,
+      body,
+      contentful: true,
+    })
+    if (decisive !== null) return blocked(decisive)
 
     const markdown = htmlToMarkdown(extracted.mainHtml)
     const contentTokens = estimateTokens(markdown)

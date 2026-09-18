@@ -459,6 +459,14 @@ export class ProviderSubject implements SubjectAdapter {
       }
     }
 
+    const decisive = classifyGate({
+      status: res.status,
+      header: (name) => res.headers[name.toLowerCase()] ?? null,
+      body: res.body,
+      contentful: true,
+    })
+    if (decisive !== null) return blocked(decisive)
+
     const markdown = htmlToMarkdown(extracted.mainHtml)
 
     // THE UNIFIED IDENTITY RULE (ProviderSubject, LadderRunner, w2l-provider,
