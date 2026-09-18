@@ -165,4 +165,35 @@ describe('REST /v1/scrape and /v1/crawl', () => {
     })
     expect(ok.status).toBe(200)
   })
+
+  it('engine close waits for an active standalone scrape before closing channels', async () => {
+    let release!: () => void
+    const pending = new Promise<void>((resolve) => { release = resolve })
+    let closed = false
+    const slow = createApiEngine({
+      channelsFor: () => [{
+        id: 'http',
+        identity: identityForRoute('standard'),
+        fetch: async (url) => {
+          await pending
+          return (await (async () => {
+            const result = await httpOnlyChannels('standard')[0]!.fetch(url)
+            return result
+          })())
+        },
+        close: async () => { closed = true },
+      }],
+    })
+    const scrape = slow.scrape({ url: `${server.url}/crawl/listing` })
+    let drained = false
+    const closing = slow.close().then(() => { drained = true })
+    await new Promise((resolve) => setTimeout(resolve, 5))
+    expect(drained).toBe(false)
+    expect(closed).toBe(false)
+    release()
+    await scrape
+    await closing
+    expect(drained).toBe(true)
+    expect(closed).toBe(true)
+  })
 })

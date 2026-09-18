@@ -61,6 +61,7 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
   const networkPolicy = options.networkPolicy ?? localNetworkPolicy()
   const defaultMaxPages = options.defaultMaxPages ?? null
   const inflight = new Map<string, Promise<void>>()
+  const activeScrapes = new Set<Promise<unknown>>()
   const createChannels =
     options.channelsFor ??
     ((mode: 'standard' | 'research' | 'authed') => buildChannels(mode, { headed, networkPolicy }))
@@ -106,7 +107,7 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
           : {}),
       }
       const runner = new LadderRunner(channels, policy, historyFor(mode))
-      try {
+      const operation = (async () => {
         const run = await runner.run(req.url)
         return {
           ...run.result,
@@ -114,8 +115,9 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
           ladderTrace: run.ladderTrace,
           summary: run.summary,
         }
-      } finally {
-      }
+      })()
+      activeScrapes.add(operation)
+      try { return await operation } finally { activeScrapes.delete(operation) }
     },
 
     async startCrawl(req) {
@@ -193,6 +195,7 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
 
     async close() {
       await Promise.all([...inflight.values()].map((job) => job.catch(() => {})))
+      await Promise.all([...activeScrapes].map((job) => job.catch(() => {})))
       await Promise.all([...channelsByMode.values()].flatMap((channels) => channels.map((channel) => channel.close?.().catch(() => {}))))
       channelsByMode.clear()
     },

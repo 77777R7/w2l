@@ -286,6 +286,27 @@ describe('CrawlOrchestrator with a fake scrape atom', () => {
     expect(atom.maxActive).toBe(2)
   })
 
+  it('does not oversubscribe maxPages while workers are in flight', async () => {
+    const pages = new Map<string, ScrapeOutcome>([
+      [SEED, outcome(SEED, [ITEM_A, ITEM_B])],
+      [ITEM_A, outcome(ITEM_A, [])],
+      [ITEM_B, outcome(ITEM_B, [])],
+    ])
+    const atom = new ConcurrentAtom(pages)
+    const report = await new CrawlOrchestrator({
+      store: new MemoryTaskStore(),
+      atom,
+      clock: new FakeClock(),
+      workerCount: 4,
+      perHostMinDelayMs: 0,
+    }).run({
+      seedUrl: SEED,
+      taskDir: '/tmp/w2l-crawl',
+      budget: { maxPages: 2, maxWallMs: null, maxCostUsd: null, maxTokens: null },
+    })
+    expect(report.pagesFetched).toBe(2)
+  })
+
   it('writes failed when the store throws after a scrape', async () => {
     const store = new MemoryTaskStore()
     const original = store.putStep.bind(store)
