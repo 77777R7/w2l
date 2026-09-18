@@ -146,6 +146,7 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
         })
         .catch(async () => {
           inflight.delete(taskId)
+          await markCrawlFailed(store, taskId)
           await Promise.all(channels.map((channel) => channel.close?.().catch(() => {})))
           await store.close()
         })
@@ -164,4 +165,19 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
       await Promise.all([...inflight.values()].map((job) => job.catch(() => {})))
     },
   }
+}
+
+async function markCrawlFailed(store: SqliteTaskStore, taskId: string): Promise<void> {
+  const now = new Date().toISOString()
+  try {
+    const existing = await store.getTask(taskId)
+    if (existing !== null && (existing.status === 'pending' || existing.status === 'running' || existing.status === 'paused')) {
+      await store.putTask({ ...existing, status: 'failed', updatedAt: now })
+    }
+    const attempts = await store.listAttempts(taskId)
+    const latest = attempts[attempts.length - 1]
+    if (latest !== undefined && latest.status === 'running') {
+      await store.putAttempt({ ...latest, status: 'failed', endedAt: now })
+    }
+  } catch {}
 }

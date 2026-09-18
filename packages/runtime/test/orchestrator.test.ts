@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { FetchResult, ScrapeAtom, ScrapeOutcome } from '@w2l/contracts'
+import { DEFAULT_CRAWL_BUDGET, type FetchResult, type ScrapeAtom, type ScrapeOutcome } from '@w2l/contracts'
 import { CrawlOrchestrator, type CrawlClock } from '../src/orchestrator.js'
 import { MemoryTaskStore } from '../src/memoryStore.js'
 
@@ -241,5 +241,79 @@ describe('CrawlOrchestrator with a fake scrape atom', () => {
     const cached = steps.find((s) => s.canonicalUrl === SEED)
     expect(cached?.cached).toBe(true)
     expect(cached?.result?.markdown).toContain('MAIN')
+  })
+
+  it('writes failed when scrape throws and does not leave the task running', async () => {
+    const atom = new FakeAtom(new Map())
+    const { store, go } = runWith(atom, { seedUrl: SEED, taskDir: '/tmp/w2l-crawl' })
+    await expect(go()).rejects.toThrow(/fake atom has no page/)
+    const tasks = await store.listTasks()
+    expect(tasks).toHaveLength(1)
+    expect(tasks[0]?.status).toBe('failed')
+    const attempts = await store.listAttempts(tasks[0]!.id)
+    expect(attempts).toHaveLength(1)
+    expect(attempts[0]?.status).toBe('failed')
+    expect(attempts[0]?.endedAt).not.toBeNull()
+  })
+
+  it('writes failed when the store throws after a scrape', async () => {
+    const store = new MemoryTaskStore()
+    const original = store.putStep.bind(store)
+    store.putStep = async (step) => {
+      await original(step)
+      throw new Error('checkpoint write failed')
+    }
+    const atom = new FakeAtom(new Map([[SEED, outcome(SEED, [])]]))
+    const { go } = runWith(atom, { seedUrl: SEED, taskDir: '/tmp/w2l-crawl' }, store)
+    await expect(go()).rejects.toThrow(/checkpoint write failed/)
+    const tasks = await store.listTasks()
+    expect(tasks[0]?.status).toBe('failed')
+    const attempts = await store.listAttempts(tasks[0]!.id)
+    expect(attempts[0]?.status).toBe('failed')
+  })
+
+  it('reseeds the seed URL when resume finds no contentful checkpoint', async () => {
+    const store = new MemoryTaskStore()
+    const startedAt = '2026-09-18T00:00:00.000Z'
+    await store.putTask({
+      id: 'task-kill',
+      seedUrl: SEED,
+      taskDir: '/tmp/w2l-crawl',
+      mode: 'standard',
+      status: 'running',
+      budget: DEFAULT_CRAWL_BUDGET,
+      createdAt: startedAt,
+      updatedAt: startedAt,
+    })
+    await store.putAttempt({
+      id: 'attempt-kill',
+      taskId: 'task-kill',
+      status: 'running',
+      startedAt,
+      endedAt: null,
+      pagesFetched: 0,
+      wallMs: 0,
+      costUsd: 0,
+      contentTokens: 0,
+      budgetExceeded: null,
+    })
+
+    const atom = new FakeAtom(
+      new Map([
+        [SEED, outcome(SEED, [ITEM_A])],
+        [ITEM_A, outcome(ITEM_A, [])],
+      ]),
+    )
+    const resumed = runWith(
+      atom,
+      { seedUrl: SEED, taskDir: '/tmp/w2l-crawl', resumeFrom: 'task-kill' },
+      store,
+    )
+    const report = await resumed.go()
+    expect(report.taskId).toBe('task-kill')
+    expect(report.status).toBe('completed')
+    expect(report.loopDetected).toBe(false)
+    expect(atom.fetches).toEqual([SEED, ITEM_A])
+    expect(report.pagesFetched).toBe(2)
   })
 })
