@@ -32,3 +32,4 @@ coverage/
 tmp/
 temp/
 output/
+.w2l/

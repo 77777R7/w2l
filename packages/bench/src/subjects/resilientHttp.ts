@@ -6,10 +6,11 @@ import {
   type FetchResult,
   type TraceEvent,
 } from '@w2l/contracts'
-import { extractTf, htmlToMarkdown } from '@w2l/extract-tf'
+import { collectLinks, extractTf, htmlToMarkdown } from '@w2l/extract-tf'
 import { resilientFetch, classifyGate, escalationForBlock, type ResilientFetcher } from '@w2l/http-core'
 import { request } from 'undici'
 import { prepareHttpIdentity, recordHttpIdentity } from '../httpIdentity.js'
+import { RobotsOriginCache } from '../robotsLookup.js'
 import type { SubjectAdapter } from '../subject.js'
 
 /**
@@ -31,6 +32,7 @@ export class ResilientHttpSubject implements SubjectAdapter {
 
   private readonly prepared: ReturnType<typeof prepareHttpIdentity>
   private readonly fetcher: ResilientFetcher
+  private readonly robotsCache = new RobotsOriginCache()
 
   constructor(mode: CrawlMode = 'standard') {
     this.prepared = prepareHttpIdentity(mode)
@@ -59,16 +61,47 @@ export class ResilientHttpSubject implements SubjectAdapter {
 
   async fetch(url: string): Promise<FetchResult> {
     const start = Date.now()
+    const trace: TraceEvent[] = []
+    const honest = recordHttpIdentity(this.prepared, trace, 0)
+    if (!honest) {
+      return this.denied(url, start, trace, 'identity_compromised')
+    }
+
+    if (this.prepared.identity.respectsRobots) {
+      const cached = await this.robotsCache.lookup(url, this.prepared.identity.userAgent)
+      const robotsDecision = this.robotsCache.decision(cached, url, this.prepared.identity.userAgent)
+      trace.push({
+        at: Date.now() - start,
+        lane: 'http',
+        event: 'robots_checked',
+        detail: {
+          decision: robotsDecision.decision,
+          robotsUrl: robotsDecision.robotsUrl,
+          matchedGroup: robotsDecision.matchedUserAgentGroup,
+          ruleCount: robotsDecision.appliedRules.length,
+        },
+      })
+      if (robotsDecision.decision === 'disallowed') {
+        trace.push({
+          at: Date.now() - start,
+          lane: 'http',
+          event: 'robots_disallowed',
+          detail: { url, appliedRules: robotsDecision.appliedRules },
+        })
+        return this.denied(url, start, trace, 'policy_denied')
+      }
+    }
+
     const out = await resilientFetch(url, this.fetcher)
     const wallMs = Date.now() - start
-
-    const trace: TraceEvent[] = out.trace.map((t) => ({
-      at: t.at,
-      lane: 'http',
-      event: t.event,
-      ...(t.detail !== undefined ? { detail: t.detail } : {}),
-    }))
-    const honest = recordHttpIdentity(this.prepared, trace, wallMs)
+    for (const t of out.trace) {
+      trace.push({
+        at: t.at,
+        lane: 'http',
+        event: t.event,
+        ...(t.detail !== undefined ? { detail: t.detail } : {}),
+      })
+    }
 
     // Redirect evidence only when a redirect actually happened; a chain of
     // just the requested URL is "no redirect" and matches the other arms.
@@ -99,19 +132,6 @@ export class ResilientHttpSubject implements SubjectAdapter {
         externalCostUsd: null,
       },
       trace,
-    }
-
-    if (!honest) {
-      return {
-        ...base,
-        status: 'failed',
-        failureReason: 'identity_compromised',
-        blockReason: null,
-        budgetExceeded: null,
-        lane: 'http',
-        escalations: [],
-        markdown: null,
-      }
     }
 
     // Transport-level failure (timeout, connection error, redirect loop/limit,
@@ -180,6 +200,7 @@ export class ResilientHttpSubject implements SubjectAdapter {
     // extractor found no main content — report failed/empty_unverified and
     // flag the browser lane, never a contentful success.
     const extracted = extractTf.extract(body)
+    const links = collectLinks(body, out.finalUrl)
     trace.push({
       at: wallMs,
       lane: 'http',
@@ -189,6 +210,7 @@ export class ResilientHttpSubject implements SubjectAdapter {
         strategy: extracted.strategy,
         confidence: extracted.confidence,
         escalate: extracted.escalate,
+        linkCount: links.length,
       },
     })
 
@@ -244,7 +266,44 @@ export class ResilientHttpSubject implements SubjectAdapter {
       lane: 'http',
       escalations: [],
       markdown,
+      links,
       usage: { ...base.usage, contentTokens },
+    }
+  }
+
+  private denied(url: string, start: number, trace: TraceEvent[], failureReason: 'identity_compromised' | 'policy_denied'): FetchResult {
+    const wallMs = Date.now() - start
+    return {
+      requestedUrl: url,
+      status: 'failed',
+      failureReason,
+      blockReason: null,
+      budgetExceeded: null,
+      lane: 'http',
+      escalations: [],
+      markdown: null,
+      truncated: false,
+      truncatedAt: null,
+      compliance: null,
+      evidence: {
+        finalUrl: url,
+        httpStatus: null,
+        redirectChain: [],
+        contentType: null,
+        rawBodySha256: null,
+        artifacts: [],
+      },
+      usage: {
+        wallMs,
+        bytesWire: 0,
+        bytesDecompressed: 0,
+        requestCount: 0,
+        attemptCount: 0,
+        contentTokens: null,
+        browserMs: 0,
+        externalCostUsd: null,
+      },
+      trace,
     }
   }
 

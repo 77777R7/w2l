@@ -93,6 +93,13 @@ export interface FetchResult {
   resumeContext?: unknown | null
   /** Extracted main content as Markdown. Null unless status is contentful. */
   markdown: string | null
+  /**
+   * Outbound http(s) links from the FULL document, collected after extract
+   * and before the raw HTML is dropped. Not from `mainHtml` — prune strips
+   * nav. Empty / omitted when the fetch never produced HTML. Never the page
+   * HTML itself.
+   */
+  links?: readonly string[]
   /** True when content was cut to fit a token budget. */
   truncated: boolean
   /** Character offset where truncation occurred; null when not truncated. */

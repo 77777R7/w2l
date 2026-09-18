@@ -14,6 +14,7 @@ export default defineConfig({
       '@w2l/fixtures': resolve(root, 'packages/fixtures/src/index.ts'),
       '@w2l/http-core': resolve(root, 'packages/http-core/src/index.ts'),
       '@w2l/bench': resolve(root, 'packages/bench/src/index.ts'),
+      '@w2l/runtime': resolve(root, 'packages/runtime/src/index.ts'),
     },
   },
   test: {

@@ -1,0 +1,245 @@
+import { describe, expect, it } from 'vitest'
+import type { FetchResult, ScrapeAtom, ScrapeOutcome } from '@w2l/contracts'
+import { CrawlOrchestrator, type CrawlClock } from '../src/orchestrator.js'
+import { MemoryTaskStore } from '../src/memoryStore.js'
+
+class FakeClock implements CrawlClock {
+  t = 1_000
+  now(): number {
+    return this.t
+  }
+  async wait(ms: number): Promise<void> {
+    this.t += ms
+  }
+}
+
+function page(
+  url: string,
+  over: { markdown?: string; links?: readonly string[]; hash?: string; wallMs?: number; cost?: number } = {},
+): FetchResult {
+  const markdown = over.markdown ?? `MAIN ${url}`
+  return {
+    requestedUrl: url,
+    status: 'success',
+    failureReason: null,
+    blockReason: null,
+    budgetExceeded: null,
+    lane: 'http',
+    escalations: [],
+    markdown,
+    links: over.links ?? [],
+    truncated: false,
+    truncatedAt: null,
+    compliance: null,
+    evidence: {
+      finalUrl: url,
+      httpStatus: 200,
+      redirectChain: [],
+      contentType: 'text/html',
+      rawBodySha256: over.hash ?? url,
+      artifacts: [],
+    },
+    usage: {
+      wallMs: over.wallMs ?? 5,
+      bytesWire: 10,
+      bytesDecompressed: 10,
+      requestCount: 1,
+      attemptCount: 1,
+      contentTokens: 4,
+      browserMs: 0,
+      externalCostUsd: over.cost ?? null,
+    },
+    trace: [],
+  }
+}
+
+class FakeAtom implements ScrapeAtom {
+  readonly fetches: string[] = []
+  constructor(private readonly pages: ReadonlyMap<string, ScrapeOutcome>) {}
+
+  async scrape(url: string): Promise<ScrapeOutcome> {
+    this.fetches.push(url)
+    const hit = this.pages.get(url)
+    if (hit === undefined) throw new Error(`fake atom has no page for ${url}`)
+    return hit
+  }
+
+  async close(): Promise<void> {}
+}
+
+function outcome(url: string, links: readonly string[], hash = url): ScrapeOutcome {
+  const result = page(url, { links, hash })
+  return { result, links }
+}
+
+function runWith(atom: FakeAtom, spec: Parameters<CrawlOrchestrator['run']>[0], store = new MemoryTaskStore()) {
+  const clock = new FakeClock()
+  const orchestrator = new CrawlOrchestrator({ store, atom, clock })
+  return { store, atom, clock, orchestrator, go: () => orchestrator.run(spec) }
+}
+
+const SEED = 'https://fixture.test/listing'
+const ITEM_A = 'https://fixture.test/a'
+const ITEM_B = 'https://fixture.test/b'
+
+describe('CrawlOrchestrator with a fake scrape atom', () => {
+  it('scrapes the seed, enqueues only contentful links, and does not import Playwright', async () => {
+    const atom = new FakeAtom(
+      new Map([
+        [SEED, outcome(SEED, [ITEM_A, ITEM_B])],
+        [ITEM_A, outcome(ITEM_A, [])],
+        [ITEM_B, outcome(ITEM_B, [])],
+      ]),
+    )
+    const { go } = runWith(atom, { seedUrl: SEED, taskDir: '/tmp/w2l-crawl' })
+    const report = await go()
+    expect(report.status).toBe('completed')
+    expect(report.pagesFetched).toBe(3)
+    expect(report.loopDetected).toBe(false)
+    expect(atom.fetches).toEqual([SEED, ITEM_A, ITEM_B])
+    const runtime = await import('../src/orchestrator.js')
+    expect(Object.keys(runtime).sort()).toEqual(['CrawlOrchestrator', 'systemClock'])
+  })
+
+  it('does not enqueue links from a non-contentful page', async () => {
+    const blocked: FetchResult = {
+      ...page(SEED, { links: [ITEM_A] }),
+      status: 'blocked',
+      blockReason: 'captcha',
+      markdown: null,
+    }
+    const atom = new FakeAtom(new Map([[SEED, { result: blocked, links: [ITEM_A] }]]))
+    const { go } = runWith(atom, { seedUrl: SEED, taskDir: '/tmp/w2l-crawl' })
+    const report = await go()
+    expect(report.pagesFetched).toBe(1)
+    expect(atom.fetches).toEqual([SEED])
+  })
+
+  it('stops at --max-pages with budget_exceeded: pages', async () => {
+    const atom = new FakeAtom(
+      new Map([
+        [SEED, outcome(SEED, [ITEM_A, ITEM_B])],
+        [ITEM_A, outcome(ITEM_A, [])],
+        [ITEM_B, outcome(ITEM_B, [])],
+      ]),
+    )
+    const { store, go } = runWith(atom, {
+      seedUrl: SEED,
+      taskDir: '/tmp/w2l-crawl',
+      budget: { maxPages: 1, maxWallMs: null, maxCostUsd: null, maxTokens: null },
+    })
+    const report = await go()
+    expect(report.pagesFetched).toBe(1)
+    expect(report.budgetExceeded).toBe('pages')
+    expect(atom.fetches).toEqual([SEED])
+    const attempt = await store.getAttempt(report.attemptId)
+    expect(attempt?.budgetExceeded).toBe('pages')
+  })
+
+  it('stops on time and cost budgets', async () => {
+    const atom = new FakeAtom(new Map([[SEED, outcome(SEED, [])]]))
+    const timed = runWith(atom, {
+      seedUrl: SEED,
+      taskDir: '/tmp/w2l-crawl',
+      budget: { maxPages: null, maxWallMs: 0, maxCostUsd: null, maxTokens: null },
+    })
+    const timeReport = await timed.go()
+    expect(timeReport.budgetExceeded).toBe('time')
+    expect(timeReport.pagesFetched).toBe(0)
+
+    const twoPage = new FakeAtom(
+      new Map([
+        [SEED, { result: page(SEED, { cost: 5, links: [ITEM_A] }), links: [ITEM_A] }],
+        [ITEM_A, outcome(ITEM_A, [])],
+      ]),
+    )
+    const capped = runWith(twoPage, {
+      seedUrl: SEED,
+      taskDir: '/tmp/w2l-crawl',
+      budget: { maxPages: null, maxWallMs: null, maxCostUsd: 5, maxTokens: null },
+    })
+    const cappedReport = await capped.go()
+    expect(cappedReport.pagesFetched).toBe(1)
+    expect(cappedReport.budgetExceeded).toBe('cost')
+    expect(twoPage.fetches).toEqual([SEED])
+  })
+
+  it('reports loop_detected when two distinct URLs share a content hash', async () => {
+    const atom = new FakeAtom(
+      new Map([
+        [SEED, outcome(SEED, [ITEM_A, ITEM_B], 'same-body')],
+        [ITEM_A, outcome(ITEM_A, [SEED], 'same-body')],
+        [ITEM_B, outcome(ITEM_B, [], 'other')],
+      ]),
+    )
+    const { store, go } = runWith(atom, { seedUrl: SEED, taskDir: '/tmp/w2l-crawl' })
+    const report = await go()
+    expect(report.loopDetected).toBe(true)
+    expect(report.status).toBe('failed')
+    expect(atom.fetches).toEqual([SEED, ITEM_A])
+    const steps = await store.listSteps(report.taskId, report.attemptId)
+    const looped = steps.find((s) => s.canonicalUrl === ITEM_A)
+    expect(looped?.status).toBe('failed')
+    expect(looped?.result?.failureReason).toBe('loop_detected')
+    expect(looped?.result?.markdown).toBeNull()
+  })
+
+  it('restores the queue on resume and refetches by default', async () => {
+    const pages = new Map([
+      [SEED, outcome(SEED, [ITEM_A])],
+      [ITEM_A, outcome(ITEM_A, [])],
+    ])
+    const store = new MemoryTaskStore()
+    const firstAtom = new FakeAtom(pages)
+    const first = runWith(firstAtom, {
+      seedUrl: SEED,
+      taskDir: '/tmp/w2l-crawl',
+      budget: { maxPages: 1, maxWallMs: null, maxCostUsd: null, maxTokens: null },
+    }, store)
+    const firstReport = await first.go()
+    expect(firstAtom.fetches).toEqual([SEED])
+
+    const resumeAtom = new FakeAtom(pages)
+    const resumed = runWith(resumeAtom, {
+      seedUrl: SEED,
+      taskDir: '/tmp/w2l-crawl',
+      resumeFrom: firstReport.taskId,
+    }, store)
+    const resumeReport = await resumed.go()
+    expect(resumeReport.taskId).toBe(firstReport.taskId)
+    expect(resumeReport.attemptId).not.toBe(firstReport.attemptId)
+    expect(resumeAtom.fetches).toEqual([SEED, ITEM_A])
+    expect(resumeReport.cachedPages).toBe(0)
+  })
+
+  it('skips the fake fetch for cached pages only with --use-cached, and marks them', async () => {
+    const pages = new Map([
+      [SEED, outcome(SEED, [ITEM_A])],
+      [ITEM_A, outcome(ITEM_A, [])],
+    ])
+    const store = new MemoryTaskStore()
+    const firstAtom = new FakeAtom(pages)
+    const first = runWith(firstAtom, {
+      seedUrl: SEED,
+      taskDir: '/tmp/w2l-crawl',
+      budget: { maxPages: 1, maxWallMs: null, maxCostUsd: null, maxTokens: null },
+    }, store)
+    const firstReport = await first.go()
+
+    const resumeAtom = new FakeAtom(pages)
+    const resumed = runWith(resumeAtom, {
+      seedUrl: SEED,
+      taskDir: '/tmp/w2l-crawl',
+      resumeFrom: firstReport.taskId,
+      useCached: true,
+    }, store)
+    const resumeReport = await resumed.go()
+    expect(resumeAtom.fetches).toEqual([ITEM_A])
+    expect(resumeReport.cachedPages).toBe(1)
+    expect(resumeReport.pagesFetched).toBe(2)
+    const steps = await store.listSteps(resumeReport.taskId, resumeReport.attemptId)
+    const cached = steps.find((s) => s.canonicalUrl === SEED)
+    expect(cached?.cached).toBe(true)
+    expect(cached?.result?.markdown).toContain('MAIN')
+  })
+})

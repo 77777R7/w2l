@@ -1,23 +1,20 @@
 import { estimateTokens, type FetchResult, type TraceEvent } from '@w2l/contracts'
-import { extractTf, htmlToMarkdown } from '@w2l/extract-tf'
+import { collectLinks, extractTf, htmlToMarkdown } from '@w2l/extract-tf'
 import {
   classifyGate,
   escalationForBlock,
   isRetryableStatus,
   parseRetryAfterMs,
   ComplianceChain,
-  evaluateRobots,
   normalizeAccessConfig,
-  parseRobotsTxt,
-  sha256Hex,
   type AccessConfigInput,
   type AccessFactShape,
   type ComplianceRecord,
-  type ComplianceRobotsDecision,
   type ComplianceSentHeader,
 } from '@w2l/http-core'
 import { chromium, type Browser, type Response } from 'playwright'
 import type { SubjectAdapter } from '../subject.js'
+import { RobotsOriginCache } from '../robotsLookup.js'
 import {
   BROWSER_FINGERPRINT,
   CHROME_MAJOR_FLOOR,
@@ -32,27 +29,9 @@ import {
 } from '@w2l/contracts'
 
 /**
- * Whether a content-type is a plain-text document. robots.txt must be
- * `text/plain` per RFC 9309 §2.3; anything else is a route that happened to
- * answer, not a rules file.
- */
-function isPlainText(contentType: string | null): boolean {
-  if (contentType === null) return true // no type declared — take it at face value
-  return contentType.toLowerCase().trimStart().startsWith('text/plain')
-}
-
-/** One origin's robots.txt as fetched for this run. */interface CachedRobots {
-  robotsUrl: string
-  /** Null when robots.txt was absent, unreachable, or not a text document. */
-  robots: ReturnType<typeof parseRobotsTxt> | null
-  sha256: string | null
-  /** True when the server explicitly said there is none (4xx), vs a failure. */
-  absent: boolean
-}
-
-/**
  * Browser-local subject: the escalation target the http lane flags into.
- * Direct Playwright (ADR 0001) — one headless Chromium per run, one fresh
+ * Direct Playwright (ADR 0001) — one Chromium per run (headless unless
+ * `--headed`), one fresh
  * page per case, real script execution, real fingerprint.
  *
  * Identity is honest by construction: the mode's declared identity is derived
@@ -94,7 +73,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
    * politeness property — re-fetching robots.txt before every page would be
    * the opposite of what the file is for.
    */
-  private readonly robotsByOrigin = new Map<string, CachedRobots>()
+  private readonly robotsCache = new RobotsOriginCache()
   /** The run's hash chain. Every record this subject mints links into it. */
   private readonly chain: ComplianceChain
   /**
@@ -114,6 +93,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
   constructor(
     private readonly mode: CrawlMode = 'standard',
     access?: AccessConfigInput | null,
+    private readonly headed = false,
   ) {
     this.chain = new ComplianceChain(crypto.randomUUID(), mode)
     this.access = normalizeAccessConfig(access)
@@ -147,8 +127,8 @@ export class BrowserLocalSubject implements SubjectAdapter {
       // anything is if a disallow actually stops the fetch — a record that
       // says "disallowed" next to a page we fetched anyway would be a
       // self-documenting violation.
-      const cachedRobots = await this.robotsFor(url, identity.userAgent)
-      const robotsDecision = this.robotsDecisionFor(cachedRobots, url, identity.userAgent)
+      const cachedRobots = await this.robotsCache.lookup(url, identity.userAgent)
+      const robotsDecision = this.robotsCache.decision(cachedRobots, url, identity.userAgent)
       trace.push({
         at: Date.now() - start,
         lane: 'browser_local',
@@ -418,6 +398,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
       }
 
       const extracted = extractTf.extract(body)
+      const links = collectLinks(body, finalUrl)
       trace.push({
         at: wallMs,
         lane: 'browser_local',
@@ -427,6 +408,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
           strategy: extracted.strategy,
           confidence: extracted.confidence,
           escalate: extracted.escalate,
+          linkCount: links.length,
         },
       })
 
@@ -458,6 +440,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
         lane: 'browser_local',
         escalations: [],
         markdown,
+        links,
         usage: { ...base.usage, contentTokens: estimateTokens(markdown) },
       }
     } catch (err) {
@@ -518,97 +501,9 @@ export class BrowserLocalSubject implements SubjectAdapter {
     }
   }
 
-  /**
-   * Fetch and parse robots.txt for a URL's origin, once per origin per run.
-   *
-   * Plain `fetch` rather than the browser: robots.txt is a text file, and
-   * spending a browser context on it would inflate the per-page cost of being
-   * polite. A network failure is recorded as `null` robots — treated as
-   * "no robots.txt" for the decision, but the record still says which URL was
-   * attempted, so "we couldn't reach it" never silently reads as "it allowed
-   * us".
-   */
-  private async robotsFor(url: string, userAgent: string): Promise<CachedRobots | null> {
-    let origin: string
-    let robotsUrl: string
-    try {
-      const parsed = new URL(url)
-      origin = parsed.origin
-      robotsUrl = `${parsed.origin}/robots.txt`
-    } catch {
-      return null
-    }
-
-    const cached = this.robotsByOrigin.get(origin)
-    if (cached) return cached
-
-    let entry: CachedRobots
-    try {
-      const res = await fetch(robotsUrl, {
-        headers: { 'user-agent': userAgent },
-        signal: AbortSignal.timeout(5_000),
-      })
-      if (res.status >= 400) {
-        // 404/410 means the site published no rules — RFC 9309 §2.3.1.3 says
-        // that is a full allow, and it is a different fact from a fetch error.
-        entry = { robotsUrl, robots: null, sha256: null, absent: true }
-      } else if (!isPlainText(res.headers.get('content-type'))) {
-        // A "robots.txt" served as text/html is a soft-404 or a catch-all
-        // route, not a rules document. Parsing it would invent groups out of
-        // markup and let a record claim rules the publisher never wrote.
-        entry = { robotsUrl, robots: null, sha256: null, absent: true }
-      } else {
-        const text = await res.text()
-        entry = {
-          robotsUrl,
-          robots: parseRobotsTxt(text),
-          sha256: sha256Hex(new TextEncoder().encode(text)),
-          absent: false,
-        }
-      }
-    } catch {
-      entry = { robotsUrl, robots: null, sha256: null, absent: false }
-    }
-
-    this.robotsByOrigin.set(origin, entry)
-    return entry
-  }
-
-  /** Turn a robots lookup into the record's robots facts for one path. */
-  private robotsDecisionFor(cached: CachedRobots | null, url: string, userAgent: string): ComplianceRobotsDecision {
-    if (cached === null || cached.robots === null) {
-      return {
-        robotsUrl: cached?.robotsUrl ?? null,
-        robotsSha256: null,
-        matchedUserAgentGroup: null,
-        appliedRules: [],
-        decision: 'no_robots',
-        skippedFetch: false,
-      }
-    }
-
-    let path = '/'
-    try {
-      const parsed = new URL(url)
-      path = parsed.pathname + parsed.search
-    } catch {
-      /* keep '/' */
-    }
-
-    const match = evaluateRobots(cached.robots, userAgent, path)
-    return {
-      robotsUrl: cached.robotsUrl,
-      robotsSha256: cached.sha256,
-      matchedUserAgentGroup: match.matchedAgent,
-      appliedRules: match.appliedRules.map((r) => ({ pattern: r.pattern, allow: r.allow })),
-      decision: match.allowed ? 'allowed' : 'disallowed',
-      skippedFetch: false,
-    }
-  }
-
   private async getBrowser(): Promise<Browser> {
     if (!this.browser) {
-      this.browser = await chromium.launch({ headless: true })
+      this.browser = await chromium.launch({ headless: !this.headed })
     }
     return this.browser
   }

@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net'
 import { FIXTURES, SOFT_404_BODY, resetFixtureState, type Fixture } from './fixtures.js'
 
 /** Routes whose fixture handles a whole subtree rather than one exact path. */
-const PREFIX_ROUTES = ['/redirect/chain/', '/redirect/loop/'] as const
+const PREFIX_ROUTES = ['/redirect/chain/', '/redirect/loop/', '/crawl/item/'] as const
 
 function pathOf(target: string): string {
   return new URL(target, 'http://fixtures.invalid').pathname

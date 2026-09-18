@@ -130,13 +130,15 @@ export function buildChannels(
       http?: { fetch: (url: string) => Promise<FetchResult>; teardown?: () => Promise<void> }
       browser_local?: { fetch: (url: string) => Promise<FetchResult>; teardown?: () => Promise<void> }
     }
+    /** Opt-in headed Chromium on the browser arm only. Default remains headless. */
+    headed?: boolean
   } = {},
 ): Channel[] {
   // One subject per channel for the life of the run. A fresh Chromium per
   // fetch would be both slow and leaky; the channel's close() is what tears
   // the browser down at the end.
   const http = new ResilientHttpSubject(mode)
-  const plainBrowser = new BrowserLocalSubject(mode)
+  const plainBrowser = new BrowserLocalSubject(mode, null, opts.headed === true)
   const declared: IdentityBundle = identityForRoute(mode)
 
   // ----------------------------------------------------------------------
@@ -163,7 +165,7 @@ export function buildChannels(
       }
       if (session.cookies !== undefined) access.session!.cookies = session.cookies
       if (session.storageState !== undefined) access.session!.storageState = session.storageState
-      subject = new BrowserLocalSubject('authed', access)
+      subject = new BrowserLocalSubject('authed', access, opts.headed === true)
       authedSubjects.set(session.domain, subject)
     }
     return subject

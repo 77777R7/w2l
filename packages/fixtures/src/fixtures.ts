@@ -1470,6 +1470,69 @@ const duplicateC: Fixture = {
 }
 
 // ---------------------------------------------------------------------------
+// Crawl graph: listing → N items → cycle back to listing
+// ---------------------------------------------------------------------------
+
+const CRAWL_ITEM_FACT = 'Harbour lantern teapot catalog item'
+const CRAWL_LISTING_FACT = 'Crawl graph listing of harbour lantern teapots'
+
+const crawlListing: Fixture = {
+  truth: {
+    id: 'crawl-listing',
+    target: '/crawl/listing',
+    kind: 'fixture',
+    category: 'crawl_graph',
+    mustContain: [CRAWL_LISTING_FACT, 'Harbour lantern teapot 01'],
+    mustNotContain: B,
+    expectedLane: 'http',
+    emptyIsLegit: false,
+    expectedMainTokens: { min: 40, max: 800 },
+    budget: budget(2000),
+    expectedStatus: 'success',
+    notes: 'Seed page for crawl: three item links plus a cycle back to itself.',
+  },
+  respond: () => {
+    const items = [1, 2, 3]
+      .map((n) => `<li><a href="/crawl/item/${n}">Harbour lantern teapot ${String(n).padStart(2, '0')}</a></li>`)
+      .join('\n')
+    return html(
+      htmlPage({
+        title: 'Harbour lantern catalog',
+        bodyHtml: `<main><h1>Harbour lantern catalog</h1><p>${CRAWL_LISTING_FACT}.</p><ul>${items}</ul>${prose(4, 41)}<p><a href="/crawl/listing">Back to listing</a></p></main>`,
+        chrome: false,
+      }),
+    )
+  },
+}
+
+const crawlItem: Fixture = {
+  truth: {
+    id: 'crawl-item',
+    target: '/crawl/item/1',
+    kind: 'fixture',
+    category: 'crawl_graph',
+    mustContain: [CRAWL_ITEM_FACT],
+    mustNotContain: B,
+    expectedLane: 'http',
+    emptyIsLegit: false,
+    expectedMainTokens: { min: 40, max: 800 },
+    budget: budget(2000),
+    expectedStatus: 'success',
+    notes: 'Prefix-routed item page; links back to the listing to form a cycle.',
+  },
+  respond: (req) => {
+    const n = new URL(req.url ?? '/', 'http://fixtures.invalid').pathname.split('/').pop() ?? '1'
+    return html(
+      htmlPage({
+        title: `Harbour lantern teapot ${n}`,
+        bodyHtml: `<article><h1>Harbour lantern teapot ${n}</h1><p>${CRAWL_ITEM_FACT} ${n} is glazed cobalt and listed in the harbour catalog.</p>${prose(5, 50 + Number(n) || 1)}<p><a href="/crawl/listing">Back to listing</a></p></article>`,
+        chrome: false,
+      }),
+    )
+  },
+}
+
+// ---------------------------------------------------------------------------
 // HTTP errors
 // ---------------------------------------------------------------------------
 
@@ -1649,6 +1712,8 @@ export const FIXTURES: readonly Fixture[] = [
   duplicateA,
   duplicateB,
   duplicateC,
+  crawlListing,
+  crawlItem,
   http500,
   http404,
   flaky,

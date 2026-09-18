@@ -39,6 +39,7 @@ npm install
 npm run typecheck
 npm test
 npm run scrape -- https://example.com
+npm run crawl -- https://example.com --max-pages 20
 ```
 
 ## Benchmark
@@ -68,7 +69,8 @@ packages/
   contracts/       TypeScript types and ground-truth schema
   fixtures/        HTTP server with 30 ground-truth test cases
   http-core/       robots.txt parser (ReDoS-resistant)
-  bench/           Benchmark runner and scoring
+  runtime/         TaskStore, frontier, crawl orchestrator
+  bench/           Benchmark runner, scrape/crawl CLI, scoring
 
 docs/
   PHASE1_ENGINEERING_NOTES.md    Decision log
@@ -85,6 +87,7 @@ docs/
 - [x] Browser lane (Playwright) and HTTP → browser → vendor ladder
 - [x] Honest identity bundle (UA / hints / locale / viewport must agree)
 - [x] `w2l scrape` product CLI (`w2l-fetch` is an alias)
+- [x] `w2l crawl` + SQLite checkpoint resume
 - [ ] REST API / SDK / MCP
 
 See [PRODUCT_PLAN_V2.md](PRODUCT_PLAN_V2.md) for the full plan.

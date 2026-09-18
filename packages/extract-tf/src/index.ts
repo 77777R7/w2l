@@ -17,3 +17,4 @@ export {
 export { routePage, pageSignalsFor, selectList, selectTable, selectMinimal } from './route.js'
 export type { RouteDecision } from './route.js'
 export { htmlToMarkdown } from './markdown.js'
+export { collectLinks } from './links.js'
