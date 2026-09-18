@@ -1,0 +1,60 @@
+import { Hono } from 'hono'
+import type { ApiEngine } from './engine.js'
+import {
+  parseCrawlStartRequest,
+  parseFirecrawlCrawlRequest,
+  parseFirecrawlScrapeRequest,
+  parseScrapeRequest,
+  RequestError,
+  wrapCrawlAccepted,
+  wrapCrawlStatus,
+  wrapScrape,
+} from '@w2l/contracts'
+
+export function createApp(engine: ApiEngine): Hono {
+  const app = new Hono()
+
+  app.post('/v1/scrape', async (c) => {
+    const req = parseScrapeRequest(await c.req.json())
+    return c.json(await engine.scrape(req), 200)
+  })
+
+  app.post('/v1/crawl', async (c) => {
+    const req = parseCrawlStartRequest(await c.req.json())
+    return c.json(await engine.startCrawl(req), 202)
+  })
+
+  app.get('/v1/crawl/:id', async (c) => {
+    const id = c.req.param('id')
+    const report = await engine.getCrawl(id)
+    if (report === null) return c.json({ error: 'not found' }, 404)
+    return c.json(report, 200)
+  })
+
+  app.post('/fc/v1/scrape', async (c) => {
+    const req = parseFirecrawlScrapeRequest(await c.req.json())
+    return c.json(wrapScrape(await engine.scrape(req)), 200)
+  })
+
+  app.post('/fc/v1/crawl', async (c) => {
+    const body = await c.req.json()
+    const req = parseFirecrawlCrawlRequest(body)
+    const accepted = await engine.startCrawl(req)
+    return c.json(wrapCrawlAccepted(accepted, req.url), 200)
+  })
+
+  app.get('/fc/v1/crawl/:id', async (c) => {
+    const id = c.req.param('id')
+    const detail = await engine.getCrawlWithSteps(id)
+    if (detail === null) return c.json({ error: 'not found' }, 404)
+    return c.json(wrapCrawlStatus(detail.report, detail.steps), 200)
+  })
+
+  app.onError((err, c) => {
+    if (err instanceof RequestError) return c.json({ error: err.message }, 400)
+    if (err instanceof SyntaxError) return c.json({ error: 'body must be JSON' }, 400)
+    return c.json({ error: err instanceof Error ? err.message : 'internal error' }, 500)
+  })
+
+  return app
+}

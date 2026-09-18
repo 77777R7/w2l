@@ -23,6 +23,7 @@ import {
   type StepRecord,
   type Task,
 } from '@w2l/contracts'
+import { reportFromTaskAttempt } from './crawlReport.js'
 import { Frontier } from './frontier.js'
 import type { TaskStore } from './taskStore.js'
 
@@ -195,23 +196,39 @@ export class CrawlOrchestrator {
       contentTokens,
       budgetExceeded,
     })
-    await this.store.putTask({ ...task, status, updatedAt: endedAt })
+    const finished: Task = { ...task, status, updatedAt: endedAt }
+    await this.store.putTask(finished)
 
-    return {
-      taskId: task.id,
-      attemptId: attempt.id,
-      status,
-      pagesFetched: pagesFetched + cachedPages,
+    return reportFromTaskAttempt(
+      finished,
+      {
+        ...attempt,
+        status: loopDetected ? 'failed' : 'completed',
+        endedAt,
+        pagesFetched: pagesFetched + cachedPages,
+        wallMs: this.clock.now() - startedAtMs,
+        costUsd,
+        contentTokens,
+        budgetExceeded,
+      },
       cachedPages,
-      budgetExceeded,
-      loopDetected,
-    }
+    )
   }
 
   private async openRun(spec: CrawlSpec, startedAt: string): Promise<{ task: Task; attempt: Attempt }> {
     if (spec.resumeFrom !== null) {
       const existing = await this.store.getTask(spec.resumeFrom)
       if (existing === null) throw new Error(`resume: unknown task ${spec.resumeFrom}`)
+      const task: Task = { ...existing, status: 'running', updatedAt: startedAt }
+      await this.store.putTask(task)
+      const attempt = newAttempt(this.newId(), task.id, startedAt)
+      await this.store.putAttempt(attempt)
+      return { task, attempt }
+    }
+
+    if (spec.taskId !== undefined) {
+      const existing = await this.store.getTask(spec.taskId)
+      if (existing === null) throw new Error(`unknown task ${spec.taskId}`)
       const task: Task = { ...existing, status: 'running', updatedAt: startedAt }
       await this.store.putTask(task)
       const attempt = newAttempt(this.newId(), task.id, startedAt)

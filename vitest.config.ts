@@ -15,6 +15,9 @@ export default defineConfig({
       '@w2l/http-core': resolve(root, 'packages/http-core/src/index.ts'),
       '@w2l/bench': resolve(root, 'packages/bench/src/index.ts'),
       '@w2l/runtime': resolve(root, 'packages/runtime/src/index.ts'),
+      '@w2l/api': resolve(root, 'packages/api/src/index.ts'),
+      '@w2l/sdk': resolve(root, 'packages/sdk/src/index.ts'),
+      '@w2l/mcp': resolve(root, 'packages/mcp/src/index.ts'),
     },
   },
   test: {

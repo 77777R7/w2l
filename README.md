@@ -40,7 +40,25 @@ npm run typecheck
 npm test
 npm run scrape -- https://example.com
 npm run crawl -- https://example.com --max-pages 20
+npm run api
+npm run mcp
 ```
+
+MCP (Cursor / Claude) talks to the REST server:
+
+```json
+{
+  "mcpServers": {
+    "w2l": {
+      "command": "npm",
+      "args": ["run", "mcp"],
+      "env": { "W2L_API_URL": "http://127.0.0.1:8787" }
+    }
+  }
+}
+```
+
+Firecrawl v1 clients: set the base URL to `http://127.0.0.1:8787/fc` so `/v1/scrape` and `/v1/crawl` hit the shim. Snapshot 2026-09-18; known diffs in [docs/firecrawl-shim.md](docs/firecrawl-shim.md). Search / Interact / Agent / Monitor are not implemented.
 
 ## Benchmark
 
@@ -71,10 +89,14 @@ packages/
   http-core/       robots.txt parser (ReDoS-resistant)
   runtime/         TaskStore, frontier, crawl orchestrator
   bench/           Benchmark runner, scrape/crawl CLI, scoring
+  api/             REST server (AGPL)
+  sdk/             TypeScript client (MIT)
+  mcp/             stdio MCP server (MIT)
 
 docs/
   PHASE1_ENGINEERING_NOTES.md    Decision log
   PRODUCT_PLAN_V2.md              Product roadmap
+  firecrawl-shim.md               Firecrawl v1 scrape/crawl snapshot + diffs
 ```
 
 ## Roadmap
@@ -88,9 +110,9 @@ docs/
 - [x] Honest identity bundle (UA / hints / locale / viewport must agree)
 - [x] `w2l scrape` product CLI (`w2l-fetch` is an alias)
 - [x] `w2l crawl` + SQLite checkpoint resume
-- [ ] REST API + TypeScript SDK
-- [ ] MCP server
-- [ ] Firecrawl `/scrape` `/crawl` migration shim
+- [x] REST API + TypeScript SDK (`POST /v1/scrape`, `POST /v1/crawl`, `GET /v1/crawl/:id`)
+- [x] MCP server (`scrape`, `crawl`, `get_crawl` over REST)
+- [x] Firecrawl `/scrape` `/crawl` migration shim (snapshot 2026-09-18; not a compatibility layer)
 
 See [PRODUCT_PLAN_V2.md](PRODUCT_PLAN_V2.md) for the full plan.
 
