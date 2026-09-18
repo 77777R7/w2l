@@ -147,13 +147,25 @@ BYO 是承诺，但支持责任要划清：benchmark 和成功率承诺**只针�
 ### 第 1-4 周
 统一 runtime 骨架（task/attempt/step schema + SQLite checkpoint）、HTTP lane、Markdown 管线、失败四分类、CLI。
 **验收**：100 页公开测试集上 `scrape` 成功率与失败解释率可量化。
+**状态（2026-09-18）**：scrape 原子 + 身份阶梯已在 v0.1.0 / PR #7。checkpoint schema 随 crawl 一起在 v0.2.0 落地，而不是单独提前四周。
 
 ### 第 5-8 周
 Playwright lane + 升级规则、Browserbase/Steel Adapter、`crawl` + resume、REST API + TS SDK。
 **验收**：一次 1000 页 crawl 断电后能续跑；每页成本和 lane 决策在 trace 里可查。
+**状态（2026-09-18）**：`w2l crawl` + SQLite URL 级 resume 已在 v0.2.0 / PR #8。Playwright lane 与 Browserbase/Steel 适配器已在 scrape 阶梯里。本段剩下：**REST API + TS SDK**；1000 页断电续跑是压测，不是新功能。
 
 ### 第 9-12 周
 MCP server、Firecrawl 迁移垫片、benchmark 报告（对比 Firecrawl 自托管版和 Crawl4AI：成功率/噪声/token/延迟/每成功页成本/假成功率）、迁移型落地页、找 20 名真实用户（沿用 research 文档第 3-4 周方案）。
+
+### 现在下一刀（L01 + crawl 之后）
+
+按 ROI，不回头做 stealth / CDP patch / 代理池 / 垂直：
+
+1. **REST API + TS SDK** — 把 `scrape` / `crawl` 从 CLI 暴露成可编程入口（V2 §3 接口；MCP 是它上面的薄封装）。
+2. **1000 页断电续跑压测** — 机制已有；缺的是真实体积下的证据。
+3. **MCP server** — REST 之上，第 9-12 周不要推迟。
+4. **Firecrawl `/scrape` `/crawl` 垫片** — 钉死快照，不追新 endpoint。
+5. **仍不做**：`map`、Python SDK、语义压缩、session 池、默认 headed。
 
 ### 继续/终止门槛（沿用 research 文档 §7 并加两条）
 

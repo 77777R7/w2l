@@ -88,7 +88,9 @@ docs/
 - [x] Honest identity bundle (UA / hints / locale / viewport must agree)
 - [x] `w2l scrape` product CLI (`w2l-fetch` is an alias)
 - [x] `w2l crawl` + SQLite checkpoint resume
-- [ ] REST API / SDK / MCP
+- [ ] REST API + TypeScript SDK
+- [ ] MCP server
+- [ ] Firecrawl `/scrape` `/crawl` migration shim
 
 See [PRODUCT_PLAN_V2.md](PRODUCT_PLAN_V2.md) for the full plan.
 
