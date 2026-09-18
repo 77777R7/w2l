@@ -16,7 +16,7 @@
  * content is caught by the false-success checks upstream.
  */
 
-import type { Escalation, FetchResult, HandoffRequest, IdentityBundle, LadderExecutionSummary } from '@w2l/contracts'
+import type { Escalation, FetchResult, HandoffRequest, IdentityBundle, LadderExecutionSummary, Meter } from '@w2l/contracts'
 import { CONTENTFUL_STATUS, identityBundleIssues } from '@w2l/contracts'
 import {
   classifyFetchFailure,
@@ -79,6 +79,14 @@ export interface LadderRunResult {
 }
 
 function summarize(channelsTried: readonly string[], attempts: readonly { channel: string; result: FetchResult }[]): LadderExecutionSummary {
+  const cost: Meter = {
+    knownSubtotal: attempts.reduce((sum, item) => sum + (item.result.usage.externalCostUsd ?? 0), 0),
+    unknown: attempts.some(({ result }) => result.usage.externalCostUsd === null),
+  }
+  const tokens: Meter = {
+    knownSubtotal: attempts.reduce((sum, item) => sum + (item.result.usage.contentTokens ?? 0), 0),
+    unknown: attempts.some(({ result }) => result.usage.contentTokens === null),
+  }
   const costKnown = attempts.every(({ result }) => result.usage.externalCostUsd !== null)
   return {
     channelsTried,
@@ -97,6 +105,8 @@ function summarize(channelsTried: readonly string[], attempts: readonly { channe
     externalCostUsd: costKnown
       ? attempts.reduce((sum, item) => sum + (item.result.usage.externalCostUsd ?? 0), 0)
       : null,
+    externalCost: cost,
+    contentTokenMeter: tokens,
     artifacts: attempts.flatMap((item) => item.result.evidence.artifacts),
   }
 }

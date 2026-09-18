@@ -63,7 +63,7 @@ export const BLOCK_REASON = [
 
 export type BlockReason = (typeof BLOCK_REASON)[number]
 
-export const BUDGET_KIND = ['tokens', 'time', 'cost', 'pages', 'retries'] as const
+export const BUDGET_KIND = ['tokens', 'tokens_unknown', 'time', 'cost', 'cost_unknown', 'pages', 'retries'] as const
 export type BudgetKind = (typeof BUDGET_KIND)[number]
 
 /** Execution tiers of the escalation ladder (PHASE1_ENGINEERING_NOTES §2.5). */

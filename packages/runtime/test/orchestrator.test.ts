@@ -307,6 +307,41 @@ describe('CrawlOrchestrator with a fake scrape atom', () => {
     expect(report.pagesFetched).toBe(2)
   })
 
+  it('accounts for ladder attempts and keeps unknown meters explicit', async () => {
+    const atom: ScrapeAtom = {
+      async scrape(url) {
+        return {
+          result: page(url, { cost: 2 }),
+          links: [],
+          audit: {
+            channelsTried: ['http', 'provider'],
+            ladderTrace: [],
+            summary: {
+              channelsTried: ['http', 'provider'],
+              attempts: [],
+              wallMs: 2,
+              browserMs: 0,
+              bytesWire: null,
+              bytesDecompressed: 0,
+              requestCount: 2,
+              attemptCount: 2,
+              contentTokens: null,
+              externalCostUsd: null,
+              externalCost: { knownSubtotal: 2, unknown: true },
+              contentTokenMeter: { knownSubtotal: 4, unknown: true },
+              artifacts: [],
+            },
+          },
+        }
+      },
+      async close() {},
+    }
+    const report = await new CrawlOrchestrator({ store: new MemoryTaskStore(), atom, clock: new FakeClock() }).run({ seedUrl: SEED, taskDir: '/tmp/w2l-crawl' })
+    expect(report.costUsd).toBeNull()
+    expect(report.costUnknown).toBe(true)
+    expect(report.contentTokensUnknown).toBe(true)
+  })
+
   it('writes failed when the store throws after a scrape', async () => {
     const store = new MemoryTaskStore()
     const original = store.putStep.bind(store)
