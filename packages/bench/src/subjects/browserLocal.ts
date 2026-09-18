@@ -7,6 +7,7 @@ import {
   parseRetryAfterMs,
   ComplianceChain,
   normalizeAccessConfig,
+  sha256Utf8,
   type AccessConfigInput,
   type AccessFactShape,
   type ComplianceRecord,
@@ -307,6 +308,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
       if (Buffer.byteLength(body) > this.networkPolicy.maxDecompressedBytes) {
         return this.denied(url, start, trace, new BodyTooLargeError(this.networkPolicy.maxDecompressedBytes))
       }
+      const rawBodySha256 = sha256Utf8(body)
       const wallMs = Date.now() - start
       const browserMs = wallMs
       trace.push({ at: wallMs, lane: 'browser_local', event: 'rendered', detail: { status, attemptCount } })
@@ -357,7 +359,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
           httpStatus: status,
           redirectChain: finalUrl !== url ? [url, finalUrl] : [],
           contentType: 'text/html; rendered',
-          rawBodySha256: null,
+          rawBodySha256,
           artifacts: [],
         },
         usage: {

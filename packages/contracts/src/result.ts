@@ -36,7 +36,7 @@ export interface Evidence {
   httpStatus: number | null
   redirectChain: readonly string[]
   contentType: string | null
-  /** sha256 of the raw response body, for canary drift detection. */
+  /** sha256 of the raw response body. Null only when no body was read. */
   rawBodySha256: string | null
   /** Relative artifact paths (raw body, screenshot, DOM snapshot). */
   artifacts: readonly string[]
@@ -72,7 +72,7 @@ export interface HandoffRequest {
 export interface FetchResult {
   requestedUrl: string
   status: ResultStatus
-  /** Set iff status === 'failed'. */
+  /** Set iff status === 'failed'. Duplicate content uses status `duplicate`. */
   failureReason: FailureReason | null
   /** Set iff status === 'blocked'. */
   blockReason: BlockReason | null

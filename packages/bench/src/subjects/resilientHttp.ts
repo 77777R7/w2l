@@ -8,7 +8,7 @@ import {
   type TraceEvent,
 } from '@w2l/contracts'
 import { collectLinks, extractTf, htmlToMarkdown } from '@w2l/extract-tf'
-import { resilientFetch, classifyGate, escalationForBlock, type ResilientFetcher } from '@w2l/http-core'
+import { resilientFetch, classifyGate, escalationForBlock, sha256Utf8, type ResilientFetcher } from '@w2l/http-core'
 import { request } from 'undici'
 import { assertSafeUrl, defaultNetworkPolicy, readCappedBody } from '../egress.js'
 import { prepareHttpIdentity, recordHttpIdentity } from '../httpIdentity.js'
@@ -116,6 +116,7 @@ export class ResilientHttpSubject implements SubjectAdapter {
     // just the requested URL is "no redirect" and matches the other arms.
     const redirectChain = out.redirectChain.length > 1 ? out.redirectChain : []
     const body = await out.bodyText()
+    const rawBodySha256 = sha256Utf8(body)
 
     const base = {
       requestedUrl: url,
@@ -127,7 +128,7 @@ export class ResilientHttpSubject implements SubjectAdapter {
         httpStatus: out.status,
         redirectChain,
         contentType: out.headers?.get('content-type') ?? null,
-        rawBodySha256: null,
+        rawBodySha256,
         artifacts: [],
       },
       usage: {

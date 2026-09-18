@@ -28,6 +28,7 @@ export const STEP_STATUS = [
   'failed',
   'cancelled',
   'budget_exceeded',
+  'duplicate',
 ] as const
 export type StepStatus = (typeof STEP_STATUS)[number]
 

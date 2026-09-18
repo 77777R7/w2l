@@ -32,6 +32,7 @@ describe('resilient subject on served fixture bytes', () => {
     const out = await subject.fetch(`${server.url}/redirect/chain/3`)
     expect(out.status).toBe('success')
     expect(out.markdown).toContain('Arrived after three hops.')
+    expect(out.evidence.rawBodySha256).toMatch(/^[0-9a-f]{64}$/)
     expect(out.evidence.finalUrl).toBe(`${server.url}/redirect/chain/0`)
     expect(out.evidence.redirectChain).toHaveLength(4)
     expect(out.usage.requestCount).toBe(4)

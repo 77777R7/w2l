@@ -12,7 +12,7 @@ import {
 import type { NetworkPolicy, ResultStatus } from '../src/index.js'
 
 describe('contract 4: a single ResultStatus enum', () => {
-  it('has exactly the seven agreed statuses', () => {
+  it('has exactly the eight agreed statuses', () => {
     expect([...RESULT_STATUS]).toEqual([
       'success',
       'partial',
@@ -21,6 +21,7 @@ describe('contract 4: a single ResultStatus enum', () => {
       'failed',
       'cancelled',
       'budget_exceeded',
+      'duplicate',
     ])
   })
 
