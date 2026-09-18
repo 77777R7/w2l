@@ -11,8 +11,24 @@ import {
   wrapScrape,
 } from '@w2l/contracts'
 
-export function createApp(engine: ApiEngine): Hono {
+export interface AppOptions {
+  token?: string | null
+}
+
+export function createApp(engine: ApiEngine, options: AppOptions = {}): Hono {
   const app = new Hono()
+  const token = options.token ?? null
+
+  if (token !== null && token.length > 0) {
+    app.use('*', async (c, next) => {
+      const header = c.req.header('authorization') ?? ''
+      const presented = header.toLowerCase().startsWith('bearer ') ? header.slice(7).trim() : ''
+      if (presented.length === 0 || presented !== token) {
+        return c.json({ error: 'unauthorized' }, 401)
+      }
+      await next()
+    })
+  }
 
   app.post('/v1/scrape', async (c) => {
     const req = parseScrapeRequest(await c.req.json())

@@ -14,10 +14,12 @@ import {
 } from '@w2l/bench'
 import {
   defaultApiMode,
+  localNetworkPolicy,
   type CrawlAccepted,
   type CrawlReport,
   type CrawlStartRequest,
   type FetchResult,
+  type NetworkPolicy,
   type ScrapeRequest,
   type StepRecord,
   type Task,
@@ -41,6 +43,9 @@ export interface ApiEngine {
 export interface ApiEngineOptions {
   taskRoot?: string
   headed?: boolean
+  networkPolicy?: NetworkPolicy
+  /** Hosted crawl default when the request omits maxPages. Local stays unbounded. */
+  defaultMaxPages?: number | null
   /** Test seam: override local ladder channels without changing fetch. */
   channelsFor?: (mode: 'standard' | 'research' | 'authed') => Channel[]
 }
@@ -48,9 +53,12 @@ export interface ApiEngineOptions {
 export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
   const taskRoot = options.taskRoot ?? '.w2l/api'
   const headed = options.headed === true
+  const networkPolicy = options.networkPolicy ?? localNetworkPolicy()
+  const defaultMaxPages = options.defaultMaxPages ?? null
   const inflight = new Map<string, Promise<void>>()
   const channelsFor =
-    options.channelsFor ?? ((mode: 'standard' | 'research' | 'authed') => buildChannels(mode, { headed }))
+    options.channelsFor ??
+    ((mode: 'standard' | 'research' | 'authed') => buildChannels(mode, { headed, networkPolicy }))
 
   async function loadCrawlWithSteps(taskId: string): Promise<CrawlWithSteps | null> {
     if (!existsSync(join(taskRoot, taskId))) return null
@@ -99,7 +107,7 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
         mode,
         status: 'pending',
         budget: {
-          maxPages: req.maxPages === undefined ? null : req.maxPages,
+          maxPages: req.maxPages === undefined ? defaultMaxPages : req.maxPages,
           maxWallMs: null,
           maxCostUsd: null,
           maxTokens: null,

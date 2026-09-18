@@ -116,6 +116,31 @@ describe('resilientFetch: redirects', () => {
     expect(out.failureReason).toBe('policy_denied')
   })
 
+  it('calls assertUrl on the seed and every redirect hop', async () => {
+    const seen: string[] = []
+    const f = scripted([res(302, { location: '/b' }), res(200, {}, 'ok')])
+    const out = await resilientFetch('http://x.test/a', f, {
+      assertUrl: async (url) => {
+        seen.push(url)
+      },
+    })
+    expect(out.kind).toBe('ok')
+    expect(seen).toEqual(['http://x.test/a', 'http://x.test/b'])
+  })
+
+  it('does not fetch a redirect hop that assertUrl rejects', async () => {
+    const f = scripted([res(302, { location: 'http://169.254.169.254/' }), res(200, {}, 'metadata')])
+    const out = await resilientFetch(U, f, {
+      assertUrl: async (url) => {
+        if (url.includes('169.254.169.254')) throw new Error('metadata')
+      },
+    })
+    expect(out.kind).toBe('failure')
+    expect(out.failureReason).toBe('policy_denied')
+    expect(f.calls).toEqual([U])
+    expect(out.trace.some((t) => t.event === 'ssrf_denied')).toBe(true)
+  })
+
   it('fails a 3xx without a Location header as http_error', async () => {
     const f = scripted([res(302)])
     const out = await resilientFetch(U, f)

@@ -44,6 +44,8 @@ npm run api
 npm run mcp
 ```
 
+`npm run api` binds `127.0.0.1` and allows loopback/RFC1918 so fixture servers work. Hosted mode is explicit: `npm run api -- --hosted --token $W2L_API_TOKEN`. That binds `0.0.0.0`, requires `Authorization: Bearer`, denies private/metadata IPs, and defaults crawl `maxPages` to 100.
+
 MCP (Cursor / Claude) talks to the REST server:
 
 ```json

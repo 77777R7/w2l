@@ -20,6 +20,8 @@
  * maxAttempts 2 means exactly one retry — matching this definition.
  */
 
+export type UrlGuard = (url: string) => Promise<void>
+
 export interface ResilientHttpConfig {
   /** Maximum redirects followed per logical attempt. */
   maxRedirects: number
@@ -29,6 +31,8 @@ export interface ResilientHttpConfig {
   retryAfterCapMs: number
   headersTimeoutMs: number
   bodyTimeoutMs: number
+  /** Called before the first request and before every redirect hop. */
+  assertUrl?: UrlGuard
 }
 
 export const DEFAULT_RESILIENT_CONFIG: ResilientHttpConfig = {
@@ -64,6 +68,7 @@ export type ResilientFailureReason =
   | 'redirect_loop'
   | 'redirect_limit'
   | 'policy_denied'
+  | 'body_too_large'
 
 export interface ResilientOutcome {
   kind: 'ok' | 'failure'
@@ -118,6 +123,48 @@ function emptyOutcomeFields(chain: string[], requestCount: number, attemptCount:
   }
 }
 
+function denied(
+  current: string,
+  chain: string[],
+  requestCount: number,
+  attemptCount: number,
+  trace: ResilientOutcome['trace'],
+  headers: ResilientOutcome['headers'] = null,
+): ResilientOutcome {
+  return {
+    kind: 'failure',
+    status: null,
+    failureReason: 'policy_denied',
+    finalUrl: current,
+    ...emptyOutcomeFields(chain, requestCount, attemptCount, trace),
+    headers,
+  }
+}
+
+async function guardUrl(
+  url: string,
+  assertUrl: UrlGuard | undefined,
+  at: number,
+  current: string,
+  chain: string[],
+  requestCount: number,
+  attemptCount: number,
+  trace: ResilientOutcome['trace'],
+): Promise<ResilientOutcome | null> {
+  if (assertUrl === undefined) return null
+  try {
+    await assertUrl(url)
+    return null
+  } catch (err) {
+    trace.push({
+      at,
+      event: 'ssrf_denied',
+      detail: { to: url, error: err instanceof Error ? err.message : String(err) },
+    })
+    return denied(current, chain, requestCount, attemptCount, trace)
+  }
+}
+
 export async function resilientFetch(
   initialUrl: string,
   fetcher: ResilientFetcher,
@@ -131,6 +178,9 @@ export async function resilientFetch(
   let requestCount = 0
   let attemptCount = 0
   let retriesLeft = cfg.maxRetries
+
+  const blocked = await guardUrl(current, cfg.assertUrl, 0, current, chain, requestCount, attemptCount, trace)
+  if (blocked !== null) return blocked
 
   // Outer loop: logical attempts. A 503 with retries left re-enters here.
   for (;;) {
@@ -153,7 +203,11 @@ export async function resilientFetch(
         const reason: ResilientFailureReason =
           name === 'HeadersTimeoutError' || name === 'BodyTimeoutError'
             ? 'timeout'
-            : 'connection_error'
+            : name === 'SsrfDeniedError'
+              ? 'policy_denied'
+              : name === 'BodyTooLargeError'
+                ? 'body_too_large'
+                : 'connection_error'
         trace.push({ at, event: 'request_failed', detail: { reason, error: name || String(err) } })
         return {
           kind: 'failure',
@@ -227,6 +281,8 @@ export async function resilientFetch(
         }
         hops++
         seen.add(next)
+        const hopDenied = await guardUrl(next, cfg.assertUrl, at, current, chain, requestCount, attemptCount, trace)
+        if (hopDenied !== null) return { ...hopDenied, status: response.status, headers: response.headers }
         chain.push(next)
         trace.push({ at, event: 'redirect', detail: { from: current, to: next, status: response.status } })
         current = next

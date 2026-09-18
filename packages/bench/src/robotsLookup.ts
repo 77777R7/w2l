@@ -6,12 +6,14 @@
  * pretends the publisher published an empty file.
  */
 
+import { type NetworkPolicy } from '@w2l/contracts'
 import {
   evaluateRobots,
   parseRobotsTxt,
   sha256Hex,
   type ComplianceRobotsDecision,
 } from '@w2l/http-core'
+import { assertSafeUrl, defaultNetworkPolicy } from './egress.js'
 
 function isPlainText(contentType: string | null): boolean {
   if (contentType === null) return true
@@ -27,6 +29,7 @@ export interface CachedRobots {
 
 export class RobotsOriginCache {
   private readonly byOrigin = new Map<string, CachedRobots>()
+  constructor(private readonly networkPolicy: NetworkPolicy = defaultNetworkPolicy()) {}
 
   async lookup(url: string, userAgent: string): Promise<CachedRobots | null> {
     let origin: string
@@ -44,6 +47,7 @@ export class RobotsOriginCache {
 
     let entry: CachedRobots
     try {
+      await assertSafeUrl(robotsUrl, this.networkPolicy)
       const res = await fetch(robotsUrl, {
         headers: { 'user-agent': userAgent },
         signal: AbortSignal.timeout(5_000),

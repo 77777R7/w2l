@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { hostedNetworkPolicy } from '@w2l/contracts'
 import { startFixtureServer, type FixtureServer } from '@w2l/fixtures'
 import { ResilientHttpSubject } from '../src/subjects/resilientHttp.js'
 
@@ -75,5 +76,21 @@ describe('resilient subject on served fixture bytes', () => {
     expect(out.evidence.finalUrl).toBe(`${server.url}/home`)
     expect(out.evidence.redirectChain).toHaveLength(2)
     expect(out.status).toBe('success')
+  })
+
+  it('limit-huge-body: stops at maxBodyBytes instead of buffering the stream', async () => {
+    const out = await subject.fetch(`${server.url}/limit/huge-body`)
+    expect(out.status).toBe('failed')
+    expect(out.failureReason).toBe('body_too_large')
+  })
+})
+
+describe('hosted network policy on the HTTP arm', () => {
+  it('denies cloud metadata before a wire request', async () => {
+    const hosted = new ResilientHttpSubject('standard', hostedNetworkPolicy())
+    const out = await hosted.fetch('http://169.254.169.254/latest/meta-data/')
+    expect(out.status).toBe('failed')
+    expect(out.failureReason).toBe('policy_denied')
+    expect(out.usage.requestCount).toBe(0)
   })
 })

@@ -8,15 +8,18 @@ import type {
 
 export interface W2LOptions {
   baseUrl: string
+  token?: string
   fetch?: typeof fetch
 }
 
 export class W2L {
   private readonly baseUrl: string
+  private readonly token: string | undefined
   private readonly fetchImpl: typeof fetch
 
   constructor(options: W2LOptions) {
     this.baseUrl = options.baseUrl.replace(/\/$/, '')
+    this.token = options.token
     this.fetchImpl = options.fetch ?? fetch
   }
 
@@ -29,16 +32,24 @@ export class W2L {
   }
 
   async getCrawl(id: string): Promise<CrawlReport> {
-    const res = await this.fetchImpl(`${this.baseUrl}/v1/crawl/${encodeURIComponent(id)}`)
+    const res = await this.fetchImpl(`${this.baseUrl}/v1/crawl/${encodeURIComponent(id)}`, {
+      headers: this.headers(),
+    })
     if (res.status === 404) throw new Error(`crawl not found: ${id}`)
     if (!res.ok) throw new Error(`GET /v1/crawl/${id} failed: ${res.status}`)
     return (await res.json()) as CrawlReport
   }
 
+  private headers(extra: Record<string, string> = {}): Record<string, string> {
+    return this.token === undefined || this.token.length === 0
+      ? extra
+      : { ...extra, authorization: `Bearer ${this.token}` }
+  }
+
   private async post<T>(path: string, body: unknown, ok = 200): Promise<T> {
     const res = await this.fetchImpl(`${this.baseUrl}${path}`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: this.headers({ 'content-type': 'application/json' }),
       body: JSON.stringify(body),
     })
     if (res.status !== ok) {

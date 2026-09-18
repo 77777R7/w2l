@@ -4,11 +4,13 @@ import {
   QUALITY_ESCALATION_MAX_TOKENS,
   type CrawlMode,
   type FetchResult,
+  type NetworkPolicy,
   type TraceEvent,
 } from '@w2l/contracts'
 import { collectLinks, extractTf, htmlToMarkdown } from '@w2l/extract-tf'
 import { resilientFetch, classifyGate, escalationForBlock, type ResilientFetcher } from '@w2l/http-core'
 import { request } from 'undici'
+import { assertSafeUrl, defaultNetworkPolicy, readCappedBody } from '../egress.js'
 import { prepareHttpIdentity, recordHttpIdentity } from '../httpIdentity.js'
 import { RobotsOriginCache } from '../robotsLookup.js'
 import type { SubjectAdapter } from '../subject.js'
@@ -32,11 +34,15 @@ export class ResilientHttpSubject implements SubjectAdapter {
 
   private readonly prepared: ReturnType<typeof prepareHttpIdentity>
   private readonly fetcher: ResilientFetcher
-  private readonly robotsCache = new RobotsOriginCache()
+  private readonly robotsCache: RobotsOriginCache
+  private readonly networkPolicy: NetworkPolicy
 
-  constructor(mode: CrawlMode = 'standard') {
+  constructor(mode: CrawlMode = 'standard', networkPolicy?: NetworkPolicy) {
     this.prepared = prepareHttpIdentity(mode)
+    this.networkPolicy = networkPolicy ?? defaultNetworkPolicy()
+    this.robotsCache = new RobotsOriginCache(this.networkPolicy)
     const headers = this.prepared.headers
+    const maxBodyBytes = this.networkPolicy.maxBodyBytes
     this.fetcher = async (url, init) => {
       const response = await request(url, {
         method: 'GET',
@@ -44,7 +50,7 @@ export class ResilientHttpSubject implements SubjectAdapter {
         bodyTimeout: init.bodyTimeoutMs,
         headers,
       })
-      const buf = await response.body.arrayBuffer()
+      const buf = await readCappedBody(response.body, maxBodyBytes)
       const responseHeaders = response.headers
       return {
         status: response.statusCode,
@@ -92,7 +98,10 @@ export class ResilientHttpSubject implements SubjectAdapter {
       }
     }
 
-    const out = await resilientFetch(url, this.fetcher)
+    const out = await resilientFetch(url, this.fetcher, {
+      maxRedirects: this.networkPolicy.maxRedirects,
+      assertUrl: (target) => assertSafeUrl(target, this.networkPolicy),
+    })
     const wallMs = Date.now() - start
     for (const t of out.trace) {
       trace.push({

@@ -41,4 +41,22 @@ describe('W2L SDK', () => {
       'GET http://127.0.0.1:8787/v1/crawl/task-1',
     ])
   })
+
+  it('sends Authorization when a token is configured', async () => {
+    const headers: string[] = []
+    const client = new W2L({
+      baseUrl: 'http://127.0.0.1:8787',
+      token: 'secret',
+      fetch: (async (_input: RequestInfo | URL, init?: RequestInit) => {
+        const h = new Headers(init?.headers)
+        headers.push(h.get('authorization') ?? '')
+        return new Response(JSON.stringify({ status: 'success', markdown: 'ok' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      }) as typeof fetch,
+    })
+    await client.scrape('https://example.com/')
+    expect(headers).toEqual(['Bearer secret'])
+  })
 })
