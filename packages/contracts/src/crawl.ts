@@ -48,7 +48,9 @@ export interface CrawlReport {
   loopDetected: boolean
   wallMs: number
   costUsd: number | null
+  costUnknown?: boolean
   contentTokens: number | null
+  contentTokensUnknown?: boolean
 }
 
 export const DEFAULT_CRAWL_SPEC: Omit<CrawlSpec, 'seedUrl' | 'taskDir'> = {

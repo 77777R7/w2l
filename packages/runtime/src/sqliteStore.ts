@@ -26,7 +26,9 @@ interface AttemptRow {
   pages_fetched: number
   wall_ms: number
   cost_usd: number | null
+  cost_unknown: number | null
   content_tokens: number
+  content_tokens_unknown: number | null
   budget_exceeded: string | null
 }
 
@@ -68,7 +70,9 @@ CREATE TABLE IF NOT EXISTS attempts (
   pages_fetched INTEGER NOT NULL,
   wall_ms INTEGER NOT NULL,
    cost_usd REAL,
-  content_tokens INTEGER NOT NULL,
+   cost_unknown INTEGER NOT NULL DEFAULT 0,
+   content_tokens INTEGER NOT NULL,
+   content_tokens_unknown INTEGER NOT NULL DEFAULT 0,
   budget_exceeded TEXT
 );
 
@@ -120,6 +124,8 @@ export class SqliteTaskStore implements TaskStore {
       this.db.pragma('journal_mode = WAL')
       this.db.exec(SCHEMA)
       try { this.db.exec('ALTER TABLE steps ADD COLUMN audit_json TEXT') } catch {}
+      try { this.db.exec('ALTER TABLE attempts ADD COLUMN cost_unknown INTEGER NOT NULL DEFAULT 0') } catch {}
+      try { this.db.exec('ALTER TABLE attempts ADD COLUMN content_tokens_unknown INTEGER NOT NULL DEFAULT 0') } catch {}
       chmodSync(dbPath, 0o600)
     }
   }
@@ -172,9 +178,9 @@ export class SqliteTaskStore implements TaskStore {
     this.db
       .prepare(
         `INSERT INTO attempts (
-           id, task_id, status, started_at, ended_at, pages_fetched, wall_ms, cost_usd, content_tokens, budget_exceeded
+           id, task_id, status, started_at, ended_at, pages_fetched, wall_ms, cost_usd, cost_unknown, content_tokens, content_tokens_unknown, budget_exceeded
          ) VALUES (
-           @id, @task_id, @status, @started_at, @ended_at, @pages_fetched, @wall_ms, @cost_usd, @content_tokens, @budget_exceeded
+           @id, @task_id, @status, @started_at, @ended_at, @pages_fetched, @wall_ms, @cost_usd, @cost_unknown, @content_tokens, @content_tokens_unknown, @budget_exceeded
          )
          ON CONFLICT(id) DO UPDATE SET
            task_id = excluded.task_id,
@@ -184,7 +190,9 @@ export class SqliteTaskStore implements TaskStore {
            pages_fetched = excluded.pages_fetched,
            wall_ms = excluded.wall_ms,
            cost_usd = excluded.cost_usd,
+           cost_unknown = excluded.cost_unknown,
            content_tokens = excluded.content_tokens,
+           content_tokens_unknown = excluded.content_tokens_unknown,
            budget_exceeded = excluded.budget_exceeded`,
       )
       .run({
@@ -196,7 +204,9 @@ export class SqliteTaskStore implements TaskStore {
         pages_fetched: attempt.pagesFetched,
         wall_ms: attempt.wallMs,
         cost_usd: attempt.costUsd,
+        cost_unknown: attempt.costUnknown === true ? 1 : 0,
         content_tokens: attempt.contentTokens,
+        content_tokens_unknown: attempt.contentTokensUnknown === true ? 1 : 0,
         budget_exceeded: attempt.budgetExceeded,
       })
   }
@@ -323,7 +333,9 @@ function attemptFromRow(row: AttemptRow): Attempt {
     pagesFetched: row.pages_fetched,
     wallMs: row.wall_ms,
     costUsd: row.cost_usd,
+    ...(row.cost_unknown === 1 ? { costUnknown: true } : {}),
     contentTokens: row.content_tokens,
+    ...(row.content_tokens_unknown === 1 ? { contentTokensUnknown: true } : {}),
     budgetExceeded: row.budget_exceeded as Attempt['budgetExceeded'],
   }
 }

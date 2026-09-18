@@ -17,7 +17,9 @@ export async function crawlReportFromStore(store: TaskStore, taskId: string): Pr
         loopDetected: false,
         wallMs: 0,
         costUsd: null,
+        costUnknown: true,
         contentTokens: null,
+        contentTokensUnknown: true,
     }
   }
   const steps = await store.listSteps(taskId, latest.id)
@@ -45,6 +47,8 @@ export function reportFromTaskAttempt(
     loopDetected,
     wallMs: attempt.wallMs,
     costUsd: attempt.costUsd,
+    costUnknown: attempt.costUnknown,
     contentTokens: attempt.contentTokens,
+    contentTokensUnknown: attempt.contentTokensUnknown,
   }
 }

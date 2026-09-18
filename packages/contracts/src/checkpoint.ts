@@ -75,7 +75,9 @@ export interface Attempt {
   pagesFetched: number
   wallMs: number
   costUsd: number | null
+  costUnknown?: boolean
   contentTokens: number
+  contentTokensUnknown?: boolean
   /** Which budget dimension stopped this attempt, if any. */
   budgetExceeded: BudgetKind | null
 }

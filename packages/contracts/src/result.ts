@@ -30,6 +30,11 @@ export interface ResourceUsage {
   externalCostUsd: number | null
 }
 
+export interface Meter {
+  knownSubtotal: number
+  unknown: boolean
+}
+
 export interface Evidence {
   /** Final URL after redirects. */
   finalUrl: string
@@ -65,6 +70,8 @@ export interface LadderExecutionSummary {
   attemptCount: number
   contentTokens: number | null
   externalCostUsd: number | null
+  externalCost: Meter
+  contentTokenMeter: Meter
   artifacts: readonly string[]
 }
 
