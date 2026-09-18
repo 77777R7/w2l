@@ -375,8 +375,9 @@ export class BrowserLocalSubject implements SubjectAdapter {
         trace,
       }
 
-      // Gate classification, identical policy to the http lane — computed once
-      // from the rendered DOM, consulted only on non-contentful paths.
+      // Gate classification on the rendered DOM. Non-contentful paths use the
+      // full classifier; a contentful 200 still consults decisive challenge
+      // evidence so a 200 interstitial with extractable prose is not success.
       const gate = classifyGate({
         status,
         header: (name) => response?.headers()[name.toLowerCase()] ?? null,
@@ -435,10 +436,6 @@ export class BrowserLocalSubject implements SubjectAdapter {
       })
 
       if (extracted.escalate) {
-        // A rendered page that still yields no main content may be the gate's
-        // own answer rather than the page; classify now that it is known
-        // non-contentful. A browser-lane gate escalates to the user's own
-        // network or session, never to defeating the gate.
         if (gate !== null) return blocked(gate)
         return {
           ...base,
@@ -451,6 +448,14 @@ export class BrowserLocalSubject implements SubjectAdapter {
           markdown: null,
         }
       }
+
+      const decisive = classifyGate({
+        status,
+        header: (name) => response?.headers()[name.toLowerCase()] ?? null,
+        body,
+        contentful: true,
+      })
+      if (decisive !== null) return blocked(decisive)
 
       const markdown = htmlToMarkdown(extracted.mainHtml)
       return {

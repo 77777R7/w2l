@@ -75,6 +75,40 @@ ${prose(5, 23)}
     ),
 }
 
+const staticArticleWithWidget: Fixture = {
+  truth: {
+    id: 'static-article-widget',
+    target: '/static/article-widget',
+    kind: 'fixture',
+    category: 'static',
+    mustContain: [ARTICLE_FACT],
+    mustNotContain: B,
+    expectedLane: 'http',
+    emptyIsLegit: false,
+    expectedMainTokens: { min: 260, max: 900 },
+    budget: budget(2000),
+    expectedStatus: 'success',
+    notes:
+      'Ordinary article that embeds a reCAPTCHA widget in chrome. Decisive challenge ' +
+      'evidence must not treat the widget as the page purpose.',
+  },
+  respond: () =>
+    html(
+      htmlPage({
+        title: 'Kiln temperatures and glaze vitrification',
+        bodyHtml: `<article>
+<h1>Kiln temperatures and glaze vitrification</h1>
+<p>${ARTICLE_FACT}</p>
+${prose(6, 11)}
+<h2>Estuary sediment</h2>
+<p>${ARTICLE_FACT_2}</p>
+${prose(5, 23)}
+</article>
+<div class="g-recaptcha" data-sitekey="fixture"></div>`,
+      }),
+    ),
+}
+
 const CJK_FACT = '窑温达到一千二百四十度后釉面开始玻化。'
 
 const staticCjk: Fixture = {
@@ -1071,6 +1105,41 @@ const blockChallenge200: Fixture = {
   }),
 }
 
+const blockChallenge200Prose: Fixture = {
+  truth: {
+    id: 'block-challenge-200-prose',
+    target: '/block/challenge-200-prose',
+    kind: 'fixture',
+    category: 'blocked',
+    mustContain: [],
+    mustNotContain: [CHALLENGE_TEXT, 'Enable JavaScript and cookies to continue'],
+    expectedLane: 'http',
+    emptyIsLegit: false,
+    expectedMainTokens: null,
+    budget: budget(500),
+    expectedStatus: 'blocked',
+    expectedBlockReason: 'cloudflare_challenge',
+    notes:
+      'HTTP 200 interstitial that also has enough prose for extract-tf to find a main body. ' +
+      'Status-code and empty-extract gates both miss this; the production path must still ' +
+      'block on the Cloudflare challenge-platform script.',
+  },
+  respond: () => ({
+    status: 200,
+    headers: { 'content-type': 'text/html; charset=utf-8' },
+    body: htmlPage({
+      title: CHALLENGE_TEXT,
+      chrome: false,
+      headExtra: '<script src="/cdn-cgi/challenge-platform/h/b/orchestrate"></script>',
+      bodyHtml: `<article>
+<h1>${CHALLENGE_TEXT}</h1>
+<p>Enable JavaScript and cookies to continue.</p>
+${prose(6, 91)}
+</article>`,
+    }),
+  }),
+}
+
 const blockRateLimit: Fixture = {
   truth: {
     id: 'block-rate-limit',
@@ -1665,6 +1734,7 @@ const homePage: Fixture = {
 
 export const FIXTURES: readonly Fixture[] = [
   staticArticle,
+  staticArticleWithWidget,
   staticCjk,
   staticTable,
   t_thead,
@@ -1698,6 +1768,7 @@ export const FIXTURES: readonly Fixture[] = [
   emptyBody,
   blockChallenge,
   blockChallenge200,
+  blockChallenge200Prose,
   blockRateLimit,
   blockLoginWall,
   soft404,

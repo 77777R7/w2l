@@ -10,12 +10,12 @@
  * indistinguishable from a 500, which is precisely the observability the
  * product claims to sell.
  *
- * PRECONDITION — this is what keeps the marker matching safe: `classifyGate`
- * is only consulted for responses that are *already* non-contentful (non-200,
- * or 200 whose extraction escalated). A normal article that happens to carry a
- * login modal or an embedded captcha widget extracts successfully and never
- * reaches this function, so "password field present" can be read as evidence
- * about the page's purpose rather than about one widget on it.
+ * Callers pass `contentful: true` when extraction already found a main body.
+ * In that mode only *decisive* challenge evidence counts: vendor headers,
+ * Cloudflare managed-challenge plumbing, or the interstitial copy pair.
+ * Captcha widgets, login forms, and weak bot phrases stay ignored so a real
+ * article that embeds a widget is not blocked. Non-contentful responses still
+ * use the full classifier.
  *
  * Honesty rules, mirroring the page-type router's signal discipline:
  *  - a status code alone is only decisive where the code *means* the gate
@@ -58,6 +58,12 @@ export interface GateResponse {
   header: (name: string) => string | null
   /** Response body text. May be empty. */
   body: string
+  /**
+   * True when extraction already found a main body. Only decisive challenge
+   * evidence (vendor header / CF plumbing / interstitial copy pair) may
+   * override that success. Default false: full classifier.
+   */
+  contentful?: boolean
 }
 
 export interface GateVerdict {
@@ -197,9 +203,12 @@ function headingTexts(body: string): string[] {
 }
 
 /**
- * Classify a non-contentful response as a specific block, or return null when
- * the evidence does not support any gate claim (the caller then keeps
- * reporting the plain failure it already had).
+ * Classify a response as a specific block, or return null when the evidence
+ * does not support any gate claim.
+ *
+ * On a contentful 200, only decisive challenge evidence may override success.
+ * Weak markers, widgets, and login forms stay null so an article that mentions
+ * captcha or embeds a widget is not blocked.
  */
 export function classifyGate(res: GateResponse): GateVerdict | null {
   // No response at all means a transport error, not a gate. Nothing to read.
@@ -207,6 +216,7 @@ export function classifyGate(res: GateResponse): GateVerdict | null {
 
   const head = res.body.slice(0, HEAD_BYTES)
   const lower = head.toLowerCase()
+  const contentful = res.contentful === true
 
   // --- statuses whose meaning *is* the gate -------------------------------
   if (res.status === 429) {
@@ -233,6 +243,8 @@ export function classifyGate(res: GateResponse): GateVerdict | null {
   if (lower.includes(cfA) && lower.includes(cfB)) {
     return { reason: 'cloudflare_challenge', signals: ['cf_interstitial_text'] }
   }
+
+  if (contentful) return null
 
   // --- interactive captcha widget ----------------------------------------
   // Reached only when no Cloudflare managed-challenge marker fired, so a

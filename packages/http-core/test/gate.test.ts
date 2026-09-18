@@ -111,6 +111,32 @@ describe('classifyGate — Cloudflare interstitial', () => {
     // 200 is not a gate-shaped status, so nothing should fire.
     expect(classifyGate(res({ status: 200, body: '<p>Just a moment, loading your cart…</p>' }))).toBeNull()
   })
+
+  it('still names Cloudflare on a contentful 200 with challenge-platform plumbing', () => {
+    const v = classifyGate(
+      res({
+        status: 200,
+        contentful: true,
+        body:
+          '<script src="/cdn-cgi/challenge-platform/h/b/orchestrate"></script>' +
+          `<article><h1>Just a moment...</h1>${ARTICLE.repeat(2)}</article>`,
+      }),
+    )
+    expect(v?.reason).toBe('cloudflare_challenge')
+    expect(v?.signals).toContain('cf_challenge_platform_script')
+  })
+
+  it('does not treat an embedded widget as a gate once extraction succeeded', () => {
+    expect(
+      classifyGate(
+        res({
+          status: 200,
+          contentful: true,
+          body: `${ARTICLE}<div class="g-recaptcha" data-sitekey="abc"></div>`,
+        }),
+      ),
+    ).toBeNull()
+  })
 })
 
 describe('classifyGate — captcha widgets are distinct from interstitials', () => {
