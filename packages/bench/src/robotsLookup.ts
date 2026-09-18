@@ -103,4 +103,10 @@ export class RobotsOriginCache {
       skippedFetch: false,
     }
   }
+
+  crawlDelayMs(cached: CachedRobots | null, userAgent: string): number | null {
+    if (cached?.robots === null || cached?.robots === undefined) return null
+    const group = cached.robots.groups.find((candidate) => candidate.agents.some((agent) => agent === '*' || userAgent.toLowerCase().includes(agent)))
+    return group?.crawlDelayMs ?? null
+  }
 }

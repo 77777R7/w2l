@@ -67,6 +67,22 @@ class FakeAtom implements ScrapeAtom {
   async close(): Promise<void> {}
 }
 
+class ConcurrentAtom implements ScrapeAtom {
+  active = 0
+  maxActive = 0
+  constructor(private readonly pages: ReadonlyMap<string, ScrapeOutcome>) {}
+  async scrape(url: string): Promise<ScrapeOutcome> {
+    this.active++
+    this.maxActive = Math.max(this.maxActive, this.active)
+    await new Promise((resolve) => setTimeout(resolve, 1))
+    this.active--
+    const hit = this.pages.get(url)
+    if (hit === undefined) throw new Error(`fake atom has no page for ${url}`)
+    return hit
+  }
+  async close(): Promise<void> {}
+}
+
 function outcome(url: string, links: readonly string[], hash = url): ScrapeOutcome {
   const result = page(url, { links, hash })
   return { result, links }
@@ -259,6 +275,15 @@ describe('CrawlOrchestrator with a fake scrape atom', () => {
     expect(attempts).toHaveLength(1)
     expect(attempts[0]?.status).toBe('failed')
     expect(attempts[0]?.endedAt).not.toBeNull()
+  })
+
+  it('runs bounded workers instead of awaiting every page serially', async () => {
+    const pages = new Map<string, ScrapeOutcome>([[SEED, outcome(SEED, [ITEM_A, ITEM_B])], [ITEM_A, outcome(ITEM_A, [])], [ITEM_B, outcome(ITEM_B, [])]])
+    const atom = new ConcurrentAtom(pages)
+    const clock = new FakeClock()
+    const report = await new CrawlOrchestrator({ store: new MemoryTaskStore(), atom, clock, workerCount: 2, perHostMinDelayMs: 0 }).run({ seedUrl: SEED, taskDir: '/tmp/w2l-crawl' })
+    expect(report.pagesFetched).toBe(3)
+    expect(atom.maxActive).toBe(2)
   })
 
   it('writes failed when the store throws after a scrape', async () => {

@@ -43,6 +43,10 @@ export interface OrchestratorOptions {
   atom: ScrapeAtom
   clock?: CrawlClock
   newId?: () => string
+  perHostConcurrency?: number
+  perHostMinDelayMs?: number
+  crawlDelayMsByHost?: ReadonlyMap<string, number>
+  workerCount?: number
 }
 
 const EMPTY_USAGE = {
@@ -61,12 +65,16 @@ export class CrawlOrchestrator {
   private readonly atom: ScrapeAtom
   private readonly clock: CrawlClock
   private readonly newId: () => string
+  private readonly frontierOptions: Pick<OrchestratorOptions, 'perHostConcurrency' | 'perHostMinDelayMs' | 'crawlDelayMsByHost'>
+  private readonly workerCount: number
 
   constructor(options: OrchestratorOptions) {
     this.store = options.store
     this.atom = options.atom
     this.clock = options.clock ?? systemClock
     this.newId = options.newId ?? (() => crypto.randomUUID())
+    this.frontierOptions = options
+    this.workerCount = Math.max(1, options.workerCount ?? 4)
   }
 
   async run(partial: Pick<CrawlSpec, 'seedUrl' | 'taskDir'> & Partial<CrawlSpec>): Promise<CrawlReport> {
@@ -92,105 +100,73 @@ export class CrawlOrchestrator {
         seedUrl: task.seedUrl,
         maxDepth: spec.maxDepth,
         allowlistedDomains: spec.allowlistedDomains,
+        ...this.frontierOptions,
       })
       await this.restoreFrontier(frontier, task, spec)
+      const runningTask = task
+      const runningAttempt = attempt
+      let activePages = 0
+      const wakeResolvers: Array<() => void> = []
+      const wakeWorkers = (): void => {
+        while (wakeResolvers.length > 0) wakeResolvers.shift()!()
+      }
 
-      for (;;) {
-        const now = this.clock.now()
-        const spent: CrawlBudgetSpent = {
-          pages: pagesFetched + cachedPages,
-          wallMs: now - startedAtMs,
-          costUsd,
-          tokens: contentTokens,
-        }
-        const hit = budgetHit(spec.budget, spent)
-        if (hit !== null) {
-          budgetExceeded = hit
-          break
-        }
-
-        const next = frontier.dequeue(now)
-        if (next.item === null) {
-          if (next.nextReadyAtMs === null) break
-          const remainingWait = Math.max(0, next.nextReadyAtMs - now)
-          if (spec.budget.maxWallMs !== null && spent.wallMs + remainingWait >= spec.budget.maxWallMs) {
-            budgetExceeded = 'time'
-            break
-          }
-          await this.clock.wait(remainingWait)
-          continue
-        }
-
-        const item = next.item
-        try {
-          const cached = spec.useCached
-            ? await this.store.getStepByCanonicalUrl(task.id, item.canonicalUrl)
-            : null
-          const reusable = cached !== null && cached.result !== null && CONTENTFUL_STATUS.has(cached.result.status)
-
-          let result: FetchResult
-          let links: readonly string[]
-          let audit: import('@w2l/contracts').LadderRunAudit | undefined
-          let cachedPage = false
-          if (reusable && cached.result !== null) {
-            result = cached.result
-            links = linksOf(cached.result)
-            audit = cached.audit
-            cachedPage = true
-          } else {
-            const outcome = await this.atom.scrape(item.url)
-            result = outcome.result
-            links = outcome.links.length > 0 ? outcome.links : linksOf(outcome.result)
-            audit = outcome.audit
-          }
-
-          const hash = result.evidence.rawBodySha256
-          if (hash !== null && CONTENTFUL_STATUS.has(result.status)) {
-            const prior = seenHash.get(hash)
-            if (prior !== undefined && prior !== item.canonicalUrl) {
-              result = duplicateResult(item.url, result, prior)
-              links = []
-            } else {
-              seenHash.set(hash, item.canonicalUrl)
+      const work = async (): Promise<void> => {
+        for (;;) {
+          const now = this.clock.now()
+          const spent: CrawlBudgetSpent = { pages: pagesFetched + cachedPages, wallMs: now - startedAtMs, costUsd, tokens: contentTokens }
+          const hit = budgetHit(spec.budget, spent)
+          if (hit !== null) { budgetExceeded = hit; break }
+          const next = frontier.dequeue(now)
+          if (next.item === null) {
+            if (next.nextReadyAtMs === null) {
+              if (activePages === 0) break
+              await new Promise<void>((resolve) => wakeResolvers.push(resolve))
+              continue
             }
+            const remainingWait = Math.max(0, next.nextReadyAtMs - now)
+            if (spec.budget.maxWallMs !== null && spent.wallMs + remainingWait >= spec.budget.maxWallMs) { budgetExceeded = 'time'; break }
+            await this.clock.wait(remainingWait)
+            continue
           }
-          const contentHash = result.evidence.rawBodySha256
-
-          const at = new Date(this.clock.now()).toISOString()
-          const step: StepRecord = {
-            id: this.newId(),
-            taskId: task.id,
-            attemptId: attempt.id,
-            url: item.url,
-            canonicalUrl: item.canonicalUrl,
-            depth: item.depth,
-            status: stepStatusFromResult(result.status),
-            lane: result.lane,
-            contentHash,
-            cached: cachedPage,
-            result,
-            audit,
-            createdAt: at,
-            updatedAt: at,
-          }
-          await this.store.putStep(step)
-
-          if (cachedPage) cachedPages += 1
-          else pagesFetched += 1
-          if (result.status !== 'duplicate') {
-            costUsd = costUsd === null || result.usage.externalCostUsd === null
-              ? null
-              : costUsd + result.usage.externalCostUsd
+          const item = next.item
+          activePages++
+          try {
+            const cached = spec.useCached ? await this.store.getStepByCanonicalUrl(runningTask.id, item.canonicalUrl) : null
+            const reusable = cached !== null && cached.result !== null && CONTENTFUL_STATUS.has(cached.result.status)
+            let result: FetchResult
+            let links: readonly string[]
+            let audit: import('@w2l/contracts').LadderRunAudit | undefined
+            let cachedPage = false
+            if (reusable && cached.result !== null) {
+              result = cached.result; links = linksOf(cached.result); audit = cached.audit; cachedPage = true
+            } else {
+              const outcome = await this.atom.scrape(item.url)
+              result = outcome.result; links = outcome.links.length > 0 ? outcome.links : linksOf(outcome.result); audit = outcome.audit
+            }
+            const hash = result.evidence.rawBodySha256
+            if (hash !== null && CONTENTFUL_STATUS.has(result.status)) {
+              const prior = seenHash.get(hash)
+              if (prior !== undefined && prior !== item.canonicalUrl) { result = duplicateResult(item.url, result, prior); links = [] }
+              else seenHash.set(hash, item.canonicalUrl)
+            }
+            const at = new Date(this.clock.now()).toISOString()
+            await this.store.putStep({ id: this.newId(), taskId: runningTask.id, attemptId: runningAttempt.id, url: item.url, canonicalUrl: item.canonicalUrl, depth: item.depth, status: stepStatusFromResult(result.status), lane: result.lane, contentHash: result.evidence.rawBodySha256, cached: cachedPage, result, audit, createdAt: at, updatedAt: at })
+            if (cachedPage) cachedPages += 1; else pagesFetched += 1
+            if (result.status !== 'duplicate') costUsd = costUsd === null || result.usage.externalCostUsd === null ? null : costUsd + result.usage.externalCostUsd
             contentTokens += result.usage.contentTokens ?? 0
+            if (CONTENTFUL_STATUS.has(result.status)) {
+              for (const href of links) frontier.enqueue(href, item.depth + 1, item.canonicalUrl)
+              wakeWorkers()
+            }
+          } finally {
+            frontier.release(item.canonicalUrl)
+            activePages--
+            wakeWorkers()
           }
-
-          if (CONTENTFUL_STATUS.has(result.status)) {
-            for (const href of links) frontier.enqueue(href, item.depth + 1, item.canonicalUrl)
-          }
-        } finally {
-          frontier.release(item.canonicalUrl)
         }
       }
+      await Promise.all(Array.from({ length: this.workerCount }, () => work()))
     } catch (err) {
       failed = err
     } finally {

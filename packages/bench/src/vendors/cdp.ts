@@ -149,10 +149,17 @@ export async function navigateOnce(
   const page = await defaultContext(browser).newPage()
   try {
     const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout })
-    // JS shells need a beat after first paint; networkidle never fires on
-    // long-polling pages, so a bounded settle instead (same as browser_local).
-    const settleMs = Math.min(1500, deadlineMs === undefined ? 1500 : Math.max(1, deadlineMs - Date.now()))
-    await page.waitForTimeout(settleMs)
+    // Poll for a stable DOM rather than unconditionally sleeping 1.5s.
+    const settleDeadline = Math.min(Date.now() + 1500, deadlineMs ?? Number.POSITIVE_INFINITY)
+    let previousSize = -1
+    let stableRounds = 0
+    while (Date.now() < settleDeadline && stableRounds < 2) {
+      const size = await page.evaluate('document.documentElement?.outerHTML.length ?? 0')
+      if (typeof size === 'number' && size === previousSize) stableRounds++
+      else stableRounds = 0
+      previousSize = typeof size === 'number' ? size : previousSize
+      if (stableRounds < 2) await page.waitForTimeout(100)
+    }
 
     const headers: Record<string, string> = {}
     for (const [name, value] of Object.entries(response?.headers() ?? {})) {

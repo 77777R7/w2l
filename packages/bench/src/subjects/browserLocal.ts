@@ -292,9 +292,19 @@ export class BrowserLocalSubject implements SubjectAdapter {
         }
         break
       }
-      // Give JS shells a beat to render after first paint; networkidle never
-      // fires on long-polling pages, so use a bounded settle instead.
-      await page.waitForTimeout(1500)
+      // Wait for a stable DOM, not an unconditional 1.5s. A short polling
+      // window still gives JS shells time to render without penalizing static
+      // pages; the cap prevents long-polling pages from blocking forever.
+      let previousSize = -1
+      let stableRounds = 0
+      const settleDeadline = Date.now() + 1500
+      while (Date.now() < settleDeadline && stableRounds < 2) {
+        const size = await page.evaluate('document.documentElement?.outerHTML.length ?? 0')
+        if (typeof size === 'number' && size === previousSize) stableRounds++
+        else stableRounds = 0
+        previousSize = typeof size === 'number' ? size : previousSize
+        if (stableRounds < 2) await page.waitForTimeout(100)
+      }
       const status = response?.status() ?? 0
       const finalUrl = page.url()
       if (finalUrl !== url) {
