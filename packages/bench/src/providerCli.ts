@@ -140,8 +140,8 @@ export async function runProvider(
     const { declaration, transport } = await connectVendor(ops)
     // Printed before the fetch, because this is the string the gate is about
     // to evaluate robots.txt against — and it is the vendor's own, measured
-    // off the live session, not one we picked. Expect HeadlessChrome. That
-    // is the point.
+    // off the live session, not one we picked. HeadlessChrome on that
+    // string is a later identity refusal, not something we rewrite.
     log(`measured UA : ${declaration.declaredUserAgent}`)
     subject = new ProviderSubject(declaration, transport)
   }

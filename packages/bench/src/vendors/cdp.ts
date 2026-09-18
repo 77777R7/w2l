@@ -111,6 +111,8 @@ export interface NavigationOutcome {
   headers: Record<string, string>
   /** The UA actually on the request, when the CDP connection reported it. */
   sentUserAgent: string | null
+  /** Client hints on the same request, when CDP surfaced them. */
+  sentClientHints: Record<string, string>
 }
 
 /**
@@ -158,10 +160,13 @@ export async function navigateOnce(
     }
 
     let sentUserAgent: string | null = null
+    const sentClientHints: Record<string, string> = {}
     try {
       const requestHeaders = response?.request().headers() ?? {}
       for (const [name, value] of Object.entries(requestHeaders)) {
-        if (name.toLowerCase() === 'user-agent') sentUserAgent = value
+        const lower = name.toLowerCase()
+        if (lower === 'user-agent') sentUserAgent = value
+        if (lower.startsWith('sec-ch-ua')) sentClientHints[lower] = value
       }
     } catch {
       // A CDP attachment may not surface request headers. Null means
@@ -175,6 +180,7 @@ export async function navigateOnce(
       finalUrl: page.url(),
       headers,
       sentUserAgent,
+      sentClientHints,
     }
   } finally {
     await page.close().catch(() => {})

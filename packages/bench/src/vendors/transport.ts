@@ -156,6 +156,7 @@ export class CdpVendorTransport implements ProviderTransport {
         // Null when the CDP attachment did not surface request headers. The
         // subject treats that as unobserved, never as agreement.
         sentUserAgent: res.sentUserAgent,
+        sentClientHints: res.sentClientHints,
         declaredUserAgent: declared,
         // Neither vendor states a per-request price in its API response, and
         // an estimate in this field would read as a measurement.

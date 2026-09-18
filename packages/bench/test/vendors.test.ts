@@ -31,6 +31,8 @@ const PAGE =
   'the root where it joins the body of the vessel itself.</p></article></body></html>'
 
 const VENDOR_UA =
+  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.7390.37 Safari/537.36'
+const HEADLESS_VENDOR_UA =
   'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/141.0.7390.37 Safari/537.36'
 
 // --- vendor REST fake -------------------------------------------------------
@@ -222,9 +224,10 @@ describe('vendor identity', () => {
     const { connector } = connectorFor(bb)
     const { declaration } = await connectVendor(browserbaseOps({ apiKey: 'k' }, api.handler), connector)
 
-    // Not a flattering string of our choosing — HeadlessChrome is what this
-    // session runs, so HeadlessChrome is what robots.txt gets evaluated
-    // against and what the publisher's access log will show.
+    // Not a flattering string of our choosing — Chrome/141 is what this
+    // session runs, so that is what robots.txt gets evaluated against and
+    // what the publisher's access log will show. HeadlessChrome is a
+    // later refusal, not the identity we measure.
     expect(declaration.declaredUserAgent).toBe(VENDOR_UA)
     expect(declaration.id).toBe('browserbase')
     // We do not impose an identity on the vendor, so this is false — and the
@@ -480,6 +483,24 @@ describe('vendor transport behind the provider gate', () => {
     // The record still says what went on the wire — the declared UA was the
     // only identity we had, and the trace says we could not confirm it.
     expect(out.compliance!.sentHeaders.headers).toEqual([{ name: 'user-agent', value: VENDOR_UA }])
+  })
+
+  it('HeadlessChrome on the vendor wire is never success', async () => {
+    const api = sessionServing('bb_1')
+    const bb = fakeBrowser({ userAgent: HEADLESS_VENDOR_UA })
+    const { connector } = connectorFor(bb)
+    const { declaration, transport } = await connectVendor(
+      browserbaseOps({ apiKey: 'k' }, api.handler),
+      connector,
+    )
+    const { fetcher } = robotsServing(AMAZON_SHAPED)
+    const subject = new ProviderSubject(declaration, transport, 'standard', null, fetcher)
+
+    const out = await subject.fetch('https://shop.example/dp/B0TEST')
+    expect(out.status).toBe('failed')
+    expect(out.failureReason).toBe('identity_compromised')
+    expect(out.markdown).toBeNull()
+    expect(out.trace.some((t) => t.event === 'identity_mismatch')).toBe(true)
   })
 
   it('a robots-banned path never reaches the vendor browser', async () => {

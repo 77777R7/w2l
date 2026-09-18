@@ -1,6 +1,5 @@
-import { estimateTokens, type FetchResult, type TraceEvent } from '@w2l/contracts'
-import { extractTf } from '@w2l/extract-tf'
-import { toGfmTable } from '@w2l/fixtures'
+import { estimateTokens, vendorIdentityIssues, type FetchResult, type TraceEvent } from '@w2l/contracts'
+import { extractTf, htmlToMarkdown } from '@w2l/extract-tf'
 import {
   classifyGate,
   escalationForBlock,
@@ -71,6 +70,11 @@ export interface ProviderResponse {
    * declaration" — the record says which of the two it is.
    */
   sentUserAgent?: string | null
+  /**
+   * Client hints observed on the outgoing request, when the transport could
+   * see them. Empty means unobserved, not "none were sent".
+   */
+  sentClientHints?: Readonly<Record<string, string>>
   /**
    * The UA this fetch was gated under, when the transport tracks it per call.
    * Lets a mismatch against `sentUserAgent` be caught at the fetch that
@@ -279,6 +283,7 @@ export class ProviderSubject implements SubjectAdapter {
     // over. Null observed means unobserved, which is not agreement.
     const observedUa = res.sentUserAgent ?? null
     const wireUa = observedUa ?? ua
+    const sentHints = res.sentClientHints ?? {}
     if (observedUa !== null && observedUa !== ua) {
       trace.push({
         at: wallMs,
@@ -292,6 +297,21 @@ export class ProviderSubject implements SubjectAdapter {
         lane: 'provider',
         event: 'identity_unobserved',
         detail: { declared: ua },
+      })
+    }
+    // Mode check on the measured vendor face. We do not rewrite it to match
+    // ours; if it contradicts the mode (research looking like Chrome,
+    // HeadlessChrome, UA vs hints), the fetch is not a success.
+    const modeIssues = [
+      ...vendorIdentityIssues(this.mode, ua, sentHints),
+      ...(observedUa !== null && observedUa !== ua ? vendorIdentityIssues(this.mode, observedUa, sentHints) : []),
+    ]
+    if (modeIssues.length > 0) {
+      trace.push({
+        at: wallMs,
+        lane: 'provider',
+        event: 'identity_mismatch',
+        detail: { issues: [...new Set(modeIssues)], declared: ua, sent: observedUa },
       })
     }
 
@@ -437,10 +457,7 @@ export class ProviderSubject implements SubjectAdapter {
       }
     }
 
-    const markdown = extracted.mainHtml.replace(
-      /<table\b[\s\S]*?<\/table>/gi,
-      (table) => `\n${toGfmTable(table)}\n`,
-    )
+    const markdown = htmlToMarkdown(extracted.mainHtml)
 
     // THE UNIFIED IDENTITY RULE (ProviderSubject, LadderRunner, w2l-provider,
     // RoutingHistory all follow it): a fetch whose wire identity was

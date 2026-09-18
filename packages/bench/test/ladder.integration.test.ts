@@ -1,9 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
+import { identityBundleFrom, modeIdentity } from '@w2l/contracts'
 import { LadderRunner } from '../src/routing/ladder.js'
 import { ResilientHttpSubject } from '../src/subjects/resilientHttp.js'
 import { BrowserLocalSubject } from '../src/subjects/browserLocal.js'
+
+const IDENTITY = identityBundleFrom(modeIdentity('standard'))
 
 /**
  * Ladder regression against REAL subjects and a REAL local server:
@@ -75,8 +78,8 @@ describe('ladder with real subjects on a real server', () => {
     try {
       const runner = new LadderRunner(
         [
-          { id: 'http', fetch: (url) => new ResilientHttpSubject().fetch(url) },
-          { id: 'browser_local', fetch: (url) => browser.fetch(url) },
+          { id: 'http', identity: IDENTITY, fetch: (url) => new ResilientHttpSubject().fetch(url) },
+          { id: 'browser_local', identity: IDENTITY, fetch: (url) => browser.fetch(url) },
         ],
         { mode: 'authed' },
       )
@@ -103,8 +106,8 @@ describe('ladder with real subjects on a real server', () => {
     try {
       const runner = new LadderRunner(
         [
-          { id: 'http', fetch: (url) => new ResilientHttpSubject().fetch(url) },
-          { id: 'browser_local', fetch: (url) => browser.fetch(url) },
+          { id: 'http', identity: IDENTITY, fetch: (url) => new ResilientHttpSubject().fetch(url) },
+          { id: 'browser_local', identity: IDENTITY, fetch: (url) => browser.fetch(url) },
         ],
         { mode: 'authed' },
       )
@@ -126,8 +129,8 @@ describe('ladder with real subjects on a real server', () => {
     try {
       const runner = new LadderRunner(
         [
-          { id: 'http', fetch: (url) => new ResilientHttpSubject().fetch(url) },
-          { id: 'browser_local', fetch: (url) => browser.fetch(url) },
+          { id: 'http', identity: IDENTITY, fetch: (url) => new ResilientHttpSubject().fetch(url) },
+          { id: 'browser_local', identity: IDENTITY, fetch: (url) => browser.fetch(url) },
         ],
         { mode: 'authed' },
       )

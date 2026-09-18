@@ -1,8 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import { CONTENTFUL_STATUS, type FetchResult, type HandoffRequest } from '@w2l/contracts'
+import {
+  CONTENTFUL_STATUS,
+  identityBundleFrom,
+  modeIdentity,
+  type FetchResult,
+  type HandoffRequest,
+  type IdentityBundle,
+} from '@w2l/contracts'
 import { LadderRunner, type Channel, type HumanHandoff } from '../src/routing/ladder.js'
 import { MemoryRoutingHistory } from '../src/routing/vendorRouter.js'
 import { MemorySessionStore, type SessionSnapshot } from '../src/routing/sessionStore.js'
+
+const COHERENT = identityBundleFrom(modeIdentity('standard'))
 
 function blockedResult(url: string, blockReason: FetchResult['blockReason']): FetchResult {
   return {
@@ -60,11 +69,17 @@ function providerErrorResult(url: string, vendorId: string): FetchResult {
   }
 }
 
-function channel(id: string, responses: readonly FetchResult[], vendorId?: string): Channel & { calls: string[] } {
+function channel(
+  id: string,
+  responses: readonly FetchResult[],
+  vendorId?: string,
+  identity: IdentityBundle | undefined = COHERENT,
+): Channel & { calls: string[] } {
   const calls: string[] = []
   return {
     id,
     vendorId,
+    identity,
     calls,
     async fetch(url: string): Promise<FetchResult> {
       calls.push(url)
@@ -655,5 +670,38 @@ describe('LadderRunner — session gating by mode', () => {
     expect(calls).toEqual([])
     expect(run.handoffRequested).toBe(false)
     expect(run.ladderTrace.some((t) => t.detail.handoff === 'denied: mode is not authed')).toBe(true)
+  })
+})
+
+describe('LadderRunner — declared identity is mandatory', () => {
+  it('a channel with no identity bundle never reaches fetch', async () => {
+    const http = channel('http', [contentfulResult('https://example.com/p', 'http')], undefined, undefined)
+    delete (http as { identity?: IdentityBundle }).identity
+    const runner = new LadderRunner([http], { mode: 'standard' })
+
+    const run = await runner.run('https://example.com/p')
+    expect(http.calls).toEqual([])
+    expect(run.channelsTried).toEqual(['http'])
+    expect(run.result.status).toBe('failed')
+    expect(run.result.failureReason).toBe('identity_compromised')
+    expect(run.result.trace.some((t) => t.event === 'identity_unobserved')).toBe(true)
+    expect(run.ladderTrace.some((t) => t.event === 'ladder_identity_refused')).toBe(true)
+  })
+
+  it('a contradictory bundle stops the ladder instead of trying another fake identity', async () => {
+    const broken: IdentityBundle = {
+      ...COHERENT,
+      clientHints: { ...COHERENT.clientHints, 'sec-ch-ua-platform': '"Windows"' },
+    }
+    const http = channel('http', [contentfulResult('https://example.com/p', 'http')], undefined, broken)
+    const browser = channel('browser_local', [contentfulResult('https://example.com/p', 'browser_local')])
+    const runner = new LadderRunner([http, browser], { mode: 'standard' })
+
+    const run = await runner.run('https://example.com/p')
+    expect(http.calls).toEqual([])
+    expect(browser.calls).toEqual([])
+    expect(run.channelsTried).toEqual(['http'])
+    expect(run.result.failureReason).toBe('identity_compromised')
+    expect(run.result.trace.some((t) => t.event === 'identity_mismatch')).toBe(true)
   })
 })

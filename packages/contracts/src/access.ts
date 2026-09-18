@@ -28,8 +28,10 @@
  * WHAT THIS IS NOT. There is no fingerprint spoofing here, no CDP patching, no
  * captcha solving, and no rotating pool. A proxy is an egress path the user
  * already has the right to use; the honest-mode UA is sent through it
- * unchanged, and the identity honesty check still applies. Changing egress is
- * not changing identity.
+ * unchanged, and the identity honesty check still applies.
+ *
+ * 换 IP ≠ 换身份. Locale, timezone, viewport, and Client Hints stay the
+ * mode's bundle. Retuning timezone to a proxy's geo is refused.
  */
 
 /** Who owned the network path a fetch actually left through. */
@@ -198,9 +200,10 @@ export function accessGuidanceForLane(lane: string): AccessGuidance {
       return {
         requirement: 'proxy',
         rationale:
-          'The site refused our network path. We do not rotate addresses to ' +
-          'get around that; supply a proxy you hold the right to use and the ' +
-          'fetch leaves from your network, under your responsibility.',
+          'The site refused our network path. Changing IP is not changing ' +
+          'identity — locale, timezone and viewport stay the mode bundle. ' +
+          'Supply a proxy you hold the right to use; the fetch leaves from ' +
+          'your network, under your responsibility.',
       }
     default:
       return { requirement: 'none', rationale: 'This lane needs no access from you.' }

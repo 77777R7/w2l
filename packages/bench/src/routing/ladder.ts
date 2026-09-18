@@ -16,8 +16,8 @@
  * content is caught by the false-success checks upstream.
  */
 
-import type { Escalation, FetchResult, HandoffRequest } from '@w2l/contracts'
-import { CONTENTFUL_STATUS } from '@w2l/contracts'
+import type { Escalation, FetchResult, HandoffRequest, IdentityBundle } from '@w2l/contracts'
+import { CONTENTFUL_STATUS, identityBundleIssues } from '@w2l/contracts'
 import {
   classifyFetchFailure,
   evaluateGovernance,
@@ -36,6 +36,12 @@ export interface Channel {
   id: string
   /** Vendor id for provider channels, so history can attribute outcomes. */
   vendorId?: string
+  /**
+   * Declared L0 identity for this rung. Product channels always set a
+   * coherent bundle. Missing or contradictory → the ladder refuses to
+   * fetch; it does not try a different fake identity.
+   */
+  readonly identity?: IdentityBundle
   /** Run the channel against url, optionally with a user session attached. */
   fetch(url: string, session?: SessionSnapshot | null): Promise<FetchResult>
   /** Release the channel's resources (browser processes, vendor sessions).
@@ -201,9 +207,29 @@ export class LadderRunner {
     /** The quality hop the ladder itself proposed (http → next lane), so the
      *  final result can stamp whether that hop actually improved things. */
     let qualityEscalation: Escalation | null = null
-    for (const channel of ordered) {
-      channelsTried.push(channel.id)
-      const result = await channel.fetch(url, effectiveSession)
+      for (const channel of ordered) {
+        const identityBlock = refuseChannelIdentity(url, channel)
+        if (identityBlock !== null) {
+          channelsTried.push(channel.id)
+          ladderTrace.push({
+            at: 0,
+            event: 'ladder_identity_refused',
+            channel: channel.id,
+            detail: {
+              vendorId: channel.vendorId ?? null,
+              reason: identityBlock.trace[0]?.detail?.reason ?? 'identity refused',
+              issues: identityBlock.trace[0]?.detail?.issues ?? [],
+            },
+          })
+          return {
+            result: identityBlock,
+            channelsTried,
+            handoffRequested: false,
+            ladderTrace,
+          }
+        }
+        channelsTried.push(channel.id)
+        const result = await channel.fetch(url, effectiveSession)
       last = result
 
       // Vendor attribution happens for every attempt, successful or not —
@@ -518,6 +544,24 @@ export class LadderRunner {
     // Retry on the same channel with the fresh session — the SAME still-live
     // vendor session the human unblocked, not a new one. One retry only:
     // a human who cannot clear it on the second pass cannot clear it.
+    const retryIdentityBlock = refuseChannelIdentity(url, channel)
+    if (retryIdentityBlock !== null) {
+      ladderTrace.push({
+        at: result.usage.wallMs,
+        event: 'ladder_identity_refused',
+        channel: `${channel.id}(retry)`,
+        detail: {
+          vendorId: channel.vendorId ?? null,
+          reason: retryIdentityBlock.trace[0]?.detail?.reason ?? 'identity refused',
+        },
+      })
+      return {
+        result: retryIdentityBlock,
+        channelsTried: [...channelsTried, `${channel.id}(retry)`],
+        handoffRequested: false,
+        ladderTrace,
+      }
+    }
     const retry = await channel.fetch(url, snapshot)
     ladderTrace.push({
       at: retry.usage.wallMs,
@@ -584,6 +628,71 @@ export class LadderRunner {
       },
       trace: [{ at: 0, lane: 'http', event: 'governance_refusal', detail: { reason } }],
     }
+  }
+}
+
+/**
+ * Scheduler-level L0: a product channel without a coherent declared identity
+ * never reaches fetch. Skip rungs (no session / no vendor key) still declare
+ * a bundle — skip is "this rung has nothing to offer", not "this rung has
+ * no face". Missing or contradictory bundles stop the ladder; they do not
+ * escalate into another invented identity.
+ */
+export function refuseChannelIdentity(url: string, channel: Channel): FetchResult | null {
+  if (channel.identity === undefined) {
+    return identityRefusedResult(url, channel, 'identity_unobserved', ['channel declared no identity bundle'])
+  }
+  const issues = identityBundleIssues(channel.identity)
+  if (issues.length === 0) return null
+  return identityRefusedResult(url, channel, 'identity_mismatch', issues)
+}
+
+function identityRefusedResult(
+  url: string,
+  channel: Channel,
+  event: 'identity_mismatch' | 'identity_unobserved',
+  issues: readonly string[],
+): FetchResult {
+  const lane = channel.id === 'provider' ? 'provider' : channel.id === 'authed_session' ? 'browser_local_authed' : channel.id === 'browser_local' ? 'browser_local' : 'http'
+  return {
+    requestedUrl: url,
+    status: 'failed',
+    failureReason: 'identity_compromised',
+    blockReason: null,
+    budgetExceeded: null,
+    lane,
+    escalations: [],
+    handoff: null,
+    markdown: null,
+    truncated: false,
+    truncatedAt: null,
+    compliance: null,
+    evidence: {
+      finalUrl: url,
+      httpStatus: null,
+      redirectChain: [],
+      contentType: null,
+      rawBodySha256: null,
+      artifacts: [],
+    },
+    usage: {
+      wallMs: 0,
+      bytesWire: 0,
+      bytesDecompressed: 0,
+      requestCount: 0,
+      attemptCount: 0,
+      contentTokens: null,
+      browserMs: 0,
+      externalCostUsd: null,
+    },
+    trace: [
+      {
+        at: 0,
+        lane,
+        event,
+        detail: { reason: event === 'identity_unobserved' ? 'missing identity bundle' : 'contradictory identity bundle', issues },
+      },
+    ],
   }
 }
 

@@ -370,3 +370,62 @@ describe('ProviderSubject result mapping', () => {
     expect(verifyLedger(subject.ledger()).valid).toBe(true)
   })
 })
+
+describe('ProviderSubject mode identity on the measured vendor face', () => {
+  it('HeadlessChrome is never success, even when robots allows it', async () => {
+    const headless =
+      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/140.0.0.0 Safari/537.36'
+    const transport = new CountingTransport({ sentUserAgent: headless }, headless)
+    const { fetcher } = robotsServing(AMAZON_SHAPED)
+    const subject = new ProviderSubject(
+      decl({ declaredUserAgent: headless }),
+      transport,
+      'standard',
+      null,
+      fetcher,
+    )
+    const out = await subject.fetch('https://shop.example/dp/B0TEST')
+    expect(out.status).toBe('failed')
+    expect(out.failureReason).toBe('identity_compromised')
+    expect(out.markdown).toBeNull()
+    expect(transport.calls).toHaveLength(1)
+  })
+
+  it('research mode refuses a vendor that looks like Chrome', async () => {
+    const chrome =
+      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
+    const transport = new CountingTransport({ sentUserAgent: chrome }, chrome)
+    const { fetcher } = robotsServing(AMAZON_SHAPED)
+    const subject = new ProviderSubject(
+      decl({ declaredUserAgent: chrome }),
+      transport,
+      'research',
+      null,
+      fetcher,
+    )
+    const out = await subject.fetch('https://shop.example/dp/B0TEST')
+    expect(out.status).toBe('failed')
+    expect(out.failureReason).toBe('identity_compromised')
+    expect(out.markdown).toBeNull()
+  })
+
+  it('UA vs sec-ch-ua disagreement is identity_compromised, not success', async () => {
+    const chrome =
+      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36'
+    const transport = new CountingTransport(
+      {
+        sentUserAgent: chrome,
+        sentClientHints: {
+          'sec-ch-ua': '"Chromium";v="200", "Google Chrome";v="200", "Not;A=Brand";v="24"',
+        },
+      },
+      chrome,
+    )
+    const { fetcher } = robotsServing(AMAZON_SHAPED)
+    const subject = new ProviderSubject(decl({ declaredUserAgent: chrome }), transport, 'standard', null, fetcher)
+    const out = await subject.fetch('https://shop.example/dp/B0TEST')
+    expect(out.status).toBe('failed')
+    expect(out.failureReason).toBe('identity_compromised')
+    expect(out.markdown).toBeNull()
+  })
+})

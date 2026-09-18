@@ -1,21 +1,17 @@
-import { estimateTokens, type FetchResult } from '@w2l/contracts'
-import { extractTf } from '@w2l/extract-tf'
-import { toGfmTable } from '@w2l/fixtures'
+import { estimateTokens, type CrawlMode, type FetchResult, type TraceEvent } from '@w2l/contracts'
+import { extractTf, htmlToMarkdown } from '@w2l/extract-tf'
 import { classifyGate, escalationForBlock } from '@w2l/http-core'
 import { request } from 'undici'
+import { prepareHttpIdentity, recordHttpIdentity } from '../httpIdentity.js'
 import type { SubjectAdapter } from '../subject.js'
-import { POLITE_UA } from '../ua.js'
 
 /**
  * extract-tf subject: undici fetch + the extract-tf cascade. The first
  * production-shaped arm of the benchmark — real parsing and main-content
  * extraction on top of the same transport as bare-http.
  *
- * Output convention: extract-tf emits main-content HTML (markdown conversion
- * is pipeline step 7, not the extractor's job). For bench scoring, top-level
- * tables are converted to GFM via the fixtures-owned derivation — the same
- * convention the golden-converter arm uses — so the table fixtures can assert
- * structural geometry. Everything else stays HTML.
+   * Output convention: extract-tf emits main-content HTML; htmlToMarkdown is
+   * pipeline step 7. Tables stay GFM so the fixture suite can score geometry.
  */
 export class ExtractTfSubject implements SubjectAdapter {
   readonly meta = {
@@ -25,6 +21,12 @@ export class ExtractTfSubject implements SubjectAdapter {
     hosting: 'self_hosted' as const,
   }
 
+  private readonly prepared: ReturnType<typeof prepareHttpIdentity>
+
+  constructor(mode: CrawlMode = 'standard') {
+    this.prepared = prepareHttpIdentity(mode)
+  }
+
   async fetch(url: string): Promise<FetchResult> {
     const start = Date.now()
     try {
@@ -32,7 +34,7 @@ export class ExtractTfSubject implements SubjectAdapter {
         method: 'GET',
         headersTimeout: 10_000,
         bodyTimeout: 30_000,
-        headers: { 'user-agent': POLITE_UA },
+        headers: this.prepared.headers,
       })
 
       const wallMs = Date.now() - start
@@ -63,10 +65,7 @@ export class ExtractTfSubject implements SubjectAdapter {
         if (out.escalate) {
           escalated = true
         } else {
-          markdown = out.mainHtml.replace(
-            /<table\b[\s\S]*?<\/table>/gi,
-            (table) => `\n${toGfmTable(table)}\n`,
-          )
+          markdown = htmlToMarkdown(out.mainHtml)
         }
       }
 
@@ -113,6 +112,58 @@ export class ExtractTfSubject implements SubjectAdapter {
               ]
             : []
 
+      const trace: TraceEvent[] = [
+        { at: 0, lane: 'http', event: 'request_start' },
+        { at: wallMs, lane: 'http', event: 'request_complete', detail: { status } },
+      ]
+      const honest = recordHttpIdentity(this.prepared, trace, wallMs)
+      if (routeEvidence !== null) {
+        trace.push({ at: wallMs, lane: 'http', event: 'extract', detail: routeEvidence })
+      }
+      if (verdict !== null) {
+        trace.push({
+          at: wallMs,
+          lane: 'http',
+          event: 'gate_detected',
+          detail: { blockReason: verdict.reason, signals: verdict.signals, status },
+        })
+      }
+
+      if (!honest) {
+        return {
+          requestedUrl: url,
+          status: 'failed',
+          failureReason: 'identity_compromised',
+          blockReason: null,
+          budgetExceeded: null,
+          lane: 'http',
+          escalations: [],
+          markdown: null,
+          truncated: false,
+          truncatedAt: null,
+          compliance: null,
+          evidence: {
+            finalUrl: url,
+            httpStatus: status,
+            redirectChain: [],
+            contentType: response.headers['content-type'] as string | null,
+            rawBodySha256: null,
+            artifacts: [],
+          },
+          usage: {
+            wallMs,
+            bytesWire: bodyBuffer.byteLength,
+            bytesDecompressed: bodyBuffer.byteLength,
+            requestCount: 1,
+            attemptCount: 1,
+            contentTokens: null,
+            browserMs: 0,
+            externalCostUsd: null,
+          },
+          trace,
+        }
+      }
+
       return {
         requestedUrl: url,
         status: terminalStatus,
@@ -143,23 +194,7 @@ export class ExtractTfSubject implements SubjectAdapter {
           browserMs: 0,
           externalCostUsd: null,
         },
-        trace: [
-          { at: 0, lane: 'http', event: 'request_start' },
-          { at: wallMs, lane: 'http', event: 'request_complete', detail: { status } },
-          ...(routeEvidence !== null
-            ? [{ at: wallMs, lane: 'http' as const, event: 'extract', detail: routeEvidence }]
-            : []),
-          ...(verdict !== null
-            ? [
-                {
-                  at: wallMs,
-                  lane: 'http' as const,
-                  event: 'gate_detected',
-                  detail: { blockReason: verdict.reason, signals: verdict.signals, status },
-                },
-              ]
-            : []),
-        ],
+        trace,
       }
     } catch (err) {
       const wallMs = Date.now() - start

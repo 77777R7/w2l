@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
- * The escalation ladder as a CLI: `w2l-fetch <url>`.
+ * Product scrape CLI. `w2l scrape <url>` is the user entry; `w2l-fetch` is
+ * the same ladder under the old name.
  *
  * Runs the URL through the ladder — HTTP, local browser, then (when keys and
  * mode permit) cloud vendors — and prints which channels were tried, where it
- * stopped, and why. This is the day-to-day entry point for "go get this page,
- * escalate only as far as you honestly can".
+ * stopped, and why.
  *
  * Flags:
  *   --research        allow the provider lane (vendor keys still required)
@@ -24,8 +24,12 @@
  */
 
 import { pathToFileURL } from 'node:url'
-import type { FetchResult, SessionConfig, TraceEvent } from '@w2l/contracts'
-import { CONTENTFUL_STATUS } from '@w2l/contracts'
+import type { FetchResult, IdentityBundle, SessionConfig, TraceEvent } from '@w2l/contracts'
+import {
+  CONTENTFUL_STATUS,
+  formatIdentitySummary,
+  identityForRoute,
+} from '@w2l/contracts'
 import { LadderRunner, type Channel, type HumanHandoff } from './routing/ladder.js'
 import type { AccessConfigInput, CrawlPolicy } from '@w2l/http-core'
 import { ResilientHttpSubject } from './subjects/resilientHttp.js'
@@ -40,6 +44,10 @@ import {
   type RoutingHistory,
 } from './routing/vendorRouter.js'
 import { FileSessionStore, type SessionSnapshot, type SessionStore } from './routing/sessionStore.js'
+
+export const USAGE =
+  'usage: w2l scrape [--research|--authed] [--persist-session] [--live-view] [--session-store f] [--history-file f] [--handoff] <url>\n' +
+  '       w2l-fetch is an alias for w2l scrape'
 
 export interface Args {
   url: string
@@ -64,6 +72,7 @@ export function parseArgs(argv: readonly string[]): Args {
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!
+    if (arg === '--help' || arg === '-h') throw new Error(USAGE)
     if (arg === '--research') mode = 'research'
     else if (arg === '--authed') mode = 'authed'
     else if (arg === '--handoff') handoff = true
@@ -85,8 +94,9 @@ export function parseArgs(argv: readonly string[]): Args {
     }
   }
 
-  const url = positional[0]
-  if (url === undefined) throw new Error('usage: w2l-fetch [--research|--authed] [--persist-session] [--live-view] [--session-store f] [--history-file f] [--handoff] <url>')
+  const command = positional[0]
+  const url = command === 'scrape' || command === 'fetch' ? positional[1] : command
+  if (url === undefined) throw new Error(USAGE)
   try {
     new URL(url)
   } catch {
@@ -125,8 +135,9 @@ export function buildChannels(
   // One subject per channel for the life of the run. A fresh Chromium per
   // fetch would be both slow and leaky; the channel's close() is what tears
   // the browser down at the end.
-  const http = new ResilientHttpSubject()
+  const http = new ResilientHttpSubject(mode)
   const plainBrowser = new BrowserLocalSubject(mode)
+  const declared: IdentityBundle = identityForRoute(mode)
 
   // ----------------------------------------------------------------------
   // authed_session: the ONLY rung that uses login state. It exists solely in
@@ -161,6 +172,7 @@ export function buildChannels(
   const channels: Channel[] = [
     {
       id: 'http',
+      identity: declared,
       fetch: (url) =>
         opts.localSubjects?.http !== undefined ? opts.localSubjects.http.fetch(url) : http.fetch(url),
       close: async () => {
@@ -169,6 +181,7 @@ export function buildChannels(
     },
     {
       id: 'browser_local',
+      identity: declared,
       // No session here, ever: the plain rung is the public browser.
       fetch: (url) =>
         opts.localSubjects?.browser_local !== undefined
@@ -184,6 +197,7 @@ export function buildChannels(
   if (mode === 'authed') {
     channels.push({
       id: 'authed_session',
+      identity: identityForRoute('authed', { session: true }),
       fetch: async (url, session) => {
         const host = new URL(url).hostname.toLowerCase()
         // Skip, never terminal, never a throw: without a local session this
@@ -294,6 +308,7 @@ export function buildChannels(
     return {
       id: 'provider',
       vendorId,
+      identity: identityForRoute(mode, { resume: true }),
       fetch: async (url, session) => {
         // Session resume acceptance is strict: only this vendor's own
         // material, only for this domain. A Steel profile never reaches
@@ -436,12 +451,40 @@ function terminalHandoff(sessionStore: SessionStore | null): HumanHandoff {
   }
 }
 
-function describe(result: FetchResult): string {
-  const parts = [`status=${result.status}`]
-  if (result.blockReason !== null) parts.push(`block=${result.blockReason}`)
-  if (result.failureReason !== null) parts.push(`failure=${result.failureReason}`)
-  if (result.lane !== null) parts.push(`lane=${result.lane}`)
-  return parts.join(' ')
+export function formatScrapeReport(input: {
+  mode: Args['mode']
+  identity: IdentityBundle
+  url: string
+  channels: string
+  tried: readonly string[]
+  status: string
+  blockReason: string | null
+  failureReason: string | null
+  lane: string
+  tokens: number | null
+  wallMs: number
+  markdown: string | null
+}): string {
+  const outcome = [
+    `status=${input.status}`,
+    ...(input.blockReason !== null ? [`block=${input.blockReason}`] : []),
+    ...(input.failureReason !== null ? [`failure=${input.failureReason}`] : []),
+    `lane=${input.lane}`,
+  ].join(' ')
+  const lines = [
+    `mode        : ${input.mode}`,
+    `identity    : ${formatIdentitySummary(input.identity)}`,
+    `target      : ${input.url}`,
+    `channels    : ${input.channels}`,
+    `tried       : ${input.tried.join(' → ') || '(none)'}`,
+    `outcome     : ${outcome}`,
+    `tokens      : ${input.tokens === null ? '—' : String(input.tokens)}`,
+    `wallMs      : ${input.wallMs}`,
+  ]
+  if (input.markdown !== null && input.markdown !== '') {
+    lines.push('', '--- extracted ---', input.markdown.slice(0, 1500))
+  }
+  return lines.join('\n')
 }
 
 export async function runLadder(args: Args): Promise<number> {
@@ -467,9 +510,10 @@ export async function runLadder(args: Args): Promise<number> {
   const sessionStore = args.sessionStoreFile !== null ? new FileSessionStore(args.sessionStoreFile) : null
   const handoff = args.handoff ? terminalHandoff(sessionStore) : null
 
-  console.log(`ladder mode : ${args.mode}`)
-  console.log(`channels    : ${channels.map((c) => (c.vendorId !== undefined ? `${c.id}(${c.vendorId})` : c.id)).join(' → ')}`)
-  console.log(`target      : ${args.url}`)
+  const identity = identityForRoute(args.mode)
+  const channelLine = channels
+    .map((c) => (c.vendorId !== undefined ? `${c.id}(${c.vendorId})` : c.id))
+    .join(' → ')
   console.log(
     `vendor policy: ${vendorPolicy.authorized.length > 0 ? vendorPolicy.authorized.join(', ') : 'default (no persistence, no live view)'}`,
   )
@@ -481,8 +525,22 @@ export async function runLadder(args: Args): Promise<number> {
   try {
     const run = await runner.run(args.url)
     console.log('')
-    console.log(`tried       : ${run.channelsTried.join(' → ')}`)
-    console.log(`outcome     : ${describe(run.result)}`)
+    console.log(
+      formatScrapeReport({
+        mode: args.mode,
+        identity,
+        url: args.url,
+        channels: channelLine,
+        tried: run.channelsTried,
+        status: run.result.status,
+        blockReason: run.result.blockReason,
+        failureReason: run.result.failureReason,
+        lane: run.result.lane,
+        tokens: run.result.usage.contentTokens,
+        wallMs: run.result.usage.wallMs,
+        markdown: run.result.markdown,
+      }),
+    )
     for (const step of run.ladderTrace) {
       console.log(`audit       : ${step.event} channel=${step.channel} ${JSON.stringify(step.detail)}`)
     }
@@ -493,11 +551,6 @@ export async function runLadder(args: Args): Promise<number> {
         console.log(`live view   : ${h.liveViewUrl}`)
       }
       console.log(`rationale   : ${h?.rationale ?? 'human verification required'}`)
-    }
-    if (run.result.markdown !== null && run.result.markdown !== '') {
-      console.log('')
-      console.log('--- extracted ---')
-      console.log(run.result.markdown.slice(0, 1500))
     }
     // Non-success outcomes exit non-zero so a scripted caller can react to
     // "the ladder did not get content" without parsing stdout.
@@ -510,7 +563,12 @@ export async function runLadder(args: Args): Promise<number> {
 }
 
 async function main(): Promise<number> {
-  return runLadder(parseArgs(process.argv.slice(2)))
+  const argv = process.argv.slice(2)
+  if (argv.length === 0 || argv[0] === '--help' || argv[0] === '-h' || argv[0] === 'help') {
+    console.log(USAGE)
+    return argv.length === 0 ? 1 : 0
+  }
+  return runLadder(parseArgs(argv))
 }
 
 const entry = process.argv[1]

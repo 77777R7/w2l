@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { buildChannels, parseArgs } from '../src/ladderCli.js'
+import { buildChannels, formatScrapeReport, parseArgs, USAGE } from '../src/ladderCli.js'
+import { identityBundleFrom, modeIdentity } from '@w2l/contracts'
 import { LadderRunner } from '../src/routing/ladder.js'
 import { MemoryRoutingHistory } from '../src/routing/vendorRouter.js'
 import { MemorySessionStore } from '../src/routing/sessionStore.js'
@@ -93,8 +94,65 @@ describe('ladder CLI arguments', () => {
   })
 
   it('requires a URL', () => {
-    expect(() => parseArgs([])).toThrow(/usage: w2l-fetch/)
+    expect(() => parseArgs([])).toThrow(/usage: w2l scrape/)
     expect(() => parseArgs(['nope'])).toThrow(/not a URL/)
+  })
+
+  it('accepts the product command prefix scrape/fetch', () => {
+    expect(parseArgs(['scrape', 'https://example.com/p']).url).toBe('https://example.com/p')
+    expect(parseArgs(['fetch', '--research', 'https://example.com/p']).mode).toBe('research')
+  })
+
+  it('help text names w2l scrape, with w2l-fetch as alias', () => {
+    expect(USAGE).toContain('w2l scrape')
+    expect(USAGE).toContain('w2l-fetch is an alias')
+    expect(USAGE).not.toMatch(/^usage: w2l-fetch/)
+  })
+})
+
+describe('formatScrapeReport', () => {
+  it('prints a non-empty identity line and the extracted markdown', () => {
+    const report = formatScrapeReport({
+      mode: 'standard',
+      identity: identityBundleFrom(modeIdentity('standard', 128)),
+      url: 'https://example.com/',
+      channels: 'http → browser_local',
+      tried: ['http'],
+      status: 'success',
+      blockReason: null,
+      failureReason: null,
+      lane: 'http',
+      tokens: 12,
+      wallMs: 40,
+      markdown: '# Example Domain\n\nThis domain is for use in illustrative examples.',
+    })
+    expect(report).toMatch(/^mode        : standard$/m)
+    expect(report).toMatch(/^identity    : Chrome\/128 · macOS · en-US$/m)
+    expect(report).toContain('tried       : http')
+    expect(report).toContain('outcome     : status=success lane=http')
+    expect(report).toContain('tokens      : 12')
+    expect(report).toContain('wallMs      : 40')
+    expect(report).toContain('# Example Domain')
+  })
+
+  it('research mode names the declared bot, not Chrome', () => {
+    const report = formatScrapeReport({
+      mode: 'research',
+      identity: identityBundleFrom(modeIdentity('research')),
+      url: 'https://example.com/',
+      channels: 'http → browser_local',
+      tried: ['http'],
+      status: 'success',
+      blockReason: null,
+      failureReason: null,
+      lane: 'http',
+      tokens: 4,
+      wallMs: 10,
+      markdown: 'ok',
+    })
+    expect(report).toContain('mode        : research')
+    expect(report).toContain('identity    : w2l-research')
+    expect(report).not.toMatch(/identity    : Chrome\//)
   })
 })
 

@@ -1,6 +1,5 @@
 import { estimateTokens, type FetchResult, type TraceEvent } from '@w2l/contracts'
-import { extractTf } from '@w2l/extract-tf'
-import { toGfmTable } from '@w2l/fixtures'
+import { extractTf, htmlToMarkdown } from '@w2l/extract-tf'
 import {
   classifyGate,
   escalationForBlock,
@@ -23,7 +22,10 @@ import {
   BROWSER_FINGERPRINT,
   CHROME_MAJOR_FLOOR,
   DEFAULT_NETWORK_POLICY,
+  assertIdentityBundle,
   checkIdentityHonesty,
+  identityBundleFrom,
+  identityForRoute,
   modeIdentity,
   type CrawlMode,
   type HonestyVerdict,
@@ -136,6 +138,9 @@ export class BrowserLocalSubject implements SubjectAdapter {
       const version = browser.version()
       const major = Number(version.split('.')[0] ?? CHROME_MAJOR_FLOOR)
       const identity = modeIdentity(this.mode, Number.isFinite(major) ? major : CHROME_MAJOR_FLOOR)
+      assertIdentityBundle(
+        identityForRoute(this.mode, this.accessConfig, Number.isFinite(major) ? major : CHROME_MAJOR_FLOOR),
+      )
 
       // Robots is consulted BEFORE the browser context is opened. Every mode
       // declares respectsRobots: true, and the only way that claim means
@@ -443,10 +448,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
         }
       }
 
-      const markdown = extracted.mainHtml.replace(
-        /<table\b[\s\S]*?<\/table>/gi,
-        (table) => `\n${toGfmTable(table)}\n`,
-      )
+      const markdown = htmlToMarkdown(extracted.mainHtml)
       return {
         ...base,
         status: 'success',
