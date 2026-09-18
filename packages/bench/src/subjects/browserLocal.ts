@@ -68,6 +68,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
   }
 
   private browser: Browser | null = null
+  private browserPromise: Promise<Browser> | null = null
   /** Per-host last-request timestamp, for honest rate-limit facts. */
   private readonly lastRequestAtMsByHost = new Map<string, number>()
   /**
@@ -589,14 +590,24 @@ export class BrowserLocalSubject implements SubjectAdapter {
   }
 
   private async getBrowser(): Promise<Browser> {
-    if (!this.browser) {
-      this.browser = await chromium.launch({ headless: !this.headed })
+    if (this.browser !== null) return this.browser
+    if (this.browserPromise === null) {
+      this.browserPromise = chromium.launch({ headless: !this.headed }).then((browser) => {
+        this.browser = browser
+        return browser
+      }).catch((err) => {
+        this.browserPromise = null
+        throw err
+      })
     }
-    return this.browser
+    return this.browserPromise
   }
 
   async teardown(): Promise<void> {
+    const pending = this.browserPromise
+    if (pending !== null && this.browser === null) await pending.catch(() => {})
     await this.browser?.close().catch(() => {})
     this.browser = null
+    this.browserPromise = null
   }
 }

@@ -106,6 +106,8 @@ export class CrawlOrchestrator {
       const runningTask = task
       const runningAttempt = attempt
       let activePages = 0
+      let reservedPages = 0
+      let stopping = false
       const wakeResolvers: Array<() => void> = []
       const wakeWorkers = (): void => {
         while (wakeResolvers.length > 0) wakeResolvers.shift()!()
@@ -114,7 +116,8 @@ export class CrawlOrchestrator {
       const work = async (): Promise<void> => {
         for (;;) {
           const now = this.clock.now()
-          const spent: CrawlBudgetSpent = { pages: pagesFetched + cachedPages, wallMs: now - startedAtMs, costUsd, tokens: contentTokens }
+          if (stopping) break
+          const spent: CrawlBudgetSpent = { pages: pagesFetched + cachedPages + reservedPages, wallMs: now - startedAtMs, costUsd, tokens: contentTokens }
           const hit = budgetHit(spec.budget, spent)
           if (hit !== null) { budgetExceeded = hit; break }
           const next = frontier.dequeue(now)
@@ -130,6 +133,7 @@ export class CrawlOrchestrator {
             continue
           }
           const item = next.item
+          reservedPages++
           activePages++
           try {
             const cached = spec.useCached ? await this.store.getStepByCanonicalUrl(runningTask.id, item.canonicalUrl) : null
@@ -159,14 +163,22 @@ export class CrawlOrchestrator {
               for (const href of links) frontier.enqueue(href, item.depth + 1, item.canonicalUrl)
               wakeWorkers()
             }
+          } catch (err) {
+            stopping = true
+            wakeWorkers()
+            throw err
           } finally {
+            reservedPages--
             frontier.release(item.canonicalUrl)
             activePages--
             wakeWorkers()
           }
         }
       }
-      await Promise.all(Array.from({ length: this.workerCount }, () => work()))
+      const workers = Array.from({ length: this.workerCount }, () => work())
+      const settled = await Promise.allSettled(workers)
+      const firstFailure = settled.find((entry): entry is PromiseRejectedResult => entry.status === 'rejected')
+      if (firstFailure !== undefined) throw firstFailure.reason
     } catch (err) {
       failed = err
     } finally {
