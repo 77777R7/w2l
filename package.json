@@ -12,6 +12,7 @@
     "typecheck": "tsc --build",
     "test": "vitest run",
     "bench": "tsc --build && node --import tsx packages/bench/src/cli.ts",
+    "benchmark:gate": "tsc --build && node --import tsx packages/bench/src/gateCli.ts",
     "canary": "tsc --build && node --import tsx packages/bench/src/canaryCli.ts",
     "scrape": "tsc --build && node --import tsx packages/bench/src/w2lCli.ts scrape",
     "crawl": "tsc --build && node --import tsx packages/bench/src/w2lCli.ts crawl",
