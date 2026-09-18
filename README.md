@@ -38,7 +38,7 @@ cd w2l
 npm install
 npm run typecheck
 npm test
-npm run bench
+npm run scrape -- https://example.com
 ```
 
 ## Benchmark
@@ -81,11 +81,11 @@ docs/
 - [x] Fixture server with 30 adversarial cases
 - [x] robots.txt ReDoS fix (token-based glob matcher)
 - [x] Benchmark pipeline with bare HTTP baseline
-- [ ] Production HTTP subject (undici + readability + turndown)
-- [ ] Browser lane (Playwright)
-- [ ] Execution ladder (HTTP → browser → auth → proxy)
-- [ ] CLI tool
-- [ ] REST API
+- [x] extract-tf + HTML→Markdown after extract
+- [x] Browser lane (Playwright) and HTTP → browser → vendor ladder
+- [x] Honest identity bundle (UA / hints / locale / viewport must agree)
+- [x] `w2l scrape` product CLI (`w2l-fetch` is an alias)
+- [ ] REST API / SDK / MCP
 
 See [PRODUCT_PLAN_V2.md](PRODUCT_PLAN_V2.md) for the full plan.
 

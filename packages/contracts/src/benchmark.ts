@@ -42,6 +42,11 @@ export interface CaseOutcome {
   /** Whether the settled lane matched expectation. Null when the subject has no lane concept. */
   laneMatched: boolean | null
   /**
+   * Whether the named gate matched expectation. Null when the case carries no
+   * `expectedBlockReason` annotation — "not graded", never a free pass.
+   */
+  blockReasonMatched: boolean | null
+  /**
    * The five false-success checks. Every check appears exactly once, with
    * outcome 'unknown' where evidence is unavailable. Never silently omitted.
    */
@@ -59,6 +64,13 @@ export interface SuiteScore {
   caseCount: number
   /** Cases whose terminal status matched the ground truth. */
   statusMatchCount: number
+  /**
+   * Of the cases annotated with an `expectedBlockReason`, how many the subject
+   * named correctly, and how many carried the annotation at all. Reported as a
+   * pair so "named 1 of 4" never reads like "named 1, nothing else asked".
+   */
+  blockReasonMatchCount: number
+  blockReasonGradedCount: number
   /** Cases that returned content (success | partial). */
   contentfulCount: number
   falseSuccessCount: number

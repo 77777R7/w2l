@@ -27,11 +27,11 @@ describe('routePage', () => {
     doc.close()
   })
 
-  it('routes a JSON-LD product page to product with the table strategy', () => {
+  it('routes a JSON-LD product page to product with the product strategy', () => {
     const doc = parse(wrap(`<main><h1>Teapot</h1>${TABLE_SNIPPET}<p>Hand-thrown stoneware.</p></main>`, PRODUCT_LD()))
     const d = routePage(doc.document)
     expect(d.type).toBe('product')
-    expect(d.strategy).toBe('table')
+    expect(d.strategy).toBe('product')
     doc.close()
   })
 
@@ -329,27 +329,28 @@ describe('extractTf page types', () => {
     expect(out.escalate).toBe(false)
   })
 
-  it('extracts a product page with the table strategy and keeps the description', () => {
+  it('extracts a product page with the product strategy and keeps the description', () => {
     const html = wrap(`<main><h1>Four-spout infusion teapot</h1>${TABLE_SNIPPET}<p>Hand-thrown stoneware with four spouts for even infusion.</p></main>`, PRODUCT_LD())
     const out = extractTf.extract(html)
     expect(out.pageType).toBe('product')
-    expect(out.strategy).toBe('table')
+    expect(out.strategy).toBe('product')
     expect(out.mainHtml).toContain('Cobalt ash')
     expect(out.mainHtml).toContain('four spouts')
     expect(out.escalate).toBe(false)
   })
 
   it('keeps a product page product even when it has no table', () => {
-    // Page type and strategy are independent: no table => article strategy,
-    // but the semantic product signals still hold.
+    // Page type and strategy are independent, but a product page now gets
+    // the product strategy either way — the spec table is one piece of the
+    // product region, not the thing that selects a strategy.
     const html = wrap(
       '<main><h1>Hand-thrown teacup</h1><p>Thrown from harbour clay, glazed with cobalt ash.</p></main>',
       PRODUCT_LD(),
     )
     const out = extractTf.extract(html)
     expect(out.pageType).toBe('product')
-    expect(out.strategy).toBe('article')
     expect(out.escalate).toBe(false)
+    expect(out.mainHtml).toContain('harbour clay')
   })
 
   it('extracts a forum thread as forum via the article cascade, both posts intact', () => {

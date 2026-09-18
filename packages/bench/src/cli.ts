@@ -37,6 +37,12 @@ async function main() {
     console.log(`Subject: ${score.subjectId}`)
     console.log(`  Cases: ${score.caseCount}`)
     console.log(`  Status matches: ${score.statusMatchCount}/${score.caseCount}`)
+    // Printed as a pair against the graded count, not the case count: a subject
+    // that names 4 of 4 gates has not scored 4/41, and a subject that names none
+    // should read as 0/4 rather than as an absent metric.
+    console.log(
+      `  Gate names: ${score.blockReasonMatchCount}/${score.blockReasonGradedCount} graded`,
+    )
     console.log(`  Contentful: ${score.contentfulCount}`)
     console.log(`  False successes: ${score.falseSuccessCount}`)
     console.log(

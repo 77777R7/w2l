@@ -11,6 +11,7 @@
  */
 
 import { detach, qsa, tagOf, textOf } from './dom.js'
+import { looksLikePrice } from './product.js'
 
 const MANUALLY_CLEANED = [
   'script',
@@ -68,6 +69,135 @@ function hasToken(attr: string, tokens: readonly string[]): boolean {
 export interface PruneOptions {
   /** Extra selectors beyond the built-in table. */
   selectors?: readonly string[]
+}
+
+/**
+ * Heading text that introduces a block of OTHER products. Kept to phrases
+ * that are structurally about comparison or co-purchase — a heading like
+ * "Specifications" or "Product description" is about THIS product and must
+ * never match.
+ */
+const RECOMMENDATION_HEADINGS = [
+  /\balso\s+(bought|viewed|like[d]?|purchased|considered)\b/i,
+  /\b(customers|shoppers|buyers)\s+who\b/i,
+  /\b(similar|related|recommended|sponsored|comparable)\s+(items?|products?|listings?)\b/i,
+  /\b(you\s+m(ay|ight)\s+(also\s+)?like)\b/i,
+  /\b(frequently\s+bought\s+together)\b/i,
+  /\b(more\s+(items?|products?)\s+to\s+(explore|consider))\b/i,
+  /\b(compare\s+with\s+similar)\b/i,
+  /\b(top\s+picks?\s+for\s+you)\b/i,
+  /(相关(商品|产品|推荐))|(猜你喜欢)|(购买了此商品的顾客)|(经常一起购买)/,
+]
+
+/**
+ * id/class tokens storefronts use for co-purchase widgets. Matched against
+ * both whole class tokens and their hyphen/underscore-split parts, so
+ * "related-products" and "relatedProducts" and "sims-carousel" all land.
+ *
+ * Deliberately excludes a bare "carousel": the product's own image gallery is
+ * a carousel on most storefronts, and cutting it would delete the product.
+ */
+const RECOMMENDATION_TOKENS = [
+  'recommendation', 'recommendations', 'recommended',
+  'crosssell', 'cross-sell', 'upsell', 'up-sell',
+  'related-products', 'relatedproducts', 'similar-products', 'similarproducts',
+  'also-bought', 'alsobought', 'also-viewed', 'alsoviewed',
+  'sims-carousel', 'sponsored-products',
+] as const
+
+/**
+ * Token match tolerant of the three casings storefronts actually ship:
+ * space-separated classes, hyphen/underscore compounds, and camelCase.
+ */
+function hasRecommendationToken(attr: string): boolean {
+  const normalized = attr
+    .toLowerCase()
+    .replace(/([a-z])([A-Z])/g, '$1-$2')
+    .split(/\s+/)
+    .filter((t) => t.length > 0)
+  const camelSplit = attr.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase()
+  const parts = camelSplit.split(/[\s_]+/).filter((t) => t.length > 0)
+  const all = new Set([...normalized, ...parts])
+  return RECOMMENDATION_TOKENS.some((t) => all.has(t))
+}
+
+function isRecommendationHeading(text: string): boolean {
+  const t = text.trim()
+  if (t.length === 0 || t.length > 120) return false
+  return RECOMMENDATION_HEADINGS.some((re) => re.test(t))
+}
+
+/**
+ * A repeated-product grid: >= 3 sibling children that each carry a link AND a
+ * price-shaped run. One priced card is a product; three in a row under one
+ * parent is a shelf of other people's products.
+ *
+ * The price requirement is what keeps this off article pages — a nav list or a
+ * related-articles rail has links without prices and is left alone.
+ */
+function isProductGrid(el: Element): boolean {
+  const kids = Array.from(el.children)
+  if (kids.length < 3) return false
+  let priced = 0
+  for (const kid of kids) {
+    if (qsa(kid, 'a').length === 0) continue
+    if (looksLikePrice(textOf(kid))) priced++
+  }
+  return priced >= 3 && priced >= kids.length * 0.6
+}
+
+/**
+ * The region a recommendation heading introduces: the heading plus the
+ * sibling run that follows it, up to the next heading of the same or higher
+ * rank. Returns the nodes to cut, never a whole ancestor — cutting the
+ * heading's parent on a flat DOM would take the product with it.
+ */
+function recommendationRegion(heading: Element): Element[] {
+  const rank = Number(/^h([1-6])$/.exec(tagOf(heading))?.[1] ?? '6')
+  const region: Element[] = [heading]
+  for (let sib = heading.nextElementSibling; sib; sib = sib.nextElementSibling) {
+    const sibRank = Number(/^h([1-6])$/.exec(tagOf(sib))?.[1] ?? '0')
+    if (sibRank > 0 && sibRank <= rank) break
+    region.push(sib)
+  }
+  return region
+}
+
+/**
+ * Cut recommendation carousels from a product page.
+ *
+ * Two independent triggers, because storefronts split on which one they give
+ * you: a labelled heading ("Customers also bought") and an unlabelled grid of
+ * priced cards. Either alone is enough; neither is inferred from the other.
+ *
+ * Deliberately conservative about what it takes with it. The failure this
+ * prevents is an LLM summarizing the wrong product's features; the failure it
+ * must not cause is deleting the product being described.
+ */
+export function pruneRecommendations(doc: Document): void {
+  // Trigger 1: labelled sections.
+  for (const heading of qsa(doc, 'h1,h2,h3,h4,h5,h6')) {
+    if (!heading.isConnected) continue
+    if (!isRecommendationHeading(textOf(heading))) continue
+    for (const node of recommendationRegion(heading)) detach(node)
+  }
+
+  // Trigger 2: unlabelled grids of priced, linked cards. Walk deepest-first
+  // so the tightest qualifying container is cut, not a page-level wrapper
+  // that happens to contain one.
+  const containers = qsa(doc, 'div,section,ul,ol')
+  for (const el of containers.reverse()) {
+    if (!el.isConnected) continue
+    if (isProductGrid(el)) detach(el)
+  }
+
+  // Trigger 3: id/class tokens, for carousels rendered without a heading and
+  // without prices in the initial HTML (lazy-loaded cards).
+  for (const el of qsa(doc, '[id],[class]')) {
+    if (!el.isConnected) continue
+    const attr = `${el.getAttribute('id') ?? ''} ${el.getAttribute('class') ?? ''}`
+    if (hasRecommendationToken(attr)) detach(el)
+  }
 }
 
 /**

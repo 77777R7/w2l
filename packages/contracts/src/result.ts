@@ -1,4 +1,5 @@
 import type { BlockReason, BudgetKind, FailureReason, Lane, ResultStatus } from './status.js'
+import type { ComplianceRecord } from './compliance.js'
 
 /** Why the runtime moved from one lane to the next. Logged for the escalation corpus. */
 export interface Escalation {
@@ -49,6 +50,22 @@ export interface TraceEvent {
 }
 
 /**
+ * A request for human takeover: the lane hit a captcha or login wall it will
+ * not defeat, a live-view door exists, and the task pauses here until a
+ * human returns (or the run aborts). Carrying this on the result instead of
+ * throwing keeps the decision trail in the signed record: the run did not
+ * silently skip the page, it stopped and asked.
+ */
+export interface HandoffRequest {
+  /** The seven-class routing reason, e.g. 'captcha_required'. */
+  reason: string
+  /** Live view URL for the human, when one was opened. */
+  liveViewUrl: string | null
+  /** Why this specific result asks for a human, one sentence. */
+  rationale: string
+}
+
+/**
  * A page-level fetch outcome. `status` is the single source of truth
  * (see RESULT_STATUS); the reason fields narrow it.
  */
@@ -64,12 +81,29 @@ export interface FetchResult {
   /** The lane that produced this result. */
   lane: Lane
   escalations: readonly Escalation[]
+  /** Set when the result asks for human takeover. Never on a success.
+   *  Optional for backward compatibility with existing result producers;
+   *  the router and provider lanes always populate it. */
+  handoff?: HandoffRequest | null
+  /**
+   * Vendor session resume material (context/profile/storage) that the
+   * provider lane produced, so the ladder can persist it for the next run.
+   * Shape is vendor-specific; it is a credential-free continuation token.
+   */
+  resumeContext?: unknown | null
   /** Extracted main content as Markdown. Null unless status is contentful. */
   markdown: string | null
   /** True when content was cut to fit a token budget. */
   truncated: boolean
   /** Character offset where truncation occurred; null when not truncated. */
   truncatedAt: number | null
+  /**
+   * Tamper-evident record of what the fetch actually did (robots.txt decision,
+   * exact headers sent, rate-limit facts). Null until a subject wires the
+   * record builder in; contentful subjects are expected to produce one per
+   * fetch so the premium "provable politeness" tier is not a bolt-on.
+   */
+  compliance: ComplianceRecord | null
   evidence: Evidence
   usage: ResourceUsage
   trace: readonly TraceEvent[]

@@ -12,7 +12,8 @@
     "typecheck": "tsc --build",
     "test": "vitest run",
     "bench": "tsc --build && node --import tsx packages/bench/src/cli.ts",
-    "canary": "tsc --build && node --import tsx packages/bench/src/canaryCli.ts"
+    "canary": "tsc --build && node --import tsx packages/bench/src/canaryCli.ts",
+    "scrape": "tsc --build && node --import tsx packages/bench/src/w2lCli.ts scrape"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",
