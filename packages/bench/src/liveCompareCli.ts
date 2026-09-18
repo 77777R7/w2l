@@ -109,21 +109,24 @@ const ARM_TIMEOUT_MS = 120_000
  */
 async function runArm(
   arm: string,
-  fn: (deadlineMs: number) => Promise<FetchResult>,
+  fn: (deadlineMs: number, signal: AbortSignal) => Promise<FetchResult>,
   timeoutMs: number = ARM_TIMEOUT_MS,
 ): Promise<ArmOutcome> {
   const deadlineMs = Date.now() + timeoutMs
+  const controller = new AbortController()
   let timer: ReturnType<typeof setTimeout> | undefined
   const deadline = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
+      controller.abort()
       reject(new Error(`arm ${arm} timed out after ${timeoutMs}ms`))
     }, timeoutMs)
     timer.unref?.()
   })
   try {
-    const result = await Promise.race([fn(deadlineMs), deadline])
+    const result = await Promise.race([fn(deadlineMs, controller.signal), deadline])
     return { arm, ok: true, result: classifyResult(arm, result) }
   } catch (err) {
+    controller.abort()
     return { arm, ok: false, error: err instanceof Error ? err.message : String(err) }
   } finally {
     if (timer !== undefined) clearTimeout(timer)
@@ -188,7 +191,7 @@ export async function compareChannels(
 
   interface Arm {
     name: string
-    run: (url: string, deadlineMs?: number) => Promise<FetchResult>
+    run: (url: string, deadlineMs?: number, signal?: AbortSignal) => Promise<FetchResult>
     available: boolean
     close: () => Promise<void>
   }
@@ -227,10 +230,10 @@ export async function compareChannels(
     {
       name: 'http',
       available: true,
-      run: async (url, deadlineMs) => {
+        run: async (url, deadlineMs, signal) => {
         if (httpFake !== null) {
           if (httpFakeSubject === null) httpFakeSubject = await httpFake()
-          return httpFakeSubject.fetch(url, signalFor(deadlineMs))
+          return httpFakeSubject.fetch(url, signal ?? signalFor(deadlineMs))
         }
         return http.fetch(url)
       },
@@ -241,10 +244,10 @@ export async function compareChannels(
     {
       name: 'browser_local',
       available: true,
-      run: async (url, deadlineMs) => {
+        run: async (url, deadlineMs, signal) => {
         if (browserFake !== null) {
           if (browserFakeSubject === null) browserFakeSubject = await browserFake()
-          return browserFakeSubject.fetch(url, signalFor(deadlineMs))
+          return browserFakeSubject.fetch(url, signal ?? signalFor(deadlineMs))
         }
         return browser.fetch(url)
       },
@@ -350,7 +353,7 @@ export async function compareChannels(
           continue
         }
         log(`  ${arm.name}...`)
-        const outcome = await runArm(arm.name, (deadlineMs) => arm.run(url, deadlineMs), opts.armTimeoutMs)
+        const outcome = await runArm(arm.name, (deadlineMs, signal) => arm.run(url, deadlineMs, signal), opts.armTimeoutMs)
         urlArms.push(outcome)
         if (outcome.result !== undefined) {
           log(
