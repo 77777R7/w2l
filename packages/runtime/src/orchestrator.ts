@@ -149,6 +149,7 @@ export class CrawlOrchestrator {
             } else {
               const outcome = await this.atom.scrape(item.url)
               result = outcome.result; links = outcome.links.length > 0 ? outcome.links : linksOf(outcome.result); audit = outcome.audit
+              frontier.setCrawlDelay(item.host, outcome.crawlDelayMs ?? null)
             }
             const hash = result.evidence.rawBodySha256
             if (hash !== null && CONTENTFUL_STATUS.has(result.status)) {

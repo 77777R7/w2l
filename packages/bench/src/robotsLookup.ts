@@ -29,6 +29,7 @@ export interface CachedRobots {
 
 export class RobotsOriginCache {
   private readonly byOrigin = new Map<string, CachedRobots>()
+  private readonly pending = new Map<string, Promise<CachedRobots | null>>()
   constructor(private readonly networkPolicy: NetworkPolicy = defaultNetworkPolicy()) {}
 
   async lookup(url: string, userAgent: string): Promise<CachedRobots | null> {
@@ -44,20 +45,47 @@ export class RobotsOriginCache {
 
     const cached = this.byOrigin.get(origin)
     if (cached) return cached
+    const pending = this.pending.get(origin)
+    if (pending !== undefined) return pending
 
-    let entry: CachedRobots
-    try {
+    const request = (async (): Promise<CachedRobots | null> => {
+      let entry: CachedRobots = { robotsUrl, robots: null, sha256: null, absent: false }
+      try {
       await assertSafeUrl(robotsUrl, this.networkPolicy)
-      const res = await fetch(robotsUrl, {
+      let currentUrl = robotsUrl
+      for (let hop = 0; hop <= this.networkPolicy.maxRedirects; hop++) {
+        await assertSafeUrl(currentUrl, this.networkPolicy)
+        const res = await fetch(currentUrl, {
         headers: { 'user-agent': userAgent },
         signal: AbortSignal.timeout(5_000),
+        redirect: 'manual',
       })
+        if (res.status >= 300 && res.status < 400) {
+          const location = res.headers.get('location')
+          if (location === null) throw new Error('robots redirect missing location')
+          currentUrl = new URL(location, currentUrl).href
+          continue
+        }
       if (res.status >= 400) {
         entry = { robotsUrl, robots: null, sha256: null, absent: true }
       } else if (!isPlainText(res.headers.get('content-type'))) {
         entry = { robotsUrl, robots: null, sha256: null, absent: true }
       } else {
-        const text = await res.text()
+        const reader = res.body?.getReader()
+        if (reader === undefined) throw new Error('robots response has no body')
+        const chunks: Uint8Array[] = []
+        let size = 0
+        for (;;) {
+          const next = await reader.read()
+          if (next.done) break
+          size += next.value.byteLength
+          if (size > Math.min(this.networkPolicy.maxBodyBytes, 1024 * 1024)) throw new Error('robots body too large')
+          chunks.push(next.value)
+        }
+        const bytes = new Uint8Array(size)
+        let offset = 0
+        for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength }
+        const text = new TextDecoder().decode(bytes)
         entry = {
           robotsUrl,
           robots: parseRobotsTxt(text),
@@ -65,12 +93,18 @@ export class RobotsOriginCache {
           absent: false,
         }
       }
+      if (entry.robots === null && currentUrl !== robotsUrl) throw new Error('robots redirect limit exceeded')
+      break
+      }
     } catch {
       entry = { robotsUrl, robots: null, sha256: null, absent: false }
     }
 
-    this.byOrigin.set(origin, entry)
-    return entry
+      this.byOrigin.set(origin, entry)
+      return entry
+    })()
+    this.pending.set(origin, request)
+    try { return await request } finally { this.pending.delete(origin) }
   }
 
   decision(cached: CachedRobots | null, url: string, userAgent: string): ComplianceRobotsDecision {
@@ -82,6 +116,7 @@ export class RobotsOriginCache {
         appliedRules: [],
         decision: 'no_robots',
         skippedFetch: false,
+        crawlDelayMs: null,
       }
     }
 
@@ -101,6 +136,7 @@ export class RobotsOriginCache {
       appliedRules: match.appliedRules.map((r) => ({ pattern: r.pattern, allow: r.allow })),
       decision: match.allowed ? 'allowed' : 'disallowed',
       skippedFetch: false,
+      crawlDelayMs: match.crawlDelayMs,
     }
   }
 

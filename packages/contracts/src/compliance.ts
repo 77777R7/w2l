@@ -182,6 +182,7 @@ export interface RobotsDecision {
   decision: 'allowed' | 'disallowed' | 'no_robots'
   /** When disallowed, whether the fetch was skipped because of it. */
   skippedFetch: boolean
+  crawlDelayMs?: number | null
 }
 
 /**
