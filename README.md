@@ -100,6 +100,7 @@ docs/
   PHASE1_ENGINEERING_NOTES.md    Decision log
   PRODUCT_PLAN_V2.md              Product roadmap
   firecrawl-shim.md               Firecrawl v1 scrape/crawl snapshot + diffs
+  benchmark-gate.md               Phase 3 comparator versions, evidence contract, and blockers
 ```
 
 ## Roadmap
