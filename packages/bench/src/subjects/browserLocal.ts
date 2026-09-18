@@ -364,7 +364,8 @@ export class BrowserLocalSubject implements SubjectAdapter {
         },
         usage: {
           wallMs,
-          bytesWire: Buffer.byteLength(body),
+          // This is rendered DOM content, not measured network traffic.
+          bytesWire: null,
           bytesDecompressed: Buffer.byteLength(body),
           requestCount: attemptCount,
           attemptCount,

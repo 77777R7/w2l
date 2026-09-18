@@ -77,7 +77,7 @@ export class CrawlOrchestrator {
     const seenHash = new Map<string, string>()
     let pagesFetched = 0
     let cachedPages = 0
-    let costUsd = 0
+    let costUsd: number | null = 0
     let contentTokens = 0
     let budgetExceeded: BudgetKind | null = null
     let failed: unknown = null
@@ -130,15 +130,18 @@ export class CrawlOrchestrator {
 
           let result: FetchResult
           let links: readonly string[]
+          let audit: import('@w2l/contracts').LadderRunAudit | undefined
           let cachedPage = false
           if (reusable && cached.result !== null) {
             result = cached.result
             links = linksOf(cached.result)
+            audit = cached.audit
             cachedPage = true
           } else {
             const outcome = await this.atom.scrape(item.url)
             result = outcome.result
             links = outcome.links.length > 0 ? outcome.links : linksOf(outcome.result)
+            audit = outcome.audit
           }
 
           const hash = result.evidence.rawBodySha256
@@ -166,6 +169,7 @@ export class CrawlOrchestrator {
             contentHash,
             cached: cachedPage,
             result,
+            audit,
             createdAt: at,
             updatedAt: at,
           }
@@ -174,7 +178,9 @@ export class CrawlOrchestrator {
           if (cachedPage) cachedPages += 1
           else pagesFetched += 1
           if (result.status !== 'duplicate') {
-            costUsd += result.usage.externalCostUsd ?? 0
+            costUsd = costUsd === null || result.usage.externalCostUsd === null
+              ? null
+              : costUsd + result.usage.externalCostUsd
             contentTokens += result.usage.contentTokens ?? 0
           }
 
@@ -284,14 +290,14 @@ export class CrawlOrchestrator {
 interface CrawlBudgetSpent {
   pages: number
   wallMs: number
-  costUsd: number
+  costUsd: number | null
   tokens: number
 }
 
 function budgetHit(budget: CrawlBudget, spent: CrawlBudgetSpent): BudgetKind | null {
   if (budget.maxPages !== null && spent.pages >= budget.maxPages) return 'pages'
   if (budget.maxWallMs !== null && spent.wallMs >= budget.maxWallMs) return 'time'
-  if (budget.maxCostUsd !== null && spent.costUsd >= budget.maxCostUsd) return 'cost'
+  if (budget.maxCostUsd !== null && spent.costUsd !== null && spent.costUsd >= budget.maxCostUsd) return 'cost'
   if (budget.maxTokens !== null && spent.tokens >= budget.maxTokens) return 'tokens'
   return null
 }

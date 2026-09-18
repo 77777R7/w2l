@@ -1,7 +1,7 @@
 import { chmodSync, mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import Database from 'better-sqlite3'
-import type { Attempt, AttemptStatus, CrawlBudget, CrawlMode, FetchResult, Lane, StepRecord, StepStatus, Task, TaskStatus } from '@w2l/contracts'
+import type { Attempt, AttemptStatus, CrawlBudget, CrawlMode, FetchResult, Lane, LadderRunAudit, StepRecord, StepStatus, Task, TaskStatus } from '@w2l/contracts'
 import { assertId, type TaskStore } from './taskStore.js'
 
 export const CHECKPOINT_FILENAME = 'checkpoint.sqlite'
@@ -25,7 +25,7 @@ interface AttemptRow {
   ended_at: string | null
   pages_fetched: number
   wall_ms: number
-  cost_usd: number
+  cost_usd: number | null
   content_tokens: number
   budget_exceeded: string | null
 }
@@ -42,6 +42,7 @@ interface StepRow {
   content_hash: string | null
   cached: number
   result_json: string | null
+  audit_json: string | null
   created_at: string
   updated_at: string
 }
@@ -66,7 +67,7 @@ CREATE TABLE IF NOT EXISTS attempts (
   ended_at TEXT,
   pages_fetched INTEGER NOT NULL,
   wall_ms INTEGER NOT NULL,
-  cost_usd REAL NOT NULL,
+   cost_usd REAL,
   content_tokens INTEGER NOT NULL,
   budget_exceeded TEXT
 );
@@ -82,7 +83,8 @@ CREATE TABLE IF NOT EXISTS steps (
   lane TEXT,
   content_hash TEXT,
   cached INTEGER NOT NULL,
-  result_json TEXT,
+   result_json TEXT,
+   audit_json TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -117,6 +119,7 @@ export class SqliteTaskStore implements TaskStore {
     if (!readonly) {
       this.db.pragma('journal_mode = WAL')
       this.db.exec(SCHEMA)
+      try { this.db.exec('ALTER TABLE steps ADD COLUMN audit_json TEXT') } catch {}
       chmodSync(dbPath, 0o600)
     }
   }
@@ -226,9 +229,9 @@ export class SqliteTaskStore implements TaskStore {
     this.db
       .prepare(
         `INSERT INTO steps (
-           id, task_id, attempt_id, url, canonical_url, depth, status, lane, content_hash, cached, result_json, created_at, updated_at
+           id, task_id, attempt_id, url, canonical_url, depth, status, lane, content_hash, cached, result_json, audit_json, created_at, updated_at
          ) VALUES (
-           @id, @task_id, @attempt_id, @url, @canonical_url, @depth, @status, @lane, @content_hash, @cached, @result_json, @created_at, @updated_at
+           @id, @task_id, @attempt_id, @url, @canonical_url, @depth, @status, @lane, @content_hash, @cached, @result_json, @audit_json, @created_at, @updated_at
          )
          ON CONFLICT(id) DO UPDATE SET
            task_id = excluded.task_id,
@@ -241,6 +244,7 @@ export class SqliteTaskStore implements TaskStore {
            content_hash = excluded.content_hash,
            cached = excluded.cached,
            result_json = excluded.result_json,
+           audit_json = excluded.audit_json,
            created_at = excluded.created_at,
            updated_at = excluded.updated_at`,
       )
@@ -256,6 +260,7 @@ export class SqliteTaskStore implements TaskStore {
         content_hash: step.contentHash,
         cached: step.cached ? 1 : 0,
         result_json: step.result === null ? null : JSON.stringify(step.result),
+        audit_json: step.audit === undefined ? null : JSON.stringify(step.audit),
         created_at: step.createdAt,
         updated_at: step.updatedAt,
       })
@@ -336,6 +341,7 @@ function stepFromRow(row: StepRow): StepRecord {
     contentHash: row.content_hash,
     cached: row.cached === 1,
     result: row.result_json === null ? null : (JSON.parse(row.result_json) as FetchResult),
+    audit: row.audit_json === null ? undefined : (JSON.parse(row.audit_json) as LadderRunAudit),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }

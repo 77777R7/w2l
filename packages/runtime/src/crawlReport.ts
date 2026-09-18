@@ -13,8 +13,11 @@ export async function crawlReportFromStore(store: TaskStore, taskId: string): Pr
       status: task.status,
       pagesFetched: 0,
       cachedPages: 0,
-      budgetExceeded: null,
-      loopDetected: false,
+        budgetExceeded: null,
+        loopDetected: false,
+        wallMs: 0,
+        costUsd: null,
+        contentTokens: null,
     }
   }
   const steps = await store.listSteps(taskId, latest.id)
@@ -40,5 +43,8 @@ export function reportFromTaskAttempt(
     cachedPages,
     budgetExceeded: attempt.budgetExceeded,
     loopDetected,
+    wallMs: attempt.wallMs,
+    costUsd: attempt.costUsd,
+    contentTokens: attempt.contentTokens,
   }
 }

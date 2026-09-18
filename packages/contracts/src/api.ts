@@ -7,7 +7,7 @@
 
 import type { CrawlMode } from './compliance.js'
 import type { CrawlReport } from './crawl.js'
-import type { FetchResult } from './result.js'
+import type { FetchResult, LadderRunAudit } from './result.js'
 
 export const CRAWL_MODES = ['research', 'standard', 'authed'] as const
 export type ApiCrawlMode = (typeof CRAWL_MODES)[number]
@@ -18,7 +18,7 @@ export interface ScrapeRequest {
   allowlistedDomains?: readonly string[]
 }
 
-export type ScrapeResponse = FetchResult
+export type ScrapeResponse = FetchResult & LadderRunAudit
 
 export interface CrawlStartRequest {
   url: string

@@ -13,6 +13,11 @@ export class LadderScrapeAtom implements ScrapeAtom {
     return {
       result: run.result,
       links: run.result.links ?? [],
+      audit: {
+        channelsTried: run.channelsTried,
+        ladderTrace: run.ladderTrace,
+        summary: run.summary,
+      },
     }
   }
 
