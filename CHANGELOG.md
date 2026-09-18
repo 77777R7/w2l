@@ -7,6 +7,10 @@
 - Crawl scrape or store errors write task/attempt `failed` instead of leaving `running`. Resume with no contentful checkpoint reseeds the seed URL.
 - HTTP and local browser fills `rawBodySha256`. Same body on a later URL is `duplicate`, not a crawl-stopping `loop_detected`.
 - A 200 challenge page with extractable prose is `blocked`, not success. Decisive challenge evidence (vendor header / Cloudflare plumbing / interstitial copy pair) is consulted after extract; an embedded widget on a real article is not.
+- Ladder runs now expose task-level execution accounting: every attempted channel remains available alongside `channelsTried` and `ladderTrace`; unknown cost, token, or wire-byte measurements stay `null` instead of being treated as zero.
+- Browser-rendered DOM size is not reported as `bytesWire`; browser paths use `null` when actual network transfer bytes cannot be proven. `artifacts: []` means this run produced no screenshot or DOM artifact.
+- Multi-page crawls use bounded workers, enforce Frontier host concurrency and robots crawl delays, reuse channels and routing history within an API engine, and reuse browser processes while keeping fetch contexts isolated.
+- New review baseline: `main@6965168` after PR #14 and PR #15 were merged.
 
 ## 0.3.0 — 2026-09-18
 

@@ -157,7 +157,9 @@ Playwright lane + 升级规则、Browserbase/Steel Adapter、`crawl` + resume、
 ### 第 9-12 周
 MCP server、Firecrawl 迁移垫片、benchmark 报告（对比 Firecrawl 自托管版和 Crawl4AI：成功率/噪声/token/延迟/每成功页成本/假成功率）、迁移型落地页、找 20 名真实用户（沿用 research 文档第 3-4 周方案）。
 
-### 现在下一刀（L01 + crawl 之后）
+**状态（2026-09-18）**：MCP、Firecrawl `/scrape`/`/crawl` 垫片、REST、SDK、crawl resume、任务级执行汇总和有限并发已交付并合并到 `main`（PR #14、PR #15）。当前审查基线为 `main@6965168`。仍需完成正式 benchmark gate 和真实用户验证，不能把这些能力表述成成熟托管服务。
+
+### 现在下一刀（P1 完成之后）
 
 按 ROI，不回头做 stealth / CDP patch / 代理池 / 垂直：
 
@@ -165,7 +167,12 @@ MCP server、Firecrawl 迁移垫片、benchmark 报告（对比 Firecrawl 自托
 2. ~~**1000 页断电续跑压测**~~ — v0.3.0，`research/crawl_1k_resume/`。
 3. ~~**MCP server**~~ — v0.3.0。
 4. ~~**Firecrawl `/scrape` `/crawl` 垫片**~~ — v0.3.0，快照 2026-09-18。
-5. **仍不做**：`map`、Python SDK、语义压缩、session 池、默认 headed。
+5. ~~**成本与证据汇总**~~ — PR #14，已合并到 `main`。
+6. ~~**速度与资源复用**~~ — PR #15，已合并到 `main`。
+7. **Phase 1 Reliability Gate**：恢复边界、真实路径 hash/loop 语义、生产级空结果与假成功契约、浏览器 SSRF/子资源网络边界、CI。
+8. **Benchmark Gate**：固定 fixture + 自托管 Firecrawl/Crawl4AI 对照，公开质量、失败解释、P95、成本和恢复指标。
+9. **Dogfood + Design Partners**：用 W2L 跑自己的市场研究任务，再找 3–5 个客户跑真实、可重复的字段级任务。
+10. **仍不做**：`map`、Python SDK、语义压缩、session 池、默认 headed、SEO 或其他垂直分支，直到 Gate 通过并由真实重复任务决定分支。
 
 ### 继续/终止门槛（沿用 research 文档 §7 并加两条）
 
@@ -173,6 +180,8 @@ MCP server、Firecrawl 迁移垫片、benchmark 报告（对比 Firecrawl 自托
 
 - **benchmark 必须包含"自托管 Firecrawl"作为对照组**，而不是只比云版——我们的定位打的就是这个差距，赢不了它就没有故事；
 - 付费意愿访谈必须区分"愿意为托管付固定月费"和"愿意为用量付费"两类回答，验证 Plausible 式定价假设。
+- P1 之后必须先通过 Reliability Gate：关键失败场景有端到端回归，成本和证据边界不被误读，浏览器公共网络边界有明确验证。
+- Benchmark 必须在最新 `main` 上运行并记录 commit、机器、依赖、配置和原始输出；不能继续引用旧版本的成功率作为当前结论。
 
 任一门槛不过：不进任何分支，回到更窄场景重找切口。
 

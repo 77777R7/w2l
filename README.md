@@ -18,7 +18,7 @@ Most crawlers report "success" when they return empty pages, challenge screens, 
 ✗ Fetched example.com/article
   Status: blocked (cloudflare_challenge)
   Lane: http → escalated to browser_local
-  Evidence: challenge.png, dom-snapshot.html
+   Evidence: artifacts=[] (no screenshot or DOM snapshot was produced)
   Cost: 847 tokens, 2.3s, $0.0042
   Fix: needs user login or proxy (tier 1b/2)
 ```
@@ -27,8 +27,9 @@ Most crawlers report "success" when they return empty pages, challenge screens, 
 
 1. **Failure is a first-class outcome** — `empty_verified`, `blocked`, `failed` with reasons, not silent empties
 2. **Five false-success checks** — challenge text, wrong-page content, missing facts, truncation, yield-below-floor
-3. **Execution ladder** — HTTP → browser → user auth → proxy, with automatic routing and cost accounting
+3. **Execution ladder** — HTTP → browser → user auth → proxy, with automatic routing, per-attempt trace, and task-level cost accounting
 4. **Ground-truth benchmark** — 30 adversarial fixtures (soft 404s, challenge pages, SPAs, timeouts, zip bombs) with verified false-success rates
+5. **Honest evidence** — `artifacts: []` is an explicit empty artifact list, not a promise that every failed page has a screenshot or DOM snapshot; browser `bytesWire: null` means wire bytes were not measured
 
 ## Quick Start
 
@@ -89,7 +90,7 @@ packages/
   contracts/       TypeScript types and ground-truth schema
   fixtures/        HTTP server with 30 ground-truth test cases
   http-core/       robots.txt parser (ReDoS-resistant)
-  runtime/         TaskStore, frontier, crawl orchestrator
+   runtime/         TaskStore, frontier, bounded crawl orchestrator
   bench/           Benchmark runner, scrape/crawl CLI, scoring
   api/             REST server (AGPL)
   sdk/             TypeScript client (MIT)
@@ -115,6 +116,9 @@ docs/
 - [x] REST API + TypeScript SDK (`POST /v1/scrape`, `POST /v1/crawl`, `GET /v1/crawl/:id`)
 - [x] MCP server (`scrape`, `crawl`, `get_crawl` over REST)
 - [x] Firecrawl `/scrape` `/crawl` migration shim (snapshot 2026-09-18; not a compatibility layer)
+- [x] Task-level ladder accounting, preserved per-channel attempts, and honest unknown cost/evidence fields
+- [x] Bounded multi-page workers, shared host scheduling, conditional browser settling, and runtime resource reuse
+- [ ] Phase 1 reliability gate: recovery edge cases, production hash/loop semantics, empty-result contract, browser egress isolation, and CI
 
 See [PRODUCT_PLAN_V2.md](PRODUCT_PLAN_V2.md) for the full plan.
 
