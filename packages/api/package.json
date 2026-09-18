@@ -1,0 +1,29 @@
+{
+  "name": "@w2l/api",
+  "version": "0.3.0",
+  "license": "AGPL-3.0-only",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "w2l-api": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --build"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.6",
+    "@w2l/bench": "*",
+    "@w2l/contracts": "*",
+    "@w2l/http-core": "*",
+    "@w2l/runtime": "*",
+    "hono": "^4.11.3"
+  }
+}

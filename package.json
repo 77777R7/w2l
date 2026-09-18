@@ -14,7 +14,9 @@
     "bench": "tsc --build && node --import tsx packages/bench/src/cli.ts",
     "canary": "tsc --build && node --import tsx packages/bench/src/canaryCli.ts",
     "scrape": "tsc --build && node --import tsx packages/bench/src/w2lCli.ts scrape",
-    "crawl": "tsc --build && node --import tsx packages/bench/src/w2lCli.ts crawl"
+    "crawl": "tsc --build && node --import tsx packages/bench/src/w2lCli.ts crawl",
+    "api": "tsc --build && node --import tsx packages/api/src/cli.ts",
+    "mcp": "tsc --build && node --import tsx packages/mcp/src/stdio.ts"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",

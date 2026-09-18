@@ -207,7 +207,7 @@ Tier 0+1（诚实 header + 限速 + 本地浏览器 + 用户登录态）在长�
   验收：fixture SPA 组可量化；升级决策可查、命中率可统计；预注册假设（§2.5）出首轮数据
 ```
 
-crawl（多页）、resume 已随 v0.2.0 提前落地（`w2l crawl` + SQLite `task/attempt/step`）。Provider Adapter 已在 scrape 阶梯里。REST API + TS SDK 仍按 V2 第 5-8 周剩余项做；MCP / Firecrawl 垫片仍在 9-12 周。
+crawl（多页）、resume 已随 v0.2.0 提前落地（`w2l crawl` + SQLite `task/attempt/step`）。Provider Adapter 已在 scrape 阶梯里。REST API + TS SDK、MCP、Firecrawl `/scrape` `/crawl` 垫片（快照 2026-09-18，前缀 `/fc/v1`）随 v0.3.0 落地。
 
 ### 第 0 周验收标准
 

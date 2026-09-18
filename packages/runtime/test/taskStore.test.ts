@@ -275,7 +275,9 @@ describe('@w2l/runtime public surface', () => {
       'MemoryTaskStore',
       'SqliteTaskStore',
       'canonicalizeUrl',
+      'crawlReportFromStore',
       'hostOf',
+      'reportFromTaskAttempt',
       'systemClock',
     ])
     expect(runtime).not.toHaveProperty('SCHEMA')

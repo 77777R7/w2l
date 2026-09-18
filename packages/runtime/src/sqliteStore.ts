@@ -101,15 +101,24 @@ export class SqliteTaskStore implements TaskStore {
 
   static open(taskDir: string): SqliteTaskStore {
     mkdirSync(taskDir, { recursive: true })
-    return new SqliteTaskStore(join(taskDir, CHECKPOINT_FILENAME))
+    return new SqliteTaskStore(join(taskDir, CHECKPOINT_FILENAME), false)
   }
 
-  constructor(dbPath: string) {
-    mkdirSync(dirname(dbPath), { recursive: true })
-    this.db = new Database(dbPath)
+  static openReadOnly(taskDir: string): SqliteTaskStore {
+    return new SqliteTaskStore(join(taskDir, CHECKPOINT_FILENAME), true)
+  }
+
+  constructor(dbPath: string, readonly = false) {
+    if (!readonly) mkdirSync(dirname(dbPath), { recursive: true })
+    this.db = readonly
+      ? new Database(dbPath, { readonly: true, fileMustExist: true })
+      : new Database(dbPath)
     this.db.pragma('foreign_keys = ON')
-    this.db.exec(SCHEMA)
-    chmodSync(dbPath, 0o600)
+    if (!readonly) {
+      this.db.pragma('journal_mode = WAL')
+      this.db.exec(SCHEMA)
+      chmodSync(dbPath, 0o600)
+    }
   }
 
   async putTask(task: Task): Promise<void> {

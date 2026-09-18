@@ -1,0 +1,159 @@
+/**
+ * Product engine behind the REST surface. One scrape is LadderRunner.
+ * One crawl is CrawlOrchestrator. No second fetcher.
+ */
+
+import { existsSync, mkdirSync } from 'node:fs'
+import { join } from 'node:path'
+import {
+  buildChannels,
+  LadderRunner,
+  LadderScrapeAtom,
+  MemoryRoutingHistory,
+  type Channel,
+} from '@w2l/bench'
+import {
+  defaultApiMode,
+  type CrawlAccepted,
+  type CrawlReport,
+  type CrawlStartRequest,
+  type FetchResult,
+  type ScrapeRequest,
+  type StepRecord,
+  type Task,
+} from '@w2l/contracts'
+import type { CrawlPolicy } from '@w2l/http-core'
+import { CrawlOrchestrator, crawlReportFromStore, SqliteTaskStore } from '@w2l/runtime'
+
+export interface CrawlWithSteps {
+  report: CrawlReport
+  steps: readonly StepRecord[]
+}
+
+export interface ApiEngine {
+  scrape(req: ScrapeRequest): Promise<FetchResult>
+  startCrawl(req: CrawlStartRequest): Promise<CrawlAccepted>
+  getCrawl(taskId: string): Promise<CrawlReport | null>
+  getCrawlWithSteps(taskId: string): Promise<CrawlWithSteps | null>
+  close(): Promise<void>
+}
+
+export interface ApiEngineOptions {
+  taskRoot?: string
+  headed?: boolean
+  /** Test seam: override local ladder channels without changing fetch. */
+  channelsFor?: (mode: 'standard' | 'research' | 'authed') => Channel[]
+}
+
+export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
+  const taskRoot = options.taskRoot ?? '.w2l/api'
+  const headed = options.headed === true
+  const inflight = new Map<string, Promise<void>>()
+  const channelsFor =
+    options.channelsFor ?? ((mode: 'standard' | 'research' | 'authed') => buildChannels(mode, { headed }))
+
+  async function loadCrawlWithSteps(taskId: string): Promise<CrawlWithSteps | null> {
+    if (!existsSync(join(taskRoot, taskId))) return null
+    const store = SqliteTaskStore.openReadOnly(join(taskRoot, taskId))
+    try {
+      const report = await crawlReportFromStore(store, taskId)
+      if (report === null) return null
+      const steps =
+        report.attemptId.length === 0 ? [] : await store.listSteps(taskId, report.attemptId)
+      return { report, steps }
+    } finally {
+      await store.close()
+    }
+  }
+
+  return {
+    async scrape(req) {
+      const mode = defaultApiMode(req.mode)
+      const channels = channelsFor(mode)
+      const policy: CrawlPolicy = {
+        mode,
+        ...(req.allowlistedDomains !== undefined && req.allowlistedDomains.length > 0
+          ? { allowlistedDomains: req.allowlistedDomains }
+          : {}),
+      }
+      const runner = new LadderRunner(channels, policy, new MemoryRoutingHistory())
+      try {
+        const run = await runner.run(req.url)
+        return run.result
+      } finally {
+        await Promise.all(channels.map((channel) => channel.close?.().catch(() => {})))
+      }
+    },
+
+    async startCrawl(req) {
+      const mode = defaultApiMode(req.mode)
+      const taskId = crypto.randomUUID()
+      const taskDir = join(taskRoot, taskId)
+      mkdirSync(taskDir, { recursive: true })
+      const store = SqliteTaskStore.open(taskDir)
+      const now = new Date().toISOString()
+      const task: Task = {
+        id: taskId,
+        seedUrl: req.url,
+        taskDir,
+        mode,
+        status: 'pending',
+        budget: {
+          maxPages: req.maxPages === undefined ? null : req.maxPages,
+          maxWallMs: null,
+          maxCostUsd: null,
+          maxTokens: null,
+        },
+        createdAt: now,
+        updatedAt: now,
+      }
+      await store.putTask(task)
+
+      const channels = channelsFor(mode)
+      const policy: CrawlPolicy = {
+        mode,
+        ...(req.allowlistedDomains !== undefined && req.allowlistedDomains.length > 0
+          ? { allowlistedDomains: req.allowlistedDomains }
+          : {}),
+      }
+      const runner = new LadderRunner(channels, policy, new MemoryRoutingHistory())
+      const atom = new LadderScrapeAtom(runner)
+      const orchestrator = new CrawlOrchestrator({ store, atom })
+      const job = orchestrator
+        .run({
+          seedUrl: req.url,
+          taskDir,
+          mode,
+          budget: task.budget,
+          maxDepth: req.maxDepth === undefined ? null : req.maxDepth,
+          allowlistedDomains: req.allowlistedDomains ?? [],
+          resumeFrom: null,
+          useCached: req.useCached === true,
+          taskId,
+        })
+        .then(async () => {
+          inflight.delete(taskId)
+          await Promise.all(channels.map((channel) => channel.close?.().catch(() => {})))
+          await store.close()
+        })
+        .catch(async () => {
+          inflight.delete(taskId)
+          await Promise.all(channels.map((channel) => channel.close?.().catch(() => {})))
+          await store.close()
+        })
+      inflight.set(taskId, job)
+      return { taskId }
+    },
+
+    async getCrawl(taskId) {
+      const detail = await loadCrawlWithSteps(taskId)
+      return detail?.report ?? null
+    },
+
+    getCrawlWithSteps: loadCrawlWithSteps,
+
+    async close() {
+      await Promise.all([...inflight.values()].map((job) => job.catch(() => {})))
+    },
+  }
+}

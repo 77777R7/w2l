@@ -33,6 +33,8 @@ export interface CrawlSpec {
   allowlistedDomains: readonly string[]
   resumeFrom: string | null
   useCached: boolean
+  /** When set, openRun updates this existing task instead of inserting a new id. */
+  taskId?: string
 }
 
 export interface CrawlReport {
