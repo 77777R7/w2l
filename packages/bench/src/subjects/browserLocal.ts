@@ -17,6 +17,7 @@ import { chromium, type Browser, type Response } from 'playwright'
 import { assertSafeUrl, BodyTooLargeError, defaultNetworkPolicy } from '../egress.js'
 import type { SubjectAdapter } from '../subject.js'
 import { RobotsOriginCache } from '../robotsLookup.js'
+import { waitForRenderedStability } from '../browserSettle.js'
 import {
   BROWSER_FINGERPRINT,
   CHROME_MAJOR_FLOOR,
@@ -150,6 +151,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
           robotsUrl: robotsDecision.robotsUrl,
           matchedGroup: robotsDecision.matchedUserAgentGroup,
           ruleCount: robotsDecision.appliedRules.length,
+          crawlDelayMs: robotsDecision.crawlDelayMs,
         },
       })
 
@@ -293,19 +295,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
         }
         break
       }
-      // Wait for a stable DOM, not an unconditional 1.5s. A short polling
-      // window still gives JS shells time to render without penalizing static
-      // pages; the cap prevents long-polling pages from blocking forever.
-      let previousSize = -1
-      let stableRounds = 0
-      const settleDeadline = Date.now() + 1500
-      while (Date.now() < settleDeadline && stableRounds < 2) {
-        const size = await page.evaluate('document.documentElement?.outerHTML.length ?? 0')
-        if (typeof size === 'number' && size === previousSize) stableRounds++
-        else stableRounds = 0
-        previousSize = typeof size === 'number' ? size : previousSize
-        if (stableRounds < 2) await page.waitForTimeout(100)
-      }
+      await waitForRenderedStability(page)
       const status = response?.status() ?? 0
       const finalUrl = page.url()
       if (finalUrl !== url) {

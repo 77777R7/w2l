@@ -149,17 +149,9 @@ export async function navigateOnce(
   const page = await defaultContext(browser).newPage()
   try {
     const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout })
-    // Poll for a stable DOM rather than unconditionally sleeping 1.5s.
-    const settleDeadline = Math.min(Date.now() + 1500, deadlineMs ?? Number.POSITIVE_INFINITY)
-    let previousSize = -1
-    let stableRounds = 0
-    while (Date.now() < settleDeadline && stableRounds < 2) {
-      const size = await page.evaluate('document.documentElement?.outerHTML.length ?? 0')
-      if (typeof size === 'number' && size === previousSize) stableRounds++
-      else stableRounds = 0
-      previousSize = typeof size === 'number' ? size : previousSize
-      if (stableRounds < 2) await page.waitForTimeout(100)
-    }
+    await waitForRenderedStability(page, {
+      maxMs: deadlineMs === undefined ? 1_500 : Math.min(1_500, Math.max(1, deadlineMs - Date.now())),
+    })
 
     const headers: Record<string, string> = {}
     for (const [name, value] of Object.entries(response?.headers() ?? {})) {
@@ -193,3 +185,4 @@ export async function navigateOnce(
     await page.close().catch(() => {})
   }
 }
+import { waitForRenderedStability } from '../browserSettle.js'

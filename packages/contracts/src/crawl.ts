@@ -14,6 +14,7 @@ export interface ScrapeOutcome {
   result: FetchResult
   links: readonly string[]
   audit?: LadderRunAudit
+  crawlDelayMs?: number | null
 }
 
 /**

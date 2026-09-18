@@ -54,7 +54,7 @@ export class Frontier {
   private readonly allowlistedDomains: readonly string[]
   private readonly perHostConcurrency: number
   private readonly perHostMinDelayMs: number
-  private readonly crawlDelayMsByHost: ReadonlyMap<string, number>
+  private crawlDelayMsByHost: ReadonlyMap<string, number>
   private readonly pending: FrontierItem[] = []
   private readonly visited = new Set<string>()
   private readonly inFlight = new Map<string, number>()
@@ -143,6 +143,14 @@ export class Frontier {
   hostDelayMs(host: string): number {
     const robotsDelay = this.crawlDelayMsByHost.get(host) ?? 0
     return Math.max(this.perHostMinDelayMs, robotsDelay)
+  }
+
+  setCrawlDelay(host: string, delayMs: number | null): void {
+    if (delayMs === null) return
+    const next = Math.max(0, delayMs)
+    const current = this.crawlDelayMsByHost.get(host) ?? 0
+    if (next <= current) return
+    this.crawlDelayMsByHost = new Map(this.crawlDelayMsByHost).set(host, next)
   }
 
   private offer(

@@ -41,6 +41,7 @@ export interface ComplianceRobotsDecision {
   appliedRules: readonly ComplianceRobotsRule[]
   decision: 'allowed' | 'disallowed' | 'no_robots'
   skippedFetch: boolean
+  crawlDelayMs?: number | null
 }
 
 export interface ComplianceSentHeader {
