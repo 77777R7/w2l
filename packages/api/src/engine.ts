@@ -49,6 +49,10 @@ export interface ApiEngineOptions {
   defaultMaxPages?: number | null
   /** Test seam: override local ladder channels without changing fetch. */
   channelsFor?: (mode: 'standard' | 'research' | 'authed') => Channel[]
+  workerCount?: number
+  perHostConcurrency?: number
+  perHostMinDelayMs?: number
+  crawlDelayMsByHost?: ReadonlyMap<string, number>
 }
 
 export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
@@ -57,9 +61,25 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
   const networkPolicy = options.networkPolicy ?? localNetworkPolicy()
   const defaultMaxPages = options.defaultMaxPages ?? null
   const inflight = new Map<string, Promise<void>>()
-  const channelsFor =
+  const createChannels =
     options.channelsFor ??
     ((mode: 'standard' | 'research' | 'authed') => buildChannels(mode, { headed, networkPolicy }))
+  const channelsByMode = new Map<string, Channel[]>()
+  const historiesByMode = new Map<string, MemoryRoutingHistory>()
+  const channelsFor = (mode: 'standard' | 'research' | 'authed'): Channel[] => {
+    const existing = channelsByMode.get(mode)
+    if (existing !== undefined) return existing
+    const channels = createChannels(mode)
+    channelsByMode.set(mode, channels)
+    return channels
+  }
+  const historyFor = (mode: string): MemoryRoutingHistory => {
+    const existing = historiesByMode.get(mode)
+    if (existing !== undefined) return existing
+    const history = new MemoryRoutingHistory()
+    historiesByMode.set(mode, history)
+    return history
+  }
 
   async function loadCrawlWithSteps(taskId: string): Promise<CrawlWithSteps | null> {
     if (!existsSync(join(taskRoot, taskId))) return null
@@ -85,7 +105,7 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
           ? { allowlistedDomains: req.allowlistedDomains }
           : {}),
       }
-      const runner = new LadderRunner(channels, policy, new MemoryRoutingHistory())
+      const runner = new LadderRunner(channels, policy, historyFor(mode))
       try {
         const run = await runner.run(req.url)
         return {
@@ -95,7 +115,6 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
           summary: run.summary,
         }
       } finally {
-        await Promise.all(channels.map((channel) => channel.close?.().catch(() => {})))
       }
     },
 
@@ -130,9 +149,16 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
           ? { allowlistedDomains: req.allowlistedDomains }
           : {}),
       }
-      const runner = new LadderRunner(channels, policy, new MemoryRoutingHistory())
+      const runner = new LadderRunner(channels, policy, historyFor(mode))
       const atom = new LadderScrapeAtom(runner)
-      const orchestrator = new CrawlOrchestrator({ store, atom })
+      const orchestrator = new CrawlOrchestrator({
+        store,
+        atom,
+        workerCount: options.workerCount,
+        perHostConcurrency: options.perHostConcurrency,
+        perHostMinDelayMs: options.perHostMinDelayMs,
+        crawlDelayMsByHost: options.crawlDelayMsByHost,
+      })
       const job = orchestrator
         .run({
           seedUrl: req.url,
@@ -147,14 +173,12 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
         })
         .then(async () => {
           inflight.delete(taskId)
-          await Promise.all(channels.map((channel) => channel.close?.().catch(() => {})))
-          await store.close()
+           await store.close()
         })
         .catch(async () => {
           inflight.delete(taskId)
           await markCrawlFailed(store, taskId)
-          await Promise.all(channels.map((channel) => channel.close?.().catch(() => {})))
-          await store.close()
+           await store.close()
         })
       inflight.set(taskId, job)
       return { taskId }
@@ -169,6 +193,8 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
 
     async close() {
       await Promise.all([...inflight.values()].map((job) => job.catch(() => {})))
+      await Promise.all([...channelsByMode.values()].flatMap((channels) => channels.map((channel) => channel.close?.().catch(() => {}))))
+      channelsByMode.clear()
     },
   }
 }
