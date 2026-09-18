@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { W2L } from '@w2l/sdk'
 import { callTool, TOOL_NAMES, TOOLS } from '../src/tools.js'
-import { parseBaseUrl } from '../src/stdio.js'
+import { parseBaseUrl, parseToken } from '../src/stdio.js'
 
 describe('MCP tools', () => {
   it('exposes exactly scrape, crawl, and get_crawl', () => {
@@ -41,7 +41,14 @@ describe('MCP tools', () => {
 
   it('has no resource or oauth surface', async () => {
     const runtime = await import('../src/index.js')
-    expect(Object.keys(runtime).sort()).toEqual(['TOOLS', 'TOOL_NAMES', 'callTool', 'createMcpServer', 'parseBaseUrl'])
+    expect(Object.keys(runtime).sort()).toEqual([
+      'TOOLS',
+      'TOOL_NAMES',
+      'callTool',
+      'createMcpServer',
+      'parseBaseUrl',
+      'parseToken',
+    ])
     expect(JSON.stringify(runtime)).not.toMatch(/oauth|subscribe|resource/i)
   })
 
@@ -49,6 +56,12 @@ describe('MCP tools', () => {
     expect(parseBaseUrl([], {})).toBe('http://127.0.0.1:8787')
     expect(parseBaseUrl([], { W2L_API_URL: 'http://127.0.0.1:9000' })).toBe('http://127.0.0.1:9000')
     expect(parseBaseUrl(['--base-url', 'http://127.0.0.1:9'], {})).toBe('http://127.0.0.1:9')
+  })
+
+  it('reads W2L_API_TOKEN / --token for hosted API auth', () => {
+    expect(parseToken([], {})).toBeUndefined()
+    expect(parseToken([], { W2L_API_TOKEN: 'secret' })).toBe('secret')
+    expect(parseToken(['--token', 'cli'], {})).toBe('cli')
   })
 })
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- API listen is loopback by default (`hostname: 127.0.0.1`). `--hosted --token` is the public mode: bearer auth, private/metadata SSRF deny on seed + redirects, 10 MB body cap, crawl `maxPages` default 100.
+- Local mode still allowlists loopback/RFC1918 so fixture servers work. API callers cannot widen that list.
+
 ## 0.3.0 — 2026-09-18
 
 Programmable scrape and crawl. Same runner as the CLI.

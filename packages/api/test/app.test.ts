@@ -103,4 +103,26 @@ describe('REST /v1/scrape and /v1/crawl', () => {
     expect(report.taskId).toBe(accepted.taskId)
     expect(report.pagesFetched).toBe(1)
   })
+
+  it('hosted token rejects missing or wrong bearer, accepts the matching one', async () => {
+    const app = createApp(engine, { token: 'secret' })
+    const missing = await app.request('/v1/scrape', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ url: `${server.url}/crawl/listing` }),
+    })
+    expect(missing.status).toBe(401)
+    const wrong = await app.request('/v1/scrape', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: 'Bearer nope' },
+      body: JSON.stringify({ url: `${server.url}/crawl/listing` }),
+    })
+    expect(wrong.status).toBe(401)
+    const ok = await app.request('/v1/scrape', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: 'Bearer secret' },
+      body: JSON.stringify({ url: `${server.url}/crawl/listing` }),
+    })
+    expect(ok.status).toBe(200)
+  })
 })

@@ -1,4 +1,4 @@
-import { estimateTokens, type FetchResult, type TraceEvent } from '@w2l/contracts'
+import { estimateTokens, type FetchResult, type NetworkPolicy, type TraceEvent } from '@w2l/contracts'
 import { collectLinks, extractTf, htmlToMarkdown } from '@w2l/extract-tf'
 import {
   classifyGate,
@@ -13,6 +13,7 @@ import {
   type ComplianceSentHeader,
 } from '@w2l/http-core'
 import { chromium, type Browser, type Response } from 'playwright'
+import { assertSafeUrl, BodyTooLargeError, defaultNetworkPolicy } from '../egress.js'
 import type { SubjectAdapter } from '../subject.js'
 import { RobotsOriginCache } from '../robotsLookup.js'
 import {
@@ -73,7 +74,8 @@ export class BrowserLocalSubject implements SubjectAdapter {
    * politeness property — re-fetching robots.txt before every page would be
    * the opposite of what the file is for.
    */
-  private readonly robotsCache = new RobotsOriginCache()
+  private readonly robotsCache: RobotsOriginCache
+  private readonly networkPolicy: NetworkPolicy
   /** The run's hash chain. Every record this subject mints links into it. */
   private readonly chain: ComplianceChain
   /**
@@ -94,10 +96,13 @@ export class BrowserLocalSubject implements SubjectAdapter {
     private readonly mode: CrawlMode = 'standard',
     access?: AccessConfigInput | null,
     private readonly headed = false,
+    networkPolicy?: NetworkPolicy,
   ) {
     this.chain = new ComplianceChain(crypto.randomUUID(), mode)
     this.access = normalizeAccessConfig(access)
     this.accessConfig = access ?? null
+    this.networkPolicy = networkPolicy ?? defaultNetworkPolicy()
+    this.robotsCache = new RobotsOriginCache(this.networkPolicy)
   }
 
   /** Snapshot of the run's ledger, for callers that persist or verify it. */
@@ -108,6 +113,11 @@ export class BrowserLocalSubject implements SubjectAdapter {
   async fetch(url: string): Promise<FetchResult> {
     const start = Date.now()
     const trace: TraceEvent[] = [{ at: 0, lane: 'browser_local', event: 'browser_start' }]
+    try {
+      await assertSafeUrl(url, this.networkPolicy)
+    } catch (err) {
+      return this.denied(url, start, trace, err)
+    }
     const browser = await this.getBrowser()
 
     let context
@@ -286,7 +296,17 @@ export class BrowserLocalSubject implements SubjectAdapter {
       await page.waitForTimeout(1500)
       const status = response?.status() ?? 0
       const finalUrl = page.url()
+      if (finalUrl !== url) {
+        try {
+          await assertSafeUrl(finalUrl, this.networkPolicy)
+        } catch (err) {
+          return this.denied(url, start, trace, err)
+        }
+      }
       const body = await page.content()
+      if (Buffer.byteLength(body) > this.networkPolicy.maxDecompressedBytes) {
+        return this.denied(url, start, trace, new BodyTooLargeError(this.networkPolicy.maxDecompressedBytes))
+      }
       const wallMs = Date.now() - start
       const browserMs = wallMs
       trace.push({ at: wallMs, lane: 'browser_local', event: 'rendered', detail: { status, attemptCount } })
@@ -490,6 +510,55 @@ export class BrowserLocalSubject implements SubjectAdapter {
     } finally {
       await page?.close().catch(() => {})
       await context?.close().catch(() => {})
+    }
+  }
+
+  private denied(
+    url: string,
+    start: number,
+    trace: TraceEvent[],
+    err: unknown,
+    failureReason: FetchResult['failureReason'] = 'policy_denied',
+  ): FetchResult {
+    const wallMs = Date.now() - start
+    const reason = err instanceof Error && err.name === 'BodyTooLargeError' ? 'body_too_large' : failureReason
+    trace.push({
+      at: wallMs,
+      lane: 'browser_local',
+      event: reason === 'body_too_large' ? 'body_too_large' : 'ssrf_denied',
+      detail: { error: err instanceof Error ? err.message.slice(0, 200) : String(err) },
+    })
+    return {
+      requestedUrl: url,
+      status: 'failed',
+      failureReason: reason,
+      blockReason: null,
+      budgetExceeded: null,
+      lane: 'browser_local',
+      escalations: [],
+      markdown: null,
+      truncated: false,
+      truncatedAt: null,
+      compliance: null,
+      evidence: {
+        finalUrl: url,
+        httpStatus: null,
+        redirectChain: [],
+        contentType: null,
+        rawBodySha256: null,
+        artifacts: [],
+      },
+      usage: {
+        wallMs,
+        bytesWire: 0,
+        bytesDecompressed: 0,
+        requestCount: 0,
+        attemptCount: 0,
+        contentTokens: null,
+        browserMs: wallMs,
+        externalCostUsd: null,
+      },
+      trace,
     }
   }
 

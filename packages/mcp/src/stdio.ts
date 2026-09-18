@@ -12,9 +12,20 @@ export function parseBaseUrl(argv: readonly string[], env: NodeJS.ProcessEnv): s
   return env['W2L_API_URL'] ?? 'http://127.0.0.1:8787'
 }
 
+export function parseToken(argv: readonly string[], env: NodeJS.ProcessEnv): string | undefined {
+  const flag = argv.find((arg) => arg.startsWith('--token='))
+  if (flag !== undefined) return flag.slice('--token='.length)
+  const idx = argv.indexOf('--token')
+  if (idx >= 0 && argv[idx + 1] !== undefined) return argv[idx + 1]
+  const envToken = env['W2L_API_TOKEN']
+  return envToken !== undefined && envToken.length > 0 ? envToken : undefined
+}
+
 async function main(): Promise<void> {
-  const baseUrl = parseBaseUrl(process.argv.slice(2), process.env)
-  const server = createMcpServer(new W2L({ baseUrl }))
+  const argv = process.argv.slice(2)
+  const baseUrl = parseBaseUrl(argv, process.env)
+  const token = parseToken(argv, process.env)
+  const server = createMcpServer(new W2L({ baseUrl, token }))
   const transport = new StdioServerTransport()
   await server.connect(transport)
 }

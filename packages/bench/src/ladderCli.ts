@@ -132,13 +132,14 @@ export function buildChannels(
     }
     /** Opt-in headed Chromium on the browser arm only. Default remains headless. */
     headed?: boolean
+    networkPolicy?: import('@w2l/contracts').NetworkPolicy
   } = {},
 ): Channel[] {
   // One subject per channel for the life of the run. A fresh Chromium per
   // fetch would be both slow and leaky; the channel's close() is what tears
   // the browser down at the end.
-  const http = new ResilientHttpSubject(mode)
-  const plainBrowser = new BrowserLocalSubject(mode, null, opts.headed === true)
+  const http = new ResilientHttpSubject(mode, opts.networkPolicy)
+  const plainBrowser = new BrowserLocalSubject(mode, null, opts.headed === true, opts.networkPolicy)
   const declared: IdentityBundle = identityForRoute(mode)
 
   // ----------------------------------------------------------------------
@@ -165,7 +166,7 @@ export function buildChannels(
       }
       if (session.cookies !== undefined) access.session!.cookies = session.cookies
       if (session.storageState !== undefined) access.session!.storageState = session.storageState
-      subject = new BrowserLocalSubject('authed', access, opts.headed === true)
+      subject = new BrowserLocalSubject('authed', access, opts.headed === true, opts.networkPolicy)
       authedSubjects.set(session.domain, subject)
     }
     return subject
