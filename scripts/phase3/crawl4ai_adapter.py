@@ -33,6 +33,7 @@ async def main():
         "python": sys.version,
         "platform": platform.platform(),
         "command": "crawl4ai==0.9.3 AsyncWebCrawler CacheMode.BYPASS",
+        "costModel": {"type": "runner_wall_time", "usdPerHour": 0.0, "assumption": "self-hosted compute is not billed by the comparator"},
     }
     (out / "environment.json").write_text(json.dumps(metadata, indent=2) + "\n")
     records = []

@@ -62,6 +62,8 @@ Docker-capable run `35423895294` on `main@6dc2e6e` completed all three adapters 
 
 These values support a page-quality lead for W2L on verified completion and false-success rate for this fixed synthetic suite. They do not support a cost or recovery lead: those metrics were not measured comparably and remain unavailable. Full raw evidence is retained in the GitHub Actions artifact for run `35423895294`, not committed to the repository.
 
+The cost model is explicit: the self-hosted adapters record `usdPerHour: 0.0` only to indicate that no provider invoice is present. This is not a claim that infrastructure has zero real-world cost, so cost-per-verified-page remains unavailable. W2L has URL-level SQLite checkpoint/resume; Firecrawl and Crawl4AI are marked `unsupported` for equivalent recovery in this page-only run, not failed and not passed.
+
 ## Run
 
 ```bash
