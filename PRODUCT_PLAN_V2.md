@@ -176,7 +176,8 @@ MCP server、Firecrawl 迁移垫片、benchmark 报告（对比 Firecrawl 自托
 
 **Phase 2 状态（2026-09-19）**：已加入 `w2l-ladder` benchmark subject，并按 L0 身份/策略完整性、L1 HTTP、L2 Browser 输出 verified completion、false-success rate、P95 wall time、升级次数和成本可观测性。`npm run bench` 生成 `output/benchmark/benchmark-l0-l2.json` 与 `.md`；原始 JSON 不提交，Markdown 摘要可作为运行证据归档。当前仍是 W2L 内部 fixture 对比，不等同于 Benchmark Gate，尚未加入自托管 Firecrawl/Crawl4AI。
 
-**Phase 3 状态（2026-09-19）**：已建立正式 Benchmark Gate harness，并固定 comparator baseline：Firecrawl self-hosted `v2.11.162`、Crawl4AI `0.9.3`。`npm run benchmark:gate` 固定 W2L fixture run、记录 commit/环境/命令/版本/原始输出路径，并要求两个 comparator 的版本命令和 raw evidence 都存在；缺少任一 comparator 时状态为 `blocked`，不会伪造 winner。当前机器没有 Docker，Firecrawl 无法启动；Crawl4AI 隔离 smoke 已启动但延迟 SPA 未通过 ground truth，因此正式 Gate 仍 blocked。详情见 `docs/benchmark-gate.md`。比较器不作为 W2L 依赖链接或移植。
+**Phase 3 准备状态（2026-09-19）**：已建立正式 Benchmark Gate harness，并固定 comparator baseline：Firecrawl self-hosted `v2.11.162`、Crawl4AI `0.9.3`。本机 smoke 阶段因 Docker 和 comparator adapter 受阻；有效 Docker runner 结果见下一条。比较器不作为 W2L 依赖链接或移植。
+**有效 Docker runner 结果（2026-09-19）**：GitHub Actions run `35423895294` 在 `main@6dc2e6e` 上完成 Firecrawl `v2.11.162`、Crawl4AI `0.9.3` 和 W2L 的 56-case raw evidence。W2L 在该固定 synthetic suite 上 verified completion（66.1% vs 32.1% vs 14.3%）和 false-success rate（0% vs 67.9% vs 81.8%）领先；P95 wall time 由 Firecrawl 领先。成本和 recovery correctness 未被三方 adapter 统一测量，不能作结论。正式 Gate 的页面质量部分完成，成本/恢复指标仍为 open follow-up。
 
 ### 继续/终止门槛（沿用 research 文档 §7 并加两条）
 
