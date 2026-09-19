@@ -75,7 +75,7 @@ export interface FixtureServer {
   close: () => Promise<void>
 }
 
-export async function startFixtureServer(port = 0): Promise<FixtureServer> {
+export async function startFixtureServer(port = 0, host = '127.0.0.1'): Promise<FixtureServer> {
   resetFixtureState()
   const server: Server = createServer(handle)
   // Hanging fixtures deliberately hold sockets open; without this, close() waits forever.
@@ -83,7 +83,7 @@ export async function startFixtureServer(port = 0): Promise<FixtureServer> {
 
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject)
-    server.listen(port, '127.0.0.1', () => resolve())
+    server.listen(port, host, () => resolve())
   })
 
   const address = server.address() as AddressInfo

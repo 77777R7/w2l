@@ -56,6 +56,9 @@ export function detectComparator(
 ): ComparatorEvidence {
   try {
     const version = execFileSync(command, [...args, '--version'], { encoding: 'utf8', timeout: 10_000 }).trim()
+    if (!existsSync(rawOutputPath)) {
+      return { id, displayName, status: 'not_run', version, command: [command, ...args].join(' '), rawOutputPath: null, reason: 'version command succeeded but comparator evidence is missing' }
+    }
     return { id, displayName, status: 'ready', version, command: [command, ...args].join(' '), rawOutputPath, reason: null }
   } catch (error) {
     return {
