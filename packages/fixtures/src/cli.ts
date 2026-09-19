@@ -2,7 +2,8 @@ import { startFixtureServer } from './server.js'
 import { FIXTURE_TRUTHS } from './suite.js'
 
 const port = Number(process.env['FIXTURE_PORT'] ?? 8787)
-const server = await startFixtureServer(port)
+const host = process.env['FIXTURE_HOST'] ?? '127.0.0.1'
+const server = await startFixtureServer(port, host)
 
 process.stdout.write(`fixture server listening on ${server.url}\n`)
 process.stdout.write(`${FIXTURE_TRUTHS.length} cases\n`)

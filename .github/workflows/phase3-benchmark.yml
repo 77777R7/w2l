@@ -1,0 +1,65 @@
+name: Phase 3 Benchmark Gate
+
+on:
+  workflow_dispatch:
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run typecheck
+      - name: Start fixture server
+        run: |
+          mkdir -p output
+          FIXTURE_HOST_IP=$(ip -4 addr show docker0 | awk '/inet / {print $2}' | cut -d/ -f1)
+          test -n "$FIXTURE_HOST_IP"
+          echo "W2L_PHASE3_FIXTURE_BASE_URL=http://${FIXTURE_HOST_IP}:8787" >> "$GITHUB_ENV"
+          FIXTURE_HOST=0.0.0.0 FIXTURE_PORT=8787 node --import tsx packages/fixtures/src/cli.ts > output/phase3-fixture.log 2>&1 &
+          for i in $(seq 1 20); do curl --fail --silent http://127.0.0.1:8787/__reset && exit 0 || sleep 1; done
+          cat output/phase3-fixture.log
+          exit 1
+      - run: npm run benchmark:phase3:manifest
+        env:
+          W2L_PHASE3_FIXTURE_BASE_URL: ${{ env.W2L_PHASE3_FIXTURE_BASE_URL }}
+      - name: Start Firecrawl v2.11.162
+        working-directory: /tmp
+        run: |
+          git clone --depth 1 --branch v2.11.162 https://github.com/firecrawl/firecrawl.git firecrawl-v2.11.162
+          cd firecrawl-v2.11.162
+          printf 'USE_DB_AUTHENTICATION=false\nPOSTGRES_USER=postgres\nPOSTGRES_PASSWORD=phase3-benchmark-password-0123456789012345\nPOSTGRES_DB=postgres\n' > .env
+          docker compose up --build -d
+          for i in $(seq 1 60); do curl --fail --silent http://127.0.0.1:3002/v0/health/readiness && exit 0 || sleep 5; done
+          docker compose ps --all
+          docker compose logs --tail=200
+          exit 1
+      - name: Run W2L fixed benchmark
+        run: W2L_BENCHMARK_OUT_DIR=output/phase3-gate/w2l npm run bench
+      - name: Run Crawl4AI 0.9.3
+        run: |
+          uv venv --python 3.12 output/phase3-gate/crawl4ai-venv
+          uv pip install --python output/phase3-gate/crawl4ai-venv/bin/python crawl4ai==0.9.3
+          output/phase3-gate/crawl4ai-venv/bin/crawl4ai-setup
+          output/phase3-gate/crawl4ai-venv/bin/python scripts/phase3/crawl4ai_adapter.py --manifest output/phase3-gate/manifest.json --out output/phase3-gate/crawl4ai
+      - name: Run Firecrawl v2.11.162
+        run: python3 scripts/phase3/firecrawl_adapter.py --manifest output/phase3-gate/manifest.json --out output/phase3-gate/firecrawl
+      - name: Score all three tools
+        run: W2L_PHASE3_OUT_DIR=output/phase3-gate npm run benchmark:phase3:score
+      - uses: actions/upload-artifact@v4
+        with:
+          name: phase3-benchmark-evidence
+          path: output/phase3-gate
+      - name: Stop Firecrawl
+        if: always()
+        working-directory: /tmp/firecrawl-v2.11.162
+        run: docker compose down -v
