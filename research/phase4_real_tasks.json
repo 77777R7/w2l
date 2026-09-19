@@ -1,0 +1,93 @@
+{
+  "version": "phase4-v0.1-2026-09-19",
+  "policy": {
+    "sources": "public official documentation and public official product pages",
+    "allowedActions": ["GET scrape"],
+    "login": false,
+    "formSubmission": false,
+    "captchaHandling": false,
+    "holdoutRule": "holdout tasks are not used to tune extraction rules"
+  },
+  "tasks": [
+    {
+      "id": "ai-mdn-abortcontroller",
+      "kind": "ai_knowledge",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/API/AbortController",
+      "source": "MDN official documentation",
+      "evaluationSet": "development",
+      "repeats": 2,
+      "assertions": [
+        { "field": "title", "mustContain": ["AbortController"] },
+        { "field": "main_content", "required": true, "mustContain": ["AbortSignal", "abort"] },
+        { "field": "source_url", "mustContain": ["developer.mozilla.org"] },
+        { "field": "navigation_noise", "mustNotContain": ["Sign up"] }
+      ]
+    },
+    {
+      "id": "ai-mdn-promise-all",
+      "kind": "ai_knowledge",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/all",
+      "source": "MDN official documentation",
+      "evaluationSet": "development",
+      "repeats": 2,
+      "assertions": [
+        { "field": "title", "mustContain": ["Promise.all()"] },
+        { "field": "main_content", "required": true, "mustContain": ["rejects", "Promise.allSettled"] },
+        { "field": "source_url", "mustContain": ["developer.mozilla.org"] }
+      ]
+    },
+    {
+      "id": "ai-playwright-library",
+      "kind": "ai_knowledge",
+      "url": "https://playwright.dev/docs/library",
+      "source": "Playwright official documentation",
+      "evaluationSet": "holdout",
+      "repeats": 2,
+      "assertions": [
+        { "field": "title", "mustContain": ["Library"] },
+        { "field": "main_content", "required": true, "mustContain": ["chromium.launch", "browser.close"] },
+        { "field": "source_url", "mustContain": ["playwright.dev"] }
+      ]
+    },
+    {
+      "id": "product-browserbase-pricing",
+      "kind": "product_info",
+      "url": "https://www.browserbase.com/pricing",
+      "source": "Browserbase official pricing page",
+      "evaluationSet": "development",
+      "repeats": 2,
+      "assertions": [
+        { "field": "product_name", "mustContain": ["Browserbase"] },
+        { "field": "pricing", "required": true, "mustContain": ["Developer Plan", "$20/mo"] },
+        { "field": "specification", "mustContain": ["browser hours"] },
+        { "field": "source_url", "mustContain": ["browserbase.com/pricing"] }
+      ]
+    },
+    {
+      "id": "product-steel-overview",
+      "kind": "product_info",
+      "url": "https://steel.dev/",
+      "source": "Steel official product page",
+      "evaluationSet": "holdout",
+      "repeats": 2,
+      "assertions": [
+        { "field": "product_name", "mustContain": ["Steel"] },
+        { "field": "specification", "mustContain": ["browser", "self-hosted"] },
+        { "field": "source_url", "mustContain": ["steel.dev"] }
+      ]
+    },
+    {
+      "id": "product-firecrawl-self-host-docs",
+      "kind": "product_info",
+      "url": "https://docs.firecrawl.dev/contributing/self-host",
+      "source": "Firecrawl official self-hosting documentation",
+      "evaluationSet": "holdout",
+      "repeats": 2,
+      "assertions": [
+        { "field": "product_name", "mustContain": ["Firecrawl"] },
+        { "field": "specification", "mustContain": ["Docker", "Self-host"] },
+        { "field": "source_url", "mustContain": ["docs.firecrawl.dev"] }
+      ]
+    }
+  ]
+}
