@@ -40,7 +40,7 @@ jobs:
         run: |
           git clone --depth 1 --branch v2.11.162 https://github.com/firecrawl/firecrawl.git firecrawl-v2.11.162
           cd firecrawl-v2.11.162
-          printf 'USE_DB_AUTHENTICATION=false\nPOSTGRES_USER=postgres\nPOSTGRES_PASSWORD=phase3-benchmark-password-0123456789012345\nPOSTGRES_DB=postgres\n' > .env
+          printf 'USE_DB_AUTHENTICATION=false\nTEST_SUITE_SELF_HOSTED=true\nALLOW_LOCAL_WEBHOOKS=true\nPOSTGRES_USER=postgres\nPOSTGRES_PASSWORD=phase3-benchmark-password-0123456789012345\nPOSTGRES_DB=postgres\n' > .env
           docker compose up --build -d
           for i in $(seq 1 60); do curl --fail --silent http://127.0.0.1:3002/v0/health/readiness && exit 0 || sleep 5; done
           docker compose ps --all

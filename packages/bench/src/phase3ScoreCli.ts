@@ -53,7 +53,7 @@ async function main(): Promise<void> {
   }
   await mkdir(outputDir, { recursive: true })
   const leaders = metricLeaders(reports)
-  const evidenceComplete = tools.every((tool) => recordsPresent(outputDir, tool))
+  const evidenceComplete = tools.every((tool) => recordsPresent(outputDir, tool)) && !Object.values(reports).some((report) => (report as { caseCount: number }).caseCount !== cases.length)
   const comparison = { generatedAt: new Date().toISOString(), evidenceComplete, tools: reports, leaders, decision: evidenceComplete ? `evidence complete; W2L leads: ${leaders.filter((leader) => leader.tool === 'w2l').map((leader) => leader.metric).join(', ') || 'none'}` : 'blocked: raw evidence is missing for one or more comparator' }
   await writeFile(`${outputDir}/comparison.json`, JSON.stringify(comparison, null, 2) + '\n')
   const rows = Object.entries(reports).map(([tool, report]) => {
@@ -85,7 +85,9 @@ function failureExplainability(outcomes: Array<{ success: boolean; error: string
 
 function recordsPresent(outputDir: string, tool: string): boolean {
   try {
-    return existsSync(`${outputDir}/${tool}/raw.json`)
+    return tool === 'w2l'
+      ? existsSync(`${outputDir}/w2l/benchmark-l0-l2.json`)
+      : existsSync(`${outputDir}/${tool}/raw.json`)
   } catch {
     return false
   }
