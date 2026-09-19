@@ -59,6 +59,7 @@ export interface GroundTruth {
   kind: 'fixture' | 'canary'
   /** What this case is designed to probe. */
   category: string
+  evaluationSet?: 'development' | 'holdout'
   /** Substrings that MUST appear in the extracted markdown. */
   mustContain: readonly string[]
   /** Substrings that MUST NOT appear (nav, footer, cookie banner, ads). */
