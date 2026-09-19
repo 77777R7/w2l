@@ -26,7 +26,8 @@ def main():
     records = []
     for case in manifest["suite"]["cases"]:
         started = time.perf_counter()
-        payload = json.dumps({"url": case["target"], "formats": ["markdown"], "timeout": 60000}).encode()
+        target = case["target"].replace("http://172.17.0.1:", "http://host.docker.internal:")
+        payload = json.dumps({"url": target, "formats": ["markdown"], "timeout": 60000}).encode()
         request = Request(f"{args.base_url}/v2/scrape", data=payload, headers={"content-type": "application/json"})
         try:
             with urlopen(request, timeout=75) as response:
