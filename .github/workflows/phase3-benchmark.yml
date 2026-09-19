@@ -16,6 +16,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: '0.11.15'
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: npm run typecheck
@@ -46,16 +49,19 @@ jobs:
       - name: Run W2L fixed benchmark
         run: W2L_BENCHMARK_OUT_DIR=output/phase3-gate/w2l npm run bench
       - name: Run Crawl4AI 0.9.3
+        id: crawl4ai
         run: |
           uv venv --python 3.12 output/phase3-gate/crawl4ai-venv
           uv pip install --python output/phase3-gate/crawl4ai-venv/bin/python crawl4ai==0.9.3
           output/phase3-gate/crawl4ai-venv/bin/crawl4ai-setup
           output/phase3-gate/crawl4ai-venv/bin/python scripts/phase3/crawl4ai_adapter.py --manifest output/phase3-gate/manifest.json --out output/phase3-gate/crawl4ai
       - name: Run Firecrawl v2.11.162
+        id: firecrawl-adapter
         run: python3 scripts/phase3/firecrawl_adapter.py --manifest output/phase3-gate/manifest.json --out output/phase3-gate/firecrawl
       - name: Score all three tools
         run: W2L_PHASE3_OUT_DIR=output/phase3-gate npm run benchmark:phase3:score
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: phase3-benchmark-evidence
           path: output/phase3-gate
