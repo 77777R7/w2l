@@ -11,6 +11,7 @@
     { "path": "../extract-tf" },
     { "path": "../http-core" },
     { "path": "../canary" },
-    { "path": "../runtime" }
+    { "path": "../runtime" },
+    { "path": "../sdk" }
   ]
 }
