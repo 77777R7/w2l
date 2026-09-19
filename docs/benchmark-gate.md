@@ -50,6 +50,18 @@ On the current macOS runner:
 
 Until both comparators produce raw evidence for the same suite, the formal gate remains `blocked` and W2L has no defensible competitor-lead claim.
 
+## Valid Run Evidence
+
+Docker-capable run `35423895294` on `main@6dc2e6e` completed all three adapters with 56 raw records each. The normalized page-quality comparison was:
+
+| Tool | Status matches | Verified completion | False success | Failure explainability | P95 wall |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| W2L | 45/56 | 66.1% | 0.0% | 94.7% | 10.1s |
+| Firecrawl self-hosted v2.11.162 | 39/56 | 32.1% | 67.9% | unavailable | 104ms |
+| Crawl4AI 0.9.3 | 44/56 | 14.3% | 81.8% | 100.0% | 46.1s |
+
+These values support a page-quality lead for W2L on verified completion and false-success rate for this fixed synthetic suite. They do not support a cost or recovery lead: those metrics were not measured comparably and remain unavailable. Full raw evidence is retained in the GitHub Actions artifact for run `35423895294`, not committed to the repository.
+
 ## Run
 
 ```bash
