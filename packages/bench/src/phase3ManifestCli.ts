@@ -7,7 +7,12 @@ const server = baseUrl === undefined ? await startFixtureServer(Number(process.e
 try {
   const suite = bindSuite(baseUrl ?? server!.url)
   await mkdir(out.split('/').slice(0, -1).join('/') || '.', { recursive: true })
-  await writeFile(out, JSON.stringify({ suite, fixtureBaseUrl: baseUrl ?? server!.url }, null, 2) + '\n')
+  await writeFile(out, JSON.stringify({
+    suite: { ...suite, cases: suite.cases.map((testCase) => ({ ...testCase, evaluationSet: testCase.category === 'spa' || testCase.category === 'blocked' ? 'holdout' : 'development' })) },
+    fixtureBaseUrl: baseUrl ?? server!.url,
+    reset: { endpoint: `${baseUrl ?? server!.url}/__reset`, beforeEachComparator: true, statefulCases: ['flaky-once'] },
+    runConfig: { cache: 'bypass', browser: 'headless', concurrency: 1, timeoutMs: 60000, retries: 'comparator-default', robots: 'comparator-default' },
+  }, null, 2) + '\n')
   process.stdout.write(`manifest=${out}\nbase=${baseUrl ?? server!.url}\ncases=${suite.cases.length}\n`)
 } finally {
   if (server !== null) await server.close()

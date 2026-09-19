@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs'
 import { checkFalseSuccess, isFalseSuccess } from './checker.js'
 import type { FetchResult, GroundTruth } from '@w2l/contracts'
 
-type ExternalRecord = { id: string; success: boolean; markdown: string; error: string; wallMs: number }
+type ExternalRecord = { id: string; success: boolean; markdown: string; error: string; wallMs: number; raw?: unknown; rawResponse?: unknown; rawResult?: unknown }
 
 function result(record: ExternalRecord): FetchResult {
   return {
@@ -23,7 +23,7 @@ async function main(): Promise<void> {
   const outputDir = process.env.W2L_PHASE3_OUT_DIR ?? 'output/phase3-gate'
   const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as { fixtureBaseUrl: string; suite: { cases: readonly GroundTruth[] } }
   const cases = manifest.suite.cases
-  const tools = ['w2l', 'firecrawl', 'crawl4ai']
+  const tools = ['w2l', 'firecrawl', 'crawl4ai', 'crawl4ai-filtered']
   const reports: Record<string, unknown> = {}
   for (const tool of tools) {
     const records = tool === 'w2l'
@@ -35,10 +35,12 @@ async function main(): Promise<void> {
       if (record === undefined) throw new Error(`${tool} missing case ${truth.id}`)
       const fetched = result(record)
       const checks = checkFalseSuccess(fetched, truth)
-      return { id: truth.id, status: fetched.status, statusMatched: fetched.status === truth.expectedStatus, falseSuccess: isFalseSuccess(fetched, checks), wallMs: fetched.usage.wallMs, error: record.error }
+      return { id: truth.id, set: truth.evaluationSet ?? 'development', expectedStatus: truth.expectedStatus, status: fetched.status, raw: record.raw ?? record.rawResponse ?? record.rawResult ?? null, statusMatched: fetched.status === truth.expectedStatus, falseSuccess: isFalseSuccess(fetched, checks), wallMs: fetched.usage.wallMs, error: record.error }
     })
     const contentful = outcomes.filter((outcome) => outcome.status === 'success')
     const falseSuccesses = outcomes.filter((outcome) => outcome.falseSuccess)
+    const positive = outcomes.filter((outcome) => outcome.expectedStatus === 'success' || outcome.expectedStatus === 'partial')
+    const negative = outcomes.filter((outcome) => !positive.includes(outcome))
     reports[tool] = {
       caseCount: outcomes.length,
       statusMatches: outcomes.filter((outcome) => outcome.statusMatched).length,
@@ -48,6 +50,8 @@ async function main(): Promise<void> {
       failureExplainability: failureExplainability(outcomes.map((outcome) => ({ success: outcome.status === 'success', error: outcome.error }))),
       costPerVerifiedPageUsd: null,
       recoveryCorrectness: tool === 'w2l' ? 'not_run' : 'unsupported',
+      positive: { caseCount: positive.length, contentCompletion: positive.filter((outcome) => outcome.statusMatched && !outcome.falseSuccess).length / Math.max(1, positive.length), falseSuccessRate: positive.filter((outcome) => outcome.status === 'success' || outcome.status === 'partial').length > 0 ? positive.filter((outcome) => outcome.falseSuccess).length / positive.filter((outcome) => outcome.status === 'success' || outcome.status === 'partial').length : null },
+      negative: { caseCount: negative.length, expectedRefusalAccuracy: negative.filter((outcome) => outcome.statusMatched).length / Math.max(1, negative.length), wrongSuccessCount: negative.filter((outcome) => outcome.status === 'success' || outcome.status === 'partial').length, failureClassificationAccuracy: null },
       outcomes,
     }
   }
