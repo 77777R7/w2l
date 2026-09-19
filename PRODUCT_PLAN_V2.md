@@ -178,6 +178,7 @@ MCP server、Firecrawl 迁移垫片、benchmark 报告（对比 Firecrawl 自托
 
 **Phase 3 准备状态（2026-09-19）**：已建立正式 Benchmark Gate harness，并固定 comparator baseline：Firecrawl self-hosted `v2.11.162`、Crawl4AI `0.9.3`。本机 smoke 阶段因 Docker 和 comparator adapter 受阻；有效 Docker runner 结果见下一条。比较器不作为 W2L 依赖链接或移植。
 **有效 Docker runner 结果（2026-09-19）**：GitHub Actions run `35423895294` 在 `main@6dc2e6e` 上完成 Firecrawl `v2.11.162`、Crawl4AI `0.9.3` 和 W2L 的 56-case raw evidence。W2L 在该固定 synthetic suite 上 verified completion（66.1% vs 32.1% vs 14.3%）和 false-success rate（0% vs 67.9% vs 81.8%）领先；P95 wall time 由 Firecrawl 领先。成本和 recovery correctness 未被三方 adapter 统一测量，不能作结论。正式 Gate 的页面质量部分完成，成本/恢复指标仍为 open follow-up。
+**成本/恢复补充状态（2026-09-19）**：三方 adapter 已明确记录成本模型和恢复能力边界。当前 self-hosted comparator 没有统一美元发票，cost per verified page 仍为 unavailable；W2L 有 SQLite URL-level recovery，Firecrawl/Crawl4AI 的页面 adapter 不支持等价 checkpoint/resume，因此 recovery correctness 标为 `unsupported`，不被误判为失败或通过。
 
 ### 继续/终止门槛（沿用 research 文档 §7 并加两条）
 

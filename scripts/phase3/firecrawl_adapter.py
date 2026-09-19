@@ -22,6 +22,7 @@ def main():
         "tool": "firecrawl-self-hosted", "version": "v2.11.162",
         "platform": platform.platform(), "python": sys.version,
         "command": "POST /v2/scrape formats=[markdown] timeout=60000",
+        "costModel": {"type": "runner_wall_time", "usdPerHour": 0.0, "assumption": "self-hosted compute is not billed by the comparator"},
     }, indent=2) + "\n")
     records = []
     for case in manifest["suite"]["cases"]:
@@ -34,15 +35,15 @@ def main():
                 body = json.loads(response.read())
             data = body.get("data", {}) if isinstance(body, dict) else {}
             markdown = data.get("markdown", "") or ""
-            record = {"id": case["id"], "url": case["target"], "success": bool(body.get("success")), "markdown": markdown, "error": body.get("error", ""), "wallMs": round((time.perf_counter() - started) * 1000), "raw": body}
+            record = {"id": case["id"], "url": case["target"], "success": bool(body.get("success")), "markdown": markdown, "error": body.get("error", ""), "wallMs": round((time.perf_counter() - started) * 1000), "costUsd": None, "raw": body}
         except HTTPError as exc:
             try:
                 body = exc.read().decode('utf-8', errors='replace')
             except Exception:
                 body = ''
-            record = {"id": case["id"], "url": case["target"], "success": False, "markdown": "", "error": repr(exc), "errorBody": body, "wallMs": round((time.perf_counter() - started) * 1000)}
+            record = {"id": case["id"], "url": case["target"], "success": False, "markdown": "", "error": repr(exc), "errorBody": body, "wallMs": round((time.perf_counter() - started) * 1000), "costUsd": None}
         except Exception as exc:
-            record = {"id": case["id"], "url": case["target"], "success": False, "markdown": "", "error": repr(exc), "errorBody": '', "wallMs": round((time.perf_counter() - started) * 1000)}
+            record = {"id": case["id"], "url": case["target"], "success": False, "markdown": "", "error": repr(exc), "errorBody": '', "wallMs": round((time.perf_counter() - started) * 1000), "costUsd": None}
         (out / "markdown" / f"{case['id']}.md").write_text(record["markdown"])
         records.append(record)
     (out / "raw.json").write_text(json.dumps(records, ensure_ascii=False, indent=2) + "\n")

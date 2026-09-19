@@ -47,7 +47,7 @@ async function main(): Promise<void> {
       p95WallMs: percentile(outcomes.map((outcome) => outcome.wallMs), 0.95),
       failureExplainability: failureExplainability(outcomes.map((outcome) => ({ success: outcome.status === 'success', error: outcome.error }))),
       costPerVerifiedPageUsd: null,
-      recoveryCorrectness: null,
+      recoveryCorrectness: tool === 'w2l' ? 'not_run' : 'unsupported',
       outcomes,
     }
   }
