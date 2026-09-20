@@ -206,6 +206,28 @@ describe('routePage', () => {
     doc.close()
   })
 
+  it('does not route a documentation page with breadcrumbs and prose to listing', () => {
+    const html = wrap(
+      '<main id="content">' +
+        '<ol class="breadcrumb"><li><a href="/en-US/docs/Web">Web</a></li><li><a href="/en-US/docs/Web/API">Web APIs</a></li><li><a href="/en-US/docs/Web/API/AbortController">AbortController</a></li></ol>' +
+        '<h1>AbortController</h1><h2>Instance methods</h2>' +
+        '<p>The AbortController interface represents a controller object that allows you to abort one or more Web requests as and when desired.</p>' +
+        '<p>You can create a new AbortController object using the AbortController() constructor. Communicating with an asynchronous operation is done using an AbortSignal object.</p>' +
+        '<p>Returns an AbortSignal object instance, which can be used to communicate with, or to abort, an asynchronous operation.</p>' +
+        '</main>',
+    )
+    const doc = parse(html)
+    const d = routePage(doc.document)
+    expect(d.type).toBe('article')
+    expect(d.strategy).toBe('article')
+    doc.close()
+    const out = extractTf.extract(html)
+    expect(out.pageType).toBe('article')
+    expect(out.mainHtml).toContain('AbortSignal')
+    expect(out.mainHtml).toContain('abort')
+    expect(out.escalate).toBe(false)
+  })
+
   it('routes a long prose page to article', () => {
     const doc = parse(
       wrap('<article><h1>Essay</h1>' +
@@ -312,6 +334,21 @@ describe('extractTf page types', () => {
     const out = extractTf.extract('')
     expect(out.escalate).toBe(true)
     expect(out.mainHtml).toBe('')
+  })
+
+  it('falls back from a leftover breadcrumb list to the article region', () => {
+    const html = wrap(
+      '<div>' +
+        '<ol class="breadcrumb"><li><a href="/web">Web</a></li><li><a href="/api">Web APIs</a></li><li><a href="/abort">AbortController</a></li><li><a href="/signal">AbortSignal</a></li><li><a href="/fetch">fetch</a></li><li><a href="/more">More APIs</a></li></ol>' +
+        '<p>The AbortController interface represents a controller object that allows you to abort one or more Web requests as and when desired.</p>' +
+        '<p>You can create a new AbortController object using the AbortController() constructor. Communicating with an asynchronous operation is done using an AbortSignal object.</p>' +
+        '<p>Returns an AbortSignal object instance, which can be used to communicate with, or to abort, an asynchronous operation.</p>' +
+        '</div>',
+    )
+    const out = extractTf.extract(html)
+    expect(out.mainHtml).toContain('AbortSignal')
+    expect(out.mainHtml).toContain('abort one or more Web requests')
+    expect(out.escalate).toBe(false)
   })
 
   it('extracts a listing page as listing with the list strategy', () => {

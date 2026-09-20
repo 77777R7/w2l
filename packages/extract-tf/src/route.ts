@@ -24,6 +24,7 @@ interface RouterCounts {
   tableInArticle: number
   article: number
   main: number
+  p: number
   textChars: number
   headings: number
   /** Links per 100 chars of visible text — div-based listings have high density. */
@@ -40,6 +41,7 @@ function countAll(doc: Document): RouterCounts {
     tableInArticle: qsa(doc, 'article table').length,
     article: qsa(doc, 'article').length,
     main: qsa(doc, 'main').length,
+    p: qsa(doc, 'p').length,
     headings: qsa(doc, 'h1,h2,h3').length,
     textChars,
     linkDensity: textChars > 0 ? (a / textChars) * 100 : 0,
@@ -209,6 +211,12 @@ function routeByCounts(c: RouterCounts, s: PageSignals): RouteDecision {
   // Still extracted by the article cascade.
   if (hasForumSignals(s)) return { type: 'forum', strategy: 'article' }
 
+  // Documentation / reference pages: breadcrumbs and in-page TOC look like
+  // lists, but several prose paragraphs under <main> are the payload.
+  if (c.main >= 1 && c.p >= 3 && c.headings >= 2) {
+    return { type: 'article', strategy: 'article' }
+  }
+
   // A page whose only structure is one standalone table (readings, schedules,
   // dashboards). Tables inside <article> stay on the article cascade.
   if (c.tableInArticle === 0 && c.table === 1 && c.li < 10 && c.a < 20 && c.headings <= 2) {
@@ -220,8 +228,9 @@ function routeByCounts(c: RouterCounts, s: PageSignals): RouteDecision {
     return { type: 'collection', strategy: 'table' }
   }
 
-  // Link farm: most content is a list of links.
-  if (c.li >= 6 && c.a >= 6 && c.textChars < 2000) {
+  // Link farm: most content is a list of links. Prose paragraphs mean this
+  // is not a listing even when leftover nav lists survive pruning.
+  if (c.li >= 6 && c.a >= 6 && c.textChars < 2000 && c.p < 3) {
     return { type: 'listing', strategy: 'list' }
   }
 
@@ -229,7 +238,7 @@ function routeByCounts(c: RouterCounts, s: PageSignals): RouteDecision {
   // page IS its links (quotes.toscrape.com: 55 links/1702 chars = 3.2/100;
   // Wikipedia prose: ~1/100). The list strategy falls back to picking the
   // densest link container when no ul/ol qualifies.
-  if (c.a >= 15 && c.linkDensity >= 2 && c.table === 0 && c.article === 0) {
+  if (c.a >= 15 && c.linkDensity >= 2 && c.table === 0 && c.article === 0 && c.p < 3) {
     return { type: 'listing', strategy: 'list' }
   }
 

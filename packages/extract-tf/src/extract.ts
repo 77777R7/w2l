@@ -12,7 +12,7 @@
  */
 
 import type { Extractor, ExtractorOptions, ExtractorOutput, PageType, ProductFacts } from '@w2l/contracts'
-import { qsa, outerHtml, parse, textOf } from './dom.js'
+import { outerHtml, parse, textOf } from './dom.js'
 import { cleanTree, pruneRecommendations, pruneTree } from './prune.js'
 import { classifyBlocks, type ClassifyOptions } from './classify.js'
 import { selectMain } from './main.js'
@@ -111,9 +111,20 @@ export class ExtractTf implements Extractor {
     let strategy = decision.strategy
     let main: Element | null
     switch (strategy) {
-      case 'list':
+      case 'list': {
         main = selectList(doc.document)
+        const blocks = classifyBlocks(doc.document, classifyOptions)
+        const articleMain = selectMain(doc.document, blocks)
+        const listText = main ? textOf(main).replace(/\s+/g, ' ').trim().length : 0
+        const articleText = articleMain ? textOf(articleMain).replace(/\s+/g, ' ').trim().length : 0
+        // Breadcrumbs and leftover TOCs win selectList on documentation pages.
+        // If the article cascade recovered a substantially larger region, use it.
+        if (main === null || (articleMain !== null && listText < articleText * 0.5)) {
+          strategy = 'article'
+          main = articleMain
+        }
         break
+      }
       case 'table':
         main = selectTable(doc.document)
         break

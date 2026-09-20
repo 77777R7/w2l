@@ -65,8 +65,8 @@ export async function runRealTasks(
   tasks: readonly RealTaskSpec[],
 ): Promise<Phase4Report> {
   const runs: RealTaskRun[] = []
-  const hashes = new Map<string, string>()
   for (const task of tasks) {
+    const start = runs.length
     for (let repeat = 1; repeat <= Math.max(1, task.repeats); repeat++) {
       const started = new Date().toISOString()
       try {
@@ -80,14 +80,12 @@ export async function runRealTasks(
         const normalizationApplied = task.dynamicNoisePatterns ?? []
         const contentHash = normalizedContentHash(result.markdown, normalizationApplied)
         const evidenceHash = result.evidence.rawBodySha256
-        const priorHash = hashes.get(task.id)
-        hashes.set(task.id, contentHash ?? '')
         runs.push({
           taskId: task.id, kind: task.kind, url: task.url, source: task.source, evaluationSet: task.evaluationSet, repeat,
           startedAt: started, finishedAt: new Date().toISOString(), outcome, assertions, result, contentHash,
           evidenceHash,
           normalizationApplied,
-          repeatConsistent: repeat === 1 ? null : priorHash !== null && priorHash === contentHash,
+          repeatConsistent: null,
           humanCorrectionMinutes: task.humanCorrectionMinutes ?? null, error: null,
         })
       } catch (error) {
@@ -98,8 +96,17 @@ export async function runRealTasks(
         })
       }
     }
+    applyRepeatConsistency(runs, start)
   }
   return buildReport(tasks, runs)
+}
+
+function applyRepeatConsistency(runs: RealTaskRun[], start: number): void {
+  const slice = runs.slice(start)
+  if (slice.length < 2) return
+  const firstHash = slice[0]?.contentHash ?? null
+  const consistent = firstHash !== null && slice.every((run) => run.contentHash === firstHash)
+  for (const run of slice) run.repeatConsistent = consistent
 }
 
 export async function writePhase4Report(path: string, report: Phase4Report): Promise<void> {
