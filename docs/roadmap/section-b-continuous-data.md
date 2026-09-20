@@ -1,0 +1,31 @@
+# Section B · Continuous Updates And Authorized Access
+
+Section B is future product direction. It is not a current implementation commitment.
+
+## Product Hypothesis
+
+W2L should eventually turn validated page acquisition into a continuously maintained data source. Incremental updates are the reason to return; authorized session reuse is an access path; Local-first is the trust boundary; downstream delivery is the customer-facing output.
+
+## Candidate Phases
+
+### B1 · Stateful Recurring Tasks
+
+Stable object identity, extraction-rule versions, last valid data, last successful check, and stale state.
+
+### B2 · Trusted Change Detection
+
+Separate `changed`, `unchanged`, `cannot_verify`, and `stale`. Never interpret a login page, challenge page, or failed refresh as business data deletion.
+
+### B3 · Authorized Session Reuse
+
+User-approved sessions, isolated contexts, expiry detection, revocation, and human handoff. No permanent-login or CAPTCHA-bypass promise.
+
+### B4 · Narrow Backend Automation
+
+Only build fixed workflows after multiple customers share the same backend and data shape. Prefer deterministic steps, pause for authentication, and record every side effect.
+
+## Entry Conditions
+
+- A4 identifies a repeated task with meaningful updates.
+- A5 shows the task can be refreshed without unacceptable false success.
+- At least one customer or internal workflow benefits from the data staying current.
