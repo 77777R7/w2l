@@ -16,7 +16,6 @@
       "source": "MDN official documentation",
       "evaluationSet": "development",
       "repeats": 2,
-      "dynamicNoisePatterns": ["Monthly Browser Sessions\\s+[0-9,]+"],
       "assertions": [
         { "field": "title", "mustContain": ["AbortController"] },
         { "field": "main_content", "required": true, "mustContain": ["AbortSignal", "abort"] },
@@ -49,7 +48,7 @@
       "source": "MDN official documentation",
       "evaluationSet": "holdout",
       "repeats": 2,
-      "assertions": [{ "field": "title", "mustContain": ["WebSocket"] }, { "field": "main_content", "required": true, "mustContain": ["two-way interactive communication"] }, { "field": "source_url", "sourceUrl": "https://developer.mozilla.org" }]
+      "assertions": [{ "field": "title", "mustContain": ["WebSocket"] }, { "field": "main_content", "required": true, "mustContain": ["creating and managing", "sending and receiving data"] }, { "field": "source_url", "sourceUrl": "https://developer.mozilla.org" }]
     },
     {
       "id": "ai-playwright-locators",
@@ -103,6 +102,7 @@
       "source": "Browserbase official product page",
       "evaluationSet": "holdout",
       "repeats": 2,
+      "dynamicNoisePatterns": ["Monthly Browser Sessions\\s+[0-9,]+"],
       "assertions": [{ "field": "product_name", "mustContain": ["Browserbase"] }, { "field": "specification", "mustContain": ["browser"] }, { "field": "source_url", "sourceUrl": "https://www.browserbase.com" }]
     },
     {
@@ -112,6 +112,7 @@
       "source": "Browserbase official product page",
       "evaluationSet": "development",
       "repeats": 2,
+      "dynamicNoisePatterns": ["Monthly Browser Sessions\\s+[0-9,]+"],
       "assertions": [{ "field": "product_name", "mustContain": ["Browserbase"] }, { "field": "specification", "mustContain": ["Search"] }, { "field": "source_url", "sourceUrl": "https://www.browserbase.com" }]
     },
     {
@@ -183,6 +184,7 @@
       "source": "Browserbase official pricing page",
       "evaluationSet": "development",
       "repeats": 2,
+      "dynamicNoisePatterns": ["Monthly Browser Sessions\\s+[0-9,]+"],
       "assertions": [
         { "field": "product_name", "mustContain": ["Browserbase"] },
         { "field": "pricing", "required": true, "mustContain": ["Developer Plan", "$20/mo"] },
