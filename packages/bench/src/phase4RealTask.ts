@@ -9,6 +9,7 @@ export type RealTaskOutcome = 'correct_complete' | 'partial_missing_fields' | 'f
 export interface RealTaskAssertion {
   field: string
   required?: boolean
+  sourceUrl?: string
   mustContain?: readonly string[]
   mustNotContain?: readonly string[]
 }
@@ -102,8 +103,10 @@ function evaluateAssertions(result: FetchResult, assertions: readonly RealTaskAs
     if (!CONTENTFUL_STATUS.has(result.status) || result.markdown === null) return { field: assertion.field, outcome: 'unknown' as const, detail: 'content was not available' }
     const missing = (assertion.mustContain ?? []).filter((value) => !result.markdown!.includes(value))
     const forbidden = (assertion.mustNotContain ?? []).filter((value) => result.markdown!.includes(value))
-    if (missing.length === 0 && forbidden.length === 0) return { field: assertion.field, outcome: 'pass' as const, detail: null }
-    return { field: assertion.field, outcome: 'fail' as const, detail: `missing=${missing.join(',')}; forbidden=${forbidden.join(',')}` }
+    const sourceMismatch = assertion.sourceUrl !== undefined && !result.evidence.finalUrl.startsWith(assertion.sourceUrl)
+    const requiredMissing = assertion.required === true && result.markdown.trim().length === 0
+    if (missing.length === 0 && forbidden.length === 0 && !sourceMismatch && !requiredMissing) return { field: assertion.field, outcome: 'pass' as const, detail: null }
+    return { field: assertion.field, outcome: 'fail' as const, detail: `missing=${missing.join(',')}; forbidden=${forbidden.join(',')}; sourceMismatch=${sourceMismatch}; requiredMissing=${requiredMissing}` }
   })
 }
 

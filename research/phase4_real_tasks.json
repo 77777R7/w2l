@@ -19,7 +19,7 @@
       "assertions": [
         { "field": "title", "mustContain": ["AbortController"] },
         { "field": "main_content", "required": true, "mustContain": ["AbortSignal", "abort"] },
-        { "field": "source_url", "mustContain": ["developer.mozilla.org"] },
+        { "field": "source_url", "sourceUrl": "https://developer.mozilla.org" },
         { "field": "navigation_noise", "mustNotContain": ["Sign up"] }
       ]
     },
@@ -33,7 +33,7 @@
       "assertions": [
         { "field": "title", "mustContain": ["Promise.all()"] },
         { "field": "main_content", "required": true, "mustContain": ["rejects", "Promise.allSettled"] },
-        { "field": "source_url", "mustContain": ["developer.mozilla.org"] }
+        { "field": "source_url", "sourceUrl": "https://developer.mozilla.org" }
       ]
     },
     {
@@ -46,7 +46,7 @@
       "assertions": [
         { "field": "title", "mustContain": ["Library"] },
         { "field": "main_content", "required": true, "mustContain": ["chromium.launch", "browser.close"] },
-        { "field": "source_url", "mustContain": ["playwright.dev"] }
+        { "field": "source_url", "sourceUrl": "https://playwright.dev" }
       ]
     },
     {
@@ -60,7 +60,7 @@
         { "field": "product_name", "mustContain": ["Browserbase"] },
         { "field": "pricing", "required": true, "mustContain": ["Developer Plan", "$20/mo"] },
         { "field": "specification", "mustContain": ["browser hours"] },
-        { "field": "source_url", "mustContain": ["browserbase.com/pricing"] }
+        { "field": "source_url", "sourceUrl": "https://www.browserbase.com/pricing" }
       ]
     },
     {
@@ -73,7 +73,7 @@
       "assertions": [
         { "field": "product_name", "mustContain": ["Steel"] },
         { "field": "specification", "mustContain": ["browser", "self-hosted"] },
-        { "field": "source_url", "mustContain": ["steel.dev"] }
+        { "field": "source_url", "sourceUrl": "https://steel.dev" }
       ]
     },
     {
@@ -86,7 +86,7 @@
       "assertions": [
         { "field": "product_name", "mustContain": ["Firecrawl"] },
         { "field": "specification", "mustContain": ["Docker", "Self-host"] },
-        { "field": "source_url", "mustContain": ["docs.firecrawl.dev"] }
+        { "field": "source_url", "sourceUrl": "https://docs.firecrawl.dev" }
       ]
     }
   ]
