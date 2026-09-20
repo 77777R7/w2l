@@ -129,6 +129,8 @@ docs/
 - [x] Phase A4 real-task harness: AI knowledge and product-info manifests, field assertions, repeat consistency, holdout and cost/evidence records
 - [ ] Phase A4 real-task gate: 100-200 permitted pages, human correction time, repeated task evidence, and complete failure taxonomy
 - [x] Phase A4 diagnostic expansion: 20 real tasks, 11 domains, 40 repeated runs, and holdout results
+- [x] A6 scale slice: 100 pages, 10 domains, 20 holdout pages, two independent runs
+- [ ] A6 final gate: expanded recovery, second-developer installation, human correction time, and supported-scope evidence
 - [x] Phase 3 Benchmark Gate harness: fixed W2L run, comparator evidence, and blocked-until-real-comparators decision
 - [ ] Hosted Egress Gate: browser subresource policy enforcement and DNS-to-connection binding
 

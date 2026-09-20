@@ -20,6 +20,7 @@ Current truth:
 - Phase 4 has started with a six-task real-source slice. It has not passed the 100–200 page or design-partner thresholds.
 - A4 diagnostic expansion now covers 20 tasks across 11 domains; A5 has one measured stability fix, but product repeat consistency remains incomplete.
 - A6 scale slice now covers 100 pages across 10 domains with 20 holdout pages and two independent runs; outcome consistency is 100/100 and normalized-hash consistency is 99/100. Recovery, installation, manual correction, and support-boundary gates remain open.
+- A5 reports one measured stability fix; remaining product-page drift is classified, not globally normalized away. Cost remains unknown and human correction time is not yet recorded.
 - Hosted arbitrary-URL browser execution remains gated on a separate egress/security review.
 
 ## Section Map
