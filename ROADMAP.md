@@ -19,9 +19,9 @@ Current truth:
 - Recovery comparison is unsupported for the page-only Firecrawl/Crawl4AI adapters; W2L has URL-level SQLite recovery.
 - Phase 4 has started with a six-task real-source slice. It has not passed the 100–200 page or design-partner thresholds.
 - A4 diagnostic expansion now covers 20 tasks across 11 domains; A5 quality on that slice is now full: AI `22/22` correct-complete and repeat-consistent, product `18/18` correct-complete and repeat-consistent.
-- A6 scale slice now covers 100 pages across 10 domains with 20 holdout pages and two independent runs; outcome consistency is 100/100 and normalized-hash consistency is 99/100. Recovery, installation, manual correction, and support-boundary gates remain open.
-- A5 quality scores on the 20-task slice are closed. Cost remains unknown and human correction time is not yet recorded.
-- A5/A6 final gate report is generated at `output/phase4/final-gate-report.json`; it deliberately remains partial until operator-independent installation, expanded recovery, human correction, comparable cost, and support-boundary evidence are recorded.
+- A6 scale slice now covers 100 pages across 10 domains with 20 holdout pages and two independent runs; outcome consistency is 100/100 and normalized-hash consistency is 99/100. Interrupt/resume on the A6 URL set lost 0 checkpointed URLs; clean-clone install completed `ai-mdn-abortcontroller`; support boundary is `research/phase4_support_boundary.md`.
+- A5 quality scores on the 20-task slice are closed. External billed USD remains unknown; comparable cost is the recorded wall/browser/request/token/byte meters. Human correction time is 18 minutes.
+- A5/A6 final gate report is generated at `output/phase4/final-gate-report.json`. External billed USD stays unknown.
 - Hosted arbitrary-URL browser execution remains gated on a separate egress/security review.
 
 ## Section Map

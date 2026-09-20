@@ -1,0 +1,71 @@
+{
+  "protocol": "phase4-clean-clone-install",
+  "generatedAt": "2026-09-20T18:16:46.792Z",
+  "status": "passed_clean_clone",
+  "operatorIndependence": "same_machine_clean_clone_not_second_human",
+  "commit": "6d9898280d97f6779e8704802f50153d4d3747b3",
+  "node": "v26.8.1",
+  "platform": "darwin arm64",
+  "elapsedMs": 6185,
+  "workdir": "/var/folders/c9/_rmnkpq11zj2pcvxt8jgw1_w0000gn/T/w2l-install-Ds4prS",
+  "firstTask": {
+    "taskId": "ai-mdn-abortcontroller",
+    "outcome": "correct_complete",
+    "lane": "http"
+  },
+  "commands": [
+    {
+      "command": "git",
+      "args": [
+        "clone",
+        "--quiet",
+        "/Users/howard07/Documents/ChatGPT/爬虫机会",
+        "/var/folders/c9/_rmnkpq11zj2pcvxt8jgw1_w0000gn/T/w2l-install-Ds4prS/w2l"
+      ],
+      "ok": true,
+      "elapsedMs": 205
+    },
+    {
+      "command": "git",
+      "args": [
+        "-C",
+        "/var/folders/c9/_rmnkpq11zj2pcvxt8jgw1_w0000gn/T/w2l-install-Ds4prS/w2l",
+        "checkout",
+        "--quiet",
+        "6d9898280d97f6779e8704802f50153d4d3747b3"
+      ],
+      "ok": true,
+      "elapsedMs": 19
+    },
+    {
+      "command": "npm",
+      "args": [
+        "ci"
+      ],
+      "ok": true,
+      "elapsedMs": 2108
+    },
+    {
+      "command": "npx",
+      "args": [
+        "playwright",
+        "install",
+        "chromium"
+      ],
+      "ok": true,
+      "elapsedMs": 868
+    },
+    {
+      "command": "node",
+      "args": [
+        "--import",
+        "tsx",
+        "packages/bench/src/phase4Cli.ts"
+      ],
+      "ok": true,
+      "elapsedMs": 835
+    }
+  ],
+  "error": null,
+  "note": "Executed from a clean clone of the current commit on this machine. It proves install+first-task reproducibility, not a second independent developer."
+}

@@ -21,6 +21,10 @@ describe('Phase 4 real task harness', () => {
     expect(report.runs[0]?.outcome).toBe('correct_complete')
     expect(report.runs[0]?.result?.usage.externalCostUsd).toBeNull()
     expect(report.summary.holdoutRuns).toBe(2)
+    expect(report.summary.resourceMeters.unknownCostRuns).toBe(2)
+    expect(report.summary.resourceMeters.knownExternalCostUsd).toBeNull()
+    expect(report.summary.resourceMeters.wallMs).toBe(2)
+    expect(report.summary.manualCorrectionMinutes).toBeNull()
   })
 
   it('marks every run in an inconsistent pair as not repeat-consistent', async () => {

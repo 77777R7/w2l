@@ -1,0 +1,57 @@
+{
+  "generatedAt": "2026-09-20T18:27:48.623Z",
+  "a5": {
+    "status": "accepted_with_unknown_external_usd",
+    "knownCostRuns": 0,
+    "unknownCostRuns": 40,
+    "manualCorrectionMinutes": 18,
+    "resourceMeters": {
+      "runs": 40,
+      "wallMs": 21880,
+      "browserMs": 12520,
+      "requestCount": 40,
+      "contentTokens": 118430,
+      "bytesWire": 9719623,
+      "unknownCostRuns": 40,
+      "knownExternalCostUsd": null
+    },
+    "qualityBefore": {
+      "productCorrectComplete": 16,
+      "productRuns": 18,
+      "productRepeatConsistent": 5,
+      "aiCorrectComplete": 18,
+      "aiRuns": 22,
+      "aiRepeatConsistent": 11
+    },
+    "qualityAfter": {
+      "productCorrectComplete": 18,
+      "productRuns": 18,
+      "productRepeatConsistent": 18,
+      "aiCorrectComplete": 22,
+      "aiRuns": 22,
+      "aiRepeatConsistent": 22
+    },
+    "open": []
+  },
+  "a6": {
+    "status": "accepted_with_unknown_external_usd",
+    "scale": {
+      "pagesPerRun": 100,
+      "runs": 200,
+      "domains": 10,
+      "holdoutPages": 20
+    },
+    "consistency": {
+      "outcomeSame": 100,
+      "contentHashSame": 99,
+      "total": 100
+    },
+    "installValidation": "passed_clean_clone",
+    "recoveryValidation": "passed_with_live_fetch_failures",
+    "humanCorrectionMinutes": 18,
+    "cost": "unknown",
+    "supportBoundary": "research/phase4_support_boundary.md",
+    "open": []
+  },
+  "decision": "A5 quality and A6 scale/recovery/install/support evidence are recorded. External billed USD remains unknown; local resource meters are the comparable cost."
+}

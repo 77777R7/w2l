@@ -1,0 +1,30 @@
+{
+  "generatedAt": "2026-09-20T17:50:00.000Z",
+  "reviewer": "operator-on-author-machine",
+  "minutes": 18,
+  "scope": [
+    "A5 remaining AI missing-field runs (AbortController, WebSocket)",
+    "A6 normalized-hash mismatch a6-082-www-browserbase-com"
+  ],
+  "findings": [
+    {
+      "id": "ai-mdn-abortcontroller",
+      "minutes": 8,
+      "action": "extractor routing fix; no assertion weakening",
+      "result": "correct_complete after article routing"
+    },
+    {
+      "id": "ai-mdn-websocket",
+      "minutes": 4,
+      "action": "assertion updated to live page phrasing; extractor already had the facts",
+      "result": "correct_complete"
+    },
+    {
+      "id": "a6-082-www-browserbase-com",
+      "minutes": 6,
+      "action": "inspected HTTP vs browser hash drift; Monthly Browser Sessions counter; no field correction",
+      "result": "both runs correct_complete; hash drift classified as dynamic noise"
+    }
+  ],
+  "unobservedTasks": "other tasks needed no correction; they stay untimed rather than recorded as zero"
+}
