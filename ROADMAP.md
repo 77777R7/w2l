@@ -18,6 +18,7 @@ Current truth:
 - Cost per verified page is unavailable because the self-hosted comparators have no comparable invoice model.
 - Recovery comparison is unsupported for the page-only Firecrawl/Crawl4AI adapters; W2L has URL-level SQLite recovery.
 - Phase 4 has started with a six-task real-source slice. It has not passed the 100–200 page or design-partner thresholds.
+- A4 diagnostic expansion now covers 20 tasks across 11 domains; A5 has one measured stability fix, but product repeat consistency remains incomplete.
 - Hosted arbitrary-URL browser execution remains gated on a separate egress/security review.
 
 ## Section Map
@@ -82,14 +83,14 @@ Section B and Section C are future product directions, not current implementatio
 
 **Goal:** prove that W2L can repeatedly deliver field-level data for real, permitted sources, not only synthetic fixtures.
 
-**Status:** in progress.
+**Status:** in progress; diagnostic expansion complete, gate not closed.
 
 **First task families:**
 
 - AI knowledge: official documentation with title, source URL, main content, headings/tables where present, timestamp, content hash, and missing-field reasons.
 - Product information: official product/pricing pages with product name, specification/attributes, price where present, source URL, subject-vs-recommended distinction, update time, conflicts, and missing reasons.
 
-**Current slice:** six tasks, twelve runs, two repeats per task, six holdout runs. Current slice is diagnostic evidence, not Phase A completion.
+**Current slice:** twenty tasks, forty runs, two repeats per task, eighteen holdout runs. Current slice is diagnostic evidence, not Phase A completion.
 
 **Acceptance:**
 
