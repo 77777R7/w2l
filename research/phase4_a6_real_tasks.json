@@ -1,0 +1,1820 @@
+{
+  "version": "phase4-a6-v0.1-2026-09-20",
+  "policy": {
+    "sources": "public official pages",
+    "allowedActions": [
+      "GET scrape"
+    ],
+    "login": false,
+    "formSubmission": false,
+    "captchaHandling": false,
+    "holdoutRule": "holdout pages are evaluation-only"
+  },
+  "target": {
+    "pages": 100,
+    "domains": 10,
+    "holdoutPages": 20
+  },
+  "tasks": [
+    {
+      "id": "a6-001-developer-mozilla-org",
+      "kind": "ai_knowledge",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/API/AbortController",
+      "source": "developer.mozilla.org official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://developer.mozilla.org"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-002-developer-mozilla-org",
+      "kind": "ai_knowledge",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal",
+      "source": "developer.mozilla.org official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://developer.mozilla.org"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-003-developer-mozilla-org",
+      "kind": "ai_knowledge",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API",
+      "source": "developer.mozilla.org official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://developer.mozilla.org"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-004-developer-mozilla-org",
+      "kind": "ai_knowledge",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/API/WebSocket",
+      "source": "developer.mozilla.org official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://developer.mozilla.org"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-005-developer-mozilla-org",
+      "kind": "ai_knowledge",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/API/Window/fetch",
+      "source": "developer.mozilla.org official page",
+      "evaluationSet": "holdout",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://developer.mozilla.org"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-006-developer-mozilla-org",
+      "kind": "ai_knowledge",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status",
+      "source": "developer.mozilla.org official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://developer.mozilla.org"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-007-developer-mozilla-org",
+      "kind": "ai_knowledge",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Methods",
+      "source": "developer.mozilla.org official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://developer.mozilla.org"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-008-developer-mozilla-org",
+      "kind": "ai_knowledge",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers",
+      "source": "developer.mozilla.org official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://developer.mozilla.org"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-009-developer-mozilla-org",
+      "kind": "ai_knowledge",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Conditional_requests",
+      "source": "developer.mozilla.org official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://developer.mozilla.org"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-010-developer-mozilla-org",
+      "kind": "ai_knowledge",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/all",
+      "source": "developer.mozilla.org official page",
+      "evaluationSet": "holdout",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://developer.mozilla.org"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-011-playwright-dev",
+      "kind": "ai_knowledge",
+      "url": "https://playwright.dev/docs/library",
+      "source": "playwright.dev official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://playwright.dev"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-012-playwright-dev",
+      "kind": "ai_knowledge",
+      "url": "https://playwright.dev/docs/locators",
+      "source": "playwright.dev official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://playwright.dev"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-013-playwright-dev",
+      "kind": "ai_knowledge",
+      "url": "https://playwright.dev/docs/network",
+      "source": "playwright.dev official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://playwright.dev"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-014-playwright-dev",
+      "kind": "ai_knowledge",
+      "url": "https://playwright.dev/docs/browser-contexts",
+      "source": "playwright.dev official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://playwright.dev"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-015-playwright-dev",
+      "kind": "ai_knowledge",
+      "url": "https://playwright.dev/docs/api/class-page",
+      "source": "playwright.dev official page",
+      "evaluationSet": "holdout",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://playwright.dev"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-016-playwright-dev",
+      "kind": "ai_knowledge",
+      "url": "https://playwright.dev/docs/api/class-browser",
+      "source": "playwright.dev official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://playwright.dev"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-017-playwright-dev",
+      "kind": "ai_knowledge",
+      "url": "https://playwright.dev/docs/test-assertions",
+      "source": "playwright.dev official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://playwright.dev"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-018-playwright-dev",
+      "kind": "ai_knowledge",
+      "url": "https://playwright.dev/docs/auth",
+      "source": "playwright.dev official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://playwright.dev"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-019-playwright-dev",
+      "kind": "ai_knowledge",
+      "url": "https://playwright.dev/docs/test-timeouts",
+      "source": "playwright.dev official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://playwright.dev"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-020-playwright-dev",
+      "kind": "ai_knowledge",
+      "url": "https://playwright.dev/docs/ci-intro",
+      "source": "playwright.dev official page",
+      "evaluationSet": "holdout",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://playwright.dev"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-021-docs-github-com",
+      "kind": "ai_knowledge",
+      "url": "https://docs.github.com/en/rest",
+      "source": "docs.github.com official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://docs.github.com"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-022-docs-github-com",
+      "kind": "ai_knowledge",
+      "url": "https://docs.github.com/en/rest/using-the-rest-api",
+      "source": "docs.github.com official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://docs.github.com"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-023-docs-github-com",
+      "kind": "ai_knowledge",
+      "url": "https://docs.github.com/en/rest/overview/resources-in-the-rest-api",
+      "source": "docs.github.com official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://docs.github.com"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-024-docs-github-com",
+      "kind": "ai_knowledge",
+      "url": "https://docs.github.com/en/rest/authentication/authenticating-to-the-rest-api",
+      "source": "docs.github.com official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://docs.github.com"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-025-docs-github-com",
+      "kind": "ai_knowledge",
+      "url": "https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api",
+      "source": "docs.github.com official page",
+      "evaluationSet": "holdout",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://docs.github.com"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-026-docs-github-com",
+      "kind": "ai_knowledge",
+      "url": "https://docs.github.com/en/rest/pulls/pulls",
+      "source": "docs.github.com official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://docs.github.com"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-027-docs-github-com",
+      "kind": "ai_knowledge",
+      "url": "https://docs.github.com/en/rest/issues/issues",
+      "source": "docs.github.com official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://docs.github.com"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-028-docs-github-com",
+      "kind": "ai_knowledge",
+      "url": "https://docs.github.com/en/rest/repos/repos",
+      "source": "docs.github.com official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://docs.github.com"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-029-docs-github-com",
+      "kind": "ai_knowledge",
+      "url": "https://docs.github.com/en/rest/actions/workflows",
+      "source": "docs.github.com official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://docs.github.com"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-030-docs-github-com",
+      "kind": "ai_knowledge",
+      "url": "https://docs.github.com/en/rest/webhooks",
+      "source": "docs.github.com official page",
+      "evaluationSet": "holdout",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://docs.github.com"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-031-nodejs-org",
+      "kind": "ai_knowledge",
+      "url": "https://nodejs.org/api/globals.html#fetch",
+      "source": "nodejs.org official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://nodejs.org"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-032-nodejs-org",
+      "kind": "ai_knowledge",
+      "url": "https://nodejs.org/api/globals.html#class-abortcontroller",
+      "source": "nodejs.org official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://nodejs.org"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-033-nodejs-org",
+      "kind": "ai_knowledge",
+      "url": "https://nodejs.org/api/http.html",
+      "source": "nodejs.org official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://nodejs.org"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-034-nodejs-org",
+      "kind": "ai_knowledge",
+      "url": "https://nodejs.org/api/https.html",
+      "source": "nodejs.org official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://nodejs.org"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-035-nodejs-org",
+      "kind": "ai_knowledge",
+      "url": "https://nodejs.org/api/streams.html",
+      "source": "nodejs.org official page",
+      "evaluationSet": "holdout",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://nodejs.org"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-036-nodejs-org",
+      "kind": "ai_knowledge",
+      "url": "https://nodejs.org/api/url.html",
+      "source": "nodejs.org official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://nodejs.org"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-037-nodejs-org",
+      "kind": "ai_knowledge",
+      "url": "https://nodejs.org/api/events.html",
+      "source": "nodejs.org official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://nodejs.org"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-038-nodejs-org",
+      "kind": "ai_knowledge",
+      "url": "https://nodejs.org/api/process.html",
+      "source": "nodejs.org official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://nodejs.org"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-039-nodejs-org",
+      "kind": "ai_knowledge",
+      "url": "https://nodejs.org/api/fs.html",
+      "source": "nodejs.org official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://nodejs.org"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-040-nodejs-org",
+      "kind": "ai_knowledge",
+      "url": "https://nodejs.org/api/cli.html",
+      "source": "nodejs.org official page",
+      "evaluationSet": "holdout",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://nodejs.org"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-041-www-typescriptlang-org",
+      "kind": "ai_knowledge",
+      "url": "https://www.typescriptlang.org/docs/handbook/intro.html",
+      "source": "www.typescriptlang.org official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://www.typescriptlang.org"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-042-www-typescriptlang-org",
+      "kind": "ai_knowledge",
+      "url": "https://www.typescriptlang.org/docs/handbook/2/everyday-types.html",
+      "source": "www.typescriptlang.org official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://www.typescriptlang.org"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-043-www-typescriptlang-org",
+      "kind": "ai_knowledge",
+      "url": "https://www.typescriptlang.org/docs/handbook/2/functions.html",
+      "source": "www.typescriptlang.org official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://www.typescriptlang.org"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-044-www-typescriptlang-org",
+      "kind": "ai_knowledge",
+      "url": "https://www.typescriptlang.org/docs/handbook/2/objects.html",
+      "source": "www.typescriptlang.org official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://www.typescriptlang.org"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-045-www-typescriptlang-org",
+      "kind": "ai_knowledge",
+      "url": "https://www.typescriptlang.org/docs/handbook/2/classes.html",
+      "source": "www.typescriptlang.org official page",
+      "evaluationSet": "holdout",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://www.typescriptlang.org"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-046-www-typescriptlang-org",
+      "kind": "ai_knowledge",
+      "url": "https://www.typescriptlang.org/docs/handbook/2/generics.html",
+      "source": "www.typescriptlang.org official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://www.typescriptlang.org"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-047-www-typescriptlang-org",
+      "kind": "ai_knowledge",
+      "url": "https://www.typescriptlang.org/docs/handbook/2/narrowing.html",
+      "source": "www.typescriptlang.org official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://www.typescriptlang.org"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-048-www-typescriptlang-org",
+      "kind": "ai_knowledge",
+      "url": "https://www.typescriptlang.org/docs/handbook/2/modules.html",
+      "source": "www.typescriptlang.org official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://www.typescriptlang.org"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-049-www-typescriptlang-org",
+      "kind": "ai_knowledge",
+      "url": "https://www.typescriptlang.org/docs/handbook/2/type-manipulation/conditional-types.html",
+      "source": "www.typescriptlang.org official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://www.typescriptlang.org"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-050-www-typescriptlang-org",
+      "kind": "ai_knowledge",
+      "url": "https://www.typescriptlang.org/docs/handbook/project-references.html",
+      "source": "www.typescriptlang.org official page",
+      "evaluationSet": "holdout",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://www.typescriptlang.org"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-051-docs-crawl4ai-com",
+      "kind": "ai_knowledge",
+      "url": "https://docs.crawl4ai.com/core/quickstart/",
+      "source": "docs.crawl4ai.com official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://docs.crawl4ai.com"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-052-docs-crawl4ai-com",
+      "kind": "ai_knowledge",
+      "url": "https://docs.crawl4ai.com/core/simple-crawling/",
+      "source": "docs.crawl4ai.com official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://docs.crawl4ai.com"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-053-docs-crawl4ai-com",
+      "kind": "ai_knowledge",
+      "url": "https://docs.crawl4ai.com/core/crawler-result/",
+      "source": "docs.crawl4ai.com official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://docs.crawl4ai.com"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-054-docs-crawl4ai-com",
+      "kind": "ai_knowledge",
+      "url": "https://docs.crawl4ai.com/core/browser-crawler-config/",
+      "source": "docs.crawl4ai.com official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://docs.crawl4ai.com"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-055-docs-crawl4ai-com",
+      "kind": "ai_knowledge",
+      "url": "https://docs.crawl4ai.com/core/markdown-generation/",
+      "source": "docs.crawl4ai.com official page",
+      "evaluationSet": "holdout",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://docs.crawl4ai.com"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-056-docs-crawl4ai-com",
+      "kind": "ai_knowledge",
+      "url": "https://docs.crawl4ai.com/advanced/multi-url-crawling/",
+      "source": "docs.crawl4ai.com official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://docs.crawl4ai.com"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-057-docs-crawl4ai-com",
+      "kind": "ai_knowledge",
+      "url": "https://docs.crawl4ai.com/advanced/crawl-dispatcher/",
+      "source": "docs.crawl4ai.com official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://docs.crawl4ai.com"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-058-docs-crawl4ai-com",
+      "kind": "ai_knowledge",
+      "url": "https://docs.crawl4ai.com/advanced/hooks-auth/",
+      "source": "docs.crawl4ai.com official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://docs.crawl4ai.com"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-059-docs-crawl4ai-com",
+      "kind": "ai_knowledge",
+      "url": "https://docs.crawl4ai.com/extraction/no-llm-strategies/",
+      "source": "docs.crawl4ai.com official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://docs.crawl4ai.com"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-060-docs-crawl4ai-com",
+      "kind": "ai_knowledge",
+      "url": "https://docs.crawl4ai.com/api/async-webcrawler/",
+      "source": "docs.crawl4ai.com official page",
+      "evaluationSet": "holdout",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://docs.crawl4ai.com"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-061-docs-steel-dev",
+      "kind": "product_info",
+      "url": "https://docs.steel.dev/overview/intro-to-steel",
+      "source": "docs.steel.dev official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://docs.steel.dev"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-062-docs-steel-dev",
+      "kind": "product_info",
+      "url": "https://docs.steel.dev/overview/sessions-api/overview",
+      "source": "docs.steel.dev official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://docs.steel.dev"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-063-docs-steel-dev",
+      "kind": "product_info",
+      "url": "https://docs.steel.dev/overview/sessions-api/quickstart",
+      "source": "docs.steel.dev official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://docs.steel.dev"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-064-docs-steel-dev",
+      "kind": "product_info",
+      "url": "https://docs.steel.dev/overview/profiles-api/overview",
+      "source": "docs.steel.dev official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://docs.steel.dev"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-065-docs-steel-dev",
+      "kind": "product_info",
+      "url": "https://docs.steel.dev/overview/credentials-api/overview",
+      "source": "docs.steel.dev official page",
+      "evaluationSet": "holdout",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://docs.steel.dev"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-066-docs-steel-dev",
+      "kind": "product_info",
+      "url": "https://docs.steel.dev/overview/files-api/overview",
+      "source": "docs.steel.dev official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://docs.steel.dev"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-067-docs-steel-dev",
+      "kind": "product_info",
+      "url": "https://docs.steel.dev/overview/extensions-api/overview",
+      "source": "docs.steel.dev official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://docs.steel.dev"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-068-docs-steel-dev",
+      "kind": "product_info",
+      "url": "https://docs.steel.dev/overview/self-hosting/docker",
+      "source": "docs.steel.dev official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://docs.steel.dev"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-069-docs-steel-dev",
+      "kind": "product_info",
+      "url": "https://docs.steel.dev/cookbook/playwright",
+      "source": "docs.steel.dev official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://docs.steel.dev"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-070-docs-steel-dev",
+      "kind": "product_info",
+      "url": "https://docs.steel.dev/overview/pricinglimits",
+      "source": "docs.steel.dev official page",
+      "evaluationSet": "holdout",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://docs.steel.dev"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-071-docs-firecrawl-dev",
+      "kind": "product_info",
+      "url": "https://docs.firecrawl.dev/contributing/self-host",
+      "source": "docs.firecrawl.dev official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://docs.firecrawl.dev"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-072-docs-firecrawl-dev",
+      "kind": "product_info",
+      "url": "https://docs.firecrawl.dev/features/interact",
+      "source": "docs.firecrawl.dev official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://docs.firecrawl.dev"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-073-docs-firecrawl-dev",
+      "kind": "product_info",
+      "url": "https://docs.firecrawl.dev/features/monitor",
+      "source": "docs.firecrawl.dev official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://docs.firecrawl.dev"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-074-docs-firecrawl-dev",
+      "kind": "product_info",
+      "url": "https://docs.firecrawl.dev/features/map",
+      "source": "docs.firecrawl.dev official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://docs.firecrawl.dev"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-075-docs-firecrawl-dev",
+      "kind": "product_info",
+      "url": "https://docs.firecrawl.dev/api-reference/introduction",
+      "source": "docs.firecrawl.dev official page",
+      "evaluationSet": "holdout",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://docs.firecrawl.dev"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-076-docs-firecrawl-dev",
+      "kind": "product_info",
+      "url": "https://docs.firecrawl.dev/sdks/cli",
+      "source": "docs.firecrawl.dev official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://docs.firecrawl.dev"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-077-docs-firecrawl-dev",
+      "kind": "product_info",
+      "url": "https://docs.firecrawl.dev/mcp-server/local",
+      "source": "docs.firecrawl.dev official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://docs.firecrawl.dev"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-078-docs-firecrawl-dev",
+      "kind": "product_info",
+      "url": "https://docs.firecrawl.dev/contributing/open-source-or-cloud",
+      "source": "docs.firecrawl.dev official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://docs.firecrawl.dev"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-079-docs-firecrawl-dev",
+      "kind": "product_info",
+      "url": "https://docs.firecrawl.dev/features/scrape",
+      "source": "docs.firecrawl.dev official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://docs.firecrawl.dev"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-080-docs-firecrawl-dev",
+      "kind": "product_info",
+      "url": "https://docs.firecrawl.dev/features/crawl",
+      "source": "docs.firecrawl.dev official page",
+      "evaluationSet": "holdout",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://docs.firecrawl.dev"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-081-www-browserbase-com",
+      "kind": "product_info",
+      "url": "https://www.browserbase.com/pricing",
+      "source": "www.browserbase.com official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://www.browserbase.com"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-082-www-browserbase-com",
+      "kind": "product_info",
+      "url": "https://www.browserbase.com/browsers",
+      "source": "www.browserbase.com official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://www.browserbase.com"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-083-www-browserbase-com",
+      "kind": "product_info",
+      "url": "https://www.browserbase.com/fetch",
+      "source": "www.browserbase.com official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://www.browserbase.com"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-084-www-browserbase-com",
+      "kind": "product_info",
+      "url": "https://www.browserbase.com/search",
+      "source": "www.browserbase.com official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://www.browserbase.com"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-085-www-browserbase-com",
+      "kind": "product_info",
+      "url": "https://www.browserbase.com/runtime",
+      "source": "www.browserbase.com official page",
+      "evaluationSet": "holdout",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://www.browserbase.com"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-086-www-browserbase-com",
+      "kind": "product_info",
+      "url": "https://www.browserbase.com/identity",
+      "source": "www.browserbase.com official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://www.browserbase.com"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-087-www-browserbase-com",
+      "kind": "product_info",
+      "url": "https://www.browserbase.com/models",
+      "source": "www.browserbase.com official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://www.browserbase.com"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-088-www-browserbase-com",
+      "kind": "product_info",
+      "url": "https://www.browserbase.com/observability",
+      "source": "www.browserbase.com official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://www.browserbase.com"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-089-www-browserbase-com",
+      "kind": "product_info",
+      "url": "https://www.browserbase.com/solutions/accessing-web-data",
+      "source": "www.browserbase.com official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://www.browserbase.com"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-090-www-browserbase-com",
+      "kind": "product_info",
+      "url": "https://www.browserbase.com/industry/supply-chain",
+      "source": "www.browserbase.com official page",
+      "evaluationSet": "holdout",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://www.browserbase.com"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-091-www-firecrawl-dev",
+      "kind": "product_info",
+      "url": "https://www.firecrawl.dev/pricing",
+      "source": "www.firecrawl.dev official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://www.firecrawl.dev"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-092-www-firecrawl-dev",
+      "kind": "product_info",
+      "url": "https://www.firecrawl.dev/blog/firecrawl-monitoring-launch",
+      "source": "www.firecrawl.dev official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://www.firecrawl.dev"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-093-www-firecrawl-dev",
+      "kind": "product_info",
+      "url": "https://www.firecrawl.dev/blog",
+      "source": "www.firecrawl.dev official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://www.firecrawl.dev"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-094-www-firecrawl-dev",
+      "kind": "product_info",
+      "url": "https://www.firecrawl.dev/developers",
+      "source": "www.firecrawl.dev official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://www.firecrawl.dev"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-095-www-firecrawl-dev",
+      "kind": "product_info",
+      "url": "https://www.firecrawl.dev/enterprise",
+      "source": "www.firecrawl.dev official page",
+      "evaluationSet": "holdout",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://www.firecrawl.dev"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-096-www-firecrawl-dev",
+      "kind": "product_info",
+      "url": "https://www.firecrawl.dev/about",
+      "source": "www.firecrawl.dev official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://www.firecrawl.dev"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-097-www-firecrawl-dev",
+      "kind": "product_info",
+      "url": "https://www.firecrawl.dev/security",
+      "source": "www.firecrawl.dev official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://www.firecrawl.dev"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-098-www-firecrawl-dev",
+      "kind": "product_info",
+      "url": "https://www.firecrawl.dev/terms",
+      "source": "www.firecrawl.dev official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://www.firecrawl.dev"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-099-www-firecrawl-dev",
+      "kind": "product_info",
+      "url": "https://www.firecrawl.dev/contact",
+      "source": "www.firecrawl.dev official page",
+      "evaluationSet": "development",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://www.firecrawl.dev"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    },
+    {
+      "id": "a6-100-www-firecrawl-dev",
+      "kind": "product_info",
+      "url": "https://www.firecrawl.dev/changelog",
+      "source": "www.firecrawl.dev official page",
+      "evaluationSet": "holdout",
+      "repeats": 1,
+      "assertions": [
+        {
+          "field": "source_url",
+          "sourceUrl": "https://www.firecrawl.dev"
+        },
+        {
+          "field": "main_content",
+          "required": true
+        }
+      ]
+    }
+  ]
+}
