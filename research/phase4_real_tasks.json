@@ -1,5 +1,5 @@
 {
-  "version": "phase4-v0.1-2026-09-19",
+  "version": "phase4-v0.2-2026-09-20",
   "policy": {
     "sources": "public official documentation and public official product pages",
     "allowedActions": ["GET scrape"],
@@ -22,6 +22,132 @@
         { "field": "source_url", "sourceUrl": "https://developer.mozilla.org" },
         { "field": "navigation_noise", "mustNotContain": ["Sign up"] }
       ]
+    },
+    {
+      "id": "ai-mdn-fetch",
+      "kind": "ai_knowledge",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API",
+      "source": "MDN official documentation",
+      "evaluationSet": "development",
+      "repeats": 2,
+      "assertions": [{ "field": "title", "mustContain": ["Fetch API"] }, { "field": "main_content", "required": true, "mustContain": ["fetch()", "HTTP"] }, { "field": "source_url", "sourceUrl": "https://developer.mozilla.org" }]
+    },
+    {
+      "id": "ai-mdn-http-status",
+      "kind": "ai_knowledge",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status",
+      "source": "MDN official documentation",
+      "evaluationSet": "development",
+      "repeats": 2,
+      "assertions": [{ "field": "title", "mustContain": ["HTTP response status codes"] }, { "field": "main_content", "required": true, "mustContain": ["status code"] }, { "field": "source_url", "sourceUrl": "https://developer.mozilla.org" }]
+    },
+    {
+      "id": "ai-mdn-websocket",
+      "kind": "ai_knowledge",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/API/WebSocket",
+      "source": "MDN official documentation",
+      "evaluationSet": "holdout",
+      "repeats": 2,
+      "assertions": [{ "field": "title", "mustContain": ["WebSocket"] }, { "field": "main_content", "required": true, "mustContain": ["two-way interactive communication"] }, { "field": "source_url", "sourceUrl": "https://developer.mozilla.org" }]
+    },
+    {
+      "id": "ai-playwright-locators",
+      "kind": "ai_knowledge",
+      "url": "https://playwright.dev/docs/locators",
+      "source": "Playwright official documentation",
+      "evaluationSet": "development",
+      "repeats": 2,
+      "assertions": [{ "field": "title", "mustContain": ["Locators"] }, { "field": "main_content", "required": true, "mustContain": ["getByRole"] }, { "field": "source_url", "sourceUrl": "https://playwright.dev" }]
+    },
+    {
+      "id": "ai-playwright-network",
+      "kind": "ai_knowledge",
+      "url": "https://playwright.dev/docs/network",
+      "source": "Playwright official documentation",
+      "evaluationSet": "holdout",
+      "repeats": 2,
+      "assertions": [{ "field": "title", "mustContain": ["Network"] }, { "field": "main_content", "required": true, "mustContain": ["route"] }, { "field": "source_url", "sourceUrl": "https://playwright.dev" }]
+    },
+    {
+      "id": "ai-github-rest",
+      "kind": "ai_knowledge",
+      "url": "https://docs.github.com/en/rest",
+      "source": "GitHub official documentation",
+      "evaluationSet": "development",
+      "repeats": 2,
+      "assertions": [{ "field": "title", "mustContain": ["REST API"] }, { "field": "main_content", "required": true, "mustContain": ["GitHub REST API"] }, { "field": "source_url", "sourceUrl": "https://docs.github.com" }]
+    },
+    {
+      "id": "ai-node-fetch",
+      "kind": "ai_knowledge",
+      "url": "https://nodejs.org/api/globals.html#fetch",
+      "source": "Node.js official documentation",
+      "evaluationSet": "holdout",
+      "repeats": 2,
+      "assertions": [{ "field": "title", "mustContain": ["fetch"] }, { "field": "main_content", "required": true, "mustContain": ["fetch"] }, { "field": "source_url", "sourceUrl": "https://nodejs.org" }]
+    },
+    {
+      "id": "ai-typescript-handbook",
+      "kind": "ai_knowledge",
+      "url": "https://www.typescriptlang.org/docs/handbook/intro.html",
+      "source": "TypeScript official documentation",
+      "evaluationSet": "development",
+      "repeats": 2,
+      "assertions": [{ "field": "title", "mustContain": ["TypeScript Handbook"] }, { "field": "main_content", "required": true, "mustContain": ["TypeScript"] }, { "field": "source_url", "sourceUrl": "https://www.typescriptlang.org" }]
+    },
+    {
+      "id": "product-browserbase-browsers",
+      "kind": "product_info",
+      "url": "https://www.browserbase.com/browsers",
+      "source": "Browserbase official product page",
+      "evaluationSet": "holdout",
+      "repeats": 2,
+      "assertions": [{ "field": "product_name", "mustContain": ["Browserbase"] }, { "field": "specification", "mustContain": ["browser"] }, { "field": "source_url", "sourceUrl": "https://www.browserbase.com" }]
+    },
+    {
+      "id": "product-browserbase-search",
+      "kind": "product_info",
+      "url": "https://www.browserbase.com/search",
+      "source": "Browserbase official product page",
+      "evaluationSet": "development",
+      "repeats": 2,
+      "assertions": [{ "field": "product_name", "mustContain": ["Browserbase"] }, { "field": "specification", "mustContain": ["Search"] }, { "field": "source_url", "sourceUrl": "https://www.browserbase.com" }]
+    },
+    {
+      "id": "product-steel-sessions",
+      "kind": "product_info",
+      "url": "https://docs.steel.dev/overview/sessions-api/overview",
+      "source": "Steel official sessions documentation",
+      "evaluationSet": "development",
+      "repeats": 2,
+      "assertions": [{ "field": "product_name", "mustContain": ["Steel"] }, { "field": "specification", "mustContain": ["session"] }, { "field": "source_url", "sourceUrl": "https://docs.steel.dev" }]
+    },
+    {
+      "id": "product-steel-profiles",
+      "kind": "product_info",
+      "url": "https://docs.steel.dev/overview/profiles-api/overview",
+      "source": "Steel official profiles documentation",
+      "evaluationSet": "holdout",
+      "repeats": 2,
+      "assertions": [{ "field": "product_name", "mustContain": ["Steel"] }, { "field": "specification", "mustContain": ["profile"] }, { "field": "source_url", "sourceUrl": "https://docs.steel.dev" }]
+    },
+    {
+      "id": "product-firecrawl-pricing",
+      "kind": "product_info",
+      "url": "https://www.firecrawl.dev/pricing",
+      "source": "Firecrawl official pricing page",
+      "evaluationSet": "development",
+      "repeats": 2,
+      "assertions": [{ "field": "product_name", "mustContain": ["Firecrawl"] }, { "field": "pricing", "required": true, "mustContain": ["credits"] }, { "field": "source_url", "sourceUrl": "https://www.firecrawl.dev" }]
+    },
+    {
+      "id": "product-crawl4ai-docs",
+      "kind": "product_info",
+      "url": "https://docs.crawl4ai.com/",
+      "source": "Crawl4AI official documentation",
+      "evaluationSet": "holdout",
+      "repeats": 2,
+      "assertions": [{ "field": "product_name", "mustContain": ["Crawl4AI"] }, { "field": "specification", "mustContain": ["AsyncWebCrawler"] }, { "field": "source_url", "sourceUrl": "https://docs.crawl4ai.com" }]
     },
     {
       "id": "ai-mdn-promise-all",
