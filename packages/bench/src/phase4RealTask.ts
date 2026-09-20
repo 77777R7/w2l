@@ -57,6 +57,15 @@ export interface Phase4Report {
     byKind: Record<RealTaskKind, { tasks: number; runs: number; correctComplete: number; repeatConsistent: number; unknownCost: number }>
     holdoutRuns: number
     manualCorrectionMinutes: number | null
+    resourceMeters: {
+      wallMs: number
+      browserMs: number
+      requestCount: number
+      contentTokens: number
+      bytesWire: number
+      unknownCostRuns: number
+      knownExternalCostUsd: number | null
+    }
   }
 }
 
@@ -114,7 +123,7 @@ export async function writePhase4Report(path: string, report: Phase4Report): Pro
   await writeFile(path, JSON.stringify(report, null, 2) + '\n')
 }
 
-function evaluateAssertions(result: FetchResult, assertions: readonly RealTaskAssertion[]) {
+export function evaluateAssertions(result: FetchResult, assertions: readonly RealTaskAssertion[]) {
   return assertions.map((assertion) => {
     if (!CONTENTFUL_STATUS.has(result.status) || result.markdown === null) return { field: assertion.field, outcome: 'unknown' as const, detail: 'content was not available' }
     const missing = (assertion.mustContain ?? []).filter((value) => !result.markdown!.includes(value))
@@ -161,8 +170,23 @@ function buildReport(tasks: readonly RealTaskSpec[], runs: readonly RealTaskRun[
     }
   }
   const corrections = runs.map((run) => run.humanCorrectionMinutes).filter((value): value is number => value !== null)
+  const withResult = runs.filter((run) => run.result !== null)
+  const knownCosts = withResult.map((run) => run.result!.usage.externalCostUsd).filter((value): value is number => value !== null)
   return {
     generatedAt: new Date().toISOString(), manifestVersion: 'phase4-v0.1', taskCount: tasks.length, runCount: runs.length, runs,
-    summary: { byKind: { ai_knowledge: byKind('ai_knowledge'), product_info: byKind('product_info') }, holdoutRuns: runs.filter((run) => run.evaluationSet === 'holdout').length, manualCorrectionMinutes: corrections.length > 0 ? corrections.reduce((sum, value) => sum + value, 0) : null },
+    summary: {
+      byKind: { ai_knowledge: byKind('ai_knowledge'), product_info: byKind('product_info') },
+      holdoutRuns: runs.filter((run) => run.evaluationSet === 'holdout').length,
+      manualCorrectionMinutes: corrections.length > 0 ? corrections.reduce((sum, value) => sum + value, 0) : null,
+      resourceMeters: {
+        wallMs: withResult.reduce((sum, run) => sum + (run.result!.usage.wallMs ?? 0), 0),
+        browserMs: withResult.reduce((sum, run) => sum + (run.result!.usage.browserMs ?? 0), 0),
+        requestCount: withResult.reduce((sum, run) => sum + (run.result!.usage.requestCount ?? 0), 0),
+        contentTokens: withResult.reduce((sum, run) => sum + (run.result!.usage.contentTokens ?? 0), 0),
+        bytesWire: withResult.reduce((sum, run) => sum + (run.result!.usage.bytesWire ?? 0), 0),
+        unknownCostRuns: withResult.filter((run) => run.result!.usage.externalCostUsd === null).length,
+        knownExternalCostUsd: knownCosts.length === withResult.length && withResult.length > 0 ? knownCosts.reduce((sum, value) => sum + value, 0) : null,
+      },
+    },
   }
 }

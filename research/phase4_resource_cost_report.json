@@ -1,0 +1,36 @@
+{
+  "generatedAt": "2026-09-20T18:11:43.366Z",
+  "rule": "externalCostUsd stays null unless a vendor stated a billed cost. Local wall/browser/request/token/byte meters are comparable resource cost, not USD.",
+  "a5": {
+    "runs": 40,
+    "wallMs": 21880,
+    "browserMs": 12520,
+    "requestCount": 40,
+    "contentTokens": 118430,
+    "bytesWire": 9719623,
+    "unknownCostRuns": 40,
+    "knownExternalCostUsd": null
+  },
+  "a6run1": {
+    "runs": 100,
+    "wallMs": 65452,
+    "browserMs": 14859,
+    "requestCount": 104,
+    "contentTokens": 539364,
+    "bytesWire": 35032491,
+    "unknownCostRuns": 100,
+    "knownExternalCostUsd": null
+  },
+  "a6run2": {
+    "runs": 100,
+    "wallMs": 46886,
+    "browserMs": 18731,
+    "requestCount": 104,
+    "contentTokens": 539364,
+    "bytesWire": 34664436,
+    "unknownCostRuns": 100,
+    "knownExternalCostUsd": null
+  },
+  "comparable": "resource_meters",
+  "usd": "unknown"
+}

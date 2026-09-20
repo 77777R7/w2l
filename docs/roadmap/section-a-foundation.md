@@ -2,9 +2,9 @@
 
 Section A turns a URL or permitted task into data that can be checked, explained, repeated, and recovered.
 
-## Current Focus: A4
+## Current Focus: A4–A6 evidence closeout
 
-The current focus is real-task evaluation and diagnosis. Do not start Section B or C feature work as a substitute for A4 evidence.
+A4 diagnosis, A5 quality on the 20-task slice, and A6 scale/recovery/install evidence are recorded. External billed USD remains unknown. Do not start Section B or C feature work as a substitute for that evidence.
 
 The first manifest lives at `research/phase4_real_tasks.json`. It intentionally contains a small six-task slice so failures can be inspected manually before expanding to 100–200 pages.
 

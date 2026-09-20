@@ -1,0 +1,24 @@
+{
+  "phase": "A6",
+  "generatedAt": "2026-09-20T18:27:48.592Z",
+  "scale": {
+    "pagesPerRun": 100,
+    "runs": 200,
+    "domains": 10,
+    "holdoutPages": 20
+  },
+  "consistency": {
+    "outcomeSame": 100,
+    "contentHashSame": 99,
+    "total": 100
+  },
+  "evidence": {
+    "installValidation": "passed_clean_clone",
+    "recoveryValidation": "passed_with_live_fetch_failures",
+    "humanCorrectionMinutes": 18,
+    "cost": "unknown",
+    "supportBoundary": "research/phase4_support_boundary.md"
+  },
+  "status": "accepted_with_unknown_external_usd",
+  "openGates": []
+}

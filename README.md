@@ -36,7 +36,8 @@ Most crawlers report "success" when they return empty pages, challenge screens, 
 ```bash
 git clone https://github.com/YOUR_USERNAME/w2l.git
 cd w2l
-npm install
+npm ci
+npx playwright install chromium
 npm run typecheck
 npm test
 npm run scrape -- https://example.com
@@ -130,8 +131,8 @@ docs/
 - [ ] Phase A4 real-task gate: 100-200 permitted pages, human correction time, repeated task evidence, and complete failure taxonomy
 - [x] Phase A4 diagnostic expansion: 20 real tasks, 11 domains, 40 repeated runs, and holdout results
 - [x] A6 scale slice: 100 pages, 10 domains, 20 holdout pages, two independent runs
-- [ ] A6 final gate: expanded recovery, second-developer installation, human correction time, and supported-scope evidence
-- [x] A5/A6 gate report and support boundary: partial status is explicit; open evidence is not treated as accepted
+- [x] A6 recovery/install/correction/cost evidence: interrupt-resume on the A6 URL set, clean-clone first task, 18 minutes human correction, resource meters with unknown billed USD
+- [x] A5/A6 gate report and support boundary: quality closed; billed USD remains unknown
 - [x] Phase 3 Benchmark Gate harness: fixed W2L run, comparator evidence, and blocked-until-real-comparators decision
 - [ ] Hosted Egress Gate: browser subresource policy enforcement and DNS-to-connection binding
 
