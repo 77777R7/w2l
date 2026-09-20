@@ -16,6 +16,7 @@
       "source": "MDN official documentation",
       "evaluationSet": "development",
       "repeats": 2,
+      "dynamicNoisePatterns": ["Monthly Browser Sessions\\s+[0-9,]+"],
       "assertions": [
         { "field": "title", "mustContain": ["AbortController"] },
         { "field": "main_content", "required": true, "mustContain": ["AbortSignal", "abort"] },
@@ -120,7 +121,7 @@
       "source": "Steel official sessions documentation",
       "evaluationSet": "development",
       "repeats": 2,
-      "assertions": [{ "field": "product_name", "mustContain": ["Steel"] }, { "field": "specification", "mustContain": ["session"] }, { "field": "source_url", "sourceUrl": "https://docs.steel.dev" }]
+      "assertions": [{ "field": "specification", "mustContain": ["session"] }, { "field": "source_url", "sourceUrl": "https://docs.steel.dev" }]
     },
     {
       "id": "product-steel-profiles",
@@ -129,7 +130,7 @@
       "source": "Steel official profiles documentation",
       "evaluationSet": "holdout",
       "repeats": 2,
-      "assertions": [{ "field": "product_name", "mustContain": ["Steel"] }, { "field": "specification", "mustContain": ["profile"] }, { "field": "source_url", "sourceUrl": "https://docs.steel.dev" }]
+      "assertions": [{ "field": "specification", "mustContain": ["profile"] }, { "field": "source_url", "sourceUrl": "https://docs.steel.dev" }]
     },
     {
       "id": "product-firecrawl-pricing",

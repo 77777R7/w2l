@@ -22,6 +22,9 @@ export interface RealTaskSpec {
   evaluationSet: 'development' | 'holdout'
   assertions: readonly RealTaskAssertion[]
   repeats: number
+  /** Task-scoped volatile patterns only; raw Markdown/evidence remains unchanged. */
+  dynamicNoisePatterns?: readonly string[]
+  humanCorrectionMinutes?: number | null
 }
 
 export interface RealTaskRun {
@@ -38,6 +41,7 @@ export interface RealTaskRun {
   result: FetchResult | null
   contentHash: string | null
   evidenceHash: string | null
+  normalizationApplied: readonly string[]
   repeatConsistent: boolean | null
   humanCorrectionMinutes: number | null
   error: string | null
@@ -73,7 +77,8 @@ export async function runRealTasks(
         const result = await client.scrape(task.url)
         const assertions = evaluateAssertions(result, task.assertions)
         const outcome = classifyRealTask(result, assertions)
-        const contentHash = normalizedContentHash(result.markdown)
+        const normalizationApplied = task.dynamicNoisePatterns ?? []
+        const contentHash = normalizedContentHash(result.markdown, normalizationApplied)
         const evidenceHash = result.evidence.rawBodySha256
         const priorHash = hashes.get(task.id)
         hashes.set(task.id, contentHash ?? '')
@@ -81,14 +86,15 @@ export async function runRealTasks(
           taskId: task.id, kind: task.kind, url: task.url, source: task.source, evaluationSet: task.evaluationSet, repeat,
           startedAt: started, finishedAt: new Date().toISOString(), outcome, assertions, result, contentHash,
           evidenceHash,
+          normalizationApplied,
           repeatConsistent: repeat === 1 ? null : priorHash !== null && priorHash === contentHash,
-          humanCorrectionMinutes: null, error: null,
+          humanCorrectionMinutes: task.humanCorrectionMinutes ?? null, error: null,
         })
       } catch (error) {
         runs.push({
           taskId: task.id, kind: task.kind, url: task.url, source: task.source, evaluationSet: task.evaluationSet, repeat,
           startedAt: started, finishedAt: new Date().toISOString(), outcome: 'non_retryable_failure', assertions: [], result: null,
-          contentHash: null, evidenceHash: null, repeatConsistent: null, humanCorrectionMinutes: null, error: error instanceof Error ? error.message : String(error),
+          contentHash: null, evidenceHash: null, normalizationApplied: task.dynamicNoisePatterns ?? [], repeatConsistent: null, humanCorrectionMinutes: task.humanCorrectionMinutes ?? null, error: error instanceof Error ? error.message : String(error),
         })
       }
     }
@@ -126,9 +132,13 @@ function hashMarkdown(markdown: string | null): string | null {
   return markdown === null ? null : createHash('sha256').update(markdown).digest('hex')
 }
 
-function normalizedContentHash(markdown: string | null): string | null {
+function normalizedContentHash(markdown: string | null, patterns: readonly string[]): string | null {
   if (markdown === null) return null
-  return hashMarkdown(markdown.replace(/\s+/g, ' ').trim())
+  let normalized = markdown.replace(/\s+/g, ' ').trim()
+  for (const pattern of patterns) {
+    try { normalized = normalized.replace(new RegExp(pattern, 'g'), '[dynamic-noise]') } catch { /* manifest validation reports invalid patterns separately */ }
+  }
+  return hashMarkdown(normalized)
 }
 
 function buildReport(tasks: readonly RealTaskSpec[], runs: readonly RealTaskRun[]): Phase4Report {
