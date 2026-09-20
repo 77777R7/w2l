@@ -184,6 +184,7 @@ MCP server、Firecrawl 迁移垫片、benchmark 报告（对比 Firecrawl 自托
 
 **Phase 4 状态（2026-09-19）**：已建立真实任务验证 harness，并完成第一轮 6 任务切片：3 个 AI knowledge 官方文档任务、3 个 product-info 官方产品/定价任务，每个任务复跑 2 次，包含 6 个 holdout runs。当前切片结果为 AI knowledge 2/3 correct-complete、product-info 2/3 correct-complete；外部成本均 unknown，人工修正时间尚未录入。该结果证明 harness 和真实字段断言链路可运行，但尚未满足 Phase 4 的 100–200 页面、10–20 域名、设计合作客户或持续付费门槛。
 **A4 扩展诊断状态（2026-09-20）**：manifest 已扩展到 20 个真实任务、11 个域名、40 次运行、18 个 holdout runs。AI knowledge 为 18/22 correct-complete，product info 为 16/18；product info repeat consistency 仅 5/18，成为 A5 首要诊断对象。当前仍未满足 A4 完整门槛或 A6 的 100–200 页面、10–20 域名目标；人工修正时间和外部成本仍为 unknown/null。
+**A6 扩展验证状态（2026-09-20）**：已完成 100 页面、10 域名、20 holdout 页的两次独立运行；outcome consistency `100/100`，normalized content-hash consistency `99/100`。这完成了 A6 的规模/holdout 子门槛，但中断恢复、其他开发者安装、人工修正时间和支持边界仍未完成，因此不标记 A6 fully accepted。
 
 ### 继续/终止门槛（沿用 research 文档 §7 并加两条）
 
