@@ -1,5 +1,7 @@
 # 产品战略：树根与工作流分支
 
+> Historical strategy context. Current execution order is defined in [ROADMAP.md](ROADMAP.md): Section A reliable collection, Section B continuous/authorized data, and Section C productized delivery. SEO is not an automatically approved next branch.
+
 更新日期：2026-08-18
 
 市场验证记录：[research/market_validation_root_branch_model.md](research/market_validation_root_branch_model.md)

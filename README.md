@@ -90,13 +90,18 @@ packages/
   contracts/       TypeScript types and ground-truth schema
   fixtures/        HTTP server with 30 ground-truth test cases
   http-core/       robots.txt parser (ReDoS-resistant)
-   runtime/         TaskStore, frontier, bounded crawl orchestrator
+  runtime/         TaskStore, frontier, bounded crawl orchestrator
   bench/           Benchmark runner, scrape/crawl CLI, scoring
   api/             REST server (AGPL)
   sdk/             TypeScript client (MIT)
   mcp/             stdio MCP server (MIT)
 
+ROADMAP.md                         Current Section A/B/C roadmap
+
 docs/
+  roadmap/section-a-foundation.md  Section A phases and A4 gate
+  roadmap/section-b-continuous-data.md  Section B future direction
+  roadmap/section-c-delivery.md    Section C future delivery direction
   PHASE1_ENGINEERING_NOTES.md    Decision log
   PRODUCT_PLAN_V2.md              Product roadmap
   firecrawl-shim.md               Firecrawl v1 scrape/crawl snapshot + diffs
@@ -121,11 +126,11 @@ docs/
 - [x] Bounded multi-page workers, shared host scheduling, conditional browser settling, and runtime resource reuse
 - [x] Phase 1 Local Reliability Gate: Chromium-backed full test suite and GitHub Actions
 - [x] Phase 2 L0-L2 quality benchmark: W2L ladder, verified completion, false-success, P95, escalation, and tiered reports
-- [x] Phase 4 real-task harness: AI knowledge and product-info manifests, field assertions, repeat consistency, holdout and cost/evidence records
+- [x] Phase A4 real-task harness: AI knowledge and product-info manifests, field assertions, repeat consistency, holdout and cost/evidence records
 - [x] Phase 3 Benchmark Gate harness: fixed W2L run, comparator evidence, and blocked-until-real-comparators decision
 - [ ] Hosted Egress Gate: browser subresource policy enforcement and DNS-to-connection binding
 
-See [PRODUCT_PLAN_V2.md](PRODUCT_PLAN_V2.md) for the full plan.
+See [ROADMAP.md](ROADMAP.md) for the current Section/Phase plan. [PRODUCT_PLAN_V2.md](PRODUCT_PLAN_V2.md) remains the historical detailed plan.
 
 ## Contributing
 
