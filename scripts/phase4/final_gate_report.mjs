@@ -36,7 +36,9 @@ const a5Open = []
 if (!a5) a5Open.push('A5 live report missing from this checkout')
 if (a5 && !pairClosed) a5Open.push('A5 repeat pairs not fully consistent')
 if (correction.minutes == null) a5Open.push('human correction time')
-if (cost?.usd !== 'unknown') a5Open.push('billed USD must stay unknown unless invoiced')
+if (cost?.usd !== 'unknown' || cost?.a5?.knownExternalCostUsd != null || cost?.a6run1?.knownExternalCostUsd != null || cost?.a6run2?.knownExternalCostUsd != null) {
+  a5Open.push('billed USD must stay unknown unless invoiced; 0 is not an invoice')
+}
 const report = {
   generatedAt: new Date().toISOString(),
   a5: {
