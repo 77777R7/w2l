@@ -23,6 +23,7 @@ Current truth:
 - Clean-clone install completed `ai-mdn-abortcontroller` on the author machine. Second-developer install is a recorded deferred exception, not a pass.
 - External billed USD is unknown by design. Comparable cost is resource meters. Filling `0` is forbidden.
 - A6 is a scoped developer alpha. Unconditional pass still requires a second human install.
+- Anti-blocking reliability slice: Retry-After HTTP-date parsing, bounded 503 backoff/jitter, and same-host 429/503 cooldown are implemented. This is compliant request discipline, not stealth or CAPTCHA bypass.
 - Hosted arbitrary-URL browser execution remains gated on a separate egress/security review.
 
 ## Section Map

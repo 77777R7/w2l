@@ -8,7 +8,7 @@ import {
   type TraceEvent,
 } from '@w2l/contracts'
 import { collectLinks, extractTf, htmlToMarkdown } from '@w2l/extract-tf'
-import { resilientFetch, classifyGate, escalationForBlock, sha256Utf8, type ResilientFetcher } from '@w2l/http-core'
+import { resilientFetch, classifyGate, escalationForBlock, parseRetryAfterMs, sha256Utf8, type ResilientFetcher } from '@w2l/http-core'
 import { request } from 'undici'
 import { assertSafeUrl, defaultNetworkPolicy, readCappedBody } from '../egress.js'
 import { prepareHttpIdentity, recordHttpIdentity } from '../httpIdentity.js'
@@ -36,6 +36,7 @@ export class ResilientHttpSubject implements SubjectAdapter {
   private readonly fetcher: ResilientFetcher
   private readonly robotsCache: RobotsOriginCache
   private readonly networkPolicy: NetworkPolicy
+  private readonly cooldownUntilByHost = new Map<string, number>()
 
   constructor(mode: CrawlMode = 'standard', networkPolicy?: NetworkPolicy) {
     this.prepared = prepareHttpIdentity(mode)
@@ -99,11 +100,24 @@ export class ResilientHttpSubject implements SubjectAdapter {
     }
 
     if (signal?.aborted) return this.denied(url, start, trace, 'timeout')
+    const host = new URL(url).host
+    const cooldownUntil = this.cooldownUntilByHost.get(host) ?? 0
+    if (cooldownUntil > Date.now()) {
+      const waitMs = cooldownUntil - Date.now()
+      trace.push({ at: Date.now() - start, lane: 'http', event: 'host_cooldown_wait', detail: { host, waitMs } })
+      await new Promise((resolve) => setTimeout(resolve, waitMs))
+    }
     const out = await resilientFetch(url, this.fetcher, {
       maxRedirects: this.networkPolicy.maxRedirects,
       assertUrl: (target) => assertSafeUrl(target, this.networkPolicy),
     })
     const wallMs = Date.now() - start
+    if (out.status === 429 || out.status === 503) {
+      const retryAfter = parseRetryAfterMs(out.headers?.get('retry-after') ?? null) ?? 250
+      const next = Date.now() + Math.min(Math.max(retryAfter, 250), 30_000)
+      this.cooldownUntilByHost.set(host, Math.max(this.cooldownUntilByHost.get(host) ?? 0, next))
+      trace.push({ at: wallMs, lane: 'http', event: 'host_cooldown_set', detail: { host, status: out.status, cooldownMs: next - Date.now() } })
+    }
     for (const t of out.trace) {
       trace.push({
         at: t.at,

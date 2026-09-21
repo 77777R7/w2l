@@ -13,6 +13,11 @@ Section A is a scoped developer alpha. Do not treat PR #39 `accepted_with_unknow
 - second-developer install deferred as an explicit exception (`research/phase4_deferred_exceptions.json`)
 - billed USD unknown, resource meters comparable; `0` is not an invoice
 
+Anti-blocking reliability is limited to robots compliance, safe URL checks,
+per-host pacing, server-directed retry delays, bounded backoff, and cooldown
+after rate-limit responses. Stealth, CAPTCHA bypass, identity rotation, and
+proxy evasion remain outside the supported scope.
+
 The field-level A5 manifest lives at `research/phase4_real_tasks.json` (20 tasks). The A6 scale manifest lives at `research/phase4_a6_real_tasks.json` (100 tasks).
 
 ## A4 Review Questions

@@ -296,7 +296,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
         const status = response?.status() ?? 0
         if (isRetryableStatus(status) && attemptCount < MAX_ATTEMPTS) {
           const retryAfter = response?.headers()['retry-after'] ?? null
-          const delayMs = Math.min(parseRetryAfterMs(retryAfter) ?? 0, 2000)
+          const delayMs = Math.min(parseRetryAfterMs(retryAfter) ?? 250, 2000)
           trace.push({ at: Date.now() - start, lane: 'browser_local', event: 'retry', detail: { attempt: attemptCount, status, delayMs } })
           attemptCount++
           if (delayMs > 0) await page.waitForTimeout(delayMs)
