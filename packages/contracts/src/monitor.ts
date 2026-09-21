@@ -97,7 +97,7 @@ export interface MonitorObservation {
   observedAt: number
   clientWallMs: number
   markdownSha256: string | null
-  transport?: { etag: string | null; lastModified: string | null; representationKey: string } | null
+  transport?: { etag: string | null; lastModified: string | null; representationKey: string; reusedFrom?: string; responseStatus?: number | null } | null
   outcome: ScrapeOutcome | null
   error: string | null
 }

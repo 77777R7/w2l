@@ -22,3 +22,10 @@ Required: user-owned Chromium with explicit Remote Debugging approval, approved
 origin/account scope, new-tab evidence, safe disconnect evidence, and revocation
 stopping later W2L commands. Library-level endpoint validation is not live
 evidence.
+
+## Conditional cache validation
+
+Validators and transport representation fields are now part of the monitor
+path. A real server returning `304 Not Modified` with a matching cached body
+still needs a controlled integration test before this is called production
+validated.

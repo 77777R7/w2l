@@ -11,6 +11,7 @@ import {
   LadderRunner,
   LadderScrapeAtom,
   MemoryRoutingHistory,
+  ResilientHttpSubject,
   type Channel,
 } from '@w2l/bench'
 import {
@@ -28,10 +29,10 @@ import {
 } from '@w2l/contracts'
 import type { CrawlPolicy } from '@w2l/http-core'
 import { CrawlOrchestrator, crawlReportFromStore, SqliteTaskStore } from '@w2l/runtime'
-import { initializeFirecrawlMonitor, runFirecrawlMonitor as executeMonitor } from '@w2l/runtime'
+import { initializeFirecrawlMonitor, runFirecrawlMonitor as executeMonitor, runConfiguredMonitor } from '@w2l/runtime'
 import { MonitorStore } from '@w2l/runtime'
 import { FileSessionBrokerStore, SessionBroker } from '@w2l/bench'
-import { FIRECRAWL_INTRO_URL, FIRECRAWL_MONITOR_ID, type MonitorView } from '@w2l/contracts'
+import { FIRECRAWL_INTRO_URL, FIRECRAWL_MONITOR_ID, type MonitorView, type MonitorRevision } from '@w2l/contracts'
 import type { ManagedSessionRef, SessionAccessResult } from '@w2l/contracts'
 
 export interface CrawlWithSteps {
@@ -46,6 +47,10 @@ export interface ApiEngine {
   getCrawlWithSteps(taskId: string): Promise<CrawlWithSteps | null>
   runFirecrawlMonitor(triggerKey?: string): Promise<MonitorView>
   getFirecrawlMonitor(): Promise<MonitorView>
+  configureMonitor(revision: MonitorRevision): MonitorRevision
+  getMonitor(id: string): MonitorView | null
+  listMonitors(): MonitorView[]
+  runMonitor(id: string, triggerKey?: string): Promise<MonitorView>
   createManagedSession(input: { workspaceId: string; accountRef: string; originScope: string; expiresAt?: string | null }): Promise<ManagedSessionRef>
   authorizeManagedSession(sessionRef: string, accountRef: string): Promise<ManagedSessionRef>
   revokeManagedSession(sessionRef: string): Promise<void>
@@ -76,6 +81,7 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
   const sessionBroker = new SessionBroker(new FileSessionBrokerStore(join(taskRoot, 'b3-sessions.json')))
   const headed = options.headed === true
   const networkPolicy = options.networkPolicy ?? localNetworkPolicy()
+  const conditionalHttp = new ResilientHttpSubject('standard', networkPolicy)
   const defaultMaxPages = options.defaultMaxPages ?? null
   const inflight = new Map<string, Promise<void>>()
   const activeScrapes = new Set<Promise<unknown>>()
@@ -222,6 +228,23 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
     async getFirecrawlMonitor() {
       initializeFirecrawlMonitor(monitorStore)
       return monitorStore.view(FIRECRAWL_MONITOR_ID, Date.now())
+    },
+
+    configureMonitor(revision) { return monitorStore.createOrGetRevision(revision) },
+    getMonitor(id) { return monitorStore.hasMonitor(id) ? monitorStore.view(id, Date.now()) : null },
+    listMonitors() { return monitorStore.listMonitorIds().map((id) => monitorStore.view(id, Date.now())) },
+    async runMonitor(id, triggerKey) {
+      const revision = monitorStore.getRevision(id)
+      const operation = runConfiguredMonitor(monitorStore, revision, async (validators) => {
+        if (revision.config?.conditionalRequests) {
+          const result = await conditionalHttp.fetch(revision.url, undefined, validators.signal, validators)
+          return { result, links: result.links ?? [] }
+        }
+        const result = await this.scrape({ url: revision.url })
+        return { result, links: result.links ?? [], audit: { channelsTried: result.channelsTried, ladderTrace: result.ladderTrace, summary: result.summary } }
+      }, triggerKey)
+      activeScrapes.add(operation)
+      try { return await operation } finally { activeScrapes.delete(operation) }
     },
 
     async createManagedSession(input) {

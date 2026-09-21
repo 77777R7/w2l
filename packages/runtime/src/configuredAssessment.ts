@@ -9,6 +9,7 @@ export function assessConfiguredDocument(result: FetchResult | null, revision: M
     for (const f of config.fields) assessment.fields![f.name] = {state:'unobserved',reason:'capture_incomplete'}
     return assessment
   }
+  if (result.evidence.httpStatus !== 200) return {...assessment, quality:'invalid', reasons:['unexpected_http_status'], fields:null}
   const actual = new URL(result.evidence.finalUrl); const expected = new URL(revision.url)
   if (actual.origin !== expected.origin || actual.pathname !== expected.pathname || actual.search !== expected.search) {
     return {...assessment, quality:'invalid',reasons:['wrong_document'],fields:null}

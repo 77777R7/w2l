@@ -6,6 +6,7 @@ import {
   parseFirecrawlScrapeRequest,
   parseScrapeRequest,
   RequestError,
+  parseMonitorRevision,
   wrapCrawlAccepted,
   wrapCrawlStatus,
   wrapScrape,
@@ -56,6 +57,31 @@ export function createApp(engine: ApiEngine, options: AppOptions = {}): Hono {
 
   app.get('/v1/monitors/firecrawl-introduction', async (c) => {
     return c.json(await engine.getFirecrawlMonitor(), 200)
+  })
+
+  app.post('/v1/monitors', async (c) => {
+    const body = await c.req.json()
+    const revision = parseMonitorRevision({ ...body, createdAt: Date.now() })
+    if (revision.revision !== 1) return c.json({ error: 'new monitor requires revision 1' }, 400)
+    try { return c.json(engine.configureMonitor(revision), 201) }
+    catch { return c.json({ error: 'monitor configuration conflict' }, 409) }
+  })
+  app.post('/v1/monitors/:id/revisions', async (c) => {
+    const body = await c.req.json()
+    const revision = parseMonitorRevision({ ...body, monitorId: c.req.param('id'), createdAt: Date.now() })
+    try { return c.json(engine.configureMonitor(revision), 201) }
+    catch { return c.json({ error: 'revision conflict; identity is immutable' }, 409) }
+  })
+  app.get('/v1/monitors', (c) => c.json(engine.listMonitors()))
+  app.get('/v1/monitors/:id', (c) => {
+    const view = engine.getMonitor(c.req.param('id'))
+    return view ? c.json(view) : c.json({ error: 'monitor not found' }, 404)
+  })
+  app.post('/v1/monitors/:id/run', async (c) => {
+    const body = await c.req.json() as { triggerKey?: unknown }
+    if (!body || typeof body !== 'object' || Array.isArray(body) || (body.triggerKey !== undefined && (typeof body.triggerKey !== 'string' || !body.triggerKey.trim() || body.triggerKey.length > 200))) return c.json({ error: 'invalid triggerKey' }, 400)
+    if (!engine.getMonitor(c.req.param('id'))) return c.json({ error: 'monitor not found' }, 404)
+    return c.json(await engine.runMonitor(c.req.param('id'), body.triggerKey as string | undefined))
   })
 
   app.post('/v1/sessions/managed', async (c) => {

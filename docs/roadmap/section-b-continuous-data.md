@@ -43,10 +43,9 @@
 
 未实现：EvidenceCollector、ModelAdapter、ProposalValidator、已验证配置库。先 shadow 模式，固定模型/提示词/验证规则，与同预处理确定性方案对照。只有净救回正确任务、引入错误、人工分钟、完整成本均可核对时才允许 assist。模型不改变验收标准。
 
-B1/B2 closeout also adds the direction for generic monitor configuration,
-typed field states, identity keys, rule/schema attribution, and transport
-representation records. Full multi-monitor and conditional-cache evidence is
-still pending.
+B1/B2 closeout adds generic monitor registration/view APIs, typed field states,
+identity keys, rule/schema attribution, and transport-representation records.
+Full multi-monitor and conditional-cache live evidence is still pending.
 
 ## B→C 准入
 

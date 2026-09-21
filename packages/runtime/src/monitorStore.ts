@@ -79,7 +79,8 @@ export class MonitorStore {
     this.db.pragma('busy_timeout = 5000')
     this.db.pragma('foreign_keys = ON')
       this.db.exec(SCHEMA)
-      try { this.db.exec('ALTER TABLE monitor_observations ADD COLUMN transport_json TEXT') } catch {}
+    const observationColumns = this.db.prepare('PRAGMA table_info(monitor_observations)').all() as {name:string}[]
+    if (!observationColumns.some((c)=>c.name==='transport_json')) this.db.exec('ALTER TABLE monitor_observations ADD COLUMN transport_json TEXT')
     this.db.transaction(() => {
       const columns = this.db.prepare('PRAGMA table_info(monitor_revisions)').all() as {name:string}[]
       if (!columns.some((c)=>c.name==='config_json')) this.db.exec('ALTER TABLE monitor_revisions ADD COLUMN config_json TEXT')
@@ -175,7 +176,7 @@ export class MonitorStore {
     this.assertOwner(run, observation.observedAt)
     if (assessment.ruleVersion !== this.getRevision(run.monitorId,run.revision).ruleVersion) throw new Error('assessment rule mismatch')
     this.db.prepare(`INSERT INTO monitor_observations (id, run_id, attempt_id, observed_at, client_wall_ms, markdown_sha256, transport_json, outcome_json, error) VALUES (?,?,?,?,?,?,?,?,?)`)
-      .run(observation.id, observation.runId, observation.attemptId, observation.observedAt, observation.clientWallMs, observation.markdownSha256, JSON.stringify(observation.transport), JSON.stringify(observation.outcome), observation.error)
+      .run(observation.id, observation.runId, observation.attemptId, observation.observedAt, observation.clientWallMs, observation.markdownSha256, JSON.stringify(observation.transport ?? null), JSON.stringify(observation.outcome), observation.error)
     this.db.prepare(`INSERT INTO monitor_assessments (id, run_id, observation_id, quality, reasons_json, fields_json, evidence_json) VALUES (?,?,?,?,?,?,?)`)
       .run(assessmentId, observation.runId, observation.id, assessment.quality, JSON.stringify(assessment.reasons), assessment.fields ? JSON.stringify(assessment.fields) : null, JSON.stringify(assessment.evidence))
     }).immediate()

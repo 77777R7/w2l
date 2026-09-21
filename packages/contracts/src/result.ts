@@ -45,6 +45,13 @@ export interface Evidence {
   rawBodySha256: string | null
   /** Relative artifact paths (raw body, screenshot, DOM snapshot). */
   artifacts: readonly string[]
+  /** HTTP validators observed for the representation, when exposed. */
+  etag?: string | null
+  lastModified?: string | null
+  cacheControl?: string | null
+  vary?: string | null
+  /** A response setting cookies cannot enter the public monitor cache. */
+  setsCookie?: boolean
 }
 
 export interface TraceEvent {
