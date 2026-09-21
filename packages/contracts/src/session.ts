@@ -15,6 +15,9 @@ export interface ManagedSessionRef {
   revokedAt: string | null
   expiresAt: string | null
   handoff: SessionHandoff | null
+  backend?: 'managed' | 'existing_chrome'
+  /** Private registry only; never include in public status/logs. */
+  cdpEndpoint?: string
 }
 
 export interface SessionHandoff {

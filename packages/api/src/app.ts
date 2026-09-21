@@ -67,25 +67,33 @@ export function createApp(engine: ApiEngine, options: AppOptions = {}): Hono {
   app.post('/v1/sessions/:id/authorize', async (c) => {
     const body = await c.req.json() as Record<string, unknown>
     if (typeof body.accountRef !== 'string') return c.json({ error: 'accountRef is required' }, 400)
-    return c.json(await engine.authorizeManagedSession(c.req.param('id'), body.accountRef), 200)
+    try { return c.json(await engine.authorizeManagedSession(c.req.param('id'), body.accountRef), 200) }
+    catch (error) { return c.json({ error: error instanceof Error ? error.message : 'authorization rejected' }, 409) }
   })
 
   app.post('/v1/sessions/:id/revoke', async (c) => {
-    await engine.revokeManagedSession(c.req.param('id'))
-    return c.json({ sessionRef: c.req.param('id'), state: 'revoked' }, 200)
+    try {
+      await engine.revokeManagedSession(c.req.param('id'))
+      return c.json({ sessionRef: c.req.param('id'), state: 'revoked' }, 200)
+    } catch (error) { return c.json({ error: error instanceof Error ? error.message : 'revoke rejected' }, 409) }
   })
 
-  app.get('/v1/sessions/:id', async (c) => c.json(await engine.getManagedSession(c.req.param('id')), 200))
+  app.get('/v1/sessions/:id', async (c) => {
+    try { return c.json(await engine.getManagedSession(c.req.param('id')), 200) }
+    catch { return c.json({ error: 'session not found' }, 404) }
+  })
 
   app.post('/v1/sessions/:id/renew', async (c) => {
     const body = await c.req.json() as Record<string, unknown>
-    return c.json(await engine.renewManagedSession(c.req.param('id'), typeof body.expiresAt === 'string' ? body.expiresAt : null), 200)
+    try { return c.json(await engine.renewManagedSession(c.req.param('id'), typeof body.expiresAt === 'string' ? body.expiresAt : null), 200) }
+    catch (error) { return c.json({ error: error instanceof Error ? error.message : 'renewal rejected' }, 409) }
   })
 
   app.post('/v1/sessions/:id/handoff', async (c) => {
     const body = await c.req.json() as Record<string, unknown>
     if (typeof body.reason !== 'string' || !body.reason.trim()) return c.json({ error: 'reason is required' }, 400)
-    return c.json(await engine.requestManagedHandoff(c.req.param('id'), body.reason, typeof body.expiresAt === 'string' ? body.expiresAt : null), 200)
+    try { return c.json(await engine.requestManagedHandoff(c.req.param('id'), body.reason, typeof body.expiresAt === 'string' ? body.expiresAt : null), 200) }
+    catch (error) { return c.json({ error: error instanceof Error ? error.message : 'handoff rejected' }, 409) }
   })
 
   app.post('/v1/sessions/:id/capture', async (c) => {
