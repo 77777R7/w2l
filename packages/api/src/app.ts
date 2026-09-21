@@ -47,6 +47,17 @@ export function createApp(engine: ApiEngine, options: AppOptions = {}): Hono {
     return c.json(report, 200)
   })
 
+  app.post('/v1/monitors/firecrawl-introduction/run', async (c) => {
+    const body = await c.req.json() as { triggerKey?: unknown }
+    if (!body || typeof body !== 'object' || Array.isArray(body) || (body.triggerKey !== undefined && (typeof body.triggerKey !== 'string' || !body.triggerKey.trim() || body.triggerKey.length > 200))) return c.json({ error: 'invalid triggerKey' }, 400)
+    const triggerKey = body.triggerKey as string | undefined
+    return c.json(await engine.runFirecrawlMonitor(triggerKey), 200)
+  })
+
+  app.get('/v1/monitors/firecrawl-introduction', async (c) => {
+    return c.json(await engine.getFirecrawlMonitor(), 200)
+  })
+
   app.post('/fc/v1/scrape', async (c) => {
     const req = parseFirecrawlScrapeRequest(await c.req.json())
     return c.json(wrapScrape(await engine.scrape(req)), 200)

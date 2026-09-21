@@ -27,6 +27,9 @@ import {
 } from '@w2l/contracts'
 import type { CrawlPolicy } from '@w2l/http-core'
 import { CrawlOrchestrator, crawlReportFromStore, SqliteTaskStore } from '@w2l/runtime'
+import { initializeFirecrawlMonitor, runFirecrawlMonitor as executeMonitor } from '@w2l/runtime'
+import { MonitorStore } from '@w2l/runtime'
+import { FIRECRAWL_INTRO_URL, FIRECRAWL_MONITOR_ID, type MonitorView } from '@w2l/contracts'
 
 export interface CrawlWithSteps {
   report: CrawlReport
@@ -38,6 +41,8 @@ export interface ApiEngine {
   startCrawl(req: CrawlStartRequest): Promise<CrawlAccepted>
   getCrawl(taskId: string): Promise<CrawlReport | null>
   getCrawlWithSteps(taskId: string): Promise<CrawlWithSteps | null>
+  runFirecrawlMonitor(triggerKey?: string): Promise<MonitorView>
+  getFirecrawlMonitor(): Promise<MonitorView>
   close(): Promise<void>
 }
 
@@ -57,6 +62,7 @@ export interface ApiEngineOptions {
 
 export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
   const taskRoot = options.taskRoot ?? '.w2l/api'
+  const monitorStore = MonitorStore.open(join(taskRoot, 'section-b-control.sqlite'))
   const headed = options.headed === true
   const networkPolicy = options.networkPolicy ?? localNetworkPolicy()
   const defaultMaxPages = options.defaultMaxPages ?? null
@@ -193,11 +199,26 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
 
     getCrawlWithSteps: loadCrawlWithSteps,
 
+    async runFirecrawlMonitor(triggerKey) {
+      const operation = executeMonitor(monitorStore, async () => {
+        const result = await this.scrape({ url: FIRECRAWL_INTRO_URL })
+        return { result, links: result.links ?? [], audit: { channelsTried: result.channelsTried, ladderTrace: result.ladderTrace, summary: result.summary } }
+      }, triggerKey)
+      activeScrapes.add(operation)
+      try { return await operation } finally { activeScrapes.delete(operation) }
+    },
+
+    async getFirecrawlMonitor() {
+      initializeFirecrawlMonitor(monitorStore)
+      return monitorStore.view(FIRECRAWL_MONITOR_ID, Date.now())
+    },
+
     async close() {
       await Promise.all([...inflight.values()].map((job) => job.catch(() => {})))
       await Promise.all([...activeScrapes].map((job) => job.catch(() => {})))
       await Promise.all([...channelsByMode.values()].flatMap((channels) => channels.map((channel) => channel.close?.().catch(() => {}))))
       channelsByMode.clear()
+      monitorStore.close()
     },
   }
 }

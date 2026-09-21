@@ -273,11 +273,16 @@ describe('@w2l/runtime public surface', () => {
       'CrawlOrchestrator',
       'Frontier',
       'MemoryTaskStore',
+      'MonitorStore',
       'SqliteTaskStore',
+      'assessFirecrawlIntroduction',
       'canonicalizeUrl',
       'crawlReportFromStore',
+      'diffDocument',
       'hostOf',
+      'initializeFirecrawlMonitor',
       'reportFromTaskAttempt',
+      'runFirecrawlMonitor',
       'systemClock',
     ])
     expect(runtime).not.toHaveProperty('SCHEMA')
