@@ -16,6 +16,8 @@
     "benchmark:phase3:manifest": "tsc --build && node --import tsx packages/bench/src/phase3ManifestCli.ts",
     "benchmark:phase3:score": "tsc --build && node --import tsx packages/bench/src/phase3ScoreCli.ts",
     "phase4:tasks": "tsc --build && node --import tsx packages/bench/src/phase4Cli.ts",
+    "section-b:firecrawl": "tsc --build && node --import tsx scripts/section-b/firecrawl-monitor.ts",
+    "section-b:scheduler": "tsc --build && node --import tsx scripts/section-b/firecrawl-scheduler.ts",
     "canary": "tsc --build && node --import tsx packages/bench/src/canaryCli.ts",
     "scrape": "tsc --build && node --import tsx packages/bench/src/w2lCli.ts scrape",
     "crawl": "tsc --build && node --import tsx packages/bench/src/w2lCli.ts crawl",

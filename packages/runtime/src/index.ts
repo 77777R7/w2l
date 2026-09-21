@@ -7,3 +7,6 @@ export type { FrontierDequeue, FrontierEnqueueResult, FrontierItem, FrontierOpti
 export { CrawlOrchestrator, systemClock } from './orchestrator.js'
 export type { CrawlClock, OrchestratorOptions } from './orchestrator.js'
 export { crawlReportFromStore, reportFromTaskAttempt } from './crawlReport.js'
+export { MonitorStore } from './monitorStore.js'
+export { assessFirecrawlIntroduction, diffDocument } from './documentAssessment.js'
+export { initializeFirecrawlMonitor, runFirecrawlMonitor } from './monitorRunner.js'

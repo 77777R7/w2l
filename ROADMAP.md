@@ -49,7 +49,10 @@ Section C: Workflow productization and delivery
   C4 Paid validation and limited scenario expansion
 ```
 
-Section B and Section C are future product directions, not current implementation commitments.
+Section B is approved for a controlled B1+B2 prototype only. B3, B4, and Section C remain future directions.
+
+Section B technical design: `docs/roadmap/section-b-technical-design-v1.md`.
+Bounded B1+B2 handoff: `docs/roadmap/section-b-handoff.md`.
 
 ## Section A
 

@@ -1,0 +1,66 @@
+{
+  "generatedAt": "2026-09-21T13:59:31.930Z",
+  "monitorId": "firecrawl-introduction",
+  "url": "https://docs.firecrawl.dev/introduction",
+  "ruleVersion": "firecrawl-introduction/v1",
+  "verifiedExecutions": [
+    {
+      "source": "real-run-prior-control-db",
+      "triggerKey": "manual:2026-09-21",
+      "execution": "completed",
+      "quality": "valid",
+      "change": "initialized",
+      "baselineVersion": 1,
+      "eventCountAfterRun": 1
+    },
+    {
+      "source": "real-run-prior-control-db",
+      "triggerKey": "manual:firecrawl-second",
+      "execution": "completed",
+      "quality": "valid",
+      "change": "unchanged",
+      "baselineVersion": 1,
+      "eventCountAfterRun": 1
+    },
+    {
+      "source": "fresh-scheduler-once-run",
+      "runId": "d7d60ef1-d130-4c29-adb2-852b69b4a01f",
+      "triggerKey": "scheduled:firecrawl-introduction:1:1789999169936",
+      "execution": "completed",
+      "quality": "valid",
+      "change": "initialized",
+      "baselineVersion": 1,
+      "eventCountAfterRun": 1,
+      "nextRunAtPersisted": true
+    }
+  ],
+  "apiSurface": {
+    "run": "POST /v1/monitors/firecrawl-introduction/run",
+    "view": "GET /v1/monitors/firecrawl-introduction",
+    "triggerIdempotency": true,
+    "controlDatabase": ".w2l/section-b/control.sqlite"
+  },
+  "failureSemantics": {
+    "invalidObservationAdvancesBaseline": false,
+    "unchangedRefreshCreatesEvent": false,
+    "staleWorkerObservationAccepted": false,
+    "expiredAttemptGetsInterrupted": true,
+    "midCommitFailureLeavesNoSnapshotEventOutbox": true,
+    "outboxStateAfterInitialization": "pending"
+  },
+  "verifiedFields": [
+    "title",
+    "introduction",
+    "searchDescription",
+    "scrapeDescription",
+    "interactDescription"
+  ],
+  "scheduler": {
+    "command": "W2L_B1_ROOT=.w2l/section-b npm run section-b:scheduler -- --once",
+    "readsPersistedNextRunAt": true,
+    "freshRunState": "completed",
+    "freshRunQuality": "valid",
+    "freshRunChange": "initialized"
+  },
+  "resourceBoundary": "externalCostUsd remains unknown; this slice records local execution meters through the existing LadderRunAudit."
+}

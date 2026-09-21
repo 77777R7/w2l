@@ -1,6 +1,8 @@
 # Section B · Continuous Updates And Authorized Access
 
-Section B is future product direction. It is not a current implementation commitment.
+Section B is now approved for a controlled B1+B2 prototype only. It is not approval to implement B3, B4, multi-modal assistance, or a general workflow product.
+
+The detailed design is [`section-b-technical-design-v1.md`](./section-b-technical-design-v1.md). The bounded handoff and highest-ROI slice are in [`section-b-handoff.md`](./section-b-handoff.md).
 
 ## Product Hypothesis
 
@@ -32,3 +34,5 @@ Only build fixed workflows after multiple customers share the same backend and d
 - A6 remaining handoff is recorded honestly: second-developer install deferred, billed USD unknown, quality subset separate from scale.
 
 B1 may start as a controlled prototype after that record exists. B2, B3, and B4 stay gated until a real recurring task needs them.
+
+The first controlled task is `https://docs.firecrawl.dev/introduction`; its B1/B2 evidence is `research/section-b-firecrawl-monitor-evidence.json`.
