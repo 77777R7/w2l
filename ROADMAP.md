@@ -4,9 +4,9 @@ This is the current product roadmap. It reorganizes the older Phase 1/2/3 plan i
 
 ## Current Position
 
-**Section A · Reliable Data Collection → A6 conditional developer alpha**
+**Section B · Controlled prototypes → reliability and adoption validation**
 
-Current baseline: `main@e701aa4`.
+Review baseline: `main@e29dc6b` (PR46), reviewed 2026-09-22. Section A remains a conditional developer alpha.
 
 Current truth:
 
@@ -21,9 +21,15 @@ Current truth:
 - A6 scale covers 100 pages / 10 domains / two runs. Outcome consistency 100/100; normalized-hash 99/100. Labeled every-fifth-task holdout is not an independent holdout.
 - Interrupt/resume lost 0 checkpointed URLs. The killed attempt was previously left `running`; resume now marks it `interrupted`.
 - Clean-clone install completed `ai-mdn-abortcontroller` on the author machine. Second-developer install is a recorded deferred exception, not a pass.
-- External billed USD is unknown by design. Comparable cost is resource meters. Filling `0` is forbidden.
+- External billed USD is unmeasured for the recorded local runs. Resource meters are separate; missing cost must not be invented as zero. A vendor-evidenced zero is a legitimate measurement.
 - A6 is a scoped developer alpha. Unconditional pass still requires a second human install.
 - Anti-blocking reliability slice: Retry-After HTTP-date parsing, bounded 503 backoff/jitter, and same-host 429/503 cooldown are implemented. This is compliant request discipline, not stealth or CAPTCHA bypass.
+- Retry correctness remains open: long Retry-After values are currently shortened by caps; cooldown is per-instance and does not serialize concurrent requests.
+- B1/B2 supports one fixed Firecrawl documentation task. General monitor configuration, full fault validation and cross-date operation remain open.
+- B3 managed-session APIs exist; Existing Chrome/CDP and B4 Recipe are library-level implementations without dedicated integration evidence in this baseline.
+- Section C is planned, not implemented. A local pending outbox is not downstream delivery.
+- Generic B1/B2 monitor configuration, typed field values, identity keys, rule/schema attribution, and transport-representation records are implemented on the closeout branch; full multi-monitor/conditional-cache evidence remains open.
+- B3/B4 external validation is blocked on an authorized backend/account and a second reusable workflow; see `research/section-b-real-adoption-blockers.md`.
 - Hosted arbitrary-URL browser execution remains gated on a separate egress/security review.
 
 ## Section Map
@@ -38,22 +44,24 @@ Section A: Reliable data collection
   A6 Expanded validation and base-product gate    conditional alpha; second-developer install deferred
 
 Section B: Continuous updates and authorized access
-  B1 Stateful recurring tasks and data versions
-  B2 Trusted change detection and incremental updates
-  B3 Chrome/user-authorized session reuse
-  B4 Narrow authorized-backend automation
+  B1 Stateful recurring tasks and data versions          in_progress (fixed task)
+  B2 Trusted change detection and incremental updates   in_progress (string fields)
+  B3 Chrome/user-authorized session reuse                in_progress (API + CDP library)
+  B4 Narrow authorized-backend automation                in_progress (Recipe library)
 
 Section C: Workflow productization and delivery
-  C1 Reliable downstream data delivery
-  C2 n8n integration and a narrow task UI
-  C3 Enterprise self-hosting and optional hosted delivery
-  C4 Paid validation and limited scenario expansion
+  C1 Reliable downstream data delivery                   not_started
+  C2 n8n integration and a narrow task UI                 not_started
+  C3 Enterprise self-hosting and optional hosted delivery not_started
+  C4 Paid validation and limited scenario expansion      not_started
 ```
 
-Section B is approved for a controlled B1+B2 prototype only. B3, B4, and Section C remain future directions.
+Section B has controlled B1+B2, B3 managed-session, B3 CDP, and B4 restricted-Recipe slices. None is a universal production claim; B3/B4 remain bounded prototypes.
 
 Section B technical design: `docs/roadmap/section-b-technical-design-v1.md`.
-Bounded B1+B2 handoff: `docs/roadmap/section-b-handoff.md`.
+B/C handoff: `docs/roadmap/section-b-handoff.md`.
+Stage review: `docs/roadmap/stage-review-2026-09-22.md`.
+Section C complete plan: `docs/roadmap/section-c-delivery.md`.
 
 ## Section A
 
@@ -124,7 +132,7 @@ Bounded B1+B2 handoff: `docs/roadmap/section-b-handoff.md`.
 
 **Scope:** 100–200 permitted pages across 10–20 domains, development vs holdout separation, repeat runs, interruption/recovery checks, installation and first-task validation by another developer, and support-boundary documentation.
 
-**Status:** conditional developer alpha. Scale and recovery evidence exist, including a fresh recovery run that marks the killed attempt `interrupted`. Second-developer install is deferred (`research/phase4_deferred_exceptions.json`). Billed USD is unknown, not zero.
+**Status:** conditional developer alpha. Scale and recovery evidence exist, including a fresh recovery run that marks the killed attempt `interrupted`. Second-developer install is deferred. Quality/holdout evidence and the unverified human-time record also need calibration; see the current stage review. Billed USD is unknown, not zero.
 
 **Exit:** a self-hosted developer alpha with a clear supported scope. It is not a claim of universal web success or public hosted readiness. `accepted_with_unknown_external_usd` from PR #39 is evidence of recorded files, not this exit.
 
@@ -136,17 +144,25 @@ Section B combines the future differentiators around one customer task rather th
 
 Track stable object identity, extraction-rule version, last valid result, last check, last success, and history. A failed refresh must not overwrite valid data.
 
+**Status:** in_progress. Fixed Firecrawl monitor implemented; durable deployment, cancellation, complete recovery tests and generic configuration remain open.
+
 ### B2 · Trusted Change Detection And Incremental Updates
 
 Distinguish `changed`, `unchanged`, `cannot_verify`, and `stale`. Compare target fields/content after quality validation. Do not promise a percentage cost reduction before measuring it.
+
+**Status:** in_progress. String-field diff and local outbox implemented; typed field states, rule-version attribution, completeness and conditional cache remain open.
 
 ### B3 · Authorized Session Reuse And Handoff
 
 Reuse user-authorized sessions with isolation, expiry detection, revocation, and human handoff. Do not promise permanent login or automatic CAPTCHA defeat.
 
+**Status:** in_progress. Managed-session API and CDP library exist; verified login/handoff, shared control path and real browser lifecycle evidence remain open.
+
 ### B4 · Narrow Authorized-Backend Automation
 
 Support a small number of repeatable, authorized workflows only after evidence shows multiple customers share the same backend and data shape.
+
+**Status:** in_progress. Recipe library exists; product entry, dedicated execution tests and an authorized backend pilot remain open.
 
 ## Section C
 
