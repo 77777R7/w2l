@@ -13,7 +13,7 @@ import {
 describe('checkpoint contract: task → attempt → step', () => {
   it('keeps task and attempt status independent of page ResultStatus', () => {
     expect([...TASK_STATUS]).toEqual(['pending', 'running', 'paused', 'completed', 'failed', 'cancelled'])
-    expect([...ATTEMPT_STATUS]).toEqual(['running', 'completed', 'failed', 'cancelled'])
+    expect([...ATTEMPT_STATUS]).toEqual(['running', 'completed', 'failed', 'cancelled', 'interrupted'])
   })
 
   it('makes every page ResultStatus a legal step status, plus pending/running', () => {

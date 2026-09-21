@@ -15,7 +15,7 @@ import type { BudgetKind, Lane, ResultStatus } from './status.js'
 export const TASK_STATUS = ['pending', 'running', 'paused', 'completed', 'failed', 'cancelled'] as const
 export type TaskStatus = (typeof TASK_STATUS)[number]
 
-export const ATTEMPT_STATUS = ['running', 'completed', 'failed', 'cancelled'] as const
+export const ATTEMPT_STATUS = ['running', 'completed', 'failed', 'cancelled', 'interrupted'] as const
 export type AttemptStatus = (typeof ATTEMPT_STATUS)[number]
 
 export const STEP_STATUS = [
@@ -80,6 +80,8 @@ export interface Attempt {
   contentTokensUnknown?: boolean
   /** Which budget dimension stopped this attempt, if any. */
   budgetExceeded: BudgetKind | null
+  /** Set when this attempt resumes a previously interrupted attempt. */
+  recoveredFromAttemptId?: string | null
 }
 
 /**

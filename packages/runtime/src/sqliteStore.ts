@@ -30,6 +30,7 @@ interface AttemptRow {
   content_tokens: number
   content_tokens_unknown: number | null
   budget_exceeded: string | null
+  recovered_from_attempt_id: string | null
 }
 
 interface StepRow {
@@ -73,7 +74,8 @@ CREATE TABLE IF NOT EXISTS attempts (
    cost_unknown INTEGER NOT NULL DEFAULT 0,
    content_tokens INTEGER NOT NULL,
    content_tokens_unknown INTEGER NOT NULL DEFAULT 0,
-  budget_exceeded TEXT
+  budget_exceeded TEXT,
+  recovered_from_attempt_id TEXT
 );
 
 CREATE TABLE IF NOT EXISTS steps (
@@ -126,6 +128,7 @@ export class SqliteTaskStore implements TaskStore {
       try { this.db.exec('ALTER TABLE steps ADD COLUMN audit_json TEXT') } catch {}
       try { this.db.exec('ALTER TABLE attempts ADD COLUMN cost_unknown INTEGER NOT NULL DEFAULT 0') } catch {}
       try { this.db.exec('ALTER TABLE attempts ADD COLUMN content_tokens_unknown INTEGER NOT NULL DEFAULT 0') } catch {}
+      try { this.db.exec('ALTER TABLE attempts ADD COLUMN recovered_from_attempt_id TEXT') } catch {}
       chmodSync(dbPath, 0o600)
     }
   }
@@ -178,9 +181,9 @@ export class SqliteTaskStore implements TaskStore {
     this.db
       .prepare(
         `INSERT INTO attempts (
-           id, task_id, status, started_at, ended_at, pages_fetched, wall_ms, cost_usd, cost_unknown, content_tokens, content_tokens_unknown, budget_exceeded
+           id, task_id, status, started_at, ended_at, pages_fetched, wall_ms, cost_usd, cost_unknown, content_tokens, content_tokens_unknown, budget_exceeded, recovered_from_attempt_id
          ) VALUES (
-           @id, @task_id, @status, @started_at, @ended_at, @pages_fetched, @wall_ms, @cost_usd, @cost_unknown, @content_tokens, @content_tokens_unknown, @budget_exceeded
+           @id, @task_id, @status, @started_at, @ended_at, @pages_fetched, @wall_ms, @cost_usd, @cost_unknown, @content_tokens, @content_tokens_unknown, @budget_exceeded, @recovered_from_attempt_id
          )
          ON CONFLICT(id) DO UPDATE SET
            task_id = excluded.task_id,
@@ -193,7 +196,8 @@ export class SqliteTaskStore implements TaskStore {
            cost_unknown = excluded.cost_unknown,
            content_tokens = excluded.content_tokens,
            content_tokens_unknown = excluded.content_tokens_unknown,
-           budget_exceeded = excluded.budget_exceeded`,
+           budget_exceeded = excluded.budget_exceeded,
+           recovered_from_attempt_id = excluded.recovered_from_attempt_id`,
       )
       .run({
         id: attempt.id,
@@ -208,6 +212,7 @@ export class SqliteTaskStore implements TaskStore {
         content_tokens: attempt.contentTokens,
         content_tokens_unknown: attempt.contentTokensUnknown === true ? 1 : 0,
         budget_exceeded: attempt.budgetExceeded,
+        recovered_from_attempt_id: attempt.recoveredFromAttemptId ?? null,
       })
   }
 
@@ -337,6 +342,7 @@ function attemptFromRow(row: AttemptRow): Attempt {
     contentTokens: row.content_tokens,
     ...(row.content_tokens_unknown === 1 ? { contentTokensUnknown: true } : {}),
     budgetExceeded: row.budget_exceeded as Attempt['budgetExceeded'],
+    ...(row.recovered_from_attempt_id ? { recoveredFromAttemptId: row.recovered_from_attempt_id } : {}),
   }
 }
 

@@ -172,6 +172,8 @@
       "https://www.browserbase.com/industry/supply-chain"
     ]
   },
+  "interruptedAttemptStatus": "running",
+  "recoveredFromAttemptId": null,
   "lostUrls": [],
   "recoveredPages": 99,
   "recoveredCorrectComplete": 96,

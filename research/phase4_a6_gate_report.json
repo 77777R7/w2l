@@ -1,24 +1,152 @@
 {
   "phase": "A6",
-  "generatedAt": "2026-09-20T18:27:48.592Z",
+  "generatedAt": "2026-09-21T03:33:07.151Z",
+  "status": "partial",
   "scale": {
     "pagesPerRun": 100,
     "runs": 200,
     "domains": 10,
-    "holdoutPages": 20
+    "labeledHoldoutPages": 20,
+    "independentHoldoutPages": 82,
+    "qualitySubsetPages": 8
   },
   "consistency": {
     "outcomeSame": 100,
     "contentHashSame": 99,
     "total": 100
   },
+  "conditions": [
+    {
+      "id": "scale_pages",
+      "ok": true,
+      "evidence": {
+        "first": 100,
+        "second": 100
+      },
+      "requiredForAcceptance": true
+    },
+    {
+      "id": "scale_domains",
+      "ok": true,
+      "evidence": {
+        "domains": 10
+      },
+      "requiredForAcceptance": true
+    },
+    {
+      "id": "same_task_set",
+      "ok": true,
+      "evidence": {
+        "firstTasks": 100,
+        "secondTasks": 100
+      },
+      "requiredForAcceptance": true
+    },
+    {
+      "id": "outcome_consistency",
+      "ok": true,
+      "evidence": {
+        "outcomeSame": 100,
+        "total": 100
+      },
+      "requiredForAcceptance": true
+    },
+    {
+      "id": "quality_subset_field_assertions",
+      "ok": true,
+      "evidence": {
+        "runs": 8,
+        "correctComplete": 7,
+        "note": "scale assertions remain source+nonempty; field-level quality is a separate subset"
+      },
+      "requiredForAcceptance": true
+    },
+    {
+      "id": "recovery_zero_loss",
+      "ok": true,
+      "evidence": {
+        "status": "passed_with_live_fetch_failures",
+        "lost": 0,
+        "recoveredCanonical": 99
+      },
+      "requiredForAcceptance": true
+    },
+    {
+      "id": "recovery_interrupted_attempt_terminal",
+      "ok": false,
+      "evidence": {
+        "interruptedAttemptStatus": "not_recorded",
+        "note": "prior SIGKILL evidence left the killed attempt running; this condition stays open until rerun"
+      },
+      "requiredForAcceptance": true
+    },
+    {
+      "id": "clean_clone_install",
+      "ok": true,
+      "evidence": {
+        "status": "passed_clean_clone",
+        "firstTask": {
+          "taskId": "ai-mdn-abortcontroller",
+          "outcome": "correct_complete",
+          "lane": "http"
+        }
+      },
+      "requiredForAcceptance": true
+    },
+    {
+      "id": "second_developer_install",
+      "ok": false,
+      "evidence": {
+        "operatorIndependence": "same_machine_clean_clone_not_second_human"
+      },
+      "requiredForAcceptance": false
+    },
+    {
+      "id": "human_correction_minutes",
+      "ok": true,
+      "evidence": {
+        "minutes": 18,
+        "scope": [
+          "A5 remaining AI missing-field runs (AbortController, WebSocket)",
+          "A6 normalized-hash mismatch a6-082-www-browserbase-com"
+        ]
+      },
+      "requiredForAcceptance": true
+    },
+    {
+      "id": "support_boundary_documented",
+      "ok": true,
+      "evidence": {
+        "path": "research/phase4_support_boundary.md"
+      },
+      "requiredForAcceptance": true
+    },
+    {
+      "id": "billed_usd_unknown",
+      "ok": true,
+      "evidence": {
+        "cost": "unknown",
+        "note": "local resource meters are comparable; billed USD is not claimed"
+      },
+      "requiredForAcceptance": true
+    }
+  ],
+  "openGates": [
+    "recovery_interrupted_attempt_terminal"
+  ],
+  "deferredExceptions": [
+    "second_developer_install"
+  ],
   "evidence": {
     "installValidation": "passed_clean_clone",
     "recoveryValidation": "passed_with_live_fetch_failures",
     "humanCorrectionMinutes": 18,
     "cost": "unknown",
-    "supportBoundary": "research/phase4_support_boundary.md"
-  },
-  "status": "accepted_with_unknown_external_usd",
-  "openGates": []
+    "supportBoundary": "research/phase4_support_boundary.md",
+    "qualitySubset": {
+      "qualitySubsetRuns": 8,
+      "qualitySubsetCorrectComplete": 7,
+      "missingReport": 0
+    }
+  }
 }

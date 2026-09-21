@@ -4,9 +4,9 @@ This is the current product roadmap. It reorganizes the older Phase 1/2/3 plan i
 
 ## Current Position
 
-**Section A · Reliable Data Collection → Phase A4 · Real-task evaluation and diagnosis**
+**Section A · Reliable Data Collection → A6 conditional developer alpha**
 
-Current baseline: `main@2f4af0a`.
+Current baseline: `main@fdc6559`.
 
 Current truth:
 
@@ -17,11 +17,12 @@ Current truth:
 - Phase 3 page-quality comparison has valid Docker-runner evidence. W2L leads this fixed synthetic suite on verified completion and false-success rate; Firecrawl leads raw P95 wall time.
 - Cost per verified page is unavailable because the self-hosted comparators have no comparable invoice model.
 - Recovery comparison is unsupported for the page-only Firecrawl/Crawl4AI adapters; W2L has URL-level SQLite recovery.
-- Phase 4 has started with a six-task real-source slice. It has not passed the 100–200 page or design-partner thresholds.
-- A4 diagnostic expansion now covers 20 tasks across 11 domains; A5 quality on that slice is now full: AI `22/22` correct-complete and repeat-consistent, product `18/18` correct-complete and repeat-consistent.
-- A6 scale slice now covers 100 pages across 10 domains with 20 holdout pages and two independent runs; outcome consistency is 100/100 and normalized-hash consistency is 99/100. Interrupt/resume on the A6 URL set lost 0 checkpointed URLs; clean-clone install completed `ai-mdn-abortcontroller`; support boundary is `research/phase4_support_boundary.md`.
-- A5 quality scores on the 20-task slice are closed. External billed USD remains unknown; comparable cost is the recorded wall/browser/request/token/byte meters. Human correction time is 18 minutes.
-- A5/A6 final gate report is generated at `output/phase4/final-gate-report.json`. External billed USD stays unknown.
+- A4 diagnostic expansion covers 20 tasks / 11 domains. Pair-level A5 quality on that slice is AI 11/11 and product 9/9 consistent after scoring calibration; run-level correct-complete is AI 22/22 and product 18/18.
+- A6 scale covers 100 pages / 10 domains / two runs. Outcome consistency 100/100; normalized-hash 99/100. Labeled every-fifth-task holdout is not an independent holdout.
+- Interrupt/resume lost 0 checkpointed URLs. The killed attempt was previously left `running`; resume now marks it `interrupted`.
+- Clean-clone install completed `ai-mdn-abortcontroller` on the author machine. Second-developer install remains deferred.
+- External billed USD remains unknown. Comparable cost is resource meters, not USD.
+- A6 is a scoped developer alpha with open handoff conditions, not an unconditional pass.
 - Hosted arbitrary-URL browser execution remains gated on a separate egress/security review.
 
 ## Section Map
@@ -31,9 +32,9 @@ Section A: Reliable data collection
   A1 Core collection and local reliability       accepted
   A2 L0–L2 internal quality benchmark             accepted
   A3 External comparison evidence                 accepted for page quality
-  A4 Real-task evaluation and diagnosis            current
-  A5 Quality, efficiency, and cost fixes           next after A4 diagnosis
-  A6 Expanded validation and base-product gate    later
+  A4 Real-task evaluation and diagnosis            accepted as diagnostic evidence
+  A5 Quality, efficiency, and cost fixes           quality closed on 20-task slice; billed USD unknown
+  A6 Expanded validation and base-product gate    conditional alpha; second-developer install deferred
 
 Section B: Continuous updates and authorized access
   B1 Stateful recurring tasks and data versions
@@ -86,7 +87,7 @@ Section B and Section C are future product directions, not current implementatio
 
 **Goal:** prove that W2L can repeatedly deliver field-level data for real, permitted sources, not only synthetic fixtures.
 
-**Status:** in progress; diagnostic expansion complete, gate not closed.
+**Status:** diagnostic expansion accepted as evidence. Not a general field-accuracy claim.
 
 **First task families:**
 
@@ -109,7 +110,9 @@ Section B and Section C are future product directions, not current implementatio
 
 **Entry condition:** A4 produces a trustworthy failure taxonomy and field-level diagnosis.
 
-**Focus:** fix reusable extraction, subject/product identity, tables, dynamic readiness, unnecessary browser escalations, retry policy, and reportable resource cost. Every fix needs before/after evidence and must not improve scores by weakening assertions.
+**Status:** quality on the 20-task slice is closed at pair level. Repeat scoring now counts task pairs, not r1-null plus r2. Billed USD remains unknown.
+
+**Focus:** reusable extraction, subject/product identity, tables, dynamic readiness, unnecessary browser escalations, retry policy, and reportable resource cost. Every fix needs before/after evidence and must not improve scores by weakening assertions.
 
 ### A6 · Expanded Validation And Base-Product Gate
 
@@ -117,7 +120,9 @@ Section B and Section C are future product directions, not current implementatio
 
 **Scope:** 100–200 permitted pages across 10–20 domains, development vs holdout separation, repeat runs, interruption/recovery checks, installation and first-task validation by another developer, and support-boundary documentation.
 
-**Exit:** a self-hosted developer alpha with a clear supported scope. It is not a claim of universal web success or public hosted readiness.
+**Status:** conditional developer alpha. Scale and recovery evidence exist. Remaining handoff: field-level quality subset, interrupted-attempt terminal state on a fresh recovery run, independent holdout labeling, and second-developer install.
+
+**Exit:** a self-hosted developer alpha with a clear supported scope. It is not a claim of universal web success or public hosted readiness. `accepted_with_unknown_external_usd` from PR #39 is evidence of recorded files, not this exit.
 
 ## Section B
 

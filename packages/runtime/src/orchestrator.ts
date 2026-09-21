@@ -239,9 +239,10 @@ export class CrawlOrchestrator {
     if (spec.resumeFrom !== null) {
       const existing = await this.store.getTask(spec.resumeFrom)
       if (existing === null) throw new Error(`resume: unknown task ${spec.resumeFrom}`)
+      const interruptedId = await this.interruptOpenAttempts(existing.id, startedAt)
       const task: Task = { ...existing, status: 'running', updatedAt: startedAt }
       await this.store.putTask(task)
-      const attempt = newAttempt(this.newId(), task.id, startedAt)
+      const attempt = newAttempt(this.newId(), task.id, startedAt, interruptedId)
       await this.store.putAttempt(attempt)
       return { task, attempt }
     }
@@ -249,9 +250,10 @@ export class CrawlOrchestrator {
     if (spec.taskId !== undefined) {
       const existing = await this.store.getTask(spec.taskId)
       if (existing === null) throw new Error(`unknown task ${spec.taskId}`)
+      const interruptedId = await this.interruptOpenAttempts(existing.id, startedAt)
       const task: Task = { ...existing, status: 'running', updatedAt: startedAt }
       await this.store.putTask(task)
-      const attempt = newAttempt(this.newId(), task.id, startedAt)
+      const attempt = newAttempt(this.newId(), task.id, startedAt, interruptedId)
       await this.store.putAttempt(attempt)
       return { task, attempt }
     }
@@ -270,6 +272,24 @@ export class CrawlOrchestrator {
     const attempt = newAttempt(this.newId(), task.id, startedAt)
     await this.store.putAttempt(attempt)
     return { task, attempt }
+  }
+
+  private async interruptOpenAttempts(taskId: string, endedAt: string): Promise<string | null> {
+    const prior = await this.store.listAttempts(taskId)
+    let recoveredFrom: string | null = null
+    for (const attempt of prior) {
+      if (attempt.status !== 'running') continue
+      const steps = await this.store.listSteps(taskId, attempt.id)
+      await this.store.putAttempt({
+        ...attempt,
+        status: 'interrupted',
+        endedAt,
+        pagesFetched: steps.length,
+        costUsd: attempt.costUnknown === true ? null : attempt.costUsd,
+      })
+      recoveredFrom = attempt.id
+    }
+    return recoveredFrom
   }
 
   private async restoreFrontier(frontier: Frontier, task: Task, spec: CrawlSpec): Promise<void> {
@@ -315,7 +335,7 @@ function linksOf(result: FetchResult): readonly string[] {
   return result.links ?? []
 }
 
-function newAttempt(id: string, taskId: string, startedAt: string): Attempt {
+function newAttempt(id: string, taskId: string, startedAt: string, recoveredFromAttemptId: string | null = null): Attempt {
   return {
     id,
     taskId,
@@ -324,11 +344,12 @@ function newAttempt(id: string, taskId: string, startedAt: string): Attempt {
     endedAt: null,
     pagesFetched: 0,
     wallMs: 0,
-    costUsd: 0,
-    costUnknown: false,
+    costUsd: null,
+    costUnknown: true,
     contentTokens: 0,
     contentTokensUnknown: false,
     budgetExceeded: null,
+    recoveredFromAttemptId,
   }
 }
 

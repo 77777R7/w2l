@@ -29,3 +29,6 @@ Only build fixed workflows after multiple customers share the same backend and d
 - A4 identifies a repeated task with meaningful updates.
 - A5 shows the task can be refreshed without unacceptable false success.
 - At least one customer or internal workflow benefits from the data staying current.
+- A6 remaining handoff is recorded honestly: second-developer install deferred, billed USD unknown, quality subset separate from scale.
+
+B1 may start as a controlled prototype after that record exists. B2, B3, and B4 stay gated until a real recurring task needs them.
