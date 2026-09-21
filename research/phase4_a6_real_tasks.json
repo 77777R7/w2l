@@ -1,5 +1,5 @@
 {
-  "version": "phase4-a6-v0.1-2026-09-20",
+  "version": "phase4-a6-v0.2-2026-09-21",
   "policy": {
     "sources": "public official pages",
     "allowedActions": [
@@ -8,12 +8,15 @@
     "login": false,
     "formSubmission": false,
     "captchaHandling": false,
-    "holdoutRule": "holdout pages are evaluation-only"
+    "holdoutRule": "independent_holdout pages were not used to tune extraction or assertions; labeled holdout in A6 v0.1 is not treated as independent"
   },
   "target": {
     "pages": 100,
     "domains": 10,
-    "holdoutPages": 20
+    "developmentPages": 11,
+    "regressionPages": 7,
+    "independentHoldoutPages": 82,
+    "qualitySubsetPages": 8
   },
   "tasks": [
     {
@@ -22,15 +25,27 @@
       "url": "https://developer.mozilla.org/en-US/docs/Web/API/AbortController",
       "source": "developer.mozilla.org official page",
       "evaluationSet": "development",
+      "sampleRole": "development",
+      "qualitySubset": true,
       "repeats": 1,
       "assertions": [
         {
-          "field": "source_url",
-          "sourceUrl": "https://developer.mozilla.org"
+          "field": "title",
+          "mustContain": [
+            "AbortController"
+          ]
         },
         {
           "field": "main_content",
-          "required": true
+          "required": true,
+          "mustContain": [
+            "AbortSignal",
+            "abort"
+          ]
+        },
+        {
+          "field": "source_url",
+          "sourceUrl": "https://developer.mozilla.org"
         }
       ]
     },
@@ -39,7 +54,9 @@
       "kind": "ai_knowledge",
       "url": "https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal",
       "source": "developer.mozilla.org official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -58,15 +75,27 @@
       "url": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API",
       "source": "developer.mozilla.org official page",
       "evaluationSet": "development",
+      "sampleRole": "development",
+      "qualitySubset": true,
       "repeats": 1,
       "assertions": [
         {
-          "field": "source_url",
-          "sourceUrl": "https://developer.mozilla.org"
+          "field": "title",
+          "mustContain": [
+            "Fetch API"
+          ]
         },
         {
           "field": "main_content",
-          "required": true
+          "required": true,
+          "mustContain": [
+            "fetch()",
+            "HTTP"
+          ]
+        },
+        {
+          "field": "source_url",
+          "sourceUrl": "https://developer.mozilla.org"
         }
       ]
     },
@@ -76,6 +105,8 @@
       "url": "https://developer.mozilla.org/en-US/docs/Web/API/WebSocket",
       "source": "developer.mozilla.org official page",
       "evaluationSet": "development",
+      "sampleRole": "regression",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -94,6 +125,8 @@
       "url": "https://developer.mozilla.org/en-US/docs/Web/API/Window/fetch",
       "source": "developer.mozilla.org official page",
       "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -112,6 +145,8 @@
       "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status",
       "source": "developer.mozilla.org official page",
       "evaluationSet": "development",
+      "sampleRole": "development",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -129,7 +164,9 @@
       "kind": "ai_knowledge",
       "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Methods",
       "source": "developer.mozilla.org official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -147,7 +184,9 @@
       "kind": "ai_knowledge",
       "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers",
       "source": "developer.mozilla.org official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -165,7 +204,9 @@
       "kind": "ai_knowledge",
       "url": "https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Conditional_requests",
       "source": "developer.mozilla.org official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -183,7 +224,9 @@
       "kind": "ai_knowledge",
       "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/all",
       "source": "developer.mozilla.org official page",
-      "evaluationSet": "holdout",
+      "evaluationSet": "development",
+      "sampleRole": "development",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -202,15 +245,27 @@
       "url": "https://playwright.dev/docs/library",
       "source": "playwright.dev official page",
       "evaluationSet": "development",
+      "sampleRole": "regression",
+      "qualitySubset": true,
       "repeats": 1,
       "assertions": [
         {
-          "field": "source_url",
-          "sourceUrl": "https://playwright.dev"
+          "field": "title",
+          "mustContain": [
+            "Library"
+          ]
         },
         {
           "field": "main_content",
-          "required": true
+          "required": true,
+          "mustContain": [
+            "chromium.launch",
+            "browser.close"
+          ]
+        },
+        {
+          "field": "source_url",
+          "sourceUrl": "https://playwright.dev"
         }
       ]
     },
@@ -220,15 +275,26 @@
       "url": "https://playwright.dev/docs/locators",
       "source": "playwright.dev official page",
       "evaluationSet": "development",
+      "sampleRole": "development",
+      "qualitySubset": true,
       "repeats": 1,
       "assertions": [
         {
-          "field": "source_url",
-          "sourceUrl": "https://playwright.dev"
+          "field": "title",
+          "mustContain": [
+            "Locators"
+          ]
         },
         {
           "field": "main_content",
-          "required": true
+          "required": true,
+          "mustContain": [
+            "getByRole"
+          ]
+        },
+        {
+          "field": "source_url",
+          "sourceUrl": "https://playwright.dev"
         }
       ]
     },
@@ -238,6 +304,8 @@
       "url": "https://playwright.dev/docs/network",
       "source": "playwright.dev official page",
       "evaluationSet": "development",
+      "sampleRole": "regression",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -255,7 +323,9 @@
       "kind": "ai_knowledge",
       "url": "https://playwright.dev/docs/browser-contexts",
       "source": "playwright.dev official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -274,6 +344,8 @@
       "url": "https://playwright.dev/docs/api/class-page",
       "source": "playwright.dev official page",
       "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -291,7 +363,9 @@
       "kind": "ai_knowledge",
       "url": "https://playwright.dev/docs/api/class-browser",
       "source": "playwright.dev official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -309,7 +383,9 @@
       "kind": "ai_knowledge",
       "url": "https://playwright.dev/docs/test-assertions",
       "source": "playwright.dev official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -327,7 +403,9 @@
       "kind": "ai_knowledge",
       "url": "https://playwright.dev/docs/auth",
       "source": "playwright.dev official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -345,7 +423,9 @@
       "kind": "ai_knowledge",
       "url": "https://playwright.dev/docs/test-timeouts",
       "source": "playwright.dev official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -364,6 +444,8 @@
       "url": "https://playwright.dev/docs/ci-intro",
       "source": "playwright.dev official page",
       "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -382,6 +464,8 @@
       "url": "https://docs.github.com/en/rest",
       "source": "docs.github.com official page",
       "evaluationSet": "development",
+      "sampleRole": "development",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -399,7 +483,9 @@
       "kind": "ai_knowledge",
       "url": "https://docs.github.com/en/rest/using-the-rest-api",
       "source": "docs.github.com official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -417,7 +503,9 @@
       "kind": "ai_knowledge",
       "url": "https://docs.github.com/en/rest/overview/resources-in-the-rest-api",
       "source": "docs.github.com official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -435,7 +523,9 @@
       "kind": "ai_knowledge",
       "url": "https://docs.github.com/en/rest/authentication/authenticating-to-the-rest-api",
       "source": "docs.github.com official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -454,6 +544,8 @@
       "url": "https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api",
       "source": "docs.github.com official page",
       "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -471,7 +563,9 @@
       "kind": "ai_knowledge",
       "url": "https://docs.github.com/en/rest/pulls/pulls",
       "source": "docs.github.com official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -489,7 +583,9 @@
       "kind": "ai_knowledge",
       "url": "https://docs.github.com/en/rest/issues/issues",
       "source": "docs.github.com official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -507,7 +603,9 @@
       "kind": "ai_knowledge",
       "url": "https://docs.github.com/en/rest/repos/repos",
       "source": "docs.github.com official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -525,7 +623,9 @@
       "kind": "ai_knowledge",
       "url": "https://docs.github.com/en/rest/actions/workflows",
       "source": "docs.github.com official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -544,6 +644,8 @@
       "url": "https://docs.github.com/en/rest/webhooks",
       "source": "docs.github.com official page",
       "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -562,6 +664,8 @@
       "url": "https://nodejs.org/api/globals.html#fetch",
       "source": "nodejs.org official page",
       "evaluationSet": "development",
+      "sampleRole": "regression",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -579,7 +683,9 @@
       "kind": "ai_knowledge",
       "url": "https://nodejs.org/api/globals.html#class-abortcontroller",
       "source": "nodejs.org official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -597,7 +703,9 @@
       "kind": "ai_knowledge",
       "url": "https://nodejs.org/api/http.html",
       "source": "nodejs.org official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -615,7 +723,9 @@
       "kind": "ai_knowledge",
       "url": "https://nodejs.org/api/https.html",
       "source": "nodejs.org official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -634,6 +744,8 @@
       "url": "https://nodejs.org/api/streams.html",
       "source": "nodejs.org official page",
       "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -651,7 +763,9 @@
       "kind": "ai_knowledge",
       "url": "https://nodejs.org/api/url.html",
       "source": "nodejs.org official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -669,7 +783,9 @@
       "kind": "ai_knowledge",
       "url": "https://nodejs.org/api/events.html",
       "source": "nodejs.org official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -687,7 +803,9 @@
       "kind": "ai_knowledge",
       "url": "https://nodejs.org/api/process.html",
       "source": "nodejs.org official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -705,7 +823,9 @@
       "kind": "ai_knowledge",
       "url": "https://nodejs.org/api/fs.html",
       "source": "nodejs.org official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -724,6 +844,8 @@
       "url": "https://nodejs.org/api/cli.html",
       "source": "nodejs.org official page",
       "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -742,6 +864,8 @@
       "url": "https://www.typescriptlang.org/docs/handbook/intro.html",
       "source": "www.typescriptlang.org official page",
       "evaluationSet": "development",
+      "sampleRole": "development",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -759,7 +883,9 @@
       "kind": "ai_knowledge",
       "url": "https://www.typescriptlang.org/docs/handbook/2/everyday-types.html",
       "source": "www.typescriptlang.org official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -777,7 +903,9 @@
       "kind": "ai_knowledge",
       "url": "https://www.typescriptlang.org/docs/handbook/2/functions.html",
       "source": "www.typescriptlang.org official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -795,7 +923,9 @@
       "kind": "ai_knowledge",
       "url": "https://www.typescriptlang.org/docs/handbook/2/objects.html",
       "source": "www.typescriptlang.org official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -814,6 +944,8 @@
       "url": "https://www.typescriptlang.org/docs/handbook/2/classes.html",
       "source": "www.typescriptlang.org official page",
       "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -831,7 +963,9 @@
       "kind": "ai_knowledge",
       "url": "https://www.typescriptlang.org/docs/handbook/2/generics.html",
       "source": "www.typescriptlang.org official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -849,7 +983,9 @@
       "kind": "ai_knowledge",
       "url": "https://www.typescriptlang.org/docs/handbook/2/narrowing.html",
       "source": "www.typescriptlang.org official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -867,7 +1003,9 @@
       "kind": "ai_knowledge",
       "url": "https://www.typescriptlang.org/docs/handbook/2/modules.html",
       "source": "www.typescriptlang.org official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -885,7 +1023,9 @@
       "kind": "ai_knowledge",
       "url": "https://www.typescriptlang.org/docs/handbook/2/type-manipulation/conditional-types.html",
       "source": "www.typescriptlang.org official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -904,6 +1044,8 @@
       "url": "https://www.typescriptlang.org/docs/handbook/project-references.html",
       "source": "www.typescriptlang.org official page",
       "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -921,7 +1063,9 @@
       "kind": "ai_knowledge",
       "url": "https://docs.crawl4ai.com/core/quickstart/",
       "source": "docs.crawl4ai.com official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -939,7 +1083,9 @@
       "kind": "ai_knowledge",
       "url": "https://docs.crawl4ai.com/core/simple-crawling/",
       "source": "docs.crawl4ai.com official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -957,7 +1103,9 @@
       "kind": "ai_knowledge",
       "url": "https://docs.crawl4ai.com/core/crawler-result/",
       "source": "docs.crawl4ai.com official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -975,7 +1123,9 @@
       "kind": "ai_knowledge",
       "url": "https://docs.crawl4ai.com/core/browser-crawler-config/",
       "source": "docs.crawl4ai.com official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -994,6 +1144,8 @@
       "url": "https://docs.crawl4ai.com/core/markdown-generation/",
       "source": "docs.crawl4ai.com official page",
       "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -1011,7 +1163,9 @@
       "kind": "ai_knowledge",
       "url": "https://docs.crawl4ai.com/advanced/multi-url-crawling/",
       "source": "docs.crawl4ai.com official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -1029,7 +1183,9 @@
       "kind": "ai_knowledge",
       "url": "https://docs.crawl4ai.com/advanced/crawl-dispatcher/",
       "source": "docs.crawl4ai.com official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -1047,7 +1203,9 @@
       "kind": "ai_knowledge",
       "url": "https://docs.crawl4ai.com/advanced/hooks-auth/",
       "source": "docs.crawl4ai.com official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -1065,7 +1223,9 @@
       "kind": "ai_knowledge",
       "url": "https://docs.crawl4ai.com/extraction/no-llm-strategies/",
       "source": "docs.crawl4ai.com official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -1084,6 +1244,8 @@
       "url": "https://docs.crawl4ai.com/api/async-webcrawler/",
       "source": "docs.crawl4ai.com official page",
       "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -1101,7 +1263,9 @@
       "kind": "product_info",
       "url": "https://docs.steel.dev/overview/intro-to-steel",
       "source": "docs.steel.dev official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -1120,15 +1284,19 @@
       "url": "https://docs.steel.dev/overview/sessions-api/overview",
       "source": "docs.steel.dev official page",
       "evaluationSet": "development",
+      "sampleRole": "development",
+      "qualitySubset": true,
       "repeats": 1,
       "assertions": [
         {
-          "field": "source_url",
-          "sourceUrl": "https://docs.steel.dev"
+          "field": "specification",
+          "mustContain": [
+            "session"
+          ]
         },
         {
-          "field": "main_content",
-          "required": true
+          "field": "source_url",
+          "sourceUrl": "https://docs.steel.dev"
         }
       ]
     },
@@ -1137,7 +1305,9 @@
       "kind": "product_info",
       "url": "https://docs.steel.dev/overview/sessions-api/quickstart",
       "source": "docs.steel.dev official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -1156,6 +1326,8 @@
       "url": "https://docs.steel.dev/overview/profiles-api/overview",
       "source": "docs.steel.dev official page",
       "evaluationSet": "development",
+      "sampleRole": "regression",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -1174,6 +1346,8 @@
       "url": "https://docs.steel.dev/overview/credentials-api/overview",
       "source": "docs.steel.dev official page",
       "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -1191,7 +1365,9 @@
       "kind": "product_info",
       "url": "https://docs.steel.dev/overview/files-api/overview",
       "source": "docs.steel.dev official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -1209,7 +1385,9 @@
       "kind": "product_info",
       "url": "https://docs.steel.dev/overview/extensions-api/overview",
       "source": "docs.steel.dev official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -1227,7 +1405,9 @@
       "kind": "product_info",
       "url": "https://docs.steel.dev/overview/self-hosting/docker",
       "source": "docs.steel.dev official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -1245,7 +1425,9 @@
       "kind": "product_info",
       "url": "https://docs.steel.dev/cookbook/playwright",
       "source": "docs.steel.dev official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -1264,6 +1446,8 @@
       "url": "https://docs.steel.dev/overview/pricinglimits",
       "source": "docs.steel.dev official page",
       "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -1282,15 +1466,26 @@
       "url": "https://docs.firecrawl.dev/contributing/self-host",
       "source": "docs.firecrawl.dev official page",
       "evaluationSet": "development",
+      "sampleRole": "regression",
+      "qualitySubset": true,
       "repeats": 1,
       "assertions": [
         {
-          "field": "source_url",
-          "sourceUrl": "https://docs.firecrawl.dev"
+          "field": "product_name",
+          "mustContain": [
+            "Firecrawl"
+          ]
         },
         {
-          "field": "main_content",
-          "required": true
+          "field": "specification",
+          "mustContain": [
+            "Docker",
+            "Self-host"
+          ]
+        },
+        {
+          "field": "source_url",
+          "sourceUrl": "https://docs.firecrawl.dev"
         }
       ]
     },
@@ -1299,7 +1494,9 @@
       "kind": "product_info",
       "url": "https://docs.firecrawl.dev/features/interact",
       "source": "docs.firecrawl.dev official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -1317,7 +1514,9 @@
       "kind": "product_info",
       "url": "https://docs.firecrawl.dev/features/monitor",
       "source": "docs.firecrawl.dev official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -1335,7 +1534,9 @@
       "kind": "product_info",
       "url": "https://docs.firecrawl.dev/features/map",
       "source": "docs.firecrawl.dev official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -1354,6 +1555,8 @@
       "url": "https://docs.firecrawl.dev/api-reference/introduction",
       "source": "docs.firecrawl.dev official page",
       "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -1371,7 +1574,9 @@
       "kind": "product_info",
       "url": "https://docs.firecrawl.dev/sdks/cli",
       "source": "docs.firecrawl.dev official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -1389,7 +1594,9 @@
       "kind": "product_info",
       "url": "https://docs.firecrawl.dev/mcp-server/local",
       "source": "docs.firecrawl.dev official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -1407,7 +1614,9 @@
       "kind": "product_info",
       "url": "https://docs.firecrawl.dev/contributing/open-source-or-cloud",
       "source": "docs.firecrawl.dev official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -1425,7 +1634,9 @@
       "kind": "product_info",
       "url": "https://docs.firecrawl.dev/features/scrape",
       "source": "docs.firecrawl.dev official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -1444,6 +1655,8 @@
       "url": "https://docs.firecrawl.dev/features/crawl",
       "source": "docs.firecrawl.dev official page",
       "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -1462,15 +1675,27 @@
       "url": "https://www.browserbase.com/pricing",
       "source": "www.browserbase.com official page",
       "evaluationSet": "development",
+      "sampleRole": "development",
+      "qualitySubset": true,
       "repeats": 1,
       "assertions": [
         {
-          "field": "source_url",
-          "sourceUrl": "https://www.browserbase.com"
+          "field": "product_name",
+          "mustContain": [
+            "Browserbase"
+          ]
         },
         {
-          "field": "main_content",
-          "required": true
+          "field": "pricing",
+          "required": true,
+          "mustContain": [
+            "Developer Plan",
+            "$20/mo"
+          ]
+        },
+        {
+          "field": "source_url",
+          "sourceUrl": "https://www.browserbase.com"
         }
       ]
     },
@@ -1480,6 +1705,8 @@
       "url": "https://www.browserbase.com/browsers",
       "source": "www.browserbase.com official page",
       "evaluationSet": "development",
+      "sampleRole": "regression",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -1497,7 +1724,9 @@
       "kind": "product_info",
       "url": "https://www.browserbase.com/fetch",
       "source": "www.browserbase.com official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -1516,6 +1745,8 @@
       "url": "https://www.browserbase.com/search",
       "source": "www.browserbase.com official page",
       "evaluationSet": "development",
+      "sampleRole": "development",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -1534,6 +1765,8 @@
       "url": "https://www.browserbase.com/runtime",
       "source": "www.browserbase.com official page",
       "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -1551,7 +1784,9 @@
       "kind": "product_info",
       "url": "https://www.browserbase.com/identity",
       "source": "www.browserbase.com official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -1569,7 +1804,9 @@
       "kind": "product_info",
       "url": "https://www.browserbase.com/models",
       "source": "www.browserbase.com official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -1587,7 +1824,9 @@
       "kind": "product_info",
       "url": "https://www.browserbase.com/observability",
       "source": "www.browserbase.com official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -1605,7 +1844,9 @@
       "kind": "product_info",
       "url": "https://www.browserbase.com/solutions/accessing-web-data",
       "source": "www.browserbase.com official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -1624,6 +1865,8 @@
       "url": "https://www.browserbase.com/industry/supply-chain",
       "source": "www.browserbase.com official page",
       "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -1642,15 +1885,26 @@
       "url": "https://www.firecrawl.dev/pricing",
       "source": "www.firecrawl.dev official page",
       "evaluationSet": "development",
+      "sampleRole": "development",
+      "qualitySubset": true,
       "repeats": 1,
       "assertions": [
         {
-          "field": "source_url",
-          "sourceUrl": "https://www.firecrawl.dev"
+          "field": "product_name",
+          "mustContain": [
+            "Firecrawl"
+          ]
         },
         {
-          "field": "main_content",
-          "required": true
+          "field": "pricing",
+          "required": true,
+          "mustContain": [
+            "credits"
+          ]
+        },
+        {
+          "field": "source_url",
+          "sourceUrl": "https://www.firecrawl.dev"
         }
       ]
     },
@@ -1659,7 +1913,9 @@
       "kind": "product_info",
       "url": "https://www.firecrawl.dev/blog/firecrawl-monitoring-launch",
       "source": "www.firecrawl.dev official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -1677,7 +1933,9 @@
       "kind": "product_info",
       "url": "https://www.firecrawl.dev/blog",
       "source": "www.firecrawl.dev official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -1695,7 +1953,9 @@
       "kind": "product_info",
       "url": "https://www.firecrawl.dev/developers",
       "source": "www.firecrawl.dev official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -1714,6 +1974,8 @@
       "url": "https://www.firecrawl.dev/enterprise",
       "source": "www.firecrawl.dev official page",
       "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -1731,7 +1993,9 @@
       "kind": "product_info",
       "url": "https://www.firecrawl.dev/about",
       "source": "www.firecrawl.dev official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -1749,7 +2013,9 @@
       "kind": "product_info",
       "url": "https://www.firecrawl.dev/security",
       "source": "www.firecrawl.dev official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -1767,7 +2033,9 @@
       "kind": "product_info",
       "url": "https://www.firecrawl.dev/terms",
       "source": "www.firecrawl.dev official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -1785,7 +2053,9 @@
       "kind": "product_info",
       "url": "https://www.firecrawl.dev/contact",
       "source": "www.firecrawl.dev official page",
-      "evaluationSet": "development",
+      "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {
@@ -1804,6 +2074,8 @@
       "url": "https://www.firecrawl.dev/changelog",
       "source": "www.firecrawl.dev official page",
       "evaluationSet": "holdout",
+      "sampleRole": "independent_holdout",
+      "qualitySubset": false,
       "repeats": 1,
       "assertions": [
         {

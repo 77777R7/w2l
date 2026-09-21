@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 
 const hosts = [
   ['developer.mozilla.org', 'ai_knowledge', [
@@ -15,21 +15,72 @@ const hosts = [
   ['www.firecrawl.dev', 'product_info', ['pricing', 'blog/firecrawl-monitoring-launch', 'blog', 'developers', 'enterprise', 'about', 'security', 'terms', 'contact', 'changelog']],
 ]
 
+const qualitySubset = new Map([
+  ['https://developer.mozilla.org/en-US/docs/Web/API/AbortController', [
+    { field: 'title', mustContain: ['AbortController'] },
+    { field: 'main_content', required: true, mustContain: ['AbortSignal', 'abort'] },
+    { field: 'source_url', sourceUrl: 'https://developer.mozilla.org' },
+  ]],
+  ['https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API', [
+    { field: 'title', mustContain: ['Fetch API'] },
+    { field: 'main_content', required: true, mustContain: ['fetch()', 'HTTP'] },
+    { field: 'source_url', sourceUrl: 'https://developer.mozilla.org' },
+  ]],
+  ['https://playwright.dev/docs/locators', [
+    { field: 'title', mustContain: ['Locators'] },
+    { field: 'main_content', required: true, mustContain: ['getByRole'] },
+    { field: 'source_url', sourceUrl: 'https://playwright.dev' },
+  ]],
+  ['https://www.firecrawl.dev/pricing', [
+    { field: 'product_name', mustContain: ['Firecrawl'] },
+    { field: 'pricing', required: true, mustContain: ['credits'] },
+    { field: 'source_url', sourceUrl: 'https://www.firecrawl.dev' },
+  ]],
+  ['https://www.browserbase.com/pricing', [
+    { field: 'product_name', mustContain: ['Browserbase'] },
+    { field: 'pricing', required: true, mustContain: ['Developer Plan', '$20/mo'] },
+    { field: 'source_url', sourceUrl: 'https://www.browserbase.com' },
+  ]],
+  ['https://docs.steel.dev/overview/sessions-api/overview', [
+    { field: 'specification', mustContain: ['session'] },
+    { field: 'source_url', sourceUrl: 'https://docs.steel.dev' },
+  ]],
+  ['https://docs.firecrawl.dev/contributing/self-host', [
+    { field: 'product_name', mustContain: ['Firecrawl'] },
+    { field: 'specification', mustContain: ['Docker', 'Self-host'] },
+    { field: 'source_url', sourceUrl: 'https://docs.firecrawl.dev' },
+  ]],
+  ['https://playwright.dev/docs/library', [
+    { field: 'title', mustContain: ['Library'] },
+    { field: 'main_content', required: true, mustContain: ['chromium.launch', 'browser.close'] },
+    { field: 'source_url', sourceUrl: 'https://playwright.dev' },
+  ]],
+])
+
+const a5 = JSON.parse(await readFile('research/phase4_real_tasks.json', 'utf8'))
+const a5Urls = new Set(a5.tasks.map((task) => task.url))
+const a5TunedUrls = new Set(a5.tasks.filter((task) => task.evaluationSet === 'development').map((task) => task.url))
+
 const tasks = []
 let index = 0
 for (const [host, kind, paths] of hosts) {
   for (const path of paths) {
     index++
-    const id = `a6-${String(index).padStart(3, '0')}-${host.replaceAll('.', '-')}`
-    const holdout = index % 5 === 0
+    const url = `https://${host}/${path}`
+    const quality = qualitySubset.get(url)
+    const tuned = a5TunedUrls.has(url)
+    const seen = a5Urls.has(url)
+    const sampleRole = tuned ? 'development' : seen ? 'regression' : 'independent_holdout'
     tasks.push({
-      id,
+      id: `a6-${String(index).padStart(3, '0')}-${host.replaceAll('.', '-')}`,
       kind,
-      url: `https://${host}/${path}`,
+      url,
       source: `${host} official page`,
-      evaluationSet: holdout ? 'holdout' : 'development',
+      evaluationSet: sampleRole === 'independent_holdout' ? 'holdout' : 'development',
+      sampleRole,
+      qualitySubset: quality !== undefined,
       repeats: 1,
-      assertions: [
+      assertions: quality ?? [
         { field: 'source_url', sourceUrl: `https://${host}` },
         { field: 'main_content', required: true },
       ],
@@ -38,9 +89,23 @@ for (const [host, kind, paths] of hosts) {
 }
 
 const manifest = {
-  version: 'phase4-a6-v0.1-2026-09-20',
-  policy: { sources: 'public official pages', allowedActions: ['GET scrape'], login: false, formSubmission: false, captchaHandling: false, holdoutRule: 'holdout pages are evaluation-only' },
-  target: { pages: tasks.length, domains: hosts.length, holdoutPages: tasks.filter((task) => task.evaluationSet === 'holdout').length },
+  version: 'phase4-a6-v0.2-2026-09-21',
+  policy: {
+    sources: 'public official pages',
+    allowedActions: ['GET scrape'],
+    login: false,
+    formSubmission: false,
+    captchaHandling: false,
+    holdoutRule: 'independent_holdout pages were not used to tune extraction or assertions; labeled holdout in A6 v0.1 is not treated as independent',
+  },
+  target: {
+    pages: tasks.length,
+    domains: hosts.length,
+    developmentPages: tasks.filter((task) => task.sampleRole === 'development').length,
+    regressionPages: tasks.filter((task) => task.sampleRole === 'regression').length,
+    independentHoldoutPages: tasks.filter((task) => task.sampleRole === 'independent_holdout').length,
+    qualitySubsetPages: tasks.filter((task) => task.qualitySubset === true).length,
+  },
   tasks,
 }
 await mkdir('research', { recursive: true })

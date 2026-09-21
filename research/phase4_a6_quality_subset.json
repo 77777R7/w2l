@@ -1,0 +1,81 @@
+{
+  "generatedAt": "2026-09-21T03:33:07.099Z",
+  "sourceReport": "output/phase4/a6-report-run2.json",
+  "summary": {
+    "qualitySubsetRuns": 8,
+    "qualitySubsetCorrectComplete": 7,
+    "missingReport": 0
+  },
+  "rows": [
+    {
+      "taskId": "a6-001-developer-mozilla-org",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/API/AbortController",
+      "sampleRole": "development",
+      "fetchStatus": "success",
+      "outcome": "partial_missing_fields",
+      "assertions": [
+        {
+          "field": "main_content",
+          "outcome": "fail",
+          "detail": "missing=AbortSignal,abort; forbidden=; sourceMismatch=false; requiredMissing=false"
+        }
+      ]
+    },
+    {
+      "taskId": "a6-003-developer-mozilla-org",
+      "url": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API",
+      "sampleRole": "development",
+      "fetchStatus": "success",
+      "outcome": "correct_complete",
+      "assertions": []
+    },
+    {
+      "taskId": "a6-011-playwright-dev",
+      "url": "https://playwright.dev/docs/library",
+      "sampleRole": "regression",
+      "fetchStatus": "success",
+      "outcome": "correct_complete",
+      "assertions": []
+    },
+    {
+      "taskId": "a6-012-playwright-dev",
+      "url": "https://playwright.dev/docs/locators",
+      "sampleRole": "development",
+      "fetchStatus": "success",
+      "outcome": "correct_complete",
+      "assertions": []
+    },
+    {
+      "taskId": "a6-062-docs-steel-dev",
+      "url": "https://docs.steel.dev/overview/sessions-api/overview",
+      "sampleRole": "development",
+      "fetchStatus": "success",
+      "outcome": "correct_complete",
+      "assertions": []
+    },
+    {
+      "taskId": "a6-071-docs-firecrawl-dev",
+      "url": "https://docs.firecrawl.dev/contributing/self-host",
+      "sampleRole": "regression",
+      "fetchStatus": "success",
+      "outcome": "correct_complete",
+      "assertions": []
+    },
+    {
+      "taskId": "a6-081-www-browserbase-com",
+      "url": "https://www.browserbase.com/pricing",
+      "sampleRole": "development",
+      "fetchStatus": "success",
+      "outcome": "correct_complete",
+      "assertions": []
+    },
+    {
+      "taskId": "a6-091-www-firecrawl-dev",
+      "url": "https://www.firecrawl.dev/pricing",
+      "sampleRole": "development",
+      "fetchStatus": "success",
+      "outcome": "correct_complete",
+      "assertions": []
+    }
+  ]
+}

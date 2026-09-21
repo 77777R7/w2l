@@ -1,17 +1,25 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 
+function metersOf(result) {
+  return result.summary ?? result.usage
+}
+
 function meters(report) {
   const rows = report.runs.filter((run) => run.result)
-  const known = rows.map((run) => run.result.usage.externalCostUsd).filter((value) => value !== null)
+  const known = rows.map((run) => metersOf(run.result).externalCostUsd).filter((value) => value !== null)
+  const bytesKnown = rows.every((run) => metersOf(run.result).bytesWire != null)
+  const tokensKnown = rows.every((run) => metersOf(run.result).contentTokens != null)
   return {
     runs: rows.length,
-    wallMs: rows.reduce((sum, run) => sum + (run.result.usage.wallMs ?? 0), 0),
-    browserMs: rows.reduce((sum, run) => sum + (run.result.usage.browserMs ?? 0), 0),
-    requestCount: rows.reduce((sum, run) => sum + (run.result.usage.requestCount ?? 0), 0),
-    contentTokens: rows.reduce((sum, run) => sum + (run.result.usage.contentTokens ?? 0), 0),
-    bytesWire: rows.reduce((sum, run) => sum + (run.result.usage.bytesWire ?? 0), 0),
-    unknownCostRuns: rows.filter((run) => run.result.usage.externalCostUsd === null).length,
+    wallMs: rows.reduce((sum, run) => sum + (metersOf(run.result).wallMs ?? 0), 0),
+    browserMs: rows.reduce((sum, run) => sum + (metersOf(run.result).browserMs ?? 0), 0),
+    requestCount: rows.reduce((sum, run) => sum + (metersOf(run.result).requestCount ?? 0), 0),
+    contentTokens: tokensKnown ? rows.reduce((sum, run) => sum + (metersOf(run.result).contentTokens ?? 0), 0) : null,
+    bytesWire: bytesKnown ? rows.reduce((sum, run) => sum + (metersOf(run.result).bytesWire ?? 0), 0) : null,
+    unknownCostRuns: rows.filter((run) => metersOf(run.result).externalCostUsd === null).length,
     knownExternalCostUsd: known.length === rows.length && rows.length > 0 ? known.reduce((sum, value) => sum + value, 0) : null,
+    bytesWireUnknownRuns: rows.filter((run) => metersOf(run.result).bytesWire == null).length,
+    contentTokensUnknownRuns: rows.filter((run) => metersOf(run.result).contentTokens == null).length,
   }
 }
 

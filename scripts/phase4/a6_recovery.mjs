@@ -71,7 +71,7 @@ async function snapshot(dir) {
     const steps = await store.listSteps(task.id)
     return {
       taskId: task.id,
-      attempts: attempts.map((attempt) => ({ id: attempt.id, status: attempt.status, pagesFetched: attempt.pagesFetched, costUsd: attempt.costUsd, costUnknown: attempt.costUnknown })),
+      attempts: attempts.map((attempt) => ({ id: attempt.id, status: attempt.status, pagesFetched: attempt.pagesFetched, costUsd: attempt.costUsd, costUnknown: attempt.costUnknown, recoveredFromAttemptId: attempt.recoveredFromAttemptId ?? null, endedAt: attempt.endedAt })),
       steps: steps.map((step) => ({
         id: step.id,
         attemptId: step.attemptId,
@@ -213,6 +213,10 @@ const report = {
   failedPages,
   sameTaskId: afterKill?.taskId != null && afterKill.taskId === afterResume?.taskId,
   newAttempt: (afterResume?.attempts.length ?? 0) > (afterKill?.attempts.length ?? 0),
+  interruptedAttemptStatus: (afterResume?.attempts ?? []).find((attempt) => attempt.status === 'interrupted')?.status
+    ?? (afterResume?.attempts ?? []).find((attempt) => attempt.status === 'running')?.status
+    ?? null,
+  recoveredFromAttemptId: (afterResume?.attempts ?? []).find((attempt) => attempt.recoveredFromAttemptId)?.recoveredFromAttemptId ?? null,
   error,
   status: error === null && lostUrls.length === 0 && recoveredCanons.size === uniqueCanons.size && afterKill?.taskId === afterResume?.taskId && (afterResume?.attempts.length ?? 0) >= 2
     ? (failedPages.length === 0 ? 'passed' : 'passed_with_live_fetch_failures')

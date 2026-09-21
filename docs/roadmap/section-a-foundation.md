@@ -2,11 +2,18 @@
 
 Section A turns a URL or permitted task into data that can be checked, explained, repeated, and recovered.
 
-## Current Focus: A4–A6 evidence closeout
+## Current Focus: A→B handoff calibration
 
-A4 diagnosis, A5 quality on the 20-task slice, and A6 scale/recovery/install evidence are recorded. External billed USD remains unknown. Do not start Section B or C feature work as a substitute for that evidence.
+Section A is a scoped developer alpha. Do not treat PR #39 `accepted_with_unknown_external_usd` as an unconditional A6 pass. Do not start B2–B4. A B1 prototype may be designed only after this handoff list is honest:
 
-The first manifest lives at `research/phase4_real_tasks.json`. It intentionally contains a small six-task slice so failures can be inspected manually before expanding to 100–200 pages.
+- pair-level repeat scoring
+- field-level quality subset, separate from scale nonempty checks
+- independent holdout vs labeled holdout
+- interrupted attempt terminal state
+- second-developer install deferred as an explicit exception
+- billed USD unknown, resource meters comparable
+
+The field-level A5 manifest lives at `research/phase4_real_tasks.json` (20 tasks). The A6 scale manifest lives at `research/phase4_a6_real_tasks.json` (100 tasks).
 
 ## A4 Review Questions
 

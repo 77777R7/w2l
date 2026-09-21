@@ -2,7 +2,7 @@
 
 Status: `passed_with_live_fetch_failures`.
 
-Executed against the A6 URL set on current `main` (`6d98982`) using the crawl checkpoint, not `runRealTasks()`.
+Executed against the A6 URL set on `feat/a-handoff-calibration` using the crawl checkpoint, not `runRealTasks()`. Fresh rerun after compiling runtime `dist/` so resume uses the interrupted-attempt path.
 
 ## Protocol Run
 
@@ -16,8 +16,10 @@ Executed against the A6 URL set on current `main` (`6d98982`) using the crawl ch
 
 | Check | Evidence |
 | --- | --- |
-| Same task id | `2d168f19-6e7c-4fe2-8d03-a06d07f280cd` |
+| Same task id | `7ede560d-9c8a-4ce8-9fce-879ac4fc52c4` shares the killed task; killed attempt `f7e5af80-f5ec-4590-bdf7-6c15450ce250` |
 | New attempt after resume | yes (attempt 2 completed) |
+| Killed attempt terminal state | `interrupted`, `endedAt` set, `pagesFetched: 15`, `costUsd: null` |
+| recoveredFromAttemptId | `f7e5af80-f5ec-4590-bdf7-6c15450ce250` |
 | Lost completed URLs | 0 |
 | Canonical A6 targets recovered | 99/99 (two Node.js hash URLs collapse to one page) |
 | Field assertions on recovered pages | 96/100 `correct_complete` |
