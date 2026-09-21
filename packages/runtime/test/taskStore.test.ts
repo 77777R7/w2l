@@ -274,6 +274,7 @@ describe('@w2l/runtime public surface', () => {
       'Frontier',
       'MemoryTaskStore',
       'MonitorStore',
+      'RecipeStore',
       'SqliteTaskStore',
       'assessFirecrawlIntroduction',
       'canonicalizeUrl',
