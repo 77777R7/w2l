@@ -96,10 +96,21 @@ B3 has started with the managed-profile-only session slice:
 - `POST /v1/sessions/:id/authorize`
 - `POST /v1/sessions/:id/capture`
 - `POST /v1/sessions/:id/revoke`
+- `GET /v1/sessions/:id`
+- `POST /v1/sessions/:id/renew`
+- `POST /v1/sessions/:id/handoff`
 
 The slice uses `workspaceId`, `accountRef`, `originScope`, `profileDir`, `grantEpoch`, `state`, and revoke/expiry checks. A new session starts as `waiting_user`; capture is denied until explicit authorization; revoke increments the grant epoch and blocks future capture.
 
 Existing Chrome/CDP, vendor sessions, multi-step recipes, and CAPTCHA handling remain out of scope.
+
+## B3 Phase 2
+
+Phase 2 adds persisted `waiting_user` handoff metadata, status querying,
+expiry renewal, revoke as a terminal state, and grant-epoch rotation on renewal.
+An expired active grant returns `expired` and must be renewed into
+`waiting_user`; a revoked grant cannot be resurrected and requires a new
+session. Handoff records carry an ID, reason, creation time, and expiry.
 
 ## Current Prototype Boundary
 

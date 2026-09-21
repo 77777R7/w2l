@@ -49,6 +49,9 @@ export interface ApiEngine {
   createManagedSession(input: { workspaceId: string; accountRef: string; originScope: string; expiresAt?: string | null }): Promise<ManagedSessionRef>
   authorizeManagedSession(sessionRef: string, accountRef: string): Promise<ManagedSessionRef>
   revokeManagedSession(sessionRef: string): Promise<void>
+  getManagedSession(sessionRef: string): Promise<ManagedSessionRef>
+  renewManagedSession(sessionRef: string, expiresAt?: string | null): Promise<ManagedSessionRef>
+  requestManagedHandoff(sessionRef: string, reason: string, expiresAt?: string | null): Promise<ManagedSessionRef>
   captureManagedSession(input: { sessionRef: string; workspaceId: string; accountRef: string; url: string }): Promise<FetchResult | SessionAccessResult>
   close(): Promise<void>
 }
@@ -233,6 +236,12 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
     async revokeManagedSession(sessionRef) {
       await sessionBroker.revoke(sessionRef)
     },
+
+    async getManagedSession(sessionRef) { return sessionBroker.getSession(sessionRef) },
+
+    async renewManagedSession(sessionRef, expiresAt) { return sessionBroker.renewExpired(sessionRef, expiresAt) },
+
+    async requestManagedHandoff(sessionRef, reason, expiresAt) { return sessionBroker.requestHandoff(sessionRef, reason, expiresAt) },
 
     async captureManagedSession(input) {
       const access = await sessionBroker.grant({ ...input, origin: input.url })

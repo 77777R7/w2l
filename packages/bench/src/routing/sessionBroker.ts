@@ -42,6 +42,7 @@ export class SessionBroker {
       sessionRef: crypto.randomUUID(), profileId: crypto.randomUUID(), workspaceId: input.workspaceId,
       accountRef: input.accountRef, originScope: normalizeOrigin(input.originScope), profileDir: input.profileDir,
       grantEpoch: 1, state: 'waiting_user', createdAt: now, updatedAt: now, revokedAt: null, expiresAt: input.expiresAt ?? null,
+      handoff: { handoffId: crypto.randomUUID(), reason: 'user_authorization_required', createdAt: now, expiresAt: input.expiresAt ?? new Date(Date.now() + 900_000).toISOString() },
     }
     await this.store.put(session)
     return session
@@ -50,7 +51,7 @@ export class SessionBroker {
   async markAuthorized(sessionRef: string, accountRef: string): Promise<ManagedSessionRef> {
     const session = await this.require(sessionRef)
     if (session.accountRef !== accountRef) throw new Error('accountRef mismatch')
-    const next = { ...session, state: 'active' as const, updatedAt: new Date().toISOString() }
+    const next = { ...session, state: 'active' as const, updatedAt: new Date().toISOString(), handoff: null }
     await this.store.put(next)
     return next
   }
@@ -58,6 +59,26 @@ export class SessionBroker {
   async revoke(sessionRef: string): Promise<void> {
     const session = await this.require(sessionRef)
     await this.store.put({ ...session, state: 'revoked', grantEpoch: session.grantEpoch + 1, revokedAt: new Date().toISOString(), updatedAt: new Date().toISOString() })
+  }
+
+  async renewExpired(sessionRef: string, expiresAt: string | null = null): Promise<ManagedSessionRef> {
+    const session = await this.require(sessionRef)
+    if (session.state === 'revoked') throw new Error('revoked sessions cannot be renewed; create a new grant')
+    const now = new Date().toISOString()
+    const nextExpiresAt = expiresAt ?? new Date(Date.now() + 900_000).toISOString()
+    const next = { ...session, state: 'waiting_user' as const, grantEpoch: session.grantEpoch + 1, revokedAt: null, updatedAt: now, expiresAt: nextExpiresAt, handoff: { handoffId: crypto.randomUUID(), reason: 'renewal_authorization_required', createdAt: now, expiresAt: nextExpiresAt } }
+    await this.store.put(next)
+    return next
+  }
+
+  async requestHandoff(sessionRef: string, reason: string, expiresAt: string | null = null): Promise<ManagedSessionRef> {
+    const session = await this.require(sessionRef)
+    if (!reason.trim()) throw new Error('handoff reason is required')
+    const now = new Date().toISOString()
+    const deadline = expiresAt ?? new Date(Date.now() + 900_000).toISOString()
+    const next = { ...session, state: 'waiting_user' as const, updatedAt: now, handoff: { handoffId: crypto.randomUUID(), reason, createdAt: now, expiresAt: deadline } }
+    await this.store.put(next)
+    return next
   }
 
   async getSession(sessionRef: string): Promise<ManagedSessionRef> {
@@ -70,7 +91,10 @@ export class SessionBroker {
     if (session.workspaceId !== input.workspaceId || session.accountRef !== input.accountRef || !originAllowed(session.originScope, input.origin)) return { kind: 'revoked', sessionRef: input.sessionRef, reason: 'scope_mismatch' }
     const now = input.now ?? new Date()
     if (session.state === 'revoked') return { kind: 'revoked', sessionRef: session.sessionRef, reason: 'grant_revoked' }
-    if (session.expiresAt !== null && new Date(session.expiresAt).getTime() <= now.getTime()) return { kind: 'expired', sessionRef: session.sessionRef, reason: 'grant_expired' }
+    if (session.expiresAt !== null && new Date(session.expiresAt).getTime() <= now.getTime()) {
+      if (session.state === 'active') await this.store.put({ ...session, state: 'expired', updatedAt: now.toISOString(), handoff: { handoffId: crypto.randomUUID(), reason: 'grant_expired', createdAt: now.toISOString(), expiresAt: new Date(now.getTime() + 900_000).toISOString() } })
+      return { kind: 'expired', sessionRef: session.sessionRef, reason: 'grant_expired' }
+    }
     if (session.state === 'waiting_user') return { kind: 'waiting_user', sessionRef: session.sessionRef, reason: 'user_authorization_required' }
     const grant: SessionGrant = { sessionRef: session.sessionRef, workspaceId: session.workspaceId, accountRef: session.accountRef, originScope: session.originScope, grantEpoch: session.grantEpoch, expiresAt: session.expiresAt }
     return { kind: 'granted', grant }
