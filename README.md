@@ -132,7 +132,7 @@ docs/
 - [x] Phase A4 diagnostic expansion: 20 real tasks, 11 domains, 40 repeated runs, and holdout results
 - [x] A6 scale slice: 100 pages, 10 domains, two runs; labeled holdout is not independent
 - [x] A6 recovery/install/correction/cost evidence: interrupt-resume lost 0 URLs; clean-clone first task; 18 minutes human correction; billed USD unknown
-- [ ] A6 unconditional pass: second-developer install, interrupted-attempt terminal evidence on a fresh recovery run, and field-level quality subset
+- [ ] A6 unconditional pass: second-developer install remains deferred; billed USD unknown
 - [x] A5/A6 gate report: conditional alpha; billed USD remains unknown
 - [x] Phase 3 Benchmark Gate harness: fixed W2L run, comparator evidence, and blocked-until-real-comparators decision
 - [ ] Hosted Egress Gate: browser subresource policy enforcement and DNS-to-connection binding

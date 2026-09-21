@@ -120,7 +120,7 @@ Section B and Section C are future product directions, not current implementatio
 
 **Scope:** 100–200 permitted pages across 10–20 domains, development vs holdout separation, repeat runs, interruption/recovery checks, installation and first-task validation by another developer, and support-boundary documentation.
 
-**Status:** conditional developer alpha. Scale and recovery evidence exist. Remaining handoff: field-level quality subset, interrupted-attempt terminal state on a fresh recovery run, independent holdout labeling, and second-developer install.
+**Status:** conditional developer alpha. Scale and recovery evidence exist, including a fresh recovery run that marks the killed attempt `interrupted`. Remaining handoff: second-developer install (deferred) and billed USD unknown.
 
 **Exit:** a self-hosted developer alpha with a clear supported scope. It is not a claim of universal web success or public hosted readiness. `accepted_with_unknown_external_usd` from PR #39 is evidence of recorded files, not this exit.
 

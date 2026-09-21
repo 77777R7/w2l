@@ -24,7 +24,7 @@ Do not start B2, B3, or B4. Do not add another 100-page sample for its own sake.
 ## Remaining Open Conditions
 
 - Second-developer install: deferred exception. Clean clone on the author machine is recorded.
-- Interrupted attempt terminal state: implemented in orchestrator; prior recovery JSON still shows the killed attempt as `running` until a fresh recovery run.
+- Interrupted attempt terminal state: fresh recovery run marks the killed attempt `interrupted` and stores `recoveredFromAttemptId`.
 - Billed USD: unknown. Resource meters are comparable.
 - Quality subset live rescoring needs the local A6 report files.
 

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-21T03:34:23.937Z",
+  "generatedAt": "2026-09-21T04:38:45.860Z",
   "a5": {
     "status": "quality_closed_unknown_billed_usd",
     "scoring": {
@@ -30,7 +30,7 @@
     "open": []
   },
   "a6": {
-    "status": "partial",
+    "status": "conditional_alpha_second_developer_deferred",
     "scale": {
       "pagesPerRun": 100,
       "runs": 200,
@@ -102,9 +102,9 @@
       },
       {
         "id": "recovery_interrupted_attempt_terminal",
-        "ok": false,
+        "ok": true,
         "evidence": {
-          "interruptedAttemptStatus": "not_recorded",
+          "interruptedAttemptStatus": "interrupted",
           "note": "prior SIGKILL evidence left the killed attempt running; this condition stays open until rerun"
         },
         "requiredForAcceptance": true
@@ -165,12 +165,10 @@
     "humanCorrectionMinutes": 18,
     "cost": "unknown",
     "supportBoundary": "research/phase4_support_boundary.md",
-    "open": [
-      "recovery_interrupted_attempt_terminal"
-    ],
+    "open": [],
     "deferredExceptions": [
       "second_developer_install"
     ]
   },
-  "decision": "Section A remains open: recovery_interrupted_attempt_terminal."
+  "decision": "Section A is a scoped developer alpha. A6 is not an unconditional pass: second-developer install is deferred, billed USD is unknown, and labeled A6 holdout is not independent."
 }

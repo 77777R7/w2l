@@ -1,7 +1,7 @@
 {
   "phase": "A6",
-  "generatedAt": "2026-09-21T03:33:07.151Z",
-  "status": "partial",
+  "generatedAt": "2026-09-21T04:38:45.826Z",
+  "status": "conditional_alpha_second_developer_deferred",
   "scale": {
     "pagesPerRun": 100,
     "runs": 200,
@@ -73,9 +73,9 @@
     },
     {
       "id": "recovery_interrupted_attempt_terminal",
-      "ok": false,
+      "ok": true,
       "evidence": {
-        "interruptedAttemptStatus": "not_recorded",
+        "interruptedAttemptStatus": "interrupted",
         "note": "prior SIGKILL evidence left the killed attempt running; this condition stays open until rerun"
       },
       "requiredForAcceptance": true
@@ -131,9 +131,7 @@
       "requiredForAcceptance": true
     }
   ],
-  "openGates": [
-    "recovery_interrupted_attempt_terminal"
-  ],
+  "openGates": [],
   "deferredExceptions": [
     "second_developer_install"
   ],
