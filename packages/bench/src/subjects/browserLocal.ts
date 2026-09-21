@@ -13,7 +13,7 @@ import {
   type ComplianceRecord,
   type ComplianceSentHeader,
 } from '@w2l/http-core'
-import { chromium, type Browser, type Response } from 'playwright'
+import { chromium, type Browser, type BrowserContext, type Response } from 'playwright'
 import { assertSafeUrl, BodyTooLargeError, defaultNetworkPolicy } from '../egress.js'
 import type { SubjectAdapter } from '../subject.js'
 import { RobotsOriginCache } from '../robotsLookup.js'
@@ -70,6 +70,8 @@ export class BrowserLocalSubject implements SubjectAdapter {
 
   private browser: Browser | null = null
   private browserPromise: Promise<Browser> | null = null
+  private managedContext: BrowserContext | null = null
+  private managedContextPromise: Promise<BrowserContext> | null = null
   /** Per-host last-request timestamp, for honest rate-limit facts. */
   private readonly lastRequestAtMsByHost = new Map<string, number>()
   /**
@@ -100,6 +102,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
     access?: AccessConfigInput | null,
     private readonly headed = false,
     networkPolicy?: NetworkPolicy,
+    private readonly managedProfileDir: string | null = null,
   ) {
     this.chain = new ComplianceChain(crypto.randomUUID(), mode)
     this.access = normalizeAccessConfig(access)
@@ -107,6 +110,9 @@ export class BrowserLocalSubject implements SubjectAdapter {
     this.networkPolicy = networkPolicy ?? defaultNetworkPolicy()
     this.robotsCache = new RobotsOriginCache(this.networkPolicy)
   }
+
+  /** Managed profile is a distinct lifecycle path; it is never implied by an anonymous subject. */
+  profileDir(): string | null { return this.managedProfileDir }
 
   /** Snapshot of the run's ledger, for callers that persist or verify it. */
   ledger(): ReturnType<ComplianceChain['toLedger']> {
@@ -122,7 +128,8 @@ export class BrowserLocalSubject implements SubjectAdapter {
     } catch (err) {
       return this.denied(url, start, trace, err)
     }
-      const browser = await this.getBrowser()
+      const managedContext = this.managedProfileDir === null ? null : await this.getManagedContext()
+      const browser = managedContext?.browser() ?? await this.getBrowser()
       if (signal?.aborted) return this.denied(url, Date.now(), [], new Error('aborted'))
 
     let context
@@ -218,7 +225,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
         }
       }
 
-      context = await browser.newContext({
+      context = managedContext ?? await browser.newContext({
         userAgent: identity.userAgent,
         locale: BROWSER_FINGERPRINT.locale,
         timezoneId: BROWSER_FINGERPRINT.timezoneId,
@@ -520,7 +527,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
       }
     } finally {
       await page?.close().catch(() => {})
-      await context?.close().catch(() => {})
+      if (context !== this.managedContext) await context?.close().catch(() => {})
     }
   }
 
@@ -599,7 +606,20 @@ export class BrowserLocalSubject implements SubjectAdapter {
     return this.browserPromise
   }
 
+  private async getManagedContext(): Promise<BrowserContext> {
+    if (this.managedContext !== null) return this.managedContext
+    if (this.managedContextPromise === null) {
+      this.managedContextPromise = chromium.launchPersistentContext(this.managedProfileDir!, { headless: !this.headed })
+        .then((context) => { this.managedContext = context; return context })
+        .catch((error) => { this.managedContextPromise = null; throw error })
+    }
+    return this.managedContextPromise
+  }
+
   async teardown(): Promise<void> {
+    await this.managedContext?.close().catch(() => {})
+    this.managedContext = null
+    this.managedContextPromise = null
     const pending = this.browserPromise
     if (pending !== null && this.browser === null) await pending.catch(() => {})
     await this.browser?.close().catch(() => {})

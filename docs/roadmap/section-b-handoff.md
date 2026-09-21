@@ -88,6 +88,19 @@ polling loop, not the persisted claim/lease/commit protocol.
 
 The current slice has verified initialization and unchanged refresh semantics through `POST /v1/monitors/firecrawl-introduction/run` and `GET /v1/monitors/firecrawl-introduction`. A field-change event is covered by the SQLite test; a real source change still requires a later live run when the document changes. Full regression is green at 826 tests.
 
+## B3 Scope Now Started
+
+B3 has started with the managed-profile-only session slice:
+
+- `POST /v1/sessions/managed`
+- `POST /v1/sessions/:id/authorize`
+- `POST /v1/sessions/:id/capture`
+- `POST /v1/sessions/:id/revoke`
+
+The slice uses `workspaceId`, `accountRef`, `originScope`, `profileDir`, `grantEpoch`, `state`, and revoke/expiry checks. A new session starts as `waiting_user`; capture is denied until explicit authorization; revoke increments the grant epoch and blocks future capture.
+
+Existing Chrome/CDP, vendor sessions, multi-step recipes, and CAPTCHA handling remain out of scope.
+
 ## Current Prototype Boundary
 
 The prototype has one fixed monitor and one local SQLite control database. It now has persisted trigger idempotency, lease/epoch/baseline checks, an explicit `nextRunAt` path, and local outbox state. It is not yet a general scheduler, HTTP cache validator, session broker, or workflow engine. Those remain follow-up work after this vertical slice proves the data/version semantics.

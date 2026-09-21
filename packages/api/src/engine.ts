@@ -7,6 +7,7 @@ import { existsSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   buildChannels,
+  BrowserLocalSubject,
   LadderRunner,
   LadderScrapeAtom,
   MemoryRoutingHistory,
@@ -29,7 +30,9 @@ import type { CrawlPolicy } from '@w2l/http-core'
 import { CrawlOrchestrator, crawlReportFromStore, SqliteTaskStore } from '@w2l/runtime'
 import { initializeFirecrawlMonitor, runFirecrawlMonitor as executeMonitor } from '@w2l/runtime'
 import { MonitorStore } from '@w2l/runtime'
+import { FileSessionBrokerStore, SessionBroker } from '@w2l/bench'
 import { FIRECRAWL_INTRO_URL, FIRECRAWL_MONITOR_ID, type MonitorView } from '@w2l/contracts'
+import type { ManagedSessionRef, SessionAccessResult } from '@w2l/contracts'
 
 export interface CrawlWithSteps {
   report: CrawlReport
@@ -43,6 +46,10 @@ export interface ApiEngine {
   getCrawlWithSteps(taskId: string): Promise<CrawlWithSteps | null>
   runFirecrawlMonitor(triggerKey?: string): Promise<MonitorView>
   getFirecrawlMonitor(): Promise<MonitorView>
+  createManagedSession(input: { workspaceId: string; accountRef: string; originScope: string; expiresAt?: string | null }): Promise<ManagedSessionRef>
+  authorizeManagedSession(sessionRef: string, accountRef: string): Promise<ManagedSessionRef>
+  revokeManagedSession(sessionRef: string): Promise<void>
+  captureManagedSession(input: { sessionRef: string; workspaceId: string; accountRef: string; url: string }): Promise<FetchResult | SessionAccessResult>
   close(): Promise<void>
 }
 
@@ -63,6 +70,7 @@ export interface ApiEngineOptions {
 export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
   const taskRoot = options.taskRoot ?? '.w2l/api'
   const monitorStore = MonitorStore.open(join(taskRoot, 'section-b-control.sqlite'))
+  const sessionBroker = new SessionBroker(new FileSessionBrokerStore(join(taskRoot, 'b3-sessions.json')))
   const headed = options.headed === true
   const networkPolicy = options.networkPolicy ?? localNetworkPolicy()
   const defaultMaxPages = options.defaultMaxPages ?? null
@@ -213,6 +221,27 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
       return monitorStore.view(FIRECRAWL_MONITOR_ID, Date.now())
     },
 
+    async createManagedSession(input) {
+      const profileDir = join(taskRoot, 'profiles', crypto.randomUUID())
+      return sessionBroker.createManagedSession({ ...input, profileDir })
+    },
+
+    async authorizeManagedSession(sessionRef, accountRef) {
+      return sessionBroker.markAuthorized(sessionRef, accountRef)
+    },
+
+    async revokeManagedSession(sessionRef) {
+      await sessionBroker.revoke(sessionRef)
+    },
+
+    async captureManagedSession(input) {
+      const access = await sessionBroker.grant({ ...input, origin: input.url })
+      if (access.kind !== 'granted') return access
+      const session = await sessionBrokerStoreGet(sessionBroker, input.sessionRef)
+      const subject = new BrowserLocalSubject('standard', null, false, networkPolicy, session.profileDir)
+      try { return await subject.fetch(input.url) } finally { await subject.teardown() }
+    },
+
     async close() {
       await Promise.all([...inflight.values()].map((job) => job.catch(() => {})))
       await Promise.all([...activeScrapes].map((job) => job.catch(() => {})))
@@ -221,6 +250,10 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
       monitorStore.close()
     },
   }
+}
+
+async function sessionBrokerStoreGet(broker: SessionBroker, sessionRef: string): Promise<ManagedSessionRef> {
+  return broker.getSession(sessionRef)
 }
 
 async function markCrawlFailed(store: SqliteTaskStore, taskId: string): Promise<void> {
