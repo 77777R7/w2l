@@ -1,5 +1,10 @@
 # Section B Handoff
 
+Current status (2026-09-22, `main@e29dc6b`): **B1–B4 in_progress**.
+Use [the stage review](stage-review-2026-09-22.md) for current evidence limits
+and [Section C](section-c-delivery.md) for the next delivery plan. Earlier
+completion summaries do not supersede these acceptance gaps.
+
 The full technical design is in [`section-b-technical-design-v1.md`](./section-b-technical-design-v1.md).
 
 The imported design document is a draft written against an older baseline
@@ -9,7 +14,9 @@ the proposed B interfaces are already implemented or production-validated.
 
 ## Decision
 
-Proceed with a controlled **B1+B2 minimum slice** only. Do not start B3, B4, multi-modal assistance, a general workflow UI, or a second orchestration framework.
+Proceed with bounded B1+B2, B3, and B4 slices only. Do not claim universal
+session access, general backend automation, model-driven repair, or a second
+orchestration framework.
 
 ## Highest-ROI Slice
 
@@ -46,10 +53,10 @@ The slice must preserve the last valid snapshot when a refresh is blocked, parti
 
 ## Explicit Non-Goals
 
-- No login/session reuse.
-- No existing-Chrome connection.
-- No provider or model dependency.
-- No arbitrary backend automation.
+- No CAPTCHA bypass or stealth.
+- No unbounded Existing Chrome control.
+- No provider or model dependency in the first verified slice.
+- No universal backend automation.
 - No claim of billed USD; external billed cost remains `unknown` unless a vendor states it.
 
 ## Entry Evidence
@@ -86,7 +93,12 @@ W2L_B1_ROOT=.w2l/section-b npm run section-b:export-evidence
 It reads `nextRunAt` from SQLite. A production scheduler would replace the
 polling loop, not the persisted claim/lease/commit protocol.
 
-The current slice has verified initialization and unchanged refresh semantics through `POST /v1/monitors/firecrawl-introduction/run` and `GET /v1/monitors/firecrawl-introduction`. A field-change event is covered by the SQLite test; a real source change still requires a later live run when the document changes. Full regression is green at 826 tests.
+The slice has recorded initialization and unchanged refresh semantics through
+the fixed monitor API. Field change is covered by a constructed-assessment
+SQLite test, not by a captured-source controlled-mutation experiment. The
+PR42 recovery smoke kills a waiting process and advances the supplied clock;
+it is not full capture-in-flight recovery. Historical regression totals are
+not acceptance evidence for untested paths.
 
 ## B3 Scope Now Started
 
@@ -100,18 +112,30 @@ B3 has started with the managed-profile-only session slice:
 - `POST /v1/sessions/:id/renew`
 - `POST /v1/sessions/:id/handoff`
 
-The slice uses `workspaceId`, `accountRef`, `originScope`, `profileDir`, `grantEpoch`, `state`, and revoke/expiry checks. A new session starts as `waiting_user`; capture is denied until explicit authorization; revoke increments the grant epoch and blocks future capture.
+The slice uses workspace/account/origin references and grant epochs. These
+are caller-supplied scope declarations, not verified browser account identity.
+New capture checks authorization at entry; the managed API has not yet been
+unified with BrowserControl's ongoing grant checks.
 
-Existing Chrome/CDP, vendor sessions, multi-step recipes, and CAPTCHA handling remain out of scope.
+Existing Chrome/CDP and restricted Recipe slices exist on the current main
+branch, but still require real authorized-user and backend validation. Vendor
+session reuse, CAPTCHA handling, model repair, and unrestricted automation
+remain out of scope.
+
+External inputs and blockers are tracked in
+`research/section-b-real-adoption-blockers.md`.
 
 ## B3 Phase 2
 
-Phase 2 adds persisted `waiting_user` handoff metadata, status querying,
-expiry renewal, revoke as a terminal state, and grant-epoch rotation on renewal.
-An expired active grant returns `expired` and must be renewed into
-`waiting_user`; a revoked grant cannot be resurrected and requires a new
-session. Handoff records carry an ID, reason, creation time, and expiry.
+Phase 2 adds stored handoff metadata, status querying and renewal. PR45 fixes
+revoked-session resurrection through authorize/handoff. Expiry is checked by
+grant, but GET status can still show the persisted active state; handoff is
+not bound to Run/Step/Recipe. End-to-end reauthentication remains unverified.
 
 ## Current Prototype Boundary
 
-The prototype has one fixed monitor and one local SQLite control database. It now has persisted trigger idempotency, lease/epoch/baseline checks, an explicit `nextRunAt` path, and local outbox state. It is not yet a general scheduler, HTTP cache validator, session broker, or workflow engine. Those remain follow-up work after this vertical slice proves the data/version semantics.
+The prototype has one fixed monitor, lease/epoch/baseline checks and local
+outbox rows. The session broker and recipe libraries are separate paths;
+their integration with monitor waiting_user, baseline commit and actual
+delivery remains work. No installed scheduler or cross-date operation is
+established by the checked-in evidence alone.

@@ -79,5 +79,5 @@ export function assessFirecrawlIntroduction(result: FetchResult | null): Documen
 
 export function diffDocument(before: DocumentFields, after: DocumentFields): DocumentDiff[] {
   return (Object.keys(before) as DocumentField[]).filter((field) => before[field] !== after[field])
-    .map((field) => ({ field, before: before[field], after: after[field] }))
+    .map((field) => ({ field, before: before[field] ?? null, after: after[field] ?? null }))
 }

@@ -5,12 +5,33 @@ export const FIRECRAWL_INTRO_URL = 'https://docs.firecrawl.dev/introduction'
 export const FIRECRAWL_MONITOR_ID = 'firecrawl-introduction'
 export const DOCUMENT_RULE_VERSION = 'firecrawl-introduction/v1'
 
-export interface DocumentFields {
-  title: string
-  introduction: string
-  searchDescription: string
-  scrapeDescription: string
-  interactDescription: string
+export type FieldValue<T = string | boolean> =
+  | { state: 'present'; value: T; evidenceRefs: string[] }
+  | { state: 'explicit_null'; reason: string; evidenceRefs: string[] }
+  | { state: 'unobserved'; reason: string }
+  | { state: 'conflicting'; candidates: { value: T; evidenceRefs: string[] }[] }
+  | { state: 'redacted'; reason: string }
+export type DocumentFields = Record<string, string | FieldValue>
+export interface MonitorFieldRule {
+  name: string
+  heading: string
+  type: 'text' | 'code' | 'decimal' | 'boolean'
+  required: boolean
+  nullMarker?: string
+  redactedMarker?: string
+  /** Changes in field meaning are schema migrations, not price changes. */
+  unit?: string
+  currency?: string
+}
+export interface DocumentMonitorConfig {
+  adapter: 'markdown-sections/v1'
+  workspaceId: string
+  entityKey: string
+  viewKey: string
+  expectedTitle: string
+  schemaVersion: string
+  fields: MonitorFieldRule[]
+  conditionalRequests: boolean
 }
 export type DocumentField = keyof DocumentFields
 export interface FieldEvidence {
@@ -20,7 +41,7 @@ export interface FieldEvidence {
   quote: string
 }
 export interface DocumentAssessment {
-  ruleVersion: typeof DOCUMENT_RULE_VERSION
+  ruleVersion: string
   quality: 'valid' | 'partial' | 'invalid' | 'unknown'
   reasons: string[]
   fields: DocumentFields | null
@@ -29,8 +50,9 @@ export interface DocumentAssessment {
 export interface MonitorRevision {
   monitorId: string
   revision: number
-  url: typeof FIRECRAWL_INTRO_URL
-  ruleVersion: typeof DOCUMENT_RULE_VERSION
+  url: string
+  ruleVersion: string
+  config?: DocumentMonitorConfig
   intervalMs: number
   staleAfterMs: number
   createdAt: number
@@ -38,8 +60,8 @@ export interface MonitorRevision {
 export type MonitorChange = 'initialized' | 'changed' | 'unchanged' | 'cannot_verify'
 export interface DocumentDiff {
   field: DocumentField
-  before: string
-  after: string
+  before: string | FieldValue | null
+  after: string | FieldValue | null
 }
 export interface MonitorRun {
   id: string
@@ -75,6 +97,7 @@ export interface MonitorObservation {
   observedAt: number
   clientWallMs: number
   markdownSha256: string | null
+  transport?: { etag: string | null; lastModified: string | null; representationKey: string } | null
   outcome: ScrapeOutcome | null
   error: string | null
 }
@@ -93,7 +116,7 @@ export interface MonitorEvent {
   runId: string
   monitorId: string
   kind: 'initialized' | 'changed'
-  reason: 'source_changed' | 'initialized'
+  reason: 'source_changed' | 'initialized' | 'extraction_reprocessed' | 'schema_migrated'
   fromSnapshotId: string | null
   toSnapshotId: string
   changes: DocumentDiff[]
@@ -111,4 +134,13 @@ export interface MonitorView {
   runs: MonitorRun[]
   events: MonitorEvent[]
   outbox: { eventId: string; state: 'pending' | 'acknowledged'; acknowledgedAt: number | null }[]
+}
+
+export interface TransportRepresentation {
+  key: string
+  url: string
+  etag: string | null
+  lastModified: string | null
+  outcome: ScrapeOutcome
+  storedAt: number
 }

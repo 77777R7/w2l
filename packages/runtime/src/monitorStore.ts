@@ -5,7 +5,8 @@ import type {
   DocumentAssessment, DocumentDiff, DocumentFields, MonitorAttempt, MonitorEvent,
   MonitorObservation, MonitorRevision, MonitorRun, MonitorSnapshot, MonitorView,
 } from '@w2l/contracts'
-import { DOCUMENT_RULE_VERSION, FIRECRAWL_INTRO_URL, FIRECRAWL_MONITOR_ID } from '@w2l/contracts'
+import { DOCUMENT_RULE_VERSION, FIRECRAWL_INTRO_URL, parseMonitorRevision, monitorIdentity, type TransportRepresentation } from '@w2l/contracts'
+import { fieldComparable } from './configuredAssessment.js'
 
 interface MonitorRow { id: string; enabled: number; control_epoch: number; revision: number; url: string; rule_version: string; interval_ms: number; stale_after_ms: number; created_at: number; updated_at: number; next_run_at: number; last_checked_at: number | null; last_verified_at: number | null }
 interface RunRow { id: string; monitor_id: string; revision: number; trigger_key: string; state: string; epoch: number; fencing_token: number; attempt_id: string | null; lease_until: number | null; deadline_at: number | null; expected_baseline_id: string | null; created_at: number; ended_at: number | null; quality: string | null; change_kind: string | null; error: string | null }
@@ -21,7 +22,7 @@ CREATE TABLE IF NOT EXISTS monitors (
 );
 CREATE TABLE IF NOT EXISTS monitor_revisions (
  monitor_id TEXT NOT NULL, revision INTEGER NOT NULL, url TEXT NOT NULL, rule_version TEXT NOT NULL,
- interval_ms INTEGER NOT NULL, stale_after_ms INTEGER NOT NULL, created_at INTEGER NOT NULL,
+ interval_ms INTEGER NOT NULL, stale_after_ms INTEGER NOT NULL, created_at INTEGER NOT NULL, config_json TEXT,
  PRIMARY KEY (monitor_id, revision)
 );
 CREATE TABLE IF NOT EXISTS monitor_runs (
@@ -37,8 +38,8 @@ CREATE TABLE IF NOT EXISTS monitor_attempts (
  started_at INTEGER NOT NULL, ended_at INTEGER, recovered_from_attempt_id TEXT
 );
 CREATE TABLE IF NOT EXISTS monitor_observations (
- id TEXT PRIMARY KEY, run_id TEXT NOT NULL, attempt_id TEXT NOT NULL, observed_at INTEGER NOT NULL,
- client_wall_ms INTEGER NOT NULL, markdown_sha256 TEXT, outcome_json TEXT, error TEXT
+  id TEXT PRIMARY KEY, run_id TEXT NOT NULL, attempt_id TEXT NOT NULL, observed_at INTEGER NOT NULL,
+  client_wall_ms INTEGER NOT NULL, markdown_sha256 TEXT, transport_json TEXT, outcome_json TEXT, error TEXT
 );
 CREATE TABLE IF NOT EXISTS monitor_assessments (
  id TEXT PRIMARY KEY, run_id TEXT NOT NULL, observation_id TEXT NOT NULL, quality TEXT NOT NULL,
@@ -77,31 +78,39 @@ export class MonitorStore {
     this.db.pragma('synchronous = FULL')
     this.db.pragma('busy_timeout = 5000')
     this.db.pragma('foreign_keys = ON')
-    this.db.exec(SCHEMA)
+      this.db.exec(SCHEMA)
+      try { this.db.exec('ALTER TABLE monitor_observations ADD COLUMN transport_json TEXT') } catch {}
+    this.db.transaction(() => {
+      const columns = this.db.prepare('PRAGMA table_info(monitor_revisions)').all() as {name:string}[]
+      if (!columns.some((c)=>c.name==='config_json')) this.db.exec('ALTER TABLE monitor_revisions ADD COLUMN config_json TEXT')
+      this.db.exec('CREATE TABLE IF NOT EXISTS monitor_transport (key TEXT PRIMARY KEY, body TEXT NOT NULL)')
+    }).immediate()
   }
 
   createOrGetRevision(revision: MonitorRevision): MonitorRevision {
-    if (revision.monitorId !== FIRECRAWL_MONITOR_ID || revision.url !== FIRECRAWL_INTRO_URL || revision.ruleVersion !== DOCUMENT_RULE_VERSION) throw new Error('unsupported monitor adapter')
+    if (revision.config) revision = parseMonitorRevision(revision)
+    else if (revision.url !== FIRECRAWL_INTRO_URL || revision.ruleVersion !== DOCUMENT_RULE_VERSION) throw new Error('unsupported monitor adapter')
     if (![revision.revision, revision.intervalMs, revision.staleAfterMs].every((n) => Number.isSafeInteger(n) && n > 0)) throw new Error('invalid revision or interval')
     return this.db.transaction(() => {
       const existing = this.db.prepare('SELECT * FROM monitor_revisions WHERE monitor_id = ? AND revision = ?').get(revision.monitorId, revision.revision) as Record<string, unknown> | undefined
       if (existing) {
-        if (existing.url !== revision.url || existing.rule_version !== revision.ruleVersion || existing.interval_ms !== revision.intervalMs || existing.stale_after_ms !== revision.staleAfterMs) throw new Error('revision is immutable')
+        if (existing.url !== revision.url || existing.rule_version !== revision.ruleVersion || existing.interval_ms !== revision.intervalMs || existing.stale_after_ms !== revision.staleAfterMs || existing.config_json !== (revision.config ? JSON.stringify(revision.config) : null)) throw new Error('revision is immutable')
         return { ...revision, createdAt: Number(existing.created_at) }
       }
       const current = this.db.prepare('SELECT * FROM monitors WHERE id=?').get(revision.monitorId) as MonitorRow | undefined
       if (revision.revision !== (current?.revision ?? 0) + 1) throw new Error('revision must be sequential')
+      if (current && JSON.stringify(monitorIdentity(this.getRevision(revision.monitorId))) !== JSON.stringify(monitorIdentity(revision))) throw new Error('identity change requires a new monitor')
       if (this.db.prepare("SELECT id FROM monitor_runs WHERE monitor_id=? AND state='running'").get(revision.monitorId)) throw new Error('cannot revise active monitor')
       const now = revision.createdAt
       if (!current) {
         this.db.prepare(`INSERT INTO monitors (id, enabled, control_epoch, revision, url, rule_version, interval_ms, stale_after_ms, created_at, updated_at, next_run_at) VALUES (?,1,1,?,?,?,?,?,?,?,?)`)
           .run(revision.monitorId, revision.revision, revision.url, revision.ruleVersion, revision.intervalMs, revision.staleAfterMs, now, now, now)
       } else {
-        this.db.prepare('UPDATE monitors SET revision=?, control_epoch=control_epoch+1, interval_ms=?, stale_after_ms=?, updated_at=?, next_run_at=? WHERE id=?')
-          .run(revision.revision, revision.intervalMs, revision.staleAfterMs, now, now, revision.monitorId)
+        this.db.prepare('UPDATE monitors SET revision=?, rule_version=?, url=?, control_epoch=control_epoch+1, interval_ms=?, stale_after_ms=?, updated_at=?, next_run_at=? WHERE id=?')
+          .run(revision.revision, revision.ruleVersion, revision.url, revision.intervalMs, revision.staleAfterMs, now, now, revision.monitorId)
       }
-      this.db.prepare(`INSERT INTO monitor_revisions (monitor_id, revision, url, rule_version, interval_ms, stale_after_ms, created_at) VALUES (?,?,?,?,?,?,?)`)
-        .run(revision.monitorId, revision.revision, revision.url, revision.ruleVersion, revision.intervalMs, revision.staleAfterMs, now)
+      this.db.prepare(`INSERT INTO monitor_revisions (monitor_id, revision, url, rule_version, interval_ms, stale_after_ms, created_at, config_json) VALUES (?,?,?,?,?,?,?,?)`)
+        .run(revision.monitorId, revision.revision, revision.url, revision.ruleVersion, revision.intervalMs, revision.staleAfterMs, now, revision.config ? JSON.stringify(revision.config) : null)
       return revision
     }).immediate()
   }
@@ -109,8 +118,8 @@ export class MonitorStore {
   startRun(monitorId: string, triggerKey: string, now: number): MonitorRun {
     if (!triggerKey.trim() || triggerKey.length > 200) throw new Error('invalid trigger key')
     return this.db.transaction(() => {
-    const existing = this.db.prepare('SELECT * FROM monitor_runs WHERE trigger_key = ?').get(triggerKey) as RunRow | undefined
-    if (existing && existing.monitor_id !== monitorId) throw new Error('trigger belongs to another monitor')
+    const storedKey = JSON.stringify([monitorId,triggerKey])
+    const existing = this.db.prepare('SELECT * FROM monitor_runs WHERE monitor_id=? AND trigger_key IN (?,?)').get(monitorId,storedKey,triggerKey) as RunRow | undefined
     if (existing && (existing.state !== 'running' || (existing.lease_until ?? 0) > now)) return runFrom(existing)
     const monitor = this.db.prepare('SELECT * FROM monitors WHERE id = ?').get(monitorId) as MonitorRow | undefined
     if (!monitor) throw new Error(`monitor not found: ${monitorId}`)
@@ -131,7 +140,7 @@ export class MonitorStore {
     const attemptId = crypto.randomUUID()
     const token = monitor.control_epoch
     this.db.prepare(`INSERT INTO monitor_runs (id, monitor_id, revision, trigger_key, state, epoch, fencing_token, attempt_id, lease_until, deadline_at, expected_baseline_id, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
-      .run(id, monitorId, monitor.revision, triggerKey, 'running', monitor.control_epoch, token, attemptId, now + 300_000, now + 300_000, this.getBaselineId(monitorId), now)
+      .run(id, monitorId, monitor.revision, storedKey, 'running', monitor.control_epoch, token, attemptId, now + 300_000, now + 300_000, this.getBaselineId(monitorId), now)
     this.db.prepare(`INSERT INTO monitor_attempts (id, run_id, fencing_token, state, started_at) VALUES (?,?,?,?,?)`)
       .run(attemptId, id, token, 'running', now)
     this.db.prepare('UPDATE monitors SET next_run_at=? WHERE id=?').run(now + monitor.interval_ms, monitorId)
@@ -146,7 +155,7 @@ export class MonitorStore {
     const active = this.db.prepare("SELECT * FROM monitor_runs WHERE monitor_id=? AND state='running'").get(monitorId) as RunRow | undefined
     if (active && (active.lease_until ?? Infinity) > now) return null
     if (!active && monitor.next_run_at > now) return null
-    return this.startRun(monitorId, active?.trigger_key ?? `scheduled:${monitorId}:${monitor.revision}:${monitor.next_run_at}`, now)
+    return this.startRun(monitorId, active ? runFrom(active).triggerKey : `scheduled:${monitorId}:${monitor.revision}:${monitor.next_run_at}`, now)
   }
 
   getRun(id: string): MonitorRun | null {
@@ -164,8 +173,9 @@ export class MonitorStore {
     const run = this.getRun(observation.runId)
     if (!run || run.attemptId !== observation.attemptId) throw new Error('stale observation attempt')
     this.assertOwner(run, observation.observedAt)
-    this.db.prepare(`INSERT INTO monitor_observations (id, run_id, attempt_id, observed_at, client_wall_ms, markdown_sha256, outcome_json, error) VALUES (?,?,?,?,?,?,?,?)`)
-      .run(observation.id, observation.runId, observation.attemptId, observation.observedAt, observation.clientWallMs, observation.markdownSha256, JSON.stringify(observation.outcome), observation.error)
+    if (assessment.ruleVersion !== this.getRevision(run.monitorId,run.revision).ruleVersion) throw new Error('assessment rule mismatch')
+    this.db.prepare(`INSERT INTO monitor_observations (id, run_id, attempt_id, observed_at, client_wall_ms, markdown_sha256, transport_json, outcome_json, error) VALUES (?,?,?,?,?,?,?,?,?)`)
+      .run(observation.id, observation.runId, observation.attemptId, observation.observedAt, observation.clientWallMs, observation.markdownSha256, JSON.stringify(observation.transport), JSON.stringify(observation.outcome), observation.error)
     this.db.prepare(`INSERT INTO monitor_assessments (id, run_id, observation_id, quality, reasons_json, fields_json, evidence_json) VALUES (?,?,?,?,?,?,?)`)
       .run(assessmentId, observation.runId, observation.id, assessment.quality, JSON.stringify(assessment.reasons), assessment.fields ? JSON.stringify(assessment.fields) : null, JSON.stringify(assessment.evidence))
     }).immediate()
@@ -189,8 +199,12 @@ export class MonitorStore {
       return null
     }
     const prior = this.getBaseline(run.monitorId)
+    const revision = this.getRevision(run.monitorId,run.revision)
+    const priorRevision = prior ? this.getRevision(run.monitorId,prior.revision) : null
+    const schemaChanged = priorRevision && (priorRevision.config?.schemaVersion !== revision.config?.schemaVersion || JSON.stringify(priorRevision.config?.fields.map(({name,type,unit,currency})=>({name,type,unit,currency}))) !== JSON.stringify(revision.config?.fields.map(({name,type,unit,currency})=>({name,type,unit,currency}))))
+    const ruleChanged = priorRevision && (priorRevision.ruleVersion !== revision.ruleVersion || JSON.stringify(priorRevision.config?.fields) !== JSON.stringify(revision.config?.fields))
     const changes = prior ? diffFields(prior.fields, assessment.fields) : []
-    const kind = prior ? (changes.length ? 'changed' : 'unchanged') : 'initialized'
+    const kind = prior ? (changes.length || schemaChanged || ruleChanged ? 'changed' : 'unchanged') : 'initialized'
     if (kind === 'unchanged') {
       this.finishRun(runId, 'completed', 'valid', 'unchanged', now, null)
       return null
@@ -203,7 +217,7 @@ export class MonitorStore {
       if (this.testOptions.failCommitAfter === 'snapshot') throw new Error('injected commit failure after snapshot')
       let event: MonitorEvent | null = null
       {
-        event = { id: crypto.randomUUID(), runId, monitorId: run.monitorId, kind, reason: kind === 'initialized' ? 'initialized' : 'source_changed', fromSnapshotId: prior?.id ?? null, toSnapshotId: snapshotId, changes, observedAt: now }
+        event = { id: crypto.randomUUID(), runId, monitorId: run.monitorId, kind, reason: kind === 'initialized' ? 'initialized' : schemaChanged ? 'schema_migrated' : ruleChanged ? 'extraction_reprocessed' : 'source_changed', fromSnapshotId: prior?.id ?? null, toSnapshotId: snapshotId, changes, observedAt: now }
         this.db.prepare(`INSERT INTO monitor_events (id, run_id, monitor_id, kind, reason, from_snapshot_id, to_snapshot_id, changes_json, observed_at) VALUES (?,?,?,?,?,?,?,?,?)`).run(event.id, runId, run.monitorId, event.kind, event.reason, event.fromSnapshotId, event.toSnapshotId, JSON.stringify(event.changes), now)
         this.db.prepare('INSERT INTO monitor_outbox (event_id, state) VALUES (?,?)').run(event.id, 'pending')
         if (this.testOptions.failCommitAfter === 'event') throw new Error('injected commit failure after event')
@@ -226,7 +240,7 @@ export class MonitorStore {
   view(monitorId: string, now: number): MonitorView {
     const row = this.db.prepare('SELECT * FROM monitors WHERE id=?').get(monitorId) as MonitorRow
     if (!row) throw new Error('monitor not found')
-    const revision: MonitorRevision = { monitorId, revision: row.revision, url: row.url as MonitorRevision['url'], ruleVersion: row.rule_version as MonitorRevision['ruleVersion'], intervalMs: row.interval_ms, staleAfterMs: row.stale_after_ms, createdAt: row.created_at }
+    const revision = this.getRevision(monitorId,row.revision)
     const runs = (this.db.prepare('SELECT * FROM monitor_runs WHERE monitor_id=? ORDER BY created_at DESC').all(monitorId) as RunRow[]).map(runFrom)
     const events = (this.db.prepare('SELECT * FROM monitor_events WHERE monitor_id=? ORDER BY observed_at DESC').all(monitorId) as EventRow[]).map(eventFrom)
     const outbox = this.db.prepare('SELECT event_id,state,acknowledged_at FROM monitor_outbox WHERE event_id IN (SELECT id FROM monitor_events WHERE monitor_id=?)').all(monitorId) as { event_id: string; state: 'pending' | 'acknowledged'; acknowledged_at: number | null }[]
@@ -234,6 +248,18 @@ export class MonitorStore {
   }
 
   close(): void { this.db.close() }
+  getRevision(monitorId: string, revision?: number): MonitorRevision {
+    const row = this.db.prepare('SELECT * FROM monitor_revisions WHERE monitor_id=? '+(revision === undefined ? 'ORDER BY revision DESC LIMIT 1' : 'AND revision=?')).get(...(revision === undefined ? [monitorId] : [monitorId,revision])) as {revision:number;url:string;rule_version:string;interval_ms:number;stale_after_ms:number;created_at:number;config_json:string|null} | undefined
+    if (!row) throw new Error('monitor revision not found')
+    return {monitorId,revision:row.revision,url:row.url,ruleVersion:row.rule_version,intervalMs:row.interval_ms,staleAfterMs:row.stale_after_ms,createdAt:row.created_at,...(row.config_json ? {config:JSON.parse(row.config_json)} : {})}
+  }
+  listMonitorIds(): string[] {return (this.db.prepare('SELECT id FROM monitors ORDER BY id').all() as {id:string}[]).map((r)=>r.id)}
+  representation(key: string): TransportRepresentation | null {
+    const row=this.db.prepare('SELECT body FROM monitor_transport WHERE key=?').get(key) as {body:string}|undefined
+    return row ? JSON.parse(row.body) as TransportRepresentation : null
+  }
+  saveRepresentation(value: TransportRepresentation): void {this.db.prepare('INSERT OR REPLACE INTO monitor_transport VALUES(?,?)').run(value.key,JSON.stringify(value))}
+  deleteRepresentation(key: string): void {this.db.prepare('DELETE FROM monitor_transport WHERE key=?').run(key)}
   hasMonitor(id: string): boolean { return !!this.db.prepare('SELECT id FROM monitors WHERE id=?').get(id) }
   claim(monitorId: string, now: number, triggerKey?: string): MonitorRun | null {
     return this.db.transaction(() => {
@@ -252,7 +278,7 @@ export class MonitorStore {
   exportEvidence(monitorId: string): Record<string, unknown> {
     const view = this.view(monitorId, Date.now())
     const attempts = view.runs.flatMap((run) => this.attempts(run.id))
-    const observations = this.db.prepare('SELECT id,run_id,attempt_id,observed_at,client_wall_ms,markdown_sha256,error FROM monitor_observations WHERE run_id IN (SELECT id FROM monitor_runs WHERE monitor_id=?) ORDER BY observed_at,id').all(monitorId)
+    const observations = this.db.prepare('SELECT id,run_id,attempt_id,observed_at,client_wall_ms,markdown_sha256,transport_json,error FROM monitor_observations WHERE run_id IN (SELECT id FROM monitor_runs WHERE monitor_id=?) ORDER BY observed_at,id').all(monitorId)
     const assessments = this.db.prepare('SELECT id,run_id,observation_id,quality,reasons_json,fields_json,evidence_json FROM monitor_assessments WHERE run_id IN (SELECT id FROM monitor_runs WHERE monitor_id=?) ORDER BY id').all(monitorId)
     return { generatedAt: Date.now(), monitorId, revision: view.revision, baseline: view.baseline, runs: view.runs, attempts, observations, assessments, events: view.events, outbox: view.outbox }
   }
@@ -264,8 +290,8 @@ export class MonitorStore {
 }
 
 interface SnapshotRow { id: string; monitor_id: string; revision: number; version: number; observation_id: string; assessment_id: string; fields_json: string; created_at: number }
-interface EventRow { id: string; run_id: string; monitor_id: string; kind: 'initialized' | 'changed'; reason: 'source_changed' | 'initialized'; from_snapshot_id: string | null; to_snapshot_id: string; changes_json: string; observed_at: number }
-function runFrom(row: RunRow): MonitorRun { return { id: row.id, monitorId: row.monitor_id, revision: row.revision, triggerKey: row.trigger_key, state: row.state as MonitorRun['state'], epoch: row.epoch, fencingToken: row.fencing_token, attemptId: row.attempt_id, leaseUntil: row.lease_until, deadlineAt: row.deadline_at, expectedBaselineId: row.expected_baseline_id, createdAt: row.created_at, endedAt: row.ended_at, quality: row.quality as MonitorRun['quality'], change: row.change_kind as MonitorRun['change'], error: row.error } }
+interface EventRow { id: string; run_id: string; monitor_id: string; kind: 'initialized' | 'changed'; reason: MonitorEvent['reason']; from_snapshot_id: string | null; to_snapshot_id: string; changes_json: string; observed_at: number }
+function runFrom(row: RunRow): MonitorRun { let key=row.trigger_key; try {const parts=JSON.parse(key);if(Array.isArray(parts)&&parts[0]===row.monitor_id) key=parts[1]}catch{}; return { id: row.id, monitorId: row.monitor_id, revision: row.revision, triggerKey: key, state: row.state as MonitorRun['state'], epoch: row.epoch, fencingToken: row.fencing_token, attemptId: row.attempt_id, leaseUntil: row.lease_until, deadlineAt: row.deadline_at, expectedBaselineId: row.expected_baseline_id, createdAt: row.created_at, endedAt: row.ended_at, quality: row.quality as MonitorRun['quality'], change: row.change_kind as MonitorRun['change'], error: row.error } }
 function snapshotFrom(row: SnapshotRow): MonitorSnapshot { return { id: row.id, monitorId: row.monitor_id, revision: row.revision, version: row.version, observationId: row.observation_id, assessmentId: row.assessment_id, fields: JSON.parse(row.fields_json) as DocumentFields, createdAt: row.created_at } }
 function eventFrom(row: EventRow): MonitorEvent { return { id: row.id, runId: row.run_id, monitorId: row.monitor_id, kind: row.kind, reason: row.reason, fromSnapshotId: row.from_snapshot_id, toSnapshotId: row.to_snapshot_id, changes: JSON.parse(row.changes_json) as DocumentDiff[], observedAt: row.observed_at } }
-function diffFields(before: DocumentFields, after: DocumentFields): DocumentDiff[] { return (Object.keys(before) as (keyof DocumentFields)[]).filter((field) => before[field] !== after[field]).map((field) => ({ field, before: before[field], after: after[field] })) }
+function diffFields(before: DocumentFields, after: DocumentFields): DocumentDiff[] { return (Object.keys({...before,...after}) as (keyof DocumentFields)[]).filter((field) => JSON.stringify(fieldComparable(before[field])) !== JSON.stringify(fieldComparable(after[field]))).map((field) => ({ field, before: before[field] ?? null, after: after[field] ?? null })) }

@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { MonitorStore } from '../src/monitorStore.js'
 import { DOCUMENT_RULE_VERSION, FIRECRAWL_INTRO_URL, FIRECRAWL_MONITOR_ID, type DocumentAssessment } from '@w2l/contracts'
+import { parseMonitorRevision } from '@w2l/contracts'
 
 const assessment: DocumentAssessment = {
   ruleVersion: DOCUMENT_RULE_VERSION, quality: 'valid', reasons: [],
@@ -24,7 +25,7 @@ describe('MonitorStore B1/B2 slice', () => {
     store.createOrGetRevision({ monitorId: FIRECRAWL_MONITOR_ID, revision: 1, url: FIRECRAWL_INTRO_URL, ruleVersion: DOCUMENT_RULE_VERSION, intervalMs: 1000, staleAfterMs: 2000, createdAt: now })
     const run = store.startRun(FIRECRAWL_MONITOR_ID, 'slot:1', now)
     const observationId = 'obs-1'
-    store.recordObservation({ id: observationId, runId: run.id, attemptId: run.attemptId!, observedAt: now, clientWallMs: 1, markdownSha256: 'hash', outcome: outcome as never, error: null }, 'assessment-1', assessment)
+    store.recordObservation({ id: observationId, runId: run.id, attemptId: run.attemptId!, observedAt: now, clientWallMs: 1, markdownSha256: 'hash', transport: null, outcome: outcome as never, error: null }, 'assessment-1', assessment)
     const event = store.commit(run.id, observationId, 'assessment-1', assessment, now + 1)
     expect(event?.kind).toBe('initialized')
     expect(store.startRun(FIRECRAWL_MONITOR_ID, 'slot:1', now).id).toBe(run.id)
@@ -144,5 +145,18 @@ describe('MonitorStore B1/B2 slice', () => {
     store = MonitorStore.open(join(dir, 'control.sqlite'))
     const run = store.dueRun(FIRECRAWL_MONITOR_ID, now)
     expect(run?.triggerKey).toMatch(/^scheduled:firecrawl-introduction:1:/)
+  })
+
+  it('accepts a second public monitor configuration without changing the engine', async () => {
+    dir = await mkdtemp(join(tmpdir(), 'w2l-monitor-'))
+    store = MonitorStore.open(join(dir, 'control.sqlite'))
+    const revision = parseMonitorRevision({
+      monitorId: 'public-example', revision: 1, url: 'https://example.com/', ruleVersion: 'example/v1', createdAt: Date.now(), intervalMs: 1000, staleAfterMs: 2000,
+      config: { adapter: 'markdown-sections/v1', workspaceId: 'w1', entityKey: 'example:home', viewKey: 'public', expectedTitle: 'Example Domain', schemaVersion: 'example/v1', conditionalRequests: false, fields: [{ name: 'body', heading: 'Example Domain', type: 'text', required: true }] },
+    })
+    store.createOrGetRevision(revision)
+    const run = store.startRun('public-example', 'slot:custom', Date.now())
+    expect(run.monitorId).toBe('public-example')
+    expect(store.getRevision('public-example').config?.entityKey).toBe('example:home')
   })
 })
