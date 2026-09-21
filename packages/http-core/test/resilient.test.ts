@@ -195,6 +195,22 @@ describe('resilientFetch: retry', () => {
     expect(retry?.detail?.delayMs).toBe(50)
   })
 
+  it('parses HTTP-date Retry-After and waits the server-directed delay up to the cap', async () => {
+    const now = Date.parse('2026-09-21T00:00:00.000Z')
+    const sleeps: number[] = []
+    const f = scripted([res(503, { 'retry-after': new Date(now + 1000).toUTCString() }), res(200)])
+    const out = await resilientFetch(U, f, { retryAfterCapMs: 1000 }, { now: () => now, sleep: async (ms) => { sleeps.push(ms) }, random: () => 0 })
+    expect(out.status).toBe(200)
+    expect(sleeps).toEqual([1000])
+  })
+
+  it('uses bounded exponential backoff with injected jitter when Retry-After is invalid', async () => {
+    const sleeps: number[] = []
+    const f = scripted([res(503, { 'retry-after': 'invalid' }), res(200)])
+    await resilientFetch(U, f, { retryAfterCapMs: 1000, retryBackoffBaseMs: 100, retryJitterMs: 20 }, { sleep: async (ms) => { sleeps.push(ms) }, random: () => 0.5 })
+    expect(sleeps).toEqual([110])
+  })
+
   it('never retries a 429, even with Retry-After present', async () => {
     const f = scripted([res(429, { 'retry-after': '2' })])
     const out = await resilientFetch(U, f)

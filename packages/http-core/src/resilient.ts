@@ -29,6 +29,10 @@ export interface ResilientHttpConfig {
   maxRetries: number
   /** Ceiling on a Retry-After delay, ms. */
   retryAfterCapMs: number
+  /** Base delay for bounded exponential backoff when Retry-After is absent. */
+  retryBackoffBaseMs: number
+  /** Extra deterministic-injection hook for tests and operators. */
+  retryJitterMs: number
   headersTimeoutMs: number
   bodyTimeoutMs: number
   /** Called before the first request and before every redirect hop. */
@@ -39,6 +43,8 @@ export const DEFAULT_RESILIENT_CONFIG: ResilientHttpConfig = {
   maxRedirects: 5,
   maxRetries: 1,
   retryAfterCapMs: 2000,
+  retryBackoffBaseMs: 250,
+  retryJitterMs: 100,
   headersTimeoutMs: 10_000,
   bodyTimeoutMs: 30_000,
 }
@@ -94,11 +100,14 @@ export function isRetryableStatus(status: number): boolean {
 }
 
 /** Parse Retry-After as integer seconds; anything else yields null (no delay). */
-export function parseRetryAfterMs(value: string | null): number | null {
+export function parseRetryAfterMs(value: string | null, nowMs = Date.now()): number | null {
   if (!value) return null
-  const seconds = Number(value.trim())
-  if (!Number.isFinite(seconds) || seconds < 0) return null
-  return seconds * 1000
+  const trimmed = value.trim()
+  const seconds = Number(trimmed)
+  if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1000
+  const dateMs = Date.parse(trimmed)
+  if (!Number.isFinite(dateMs)) return null
+  return Math.max(0, dateMs - nowMs)
 }
 
 function sleep(ms: number): Promise<void> {
@@ -169,6 +178,7 @@ export async function resilientFetch(
   initialUrl: string,
   fetcher: ResilientFetcher,
   config: Partial<ResilientHttpConfig> = {},
+  hooks: { sleep?: (ms: number) => Promise<void>; random?: () => number; now?: () => number } = {},
 ): Promise<ResilientOutcome> {
   const cfg = { ...DEFAULT_RESILIENT_CONFIG, ...config }
   const start = Date.now()
@@ -178,6 +188,10 @@ export async function resilientFetch(
   let requestCount = 0
   let attemptCount = 0
   let retriesLeft = cfg.maxRetries
+  let retryIndex = 0
+  const wait = hooks.sleep ?? sleep
+  const random = hooks.random ?? Math.random
+  const now = hooks.now ?? Date.now
 
   const blocked = await guardUrl(current, cfg.assertUrl, 0, current, chain, requestCount, attemptCount, trace)
   if (blocked !== null) return blocked
@@ -294,14 +308,20 @@ export async function resilientFetch(
       // redirect chain — the chain records redirects, not re-visits.
       if (isRetryableStatus(response.status) && retriesLeft > 0) {
         retriesLeft--
-        const parsed = parseRetryAfterMs(response.headers.get('retry-after'))
-        const delayMs = Math.min(parsed ?? 0, cfg.retryAfterCapMs)
+        const parsed = parseRetryAfterMs(response.headers.get('retry-after'), now())
+        const backoff = cfg.retryBackoffBaseMs * 2 ** retryIndex
+        const jitter = Math.floor(Math.max(0, cfg.retryJitterMs) * Math.max(0, Math.min(1, random())))
+        // A server-provided Retry-After is authoritative up to our safety cap;
+        // absent/invalid values use bounded exponential backoff with jitter.
+        const requestedDelay = parsed ?? backoff + jitter
+        const delayMs = Math.min(requestedDelay, cfg.retryAfterCapMs)
+        retryIndex++
         trace.push({
           at,
           event: 'retry',
           detail: { attempt: attemptCount, status: response.status, delayMs },
         })
-        if (delayMs > 0) await sleep(delayMs)
+        if (delayMs > 0) await wait(delayMs)
         break
       }
 

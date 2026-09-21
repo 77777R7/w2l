@@ -66,6 +66,16 @@ describe('resilient subject on served fixture bytes', () => {
     expect(out.usage.requestCount).toBe(1)
   })
 
+  it('records a host cooldown after 429 and waits before the next same-host request', async () => {
+    const first = await subject.fetch(`${server.url}/block/rate-limit`)
+    expect(first.status).toBe('blocked')
+    const started = Date.now()
+    const second = await subject.fetch(`${server.url}/crawl/listing`)
+    expect(second.status).toBe('success')
+    expect(second.trace.some((event) => event.event === 'host_cooldown_wait')).toBe(true)
+    expect(Date.now() - started).toBeGreaterThanOrEqual(200)
+  })
+
   it('redirect-to-home: follows to /home; check 4 has no annotation to refute it', async () => {
     // Documented semantic gap for this phase: transport-wise the redirect is
     // followed correctly (finalUrl = /home). Deciding that the DELIVERED
