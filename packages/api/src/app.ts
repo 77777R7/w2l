@@ -58,6 +58,29 @@ export function createApp(engine: ApiEngine, options: AppOptions = {}): Hono {
     return c.json(await engine.getFirecrawlMonitor(), 200)
   })
 
+  app.post('/v1/sessions/managed', async (c) => {
+    const body = await c.req.json() as Record<string, unknown>
+    if (typeof body.workspaceId !== 'string' || typeof body.accountRef !== 'string' || typeof body.originScope !== 'string') return c.json({ error: 'workspaceId, accountRef, and originScope are required' }, 400)
+    return c.json(await engine.createManagedSession({ workspaceId: body.workspaceId, accountRef: body.accountRef, originScope: body.originScope, expiresAt: typeof body.expiresAt === 'string' ? body.expiresAt : null }), 201)
+  })
+
+  app.post('/v1/sessions/:id/authorize', async (c) => {
+    const body = await c.req.json() as Record<string, unknown>
+    if (typeof body.accountRef !== 'string') return c.json({ error: 'accountRef is required' }, 400)
+    return c.json(await engine.authorizeManagedSession(c.req.param('id'), body.accountRef), 200)
+  })
+
+  app.post('/v1/sessions/:id/revoke', async (c) => {
+    await engine.revokeManagedSession(c.req.param('id'))
+    return c.json({ sessionRef: c.req.param('id'), state: 'revoked' }, 200)
+  })
+
+  app.post('/v1/sessions/:id/capture', async (c) => {
+    const body = await c.req.json() as Record<string, unknown>
+    if (typeof body.workspaceId !== 'string' || typeof body.accountRef !== 'string' || typeof body.url !== 'string') return c.json({ error: 'workspaceId, accountRef, and url are required' }, 400)
+    return c.json(await engine.captureManagedSession({ sessionRef: c.req.param('id'), workspaceId: body.workspaceId, accountRef: body.accountRef, url: body.url }), 200)
+  })
+
   app.post('/fc/v1/scrape', async (c) => {
     const req = parseFirecrawlScrapeRequest(await c.req.json())
     return c.json(wrapScrape(await engine.scrape(req)), 200)
