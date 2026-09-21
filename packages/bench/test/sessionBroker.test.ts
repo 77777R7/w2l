@@ -38,4 +38,23 @@ describe('B3 managed SessionBroker', () => {
     const result = await broker.grant({ sessionRef: session.sessionRef, workspaceId: 'w1', accountRef: 'acct-a', origin: 'https://example.com', now: new Date('2026-01-02T00:00:00.000Z') })
     expect(result.kind).toBe('expired')
   })
+
+  it('persists a waiting_user handoff and renews an expired grant with a new epoch', async () => {
+    const broker = new SessionBroker(new MemorySessionBrokerStore())
+    const session = await broker.createManagedSession({ workspaceId: 'w1', accountRef: 'acct-a', originScope: 'https://example.com', profileDir: '/tmp/profile-a', expiresAt: '2026-01-01T00:00:00.000Z' })
+    const handoff = await broker.requestHandoff(session.sessionRef, 'login_required', '2026-01-03T00:00:00.000Z')
+    expect(handoff.state).toBe('waiting_user')
+    expect(handoff.handoff?.reason).toBe('login_required')
+    const renewed = await broker.renewExpired(session.sessionRef, '2026-01-04T00:00:00.000Z')
+    expect(renewed.state).toBe('waiting_user')
+    expect(renewed.grantEpoch).toBe(2)
+    expect(renewed.handoff?.reason).toBe('renewal_authorization_required')
+  })
+
+  it('does not resurrect a revoked grant', async () => {
+    const broker = new SessionBroker(new MemorySessionBrokerStore())
+    const session = await broker.createManagedSession({ workspaceId: 'w1', accountRef: 'acct-a', originScope: 'https://example.com', profileDir: '/tmp/profile-a' })
+    await broker.revoke(session.sessionRef)
+    await expect(broker.renewExpired(session.sessionRef)).rejects.toThrow(/revoked sessions/)
+  })
 })

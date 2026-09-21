@@ -14,6 +14,14 @@ export interface ManagedSessionRef {
   updatedAt: string
   revokedAt: string | null
   expiresAt: string | null
+  handoff: SessionHandoff | null
+}
+
+export interface SessionHandoff {
+  handoffId: string
+  reason: string
+  createdAt: string
+  expiresAt: string
 }
 
 export interface SessionGrant {
