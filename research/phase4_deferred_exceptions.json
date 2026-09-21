@@ -1,0 +1,45 @@
+{
+  "generatedAt": "2026-09-21T04:50:00.000Z",
+  "baseline": "main@e701aa4",
+  "exceptions": [
+    {
+      "id": "second_developer_install",
+      "status": "deferred",
+      "requiredForA6UnconditionalPass": true,
+      "requiredForConditionalAlpha": false,
+      "whyDeferred": "No second human cloned, installed, and completed a first task. The recorded install is a same-machine clean clone.",
+      "whatExists": {
+        "cleanClone": "passed_clean_clone",
+        "commit": "6d9898280d97f6779e8704802f50153d4d3747b3",
+        "firstTask": "ai-mdn-abortcontroller",
+        "operatorIndependence": "same_machine_clean_clone_not_second_human"
+      },
+      "whatWouldCloseIt": "A different developer clones current main, runs npm ci, installs Chromium, starts the API, and completes one research/phase4_real_tasks.json task. Record person, OS, Node, commit, elapsed time, and outcome.",
+      "notClosedBy": [
+        "author rerunning install_first_task.mjs",
+        "CI Local Reliability Gate",
+        "setting operatorIndependence to second_developer on this machine"
+      ]
+    }
+  ],
+  "cost": {
+    "id": "billed_usd",
+    "status": "unknown",
+    "requiredForA6UnconditionalPass": false,
+    "requiredForConditionalAlpha": true,
+    "rule": "externalCostUsd stays null unless a vendor stated a billed amount. Local resource meters are comparable. usdPerHour 0 and knownExternalCostUsd 0 are not invoices.",
+    "comparable": "resource_meters",
+    "usd": "unknown",
+    "knownExternalCostUsd": null,
+    "unknownCostRuns": {
+      "a5": 40,
+      "a6run1": 100,
+      "a6run2": 100
+    },
+    "notClosedBy": [
+      "writing 0 into externalCostUsd",
+      "usdPerHour: 0.0 in comparator adapters",
+      "summing wallMs into dollars"
+    ]
+  }
+}

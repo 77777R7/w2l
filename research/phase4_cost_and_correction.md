@@ -12,7 +12,9 @@ Comparable resource meters from the recorded reports:
 | A6 run 1 | 100 | 65452 | 14859 | 104 | 539364 | 35032491 | unknown |
 | A6 run 2 | 100 | 46886 | 18731 | 104 | 539364 | 34664436 | unknown |
 
-These meters are the comparable cost. They are not converted into USD. `usdPerHour: 0` is still not a real zero.
+These meters are the comparable cost. They are not converted into USD. `usdPerHour: 0` is still not a real zero. `knownExternalCostUsd` is `null` on every local run; a numeric `0` would be a false invoice.
+
+A6 treats billed USD remaining unknown as a required honesty condition, not as a missing meter. Closing it requires a vendor-stated amount, not an estimate.
 
 ## Human Correction
 

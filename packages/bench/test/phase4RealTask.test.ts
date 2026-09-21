@@ -29,6 +29,24 @@ describe('Phase 4 real task harness', () => {
     expect(report.summary.manualCorrectionMinutes).toBeNull()
   })
 
+  it('does not treat a numeric zero as known billed USD', async () => {
+    const client = {
+      async scrape(url: string) {
+        return {
+          requestedUrl: url, status: 'success' as const, failureReason: null, blockReason: null, budgetExceeded: null,
+          lane: 'http' as const, escalations: [], markdown: `Title ${url} required fact`, truncated: false, truncatedAt: null,
+          compliance: null, evidence: { finalUrl: url, httpStatus: 200, redirectChain: [], contentType: 'text/html', rawBodySha256: null, artifacts: [] },
+          usage: { wallMs: 1, bytesWire: 1, bytesDecompressed: 1, requestCount: 1, attemptCount: 1, contentTokens: 2, browserMs: 0, externalCostUsd: null },
+          summary: { wallMs: 1, browserMs: 0, requestCount: 1, contentTokens: 2, bytesWire: 1, externalCostUsd: null, externalCost: { knownSubtotal: 0, unknown: true } },
+          trace: [],
+        }
+      },
+    }
+    const report = await runRealTasks(client as never, [{ id: 'task', kind: 'ai_knowledge', url: 'https://example.com', source: 'test', evaluationSet: 'development', repeats: 1, assertions: [{ field: 'fact', mustContain: ['required fact'] }] }])
+    expect(report.summary.resourceMeters.knownExternalCostUsd).toBeNull()
+    expect(report.summary.resourceMeters.unknownCostRuns).toBe(1)
+  })
+
   it('marks every run in an inconsistent pair as not repeat-consistent', async () => {
     let n = 0
     const client = {

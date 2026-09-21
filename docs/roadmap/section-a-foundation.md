@@ -10,8 +10,8 @@ Section A is a scoped developer alpha. Do not treat PR #39 `accepted_with_unknow
 - field-level quality subset, separate from scale nonempty checks
 - independent holdout vs labeled holdout
 - interrupted attempt terminal state
-- second-developer install deferred as an explicit exception
-- billed USD unknown, resource meters comparable
+- second-developer install deferred as an explicit exception (`research/phase4_deferred_exceptions.json`)
+- billed USD unknown, resource meters comparable; `0` is not an invoice
 
 The field-level A5 manifest lives at `research/phase4_real_tasks.json` (20 tasks). The A6 scale manifest lives at `research/phase4_a6_real_tasks.json` (100 tasks).
 

@@ -23,10 +23,10 @@ Do not start B2, B3, or B4. Do not add another 100-page sample for its own sake.
 
 ## Remaining Open Conditions
 
-- Second-developer install: deferred exception. Clean clone on the author machine is recorded.
+- Second-developer install: deferred exception, recorded in `research/phase4_deferred_exceptions.json`. Clean clone on the author machine is recorded and is not scored as a second human.
 - Interrupted attempt terminal state: fresh recovery run marks the killed attempt `interrupted` and stores `recoveredFromAttemptId`.
-- Billed USD: unknown. Resource meters are comparable.
-- Quality subset live rescoring needs the local A6 report files.
+- Billed USD: unknown by design. Resource meters are comparable. Gate fails if billed USD is filled with `0`.
+- Quality subset live rescoring of AbortController still uses the older stored A6 report (7/8).
 
 ## What This Handoff Changed In Code
 

@@ -6,7 +6,7 @@ This is the current product roadmap. It reorganizes the older Phase 1/2/3 plan i
 
 **Section A · Reliable Data Collection → A6 conditional developer alpha**
 
-Current baseline: `main@fdc6559`.
+Current baseline: `main@e701aa4`.
 
 Current truth:
 
@@ -20,9 +20,9 @@ Current truth:
 - A4 diagnostic expansion covers 20 tasks / 11 domains. Pair-level A5 quality on that slice is AI 11/11 and product 9/9 consistent after scoring calibration; run-level correct-complete is AI 22/22 and product 18/18.
 - A6 scale covers 100 pages / 10 domains / two runs. Outcome consistency 100/100; normalized-hash 99/100. Labeled every-fifth-task holdout is not an independent holdout.
 - Interrupt/resume lost 0 checkpointed URLs. The killed attempt was previously left `running`; resume now marks it `interrupted`.
-- Clean-clone install completed `ai-mdn-abortcontroller` on the author machine. Second-developer install remains deferred.
-- External billed USD remains unknown. Comparable cost is resource meters, not USD.
-- A6 is a scoped developer alpha with open handoff conditions, not an unconditional pass.
+- Clean-clone install completed `ai-mdn-abortcontroller` on the author machine. Second-developer install is a recorded deferred exception, not a pass.
+- External billed USD is unknown by design. Comparable cost is resource meters. Filling `0` is forbidden.
+- A6 is a scoped developer alpha. Unconditional pass still requires a second human install.
 - Hosted arbitrary-URL browser execution remains gated on a separate egress/security review.
 
 ## Section Map
@@ -120,7 +120,7 @@ Section B and Section C are future product directions, not current implementatio
 
 **Scope:** 100–200 permitted pages across 10–20 domains, development vs holdout separation, repeat runs, interruption/recovery checks, installation and first-task validation by another developer, and support-boundary documentation.
 
-**Status:** conditional developer alpha. Scale and recovery evidence exist, including a fresh recovery run that marks the killed attempt `interrupted`. Remaining handoff: second-developer install (deferred) and billed USD unknown.
+**Status:** conditional developer alpha. Scale and recovery evidence exist, including a fresh recovery run that marks the killed attempt `interrupted`. Second-developer install is deferred (`research/phase4_deferred_exceptions.json`). Billed USD is unknown, not zero.
 
 **Exit:** a self-hosted developer alpha with a clear supported scope. It is not a claim of universal web success or public hosted readiness. `accepted_with_unknown_external_usd` from PR #39 is evidence of recorded files, not this exit.
 

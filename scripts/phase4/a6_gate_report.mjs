@@ -8,7 +8,9 @@ const first = await readJson(process.argv[2] ?? 'output/phase4/a6-report.json')
 const second = await readJson(process.argv[3] ?? 'output/phase4/a6-report-run2.json')
 const recovery = await readJson('output/phase4/a6-recovery.json') ?? await readJson('research/phase4_a6_recovery.json')
 const install = await readJson('output/phase4/install-smoke.json') ?? await readJson('research/phase4_install_smoke.json')
-const quality = await readJson('output/phase4/a6-quality-subset.json')
+const quality = await readJson('output/phase4/a6-quality-subset.json') ?? await readJson('research/phase4_a6_quality_subset.json')
+const cost = await readJson('output/phase4/resource-cost-report.json') ?? await readJson('research/phase4_resource_cost_report.json')
+const deferredRecord = await readJson('research/phase4_deferred_exceptions.json')
 const correction = JSON.parse(await readFile('research/phase4_human_correction.json', 'utf8'))
 const manifest = JSON.parse(await readFile('research/phase4_a6_real_tasks.json', 'utf8'))
 
@@ -57,15 +59,33 @@ add('clean_clone_install', install?.status === 'passed_clean_clone' || install?.
   status: install?.status ?? 'not_run',
   firstTask: install?.firstTask ?? null,
 })
+const secondDeveloperException = deferredRecord?.exceptions?.find((row) => row.id === 'second_developer_install')
 add('second_developer_install', install?.operatorIndependence === 'second_developer', {
   operatorIndependence: install?.operatorIndependence ?? null,
+  deferred: secondDeveloperException?.status === 'deferred',
+  whyDeferred: secondDeveloperException?.whyDeferred ?? null,
+  notClosedBy: secondDeveloperException?.notClosedBy ?? [],
 }, false)
 add('human_correction_minutes', typeof correction.minutes === 'number', {
   minutes: correction.minutes,
   scope: correction.scope,
 })
 add('support_boundary_documented', true, { path: 'research/phase4_support_boundary.md' })
-add('billed_usd_unknown', true, { cost: 'unknown', note: 'local resource meters are comparable; billed USD is not claimed' })
+const billedUnknown = cost?.usd === 'unknown' && cost?.a5?.knownExternalCostUsd == null && cost?.a6run1?.knownExternalCostUsd == null && cost?.a6run2?.knownExternalCostUsd == null && cost?.a5?.unknownCostRuns === 40 && cost?.a6run1?.unknownCostRuns === 100 && cost?.a6run2?.unknownCostRuns === 100
+add('billed_usd_unknown', billedUnknown, {
+  usd: cost?.usd ?? null,
+  knownExternalCostUsd: {
+    a5: cost?.a5?.knownExternalCostUsd ?? null,
+    a6run1: cost?.a6run1?.knownExternalCostUsd ?? null,
+    a6run2: cost?.a6run2?.knownExternalCostUsd ?? null,
+  },
+  unknownCostRuns: {
+    a5: cost?.a5?.unknownCostRuns ?? null,
+    a6run1: cost?.a6run1?.unknownCostRuns ?? null,
+    a6run2: cost?.a6run2?.unknownCostRuns ?? null,
+  },
+  note: 'local resource meters are comparable; billed USD is not claimed and must not be filled with 0',
+})
 
 const failedRequired = conditions.filter((row) => row.requiredForAcceptance && !row.ok).map((row) => row.id)
 const deferred = conditions.filter((row) => !row.requiredForAcceptance && !row.ok).map((row) => row.id)
@@ -96,6 +116,7 @@ const report = {
     cost: 'unknown',
     supportBoundary: 'research/phase4_support_boundary.md',
     qualitySubset: quality?.summary ?? null,
+    deferredExceptionsRecord: 'research/phase4_deferred_exceptions.json',
   },
 }
 await writeFile('output/phase4/a6-gate-report.json', JSON.stringify(report, null, 2) + '\n')

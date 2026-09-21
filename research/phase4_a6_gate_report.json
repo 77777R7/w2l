@@ -1,6 +1,6 @@
 {
   "phase": "A6",
-  "generatedAt": "2026-09-21T04:38:45.826Z",
+  "generatedAt": "2026-09-21T05:00:47.495Z",
   "status": "conditional_alpha_second_developer_deferred",
   "scale": {
     "pagesPerRun": 100,
@@ -97,7 +97,14 @@
       "id": "second_developer_install",
       "ok": false,
       "evidence": {
-        "operatorIndependence": "same_machine_clean_clone_not_second_human"
+        "operatorIndependence": "same_machine_clean_clone_not_second_human",
+        "deferred": true,
+        "whyDeferred": "No second human cloned, installed, and completed a first task. The recorded install is a same-machine clean clone.",
+        "notClosedBy": [
+          "author rerunning install_first_task.mjs",
+          "CI Local Reliability Gate",
+          "setting operatorIndependence to second_developer on this machine"
+        ]
       },
       "requiredForAcceptance": false
     },
@@ -125,8 +132,18 @@
       "id": "billed_usd_unknown",
       "ok": true,
       "evidence": {
-        "cost": "unknown",
-        "note": "local resource meters are comparable; billed USD is not claimed"
+        "usd": "unknown",
+        "knownExternalCostUsd": {
+          "a5": null,
+          "a6run1": null,
+          "a6run2": null
+        },
+        "unknownCostRuns": {
+          "a5": 40,
+          "a6run1": 100,
+          "a6run2": 100
+        },
+        "note": "local resource meters are comparable; billed USD is not claimed and must not be filled with 0"
       },
       "requiredForAcceptance": true
     }
@@ -145,6 +162,7 @@
       "qualitySubsetRuns": 8,
       "qualitySubsetCorrectComplete": 7,
       "missingReport": 0
-    }
+    },
+    "deferredExceptionsRecord": "research/phase4_deferred_exceptions.json"
   }
 }

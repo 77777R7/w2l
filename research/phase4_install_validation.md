@@ -1,8 +1,8 @@
 # Phase 4 Installation Validation
 
-Status: `passed_clean_clone`.
+Status: `passed_clean_clone`; second-developer install `deferred`.
 
-This is a clean clone of `main@6d98982` on the author machine. It proves install + first-task reproducibility. It is not a second independent developer.
+This is a clean clone of `main@6d98982` on the author machine. It proves install + first-task reproducibility. It is not a second independent developer and must not be scored as one.
 
 ## Protocol Run
 
@@ -25,5 +25,12 @@ This is a clean clone of `main@6d98982` on the author machine. It proves install
 | Outcome | `correct_complete` |
 | Lane | `http` |
 | Operator independence | same machine, clean clone, not a second human |
+| A6 gate treatment | clean clone required; second-developer install deferred exception |
+
+## Deferred Exception
+
+A6 original text asked another developer to install and complete a first task. That evidence does not exist. Conditional alpha may proceed with the clean-clone record. Unconditional A6 pass still requires a second human.
+
+Decision record: `research/phase4_deferred_exceptions.json`.
 
 Machine-readable evidence: `output/phase4/install-smoke.json` and `research/phase4_install_smoke.json`.
