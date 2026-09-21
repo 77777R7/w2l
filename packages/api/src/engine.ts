@@ -237,7 +237,8 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
       const revision = monitorStore.getRevision(id)
       const operation = runConfiguredMonitor(monitorStore, revision, async (validators) => {
         if (revision.config?.conditionalRequests) {
-          const result = await conditionalHttp.fetch(revision.url, undefined, validators.signal, validators)
+          const fetchConditional = conditionalHttp.fetch as unknown as (url: string, deadline?: number, signal?: AbortSignal, validators?: { etag?: string; lastModified?: string }) => Promise<FetchResult>
+          const result = await fetchConditional.call(conditionalHttp, revision.url, undefined, validators.signal, validators)
           return { result, links: result.links ?? [] }
         }
         const result = await this.scrape({ url: revision.url })

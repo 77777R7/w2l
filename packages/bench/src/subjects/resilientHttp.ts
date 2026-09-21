@@ -33,7 +33,7 @@ export class ResilientHttpSubject implements SubjectAdapter {
   }
 
   private readonly prepared: ReturnType<typeof prepareHttpIdentity>
-  private readonly fetcher: ResilientFetcher
+  private readonly fetcherFor: (initialUrl: string, validators: { etag?: string; lastModified?: string }, signal?: AbortSignal) => ResilientFetcher
   private readonly robotsCache: RobotsOriginCache
   private readonly networkPolicy: NetworkPolicy
   private readonly cooldownUntilByHost = new Map<string, number>()
@@ -44,12 +44,14 @@ export class ResilientHttpSubject implements SubjectAdapter {
     this.robotsCache = new RobotsOriginCache(this.networkPolicy)
     const headers = this.prepared.headers
     const maxBodyBytes = this.networkPolicy.maxBodyBytes
-    this.fetcher = async (url, init) => {
+    this.fetcherFor = (initialUrl, validators, signal) => async (url, init) => {
       const response = await request(url, {
         method: 'GET',
         headersTimeout: init.headersTimeoutMs,
         bodyTimeout: init.bodyTimeoutMs,
-        headers,
+        // Validators are bound to one representation; never forward on redirects.
+        headers: { ...headers, ...(url === initialUrl ? validators.etag ? { 'if-none-match': validators.etag } : validators.lastModified ? { 'if-modified-since': validators.lastModified } : {} : {}) },
+        signal,
       })
       const buf = await readCappedBody(response.body, maxBodyBytes)
       const responseHeaders = response.headers
@@ -66,7 +68,7 @@ export class ResilientHttpSubject implements SubjectAdapter {
     }
   }
 
-  async fetch(url: string, _deadlineMs?: number, signal?: AbortSignal): Promise<FetchResult> {
+  async fetch(url: string, _deadlineMs?: number, signal?: AbortSignal, validators: { etag?: string; lastModified?: string } = {}): Promise<FetchResult> {
     const start = Date.now()
     const trace: TraceEvent[] = []
     const honest = recordHttpIdentity(this.prepared, trace, 0)
@@ -107,7 +109,7 @@ export class ResilientHttpSubject implements SubjectAdapter {
       trace.push({ at: Date.now() - start, lane: 'http', event: 'host_cooldown_wait', detail: { host, waitMs } })
       await new Promise((resolve) => setTimeout(resolve, waitMs))
     }
-    const out = await resilientFetch(url, this.fetcher, {
+    const out = await resilientFetch(url, this.fetcherFor(url, validators, signal), {
       maxRedirects: this.networkPolicy.maxRedirects,
       assertUrl: (target) => assertSafeUrl(target, this.networkPolicy),
     })
@@ -145,6 +147,11 @@ export class ResilientHttpSubject implements SubjectAdapter {
         contentType: out.headers?.get('content-type') ?? null,
         rawBodySha256,
         artifacts: [],
+        etag: out.headers?.get('etag') ?? null,
+        lastModified: out.headers?.get('last-modified') ?? null,
+        cacheControl: out.headers?.get('cache-control') ?? null,
+        vary: out.headers?.get('vary') ?? null,
+        setsCookie: out.headers?.get('set-cookie') != null,
       },
       usage: {
         wallMs,
