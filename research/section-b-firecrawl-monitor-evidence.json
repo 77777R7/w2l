@@ -46,7 +46,15 @@
     "staleWorkerObservationAccepted": false,
     "expiredAttemptGetsInterrupted": true,
     "midCommitFailureLeavesNoSnapshotEventOutbox": true,
-    "outboxStateAfterInitialization": "pending"
+    "outboxStateAfterInitialization": "pending",
+    "independentConnectionClaim": true,
+    "sigkillRecovery": {
+      "oldAttempt": "interrupted",
+      "newAttemptFencingToken": 2,
+      "recoveredFromAttemptId": "4c128165-1fdf-4847-81f4-6416e84bf7e6",
+      "lostBaseline": false
+    },
+    "generatedEvidencePath": "research/section-b-firecrawl-monitor-evidence.generated.json"
   },
   "verifiedFields": [
     "title",

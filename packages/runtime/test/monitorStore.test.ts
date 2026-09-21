@@ -121,4 +121,28 @@ describe('MonitorStore B1/B2 slice', () => {
     expect(store.attempts(old.id).find((attempt) => attempt.id === old.attemptId)?.state).toBe('interrupted')
     expect(() => store.recordObservation({ id: 'stale', runId: old.id, attemptId: old.attemptId!, observedAt: now + 300_002, clientWallMs: 1, markdownSha256: null, outcome: null, error: null }, 'stale-assessment', { ...assessment, quality: 'unknown', fields: null, reasons: ['stale'] })).toThrow(/stale observation attempt/)
   })
+
+  it('allows only one active run across two independent SQLite connections', async () => {
+    dir = await mkdtemp(join(tmpdir(), 'w2l-monitor-'))
+    const firstStore = MonitorStore.open(join(dir, 'control.sqlite'))
+    const secondStore = MonitorStore.open(join(dir, 'control.sqlite'))
+    store = firstStore
+    const now = Date.now()
+    firstStore.createOrGetRevision({ monitorId: FIRECRAWL_MONITOR_ID, revision: 1, url: FIRECRAWL_INTRO_URL, ruleVersion: DOCUMENT_RULE_VERSION, intervalMs: 1000, staleAfterMs: 2000, createdAt: now })
+    const first = firstStore.startRun(FIRECRAWL_MONITOR_ID, 'connection-a', now)
+    expect(() => secondStore.startRun(FIRECRAWL_MONITOR_ID, 'connection-b', now + 1)).toThrow(/active run/)
+    expect(first.state).toBe('running')
+    secondStore.close()
+  })
+
+  it('uses persisted nextRunAt after reopening the control database', async () => {
+    dir = await mkdtemp(join(tmpdir(), 'w2l-monitor-'))
+    const firstStore = MonitorStore.open(join(dir, 'control.sqlite'))
+    const now = Date.now()
+    firstStore.createOrGetRevision({ monitorId: FIRECRAWL_MONITOR_ID, revision: 1, url: FIRECRAWL_INTRO_URL, ruleVersion: DOCUMENT_RULE_VERSION, intervalMs: 1000, staleAfterMs: 2000, createdAt: now - 5000 })
+    firstStore.close()
+    store = MonitorStore.open(join(dir, 'control.sqlite'))
+    const run = store.dueRun(FIRECRAWL_MONITOR_ID, now)
+    expect(run?.triggerKey).toMatch(/^scheduled:firecrawl-introduction:1:/)
+  })
 })

@@ -1,0 +1,102 @@
+{
+  "generatedAt": 1790000617187,
+  "monitorId": "firecrawl-introduction",
+  "revision": {
+    "monitorId": "firecrawl-introduction",
+    "revision": 1,
+    "url": "https://docs.firecrawl.dev/introduction",
+    "ruleVersion": "firecrawl-introduction/v1",
+    "intervalMs": 86400000,
+    "staleAfterMs": 172800000,
+    "createdAt": 1790000614549
+  },
+  "baseline": {
+    "id": "d7e13521-8182-43f1-a171-3ce7e411f7e6",
+    "monitorId": "firecrawl-introduction",
+    "revision": 1,
+    "version": 1,
+    "observationId": "ec8a04b8-485b-42e0-950b-0a0bb26dd78e",
+    "assessmentId": "74070209-f64b-4f16-9f2d-006d448b4416",
+    "fields": {
+      "title": "Introduction",
+      "introduction": "The web data API for AI agents. Search the web, scrape any page, and interact with it through one API. Firecrawl is the web data API for AI agents. Search, scrape, and interact with the live web to get clean Markdown or structured data.",
+      "searchDescription": "Search the web and get full page content from results in one call. See theSearch feature docsfor all options.",
+      "scrapeDescription": "Scrape any URL and get its content in markdown, HTML, or other formats. See theScrape feature docsfor all options.",
+      "interactDescription": "Scrape a page, then keep working with it: click buttons, fill forms, extract dynamic content, or navigate deeper. Describe what you want in plain English or write code for full control. See theInteract feature docsfor all options."
+    },
+    "createdAt": 1790000616987
+  },
+  "runs": [
+    {
+      "id": "a4ddf4a1-7338-4c3c-ab47-e9ca2ff5aea9",
+      "monitorId": "firecrawl-introduction",
+      "revision": 1,
+      "triggerKey": "scheduled:firecrawl-introduction:1:1790000614549",
+      "state": "completed",
+      "epoch": 1,
+      "fencingToken": 1,
+      "attemptId": "d33e4682-2df8-47c0-a6c2-54e9bb4735e6",
+      "leaseUntil": 1790000914550,
+      "deadlineAt": 1790000914550,
+      "expectedBaselineId": null,
+      "createdAt": 1790000614550,
+      "endedAt": 1790000616987,
+      "quality": "valid",
+      "change": "initialized",
+      "error": null
+    }
+  ],
+  "attempts": [
+    {
+      "id": "d33e4682-2df8-47c0-a6c2-54e9bb4735e6",
+      "runId": "a4ddf4a1-7338-4c3c-ab47-e9ca2ff5aea9",
+      "fencingToken": 1,
+      "state": "succeeded",
+      "startedAt": 1790000614550,
+      "endedAt": 1790000616987,
+      "recoveredFromAttemptId": null
+    }
+  ],
+  "observations": [
+    {
+      "id": "ec8a04b8-485b-42e0-950b-0a0bb26dd78e",
+      "run_id": "a4ddf4a1-7338-4c3c-ab47-e9ca2ff5aea9",
+      "attempt_id": "d33e4682-2df8-47c0-a6c2-54e9bb4735e6",
+      "observed_at": 1790000616986,
+      "client_wall_ms": 2436.053417,
+      "markdown_sha256": "50e33f9c4787e21a5a58723e5f25b6589008017bfbc8bffeebb186ab453c9d61",
+      "error": null
+    }
+  ],
+  "assessments": [
+    {
+      "id": "74070209-f64b-4f16-9f2d-006d448b4416",
+      "run_id": "a4ddf4a1-7338-4c3c-ab47-e9ca2ff5aea9",
+      "observation_id": "ec8a04b8-485b-42e0-950b-0a0bb26dd78e",
+      "quality": "valid",
+      "reasons_json": "[]",
+      "fields_json": "{\"title\":\"Introduction\",\"introduction\":\"The web data API for AI agents. Search the web, scrape any page, and interact with it through one API. Firecrawl is the web data API for AI agents. Search, scrape, and interact with the live web to get clean Markdown or structured data.\",\"searchDescription\":\"Search the web and get full page content from results in one call. See theSearch feature docsfor all options.\",\"scrapeDescription\":\"Scrape any URL and get its content in markdown, HTML, or other formats. See theScrape feature docsfor all options.\",\"interactDescription\":\"Scrape a page, then keep working with it: click buttons, fill forms, extract dynamic content, or navigate deeper. Describe what you want in plain English or write code for full control. See theInteract feature docsfor all options.\"}",
+      "evidence_json": "[{\"field\":\"title\",\"start\":12,\"end\":26,\"quote\":\"# Introduction\"},{\"field\":\"introduction\",\"start\":28,\"end\":264,\"quote\":\"The web data API for AI agents. Search the web, scrape any page, and interact with it through one API.\\nFirecrawl is the web data API for AI agents. Search, scrape, and interact with the live web to get clean Markdown or structured data.\"},{\"field\":\"searchDescription\",\"start\":2957,\"end\":3066,\"quote\":\"Search the web and get full page content from results in one call. See theSearch feature docsfor all options.\"},{\"field\":\"scrapeDescription\",\"start\":5635,\"end\":5749,\"quote\":\"Scrape any URL and get its content in markdown, HTML, or other formats. See theScrape feature docsfor all options.\"},{\"field\":\"interactDescription\",\"start\":7974,\"end\":8204,\"quote\":\"Scrape a page, then keep working with it: click buttons, fill forms, extract dynamic content, or navigate deeper. Describe what you want in plain English or write code for full control. See theInteract feature docsfor all options.\"}]"
+    }
+  ],
+  "events": [
+    {
+      "id": "80057215-5523-404b-b626-1026e451837f",
+      "runId": "a4ddf4a1-7338-4c3c-ab47-e9ca2ff5aea9",
+      "monitorId": "firecrawl-introduction",
+      "kind": "initialized",
+      "reason": "initialized",
+      "fromSnapshotId": null,
+      "toSnapshotId": "d7e13521-8182-43f1-a171-3ce7e411f7e6",
+      "changes": [],
+      "observedAt": 1790000616987
+    }
+  ],
+  "outbox": [
+    {
+      "eventId": "80057215-5523-404b-b626-1026e451837f",
+      "state": "pending",
+      "acknowledgedAt": null
+    }
+  ]
+}

@@ -249,6 +249,13 @@ export class MonitorStore {
   acknowledge(eventId: string, now: number): void {
     this.db.prepare("UPDATE monitor_outbox SET state='acknowledged',acknowledged_at=? WHERE event_id=? AND state='pending'").run(now, eventId)
   }
+  exportEvidence(monitorId: string): Record<string, unknown> {
+    const view = this.view(monitorId, Date.now())
+    const attempts = view.runs.flatMap((run) => this.attempts(run.id))
+    const observations = this.db.prepare('SELECT id,run_id,attempt_id,observed_at,client_wall_ms,markdown_sha256,error FROM monitor_observations WHERE run_id IN (SELECT id FROM monitor_runs WHERE monitor_id=?) ORDER BY observed_at,id').all(monitorId)
+    const assessments = this.db.prepare('SELECT id,run_id,observation_id,quality,reasons_json,fields_json,evidence_json FROM monitor_assessments WHERE run_id IN (SELECT id FROM monitor_runs WHERE monitor_id=?) ORDER BY id').all(monitorId)
+    return { generatedAt: Date.now(), monitorId, revision: view.revision, baseline: view.baseline, runs: view.runs, attempts, observations, assessments, events: view.events, outbox: view.outbox }
+  }
   private assertOwner(run: MonitorRun, now: number): void {
     const monitor = this.db.prepare('SELECT * FROM monitors WHERE id=?').get(run.monitorId) as MonitorRow | undefined
     if (run.state !== 'running' || !monitor?.enabled || run.epoch !== monitor.control_epoch || run.revision !== monitor.revision || (run.leaseUntil ?? 0) <= now || (run.deadlineAt ?? 0) <= now) throw new Error('expired or stale execution')

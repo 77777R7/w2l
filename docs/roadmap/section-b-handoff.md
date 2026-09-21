@@ -80,6 +80,7 @@ The persisted scheduler path can be exercised once with:
 
 ```bash
 W2L_B1_ROOT=.w2l/section-b npm run section-b:scheduler -- --once
+W2L_B1_ROOT=.w2l/section-b npm run section-b:export-evidence
 ```
 
 It reads `nextRunAt` from SQLite. A production scheduler would replace the
