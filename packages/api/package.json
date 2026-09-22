@@ -24,6 +24,7 @@
     "@w2l/contracts": "*",
     "@w2l/http-core": "*",
     "@w2l/runtime": "*",
+    "ajv": "^8.20.0",
     "hono": "^4.11.3"
   }
 }

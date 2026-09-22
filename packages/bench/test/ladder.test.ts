@@ -115,6 +115,15 @@ describe('LadderRunner', () => {
     expect(run.channelsTried).toEqual(['http', 'browser_local'])
   })
 
+  it('records two-level end-to-end time separately from summed attempt wallMs', async () => {
+    const http: Channel = { id: 'http', identity: COHERENT, fetch: async url => { await new Promise(resolve => setTimeout(resolve, 25)); return { ...blockedResult(url, 'cloudflare_challenge'), usage: { ...blockedResult(url, 'cloudflare_challenge').usage, wallMs: 100 } } } }
+    const browser: Channel = { id: 'browser_local', identity: COHERENT, fetch: async url => { await new Promise(resolve => setTimeout(resolve, 25)); return { ...contentfulResult(url, 'browser_local'), usage: { ...contentfulResult(url, 'browser_local').usage, wallMs: 100 } } } }
+    const run = await new LadderRunner([http, browser], { mode: 'authed' }).run('https://example.com/p')
+    expect(run.summary.wallMs).toBe(200)
+    expect(run.summary.totalMs).toBeGreaterThanOrEqual(45)
+    expect(run.summary.totalMs).toBeLessThan(run.summary.wallMs)
+  })
+
   it('does NOT escalate rate_limited — slowing down is the fix, not a stronger lane', async () => {
     const http = channel('http', [blockedResult('https://example.com/p', 'rate_limit')])
     const browser = channel('browser_local', [contentfulResult('https://example.com/p', 'browser_local')])

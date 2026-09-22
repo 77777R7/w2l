@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Scrape requests now accept explicit Markdown, links and JSON Schema formats. Deterministic extraction runs directly on subject-bound product HTML/metadata; nullable missing fields include evidence-backed issues, and an OpenAI-compatible model fallback is explicit and disabled when unconfigured.
+- Amazon `/dp/{ASIN}` pages use a subject adapter for identity, purchase offers, seller, availability, delivery context, variants, images and specifications. Recommendation shelves are removed before output; Blink subscription pages remain products with `kind: subscription`.
+- HTTP usage includes monotonic queue, robots, cooldown, transport, retry, extract, format, model and total timings. `request_complete` is emitted after the response body resolves, while ladder `totalMs` records user-visible elapsed time separately from summed attempt time.
+- MCP scrape responses are compact by default and omit trace, ladder audit and nested duplicate bodies; `debug: true` restores the full audit. The fixed three-round Amazon baseline writes ignored local evidence with region pinning, field checks, response bytes and p50/p95 timing.
+
 ## 0.4.0-rc.1 — 2026-09-22
 
 - Gate 2–4 implementation freeze `99894bd636ecafd254a7c7bc79d26e9a97fa9199` was merged by [PR #50](https://github.com/77777R7/w2l/pull/50) into `main` at `1c1481722ade26b717d18a34fa4b46362f53acf8` and published as the `v0.4.0-rc.1` source prerelease. Workspace packages remain private; no npm package or permanent service deployment is included.

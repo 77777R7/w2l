@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "discoverySource": "https://www.amazon.com/gp/bestsellers",
+  "regionPolicy": "pin_first_observed_delivery_location",
+  "rounds": 3,
+  "urls": [
+    "https://www.amazon.com/dp/B08KT2Z93D",
+    "https://www.amazon.com/dp/B09V7Z4TJG",
+    "https://www.amazon.com/dp/B07PBXXNCY",
+    "https://www.amazon.com/dp/B00F1U0YB4",
+    "https://www.amazon.com/dp/B09542G9ZN",
+    "https://www.amazon.com/dp/B09541P9WH",
+    "https://www.amazon.com/dp/B08JHCVHTY",
+    "https://www.amazon.com/dp/B0DCH8VDXF",
+    "https://www.amazon.com/dp/B0GJTFXNRX",
+    "https://www.amazon.com/dp/B0FQFB8FMG"
+  ]
+}

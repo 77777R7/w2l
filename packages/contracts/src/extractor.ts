@@ -16,7 +16,40 @@ export type ExtractStrategy = 'article' | 'list' | 'table' | 'product'
  * prose. A price we matched out of visible text is a weaker claim than one
  * the publisher declared, and a consumer is entitled to know which it got.
  */
-export type ProductFactSource = 'jsonld' | 'microdata' | 'meta' | 'text'
+export type ProductFactSource = 'jsonld' | 'microdata' | 'meta' | 'dom' | 'text' | 'model'
+
+/** Evidence classes allowed on the normalized cross-site entity surface. */
+export type EntityFieldSource = 'jsonld' | 'microdata' | 'meta' | 'hydration' | 'dom'
+export type EntityFieldStatus = 'confirmed' | 'unconfirmed'
+export type EntityType = 'product' | 'post' | 'thread' | 'comment' | 'profile' | 'community' | 'video' | 'article'
+export type AdapterStatus = 'generic' | 'beta adapter' | 'verified adapter' | 'unsupported'
+
+export type EntityValue = string | number | boolean | null | readonly EntityValue[] | { readonly [key: string]: EntityValue }
+
+export interface EntityField<T extends EntityValue = EntityValue> {
+  /** Value exactly as observed on the page. */
+  raw: T
+  /** Stable value used across adapters. */
+  normalized: T
+  source: EntityFieldSource
+  /** CSS selector, JSON Pointer, URL component, or another public-page location. */
+  path: string
+  status: EntityFieldStatus
+}
+
+export interface ExtractedEntity {
+  type: EntityType
+  id: string | null
+  fields: Readonly<Record<string, EntityField>>
+  /** IDs of other entities in this response, e.g. parent/author/community. */
+  relationships: Readonly<Record<string, string | readonly string[] | null>>
+}
+
+export interface AdapterDescriptor {
+  id: string
+  version: string
+  status: AdapterStatus
+}
 
 /** One product fact plus the evidence class it was drawn from. */
 export interface ProductFact {
@@ -24,6 +57,23 @@ export interface ProductFact {
    *  normalized price is a claim we would be making, not one we read. */
   value: string
   source: ProductFactSource
+  /** JSON Pointer or CSS selector locating the evidence when available. */
+  path?: string
+}
+
+export interface ProductPrice {
+  amount: ProductFact
+  currency: ProductFact | null
+  priceType: 'current' | 'list' | 'unit' | 'subscription' | 'other'
+  seller: ProductFact | null
+}
+
+export interface ProductVariant {
+  name: string
+  value: string
+  selected: boolean
+  source: ProductFactSource
+  path?: string
 }
 
 /**
@@ -38,6 +88,27 @@ export interface ProductFacts {
   sku: ProductFact | null
   brand: ProductFact | null
   availability: ProductFact | null
+  /** Rich product facts are additive so older extractors remain valid. */
+  kind?: 'physical' | 'subscription' | 'unknown'
+  subjectId?: ProductFact | null
+  prices?: readonly ProductPrice[]
+  seller?: ProductFact | null
+  deliveryLocation?: ProductFact | null
+  rating?: ProductFact | null
+  reviewCount?: ProductFact | null
+  images?: readonly ProductFact[]
+  variants?: readonly ProductVariant[]
+  specifications?: Readonly<Record<string, ProductFact>>
+}
+
+export interface DocumentExtraction {
+  title: string | null
+  pageType: PageType
+  strategy: ExtractStrategy
+  confidence: number
+  product: ProductFacts | null
+  adapter: AdapterDescriptor
+  entities: readonly ExtractedEntity[]
 }
 
 export interface ExtractorOutput {
@@ -65,9 +136,16 @@ export interface ExtractorOutput {
    * object would read as "we looked and found none".
    */
   product?: ProductFacts | null
+  /** Adapter identity and normalized entities are produced directly from HTML. */
+  adapter: AdapterDescriptor
+  entities: readonly ExtractedEntity[]
+  /** Monotonic extractor stage timings. */
+  timings: { parseMs: number; extractMs: number }
 }
 
 export interface ExtractorOptions {
+  /** Final URL after redirects. Site adapters use it only as an identity signal. */
+  url?: string
   /**
    * Prefer less text but correct extraction (tighten thresholds, require a
    * semantic container). Mirrors trafilatura's favor_precision.

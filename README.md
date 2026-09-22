@@ -72,6 +72,41 @@ The current MCP uses local stdio and talks to the REST server. Its six tools cov
 }
 ```
 
+MCP `scrape` is compact by default: it returns the selected content, document/product metadata, aggregate usage and errors without repeating the body under `summary.attempts`. Pass `debug: true` when you need the full route, trace and per-attempt audit. REST and SDK calls that omit `formats` and `debug` keep the legacy full Markdown response.
+
+Request deterministic structured data with a JSON Schema alongside, or instead of, Markdown:
+
+```ts
+const product = await w2l.scrape('https://www.amazon.com/dp/B08KT2Z93D', {
+  debug: false,
+  formats: [{
+    type: 'json',
+    schema: {
+      type: 'object',
+      properties: {
+        asin: { type: 'string' },
+        title: { type: 'string' },
+        price: { type: ['number', 'null'] },
+        currency: { type: ['string', 'null'] },
+        seller: { type: ['string', 'null'] }
+      },
+      required: ['asin', 'title', 'price', 'currency', 'seller'],
+      additionalProperties: false
+    }
+  }]
+})
+```
+
+W2L maps supported product fields directly from subject-bound HTML, JSON-LD, metadata and DOM evidence. A missing nullable field is `null` with a `field_unavailable` issue. Model fallback is opt-in with `modelFallback: true`; configure an OpenAI-compatible endpoint through `W2L_EXTRACT_BASE_URL`, `W2L_EXTRACT_MODEL` and optional `W2L_EXTRACT_API_KEY`. Without those variables, page content is never sent to a model and the JSON result reports `model_unavailable`.
+
+Run the fixed 10-product, three-round Amazon MCP baseline with:
+
+```bash
+npm run baseline:amazon
+```
+
+Round 1 pins the observed delivery region; later region/currency mismatches are retained but excluded from latency conclusions. Reports are written under ignored `.w2l/amazon-baseline/`; the versioned URL manifest and schema live in `research/`.
+
 Firecrawl v1 clients: set the base URL to `http://127.0.0.1:8787/fc` so `/v1/scrape` and `/v1/crawl` hit the shim. Snapshot 2026-09-18; known diffs in [docs/firecrawl-shim.md](docs/firecrawl-shim.md). Firecrawl Search / Interact / Agent / Monitor compatibility is not implemented. W2L's native Monitor and Delivery APIs use their own contracts.
 
 ## Continuous Monitors and event delivery
@@ -161,6 +196,7 @@ docs/
 - [x] `w2l crawl` + SQLite checkpoint resume
 - [x] REST API + TypeScript SDK (`POST /v1/scrape`, `POST /v1/crawl`, `GET /v1/crawl/:id`, paginated crawl pages/errors, cancel)
 - [x] MCP server (`scrape`, `crawl`, `get_crawl`, paginated pages/errors, and cancel over REST)
+- [x] Compact MCP scrape responses, direct structured JSON/JSON Schema extraction, and Amazon subject adapter/baseline
 - [x] Firecrawl `/scrape` `/crawl` migration shim (snapshot 2026-09-18; not a compatibility layer)
 - [x] Task-level ladder accounting, preserved per-channel attempts, and honest unknown cost/evidence fields
 - [x] Bounded multi-page workers, shared host scheduling, conditional browser settling, and runtime resource reuse

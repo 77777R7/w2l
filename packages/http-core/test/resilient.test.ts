@@ -47,6 +47,19 @@ describe('resilientFetch: plain responses', () => {
     expect(out.requestCount).toBe(1)
     expect(out.attemptCount).toBe(1)
     expect(await out.bodyText()).toBe('body')
+    expect(out.trace.find((event) => event.event === 'request_complete')?.at).toBeGreaterThanOrEqual(0)
+  })
+
+  it('records request_complete only after the terminal response body finishes', async () => {
+    let release!: (value: string) => void
+    const body = new Promise<string>(resolve => { release = resolve })
+    const out = await resilientFetch(U, async () => ({ ...res(200), bodyText: () => body }))
+    expect(out.trace.some(event => event.event === 'request_complete')).toBe(false)
+    const pending = out.bodyText()
+    expect(out.trace.some(event => event.event === 'request_complete')).toBe(false)
+    release('done')
+    expect(await pending).toBe('done')
+    expect(out.trace.some(event => event.event === 'request_complete')).toBe(true)
   })
 
   it('returns non-retryable statuses as terminal ok-kind (subject maps them)', async () => {
@@ -277,7 +290,9 @@ describe('resilientFetch execution budget', () => {
       setTimeout(() => controller.abort(), 20)
       return res(503, { 'retry-after': '60' })
     }, { signal: controller.signal })
-    expect((await out).failureReason).toBe('timeout')
+    const result = await out
+    expect(result.failureReason).toBe('timeout')
+    expect(result.trace.find(event => event.event === 'retry')?.detail?.waitedMs).toBeLessThan(1_000)
     expect(calls).toBe(1)
   })
 

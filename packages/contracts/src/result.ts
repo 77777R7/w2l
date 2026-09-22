@@ -1,5 +1,25 @@
 import type { BlockReason, BudgetKind, FailureReason, Lane, ResultStatus } from './status.js'
 import type { ComplianceRecord } from './compliance.js'
+import type { DocumentExtraction } from './extractor.js'
+import type { StructuredExtractionResult } from './structured.js'
+
+export interface ResourceTimings {
+  queueMs: number
+  robotsMs: number
+  cooldownWaitMs: number
+  retryWaitMs: number
+  /** Initial request/headers time, excluding body read and retry sleep. */
+  requestMs: number
+  bodyReadMs: number
+  /** Total network work excluding retry sleep. */
+  transportMs: number
+  parseMs: number
+  extractMs: number
+  formatMs: number
+  serializeMs: number
+  modelMs: number
+  totalMs: number
+}
 
 /** Why the runtime moved from one lane to the next. Logged for the escalation corpus. */
 export interface Escalation {
@@ -28,6 +48,8 @@ export interface ResourceUsage {
    * `null` means no external cost path was used — never means "free".
    */
   externalCostUsd: number | null
+  /** Stage timings use a monotonic clock. Optional for legacy producers. */
+  timings?: ResourceTimings
 }
 
 export interface Meter {
@@ -80,6 +102,8 @@ export interface LadderExecutionSummary {
   externalCost: Meter
   contentTokenMeter: Meter
   artifacts: readonly string[]
+  /** Actual caller wait across all ladder work, including routing overhead. */
+  totalMs?: number
 }
 
 export interface LadderRunAudit {
@@ -134,6 +158,10 @@ export interface FetchResult {
   resumeContext?: unknown | null
   /** Extracted main content as Markdown. Null unless status is contentful. */
   markdown: string | null
+  /** HTML-derived page/product facts; never reconstructed from Markdown. */
+  document?: DocumentExtraction | null
+  /** Present only when a JSON format was requested. */
+  json?: StructuredExtractionResult | null
   /**
    * Outbound http(s) links from the FULL document, collected after extract
    * and before the raw HTML is dropped. Not from `mainHtml` — prune strips

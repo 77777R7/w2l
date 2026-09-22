@@ -28,9 +28,10 @@ import {
   type ScrapeRequest,
   type StepRecord,
   type Task,
-  type LadderRunAudit,
   type CrawlPageQuery,
   type ExecutionContext,
+  type CompactScrapeResponse,
+  type ScrapeResponse,
   type DeliveryDestinationInput,
   type DeliveryDestination,
   type DeliveryQuery,
@@ -44,6 +45,7 @@ import { MonitorStore, DeliveryStore } from '@w2l/runtime'
 import { FileSessionBrokerStore, SessionBroker } from '@w2l/bench'
 import { FIRECRAWL_INTRO_URL, FIRECRAWL_MONITOR_ID, type MonitorView, type MonitorRevision } from '@w2l/contracts'
 import type { ManagedSessionRef, SessionAccessResult } from '@w2l/contracts'
+import { prepareScrapeResponse } from './structured.js'
 
 export interface CrawlWithSteps {
   report: CrawlReport
@@ -51,7 +53,7 @@ export interface CrawlWithSteps {
 }
 
 export interface ApiEngine {
-  scrape(req: ScrapeRequest, context?: ExecutionContext): Promise<FetchResult & LadderRunAudit>
+  scrape(req: ScrapeRequest, context?: ExecutionContext): Promise<ScrapeResponse | CompactScrapeResponse>
   startCrawl(req: CrawlStartRequest): Promise<CrawlAccepted>
   getCrawl(taskId: string): Promise<CrawlReport | null>
   getCrawlWithSteps(taskId: string): Promise<CrawlWithSteps | null>
@@ -170,6 +172,7 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
 
   return {
     async scrape(req, context = {}) {
+      const overallStart = performance.now()
       const scope = createExecutionScope({...context, signal: context.signal ? AbortSignal.any([context.signal, shutdownController.signal]) : shutdownController.signal, deadlineAt: context.deadlineAt ?? Date.now() + 300_000})
       const mode = defaultApiMode(req.mode)
       const channels = channelsFor(mode)
@@ -182,12 +185,13 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
       const runner = new LadderRunner(channels, policy, historyFor(mode))
       const operation = (async () => {
         const run = await runner.run(req.url, undefined, scope)
-        return {
+        const full: ScrapeResponse = {
           ...run.result,
           channelsTried: run.channelsTried,
           ladderTrace: run.ladderTrace,
           summary: run.summary,
         }
+        return prepareScrapeResponse(full, req, scope, null, overallStart)
       })()
       activeScrapes.add(operation)
       try { return await operation } finally { activeScrapes.delete(operation); scope.dispose() }
@@ -324,7 +328,7 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
           const result = await conditionalHttp.fetch(revision.url, capture.deadlineAt, capture.signal, capture, capture.onRetryAfter)
           return {result, links: result.links ?? []}
         }
-        const result = await this.scrape({url: revision.url}, capture)
+        const result = await this.scrape({url: revision.url, debug: true}, capture) as ScrapeResponse
         return {result, links: result.links ?? [], audit: {channelsTried: result.channelsTried, ladderTrace: result.ladderTrace, summary: result.summary}}
       }, triggerKey, {...context, signal})
       activeScrapes.add(operation)

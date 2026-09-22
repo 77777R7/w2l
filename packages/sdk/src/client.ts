@@ -11,10 +11,12 @@ import type {
   CrawlPageQuery,
   CrawlReport,
   CrawlStartRequest,
+  CompactScrapeResponse,
   FetchResult,
   MonitorRevision,
   MonitorView,
   ScrapeRequest,
+  ScrapeResponse,
 } from '@w2l/contracts'
 
 export interface W2LOptions {
@@ -49,8 +51,10 @@ export class W2L {
     this.fetchImpl = options.fetch ?? fetch
   }
 
-  async scrape(url: string, opts: Omit<ScrapeRequest, 'url'> = {}, request: RequestOptions = {}): Promise<FetchResult> {
-    return this.post<FetchResult>('/v1/scrape', { ...opts, url }, 200, request)
+  async scrape(url: string, opts: Omit<ScrapeRequest, 'url'> & { debug: false }, request?: RequestOptions): Promise<CompactScrapeResponse>
+  async scrape(url: string, opts?: Omit<ScrapeRequest, 'url'>, request?: RequestOptions): Promise<ScrapeResponse>
+  async scrape(url: string, opts: Omit<ScrapeRequest, 'url'> = {}, request: RequestOptions = {}): Promise<ScrapeResponse | CompactScrapeResponse> {
+    return this.post<ScrapeResponse | CompactScrapeResponse>('/v1/scrape', { ...opts, url }, 200, request)
   }
 
   async crawl(url: string, opts: Omit<CrawlStartRequest, 'url'> = {}, request: RequestOptions = {}): Promise<CrawlAccepted> {

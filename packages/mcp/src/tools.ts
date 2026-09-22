@@ -12,13 +12,36 @@ export type ToolName = (typeof TOOL_NAMES)[number]
 export const TOOLS = [
   {
     name: 'scrape',
-    description: 'Fetch one URL through the W2L coverage ladder. Returns a FetchResult.',
+    description: 'Fetch one URL through the W2L coverage ladder. Compact by default; set debug=true for the full audit.',
     inputSchema: {
       type: 'object',
       properties: {
         url: { type: 'string', description: 'http(s) URL' },
         mode: { type: 'string', enum: ['standard', 'research', 'authed'] },
         allowlistedDomains: { type: 'array', items: { type: 'string' } },
+        formats: {
+          type: 'array',
+          minItems: 1,
+          maxItems: 3,
+          items: {
+            anyOf: [
+              { type: 'string', enum: ['markdown', 'links', 'json'] },
+              {
+                type: 'object',
+                properties: {
+                  type: { const: 'json' },
+                  schema: { type: 'object' },
+                  prompt: { type: 'string', maxLength: 4000 },
+                  modelFallback: { type: 'boolean' },
+                },
+                required: ['type', 'schema'],
+                additionalProperties: false,
+              },
+            ],
+          },
+        },
+        includeLinks: { type: 'boolean', description: 'Include outbound links. Defaults to false.' },
+        debug: { type: 'boolean', description: 'Include trace, ladderTrace, and full attempt audit.' },
       },
       required: ['url'],
       additionalProperties: false,
@@ -98,7 +121,13 @@ export const TOOLS = [
 export async function callTool(client: W2L, name: string, args: unknown): Promise<unknown> {
   if (name === 'scrape') {
     const req = parseScrapeRequest(args)
-    return client.scrape(req.url, { mode: req.mode, allowlistedDomains: req.allowlistedDomains })
+    return client.scrape(req.url, {
+      mode: req.mode,
+      allowlistedDomains: req.allowlistedDomains,
+      formats: req.formats ?? ['markdown'],
+      includeLinks: req.includeLinks,
+      debug: req.debug ?? false,
+    })
   }
   if (name === 'crawl') {
     const req = parseCrawlStartRequest(args)

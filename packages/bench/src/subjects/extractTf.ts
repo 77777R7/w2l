@@ -1,5 +1,5 @@
 import { createExecutionScope, remainingTimeout, throwIfExecutionStopped } from '@w2l/http-core'
-import { estimateTokens, type CrawlMode, type FetchResult, type TraceEvent } from '@w2l/contracts'
+import { estimateTokens, type CrawlMode, type DocumentExtraction, type FetchResult, type TraceEvent } from '@w2l/contracts'
 import { extractTf, htmlToMarkdown } from '@w2l/extract-tf'
 import { classifyGate, escalationForBlock } from '@w2l/http-core'
 import { request } from 'undici'
@@ -51,6 +51,7 @@ export class ExtractTfSubject implements SubjectAdapter {
       // higher lane. Report it as an unverified empty failure (per contract:
       // suspected-bad emptiness is `failed`, not a contentful success).
       let markdown: string | null = null
+      let document: DocumentExtraction | null = null
       let escalated = false
       let routeEvidence: {
         pageType: string
@@ -59,7 +60,16 @@ export class ExtractTfSubject implements SubjectAdapter {
         escalate: boolean
       } | null = null
       if (status === 200) {
-        const out = extractTf.extract(body)
+        const out = extractTf.extract(body, { url })
+        document = {
+          title: out.title,
+          pageType: out.pageType,
+          strategy: out.strategy,
+          confidence: out.confidence,
+          product: out.product ?? null,
+          adapter: out.adapter,
+          entities: out.entities,
+        }
         routeEvidence = {
           pageType: out.pageType,
           strategy: out.strategy,
@@ -174,6 +184,7 @@ export class ExtractTfSubject implements SubjectAdapter {
         lane: 'http',
         escalations,
         markdown,
+        document,
         truncated: false,
         truncatedAt: null,
         compliance: null,

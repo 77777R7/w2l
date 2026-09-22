@@ -11,7 +11,7 @@ import {
 import { collectLinks, extractTf, htmlToMarkdown } from '@w2l/extract-tf'
 import { resilientFetch, abortableSleep, createExecutionScope, raceWithSignal, throwIfExecutionStopped, classifyGate, escalationForBlock, parseRetryAfterMs, sha256Utf8, type ResilientFetcher } from '@w2l/http-core'
 import { request } from 'undici'
-import { assertSafeUrl, defaultNetworkPolicy, readCappedBody } from '../egress.js'
+import { assertSafeUrl, BodyTooLargeError, defaultNetworkPolicy, readCappedBody } from '../egress.js'
 import { prepareHttpIdentity, recordHttpIdentity } from '../httpIdentity.js'
 import { RobotsOriginCache } from '../robotsLookup.js'
 import type { SubjectAdapter } from '../subject.js'
@@ -34,7 +34,7 @@ export class ResilientHttpSubject implements SubjectAdapter {
   }
 
   private readonly prepared: ReturnType<typeof prepareHttpIdentity>
-  private readonly fetcherFor: (initialUrl: string, validators: { etag?: string; lastModified?: string }, signal?: AbortSignal) => ResilientFetcher
+  private readonly fetcherFor: (initialUrl: string, validators: { etag?: string; lastModified?: string }, signal?: AbortSignal, onBodyRead?: (ms: number) => void) => ResilientFetcher
   private readonly robotsCache: RobotsOriginCache
   private readonly networkPolicy: NetworkPolicy
   private readonly pendingByOrigin = new Map<string, Promise<void>>()
@@ -46,7 +46,7 @@ export class ResilientHttpSubject implements SubjectAdapter {
     this.robotsCache = new RobotsOriginCache(this.networkPolicy)
     const headers = this.prepared.headers
     const maxBodyBytes = this.networkPolicy.maxBodyBytes
-    this.fetcherFor = (initialUrl, validators, signal) => async (url, init) => {
+    this.fetcherFor = (initialUrl, validators, signal, onBodyRead) => async (url, init) => {
       const response = await request(url, {
         method: 'GET',
         headersTimeout: init.headersTimeoutMs,
@@ -55,8 +55,8 @@ export class ResilientHttpSubject implements SubjectAdapter {
         headers: { ...headers, ...(url === initialUrl ? validators.etag ? { 'if-none-match': validators.etag } : validators.lastModified ? { 'if-modified-since': validators.lastModified } : {} : {}) },
         signal: init.signal ?? signal,
       })
-      const buf = await readCappedBody(response.body, maxBodyBytes)
       const responseHeaders = response.headers
+      let body: string | undefined
       return {
         status: response.statusCode,
         headers: {
@@ -65,7 +65,14 @@ export class ResilientHttpSubject implements SubjectAdapter {
             return typeof v === 'string' ? v : Array.isArray(v) ? (v[0] ?? null) : null
           },
         },
-        bodyText: async () => new TextDecoder().decode(buf),
+        bodyText: async () => {
+          if (body !== undefined) return body
+          const bodyStart = performance.now()
+          const buf = await readCappedBody(response.body, maxBodyBytes)
+          body = new TextDecoder().decode(buf)
+          onBodyRead?.(Math.max(0, performance.now() - bodyStart))
+          return body
+        },
       }
     }
   }
@@ -73,6 +80,7 @@ export class ResilientHttpSubject implements SubjectAdapter {
   async fetch(url: string, deadlineMs?: number, signal?: AbortSignal, validators: { etag?: string; lastModified?: string } = {}, onRetryAfter?: ExecutionContext['onRetryAfter']): Promise<FetchResult> {
     const scope = createExecutionScope({ signal, deadlineAt: deadlineMs, onRetryAfter })
     const start = Date.now()
+    const monotonicStart = performance.now()
     const origin = new URL(url).origin
     const previous = this.pendingByOrigin.get(origin) ?? Promise.resolve()
     let release!: () => void
@@ -81,15 +89,18 @@ export class ResilientHttpSubject implements SubjectAdapter {
     this.pendingByOrigin.set(origin, pending)
     try {
       await raceWithSignal(previous, scope.signal)
+      const queueMs = performance.now() - monotonicStart
       throwIfExecutionStopped(scope)
-      const result = await this.fetchWithinBudget(url, scope, validators)
+      const result = await this.fetchWithinBudget(url, scope, validators, monotonicStart, queueMs)
       return scope.signal.reason?.name === 'TimeoutError' || deadlineMs !== undefined && Date.now() >= deadlineMs
         ? { ...result, budgetExceeded: 'time' }
         : result
     } catch (error) {
       if (!scope.signal.aborted) throw error
       const result = this.denied(url, start, [], 'timeout')
-      return scope.signal.reason?.name === 'TimeoutError' || deadlineMs !== undefined && Date.now() >= deadlineMs ? { ...result, budgetExceeded: 'time' } : result
+      const totalMs = Math.max(0, performance.now() - monotonicStart)
+      const timed = { ...result, usage: { ...result.usage, wallMs: totalMs, timings: { queueMs: totalMs, robotsMs: 0, cooldownWaitMs: 0, retryWaitMs: 0, requestMs: 0, bodyReadMs: 0, transportMs: 0, parseMs: 0, extractMs: 0, formatMs: 0, serializeMs: 0, modelMs: 0, totalMs } } }
+      return scope.signal.reason?.name === 'TimeoutError' || deadlineMs !== undefined && Date.now() >= deadlineMs ? { ...timed, budgetExceeded: 'time' } : timed
     } finally {
       scope.dispose()
       release()
@@ -99,9 +110,45 @@ export class ResilientHttpSubject implements SubjectAdapter {
     }
   }
 
-  private async fetchWithinBudget(url: string, execution: ExecutionContext, validators: { etag?: string; lastModified?: string }): Promise<FetchResult> {
+  private async fetchWithinBudget(url: string, execution: ExecutionContext, validators: { etag?: string; lastModified?: string }, monotonicStart: number, queueMs: number): Promise<FetchResult> {
     const { signal, deadlineAt, onRetryAfter } = execution
     const start = Date.now()
+    let robotsMs = 0
+    let cooldownWaitMs = 0
+    let transportMs = 0
+    let retryWaitMs = 0
+    let bodyReadMs = 0
+    let parseMs = 0
+    let extractMs = 0
+    let formatMs = 0
+    const timings = (totalMs: number) => ({
+      queueMs,
+      robotsMs,
+      cooldownWaitMs,
+      retryWaitMs,
+      requestMs: Math.max(0, transportMs - bodyReadMs),
+      bodyReadMs,
+      transportMs,
+      parseMs,
+      extractMs,
+      formatMs,
+      serializeMs: 0,
+      modelMs: 0,
+      totalMs,
+    })
+    const timedDenied = (failureReason: FetchResult['failureReason'], retryAt?: number): FetchResult => {
+      const totalMs = Math.max(0, performance.now() - monotonicStart)
+      const denied = this.denied(url, start, trace, failureReason)
+      return {
+        ...denied,
+        ...(retryAt === undefined ? {} : { retryAt }),
+        usage: {
+          ...denied.usage,
+          wallMs: totalMs,
+          timings: timings(totalMs),
+        },
+      }
+    }
     const trace: TraceEvent[] = []
     const honest = recordHttpIdentity(this.prepared, trace, 0)
     if (!honest) {
@@ -109,7 +156,14 @@ export class ResilientHttpSubject implements SubjectAdapter {
     }
 
     if (this.prepared.identity.respectsRobots) {
-      const cached = await this.robotsCache.lookup(url, this.prepared.identity.userAgent, execution)
+      const robotsStart = performance.now()
+      let cached: Awaited<ReturnType<RobotsOriginCache['lookup']>>
+      try { cached = await this.robotsCache.lookup(url, this.prepared.identity.userAgent, execution) }
+      catch (error) {
+        robotsMs = performance.now() - robotsStart
+        if (signal?.aborted) return timedDenied('timeout')
+        throw error
+      }
       const robotsDecision = this.robotsCache.decision(cached, url, this.prepared.identity.userAgent)
       trace.push({
         at: Date.now() - start,
@@ -122,6 +176,7 @@ export class ResilientHttpSubject implements SubjectAdapter {
           ruleCount: robotsDecision.appliedRules.length,
         },
       })
+      robotsMs = performance.now() - robotsStart
       if (robotsDecision.decision === 'disallowed') {
         trace.push({
           at: Date.now() - start,
@@ -129,11 +184,11 @@ export class ResilientHttpSubject implements SubjectAdapter {
           event: 'robots_disallowed',
           detail: { url, appliedRules: robotsDecision.appliedRules },
         })
-        return this.denied(url, start, trace, 'policy_denied')
+        return timedDenied('policy_denied')
       }
     }
 
-    if (signal?.aborted) return this.denied(url, start, trace, 'timeout')
+    if (signal?.aborted) return timedDenied('timeout')
     const host = new URL(url).origin
     const cooldownUntil = this.cooldownUntilByHost.get(host) ?? 0
     if (cooldownUntil > Date.now()) {
@@ -141,11 +196,19 @@ export class ResilientHttpSubject implements SubjectAdapter {
       trace.push({ at: Date.now() - start, lane: 'http', event: 'host_cooldown_wait', detail: { host, waitMs } })
       if (deadlineAt !== undefined && cooldownUntil >= deadlineAt) {
         trace.push({ at: Date.now() - start, lane: 'http', event: 'retry_deferred', detail: { retryAt: cooldownUntil } })
-        return { ...this.denied(url, start, trace, 'timeout'), retryAt: cooldownUntil }
+        return timedDenied('timeout', cooldownUntil)
       }
-      await abortableSleep(waitMs, signal)
+      const cooldownStart = performance.now()
+      try { await abortableSleep(waitMs, signal) }
+      catch (error) {
+        cooldownWaitMs += performance.now() - cooldownStart
+        if (signal?.aborted) return timedDenied('timeout', cooldownUntil)
+        throw error
+      }
+      cooldownWaitMs += performance.now() - cooldownStart
     }
-    const out = await resilientFetch(url, this.fetcherFor(url, validators, signal), {
+    const transportStart = performance.now()
+    const out = await resilientFetch(url, this.fetcherFor(url, validators, signal, ms => { bodyReadMs += ms }), {
       signal,
       deadlineAt,
       onRetryAfter: (target, retryAt) => {
@@ -157,6 +220,11 @@ export class ResilientHttpSubject implements SubjectAdapter {
       maxRedirects: this.networkPolicy.maxRedirects,
       assertUrl: (target) => assertSafeUrl(target, this.networkPolicy),
     })
+    const transportTotalMs = performance.now() - transportStart
+    retryWaitMs = out.trace
+      .filter(event => event.event === 'retry')
+      .reduce((sum, event) => sum + (typeof event.detail?.waitedMs === 'number' ? event.detail.waitedMs : typeof event.detail?.delayMs === 'number' ? event.detail.delayMs : 0), 0)
+    transportMs = Math.max(0, transportTotalMs - retryWaitMs)
     const wallMs = Date.now() - start
     let retryAt = out.retryAt
     if (out.status === 429 || out.status === 503) {
@@ -178,7 +246,15 @@ export class ResilientHttpSubject implements SubjectAdapter {
     // Redirect evidence only when a redirect actually happened; a chain of
     // just the requested URL is "no redirect" and matches the other arms.
     const redirectChain = out.redirectChain.length > 1 ? out.redirectChain : []
-    const body = await out.bodyText()
+    const bodyReadBeforeFinal = bodyReadMs
+    let body: string
+    try { body = await out.bodyText() }
+    catch (error) {
+      if (signal?.aborted) return timedDenied('timeout', out.retryAt)
+      if (error instanceof BodyTooLargeError) return timedDenied('body_too_large')
+      throw error
+    }
+    transportMs += Math.max(0, bodyReadMs - bodyReadBeforeFinal)
     const rawBodySha256 = sha256Utf8(body)
 
     const base = {
@@ -212,11 +288,22 @@ export class ResilientHttpSubject implements SubjectAdapter {
       },
       trace,
     }
+    const finish = <T extends FetchResult>(result: T): T => {
+      const totalMs = Math.max(0, performance.now() - monotonicStart)
+      return {
+        ...result,
+        usage: {
+          ...result.usage,
+          wallMs: totalMs,
+          timings: timings(totalMs),
+        },
+      }
+    }
 
     // Transport-level failure (timeout, connection error, redirect loop/limit,
     // non-http(s) redirect target).
     if (out.kind === 'failure') {
-      return {
+      return finish({
         ...base,
         status: 'failed',
         failureReason: out.failureReason,
@@ -225,7 +312,7 @@ export class ResilientHttpSubject implements SubjectAdapter {
         lane: 'http',
         escalations: [],
         markdown: null,
-      }
+      })
     }
 
     // Gate classification on the raw body. Non-contentful paths use the full
@@ -244,7 +331,7 @@ export class ResilientHttpSubject implements SubjectAdapter {
         event: 'gate_detected',
         detail: { blockReason: verdict.reason, signals: verdict.signals, status: out.status },
       })
-      return {
+      return finish({
         ...base,
         status: 'blocked',
         failureReason: null,
@@ -253,7 +340,7 @@ export class ResilientHttpSubject implements SubjectAdapter {
         lane: 'http',
         escalations: next === null ? [] : [{ ...next, improved: null }],
         markdown: null,
-      }
+      })
     }
 
     // A gate that answers with a non-200 is a block, not a transient failure.
@@ -263,7 +350,7 @@ export class ResilientHttpSubject implements SubjectAdapter {
     }
 
     if (out.status !== 200) {
-      return {
+      return finish({
         ...base,
         status: 'failed',
         failureReason: 'http_error',
@@ -272,13 +359,17 @@ export class ResilientHttpSubject implements SubjectAdapter {
         lane: 'http',
         escalations: [],
         markdown: null,
-      }
+      })
     }
 
     // Same extraction convention as ExtractTfSubject: escalate means the
     // extractor found no main content — report failed/empty_unverified and
     // flag the browser lane, never a contentful success.
-    const extracted = extractTf.extract(body)
+    const extractStart = performance.now()
+    const extracted = extractTf.extract(body, { url: out.finalUrl })
+    const extractionTotalMs = performance.now() - extractStart
+    parseMs = extracted.timings.parseMs
+    extractMs = Math.max(extracted.timings.extractMs, extractionTotalMs - parseMs)
     const links = collectLinks(body, out.finalUrl)
     trace.push({
       at: wallMs,
@@ -295,7 +386,7 @@ export class ResilientHttpSubject implements SubjectAdapter {
 
     if (extracted.escalate) {
       if (gate !== null) return blocked(gate)
-      return {
+      return finish({
         ...base,
         status: 'failed',
         failureReason: 'empty_unverified',
@@ -306,7 +397,7 @@ export class ResilientHttpSubject implements SubjectAdapter {
           { from: 'http', to: 'browser_local', trigger: 'extract_low_confidence', improved: null },
         ],
         markdown: null,
-      }
+      })
     }
 
     const decisive = classifyGate({
@@ -317,7 +408,9 @@ export class ResilientHttpSubject implements SubjectAdapter {
     })
     if (decisive !== null) return blocked(decisive)
 
+    const formatStart = performance.now()
     const markdown = htmlToMarkdown(extracted.mainHtml)
+    formatMs = performance.now() - formatStart
     const contentTokens = estimateTokens(markdown)
 
     // Quality signal: a success whose content is thin AND low-confidence is
@@ -341,7 +434,7 @@ export class ResilientHttpSubject implements SubjectAdapter {
       })
     }
 
-    return {
+    return finish({
       ...base,
       status: 'success',
       failureReason: null,
@@ -351,8 +444,17 @@ export class ResilientHttpSubject implements SubjectAdapter {
       escalations: [],
       markdown,
       links,
+      document: {
+        title: extracted.title,
+        pageType: extracted.pageType,
+        strategy: extracted.strategy,
+        confidence: extracted.confidence,
+        product: extracted.product ?? null,
+        adapter: extracted.adapter,
+        entities: extracted.entities,
+      },
       usage: { ...base.usage, contentTokens },
-    }
+    })
   }
 
   private denied(url: string, start: number, trace: TraceEvent[], failureReason: FetchResult['failureReason']): FetchResult {

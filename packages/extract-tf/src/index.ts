@@ -18,3 +18,5 @@ export { routePage, pageSignalsFor, selectList, selectTable, selectMinimal } fro
 export type { RouteDecision } from './route.js'
 export { htmlToMarkdown } from './markdown.js'
 export { collectLinks } from './links.js'
+export { amazonAsin, inferAmazonCurrency, isAmazonProductPage, collectAmazonProductFacts, selectAmazonProduct } from './amazon.js'
+export { adapterFor, BUILT_IN_ADAPTERS } from './adapters.js'

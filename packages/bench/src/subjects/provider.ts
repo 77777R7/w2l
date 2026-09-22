@@ -449,7 +449,7 @@ export class ProviderSubject implements SubjectAdapter {
       }
     }
 
-    const extracted = extractTf.extract(res.body)
+    const extracted = extractTf.extract(res.body, { url: res.finalUrl })
     const links = collectLinks(res.body, res.finalUrl)
     trace.push({
       at: wallMs,
@@ -518,6 +518,15 @@ export class ProviderSubject implements SubjectAdapter {
       escalations: [],
       markdown,
       links,
+      document: {
+        title: extracted.title,
+        pageType: extracted.pageType,
+        strategy: extracted.strategy,
+        confidence: extracted.confidence,
+        product: extracted.product ?? null,
+        adapter: extracted.adapter,
+        entities: extracted.entities,
+      },
       usage: { ...base.usage, contentTokens: estimateTokens(markdown) },
     }
   }

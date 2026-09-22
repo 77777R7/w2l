@@ -496,7 +496,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
         }
       }
 
-      const extracted = extractTf.extract(body)
+      const extracted = extractTf.extract(body, { url: finalUrl })
       const links = collectLinks(body, finalUrl)
       trace.push({
         at: wallMs,
@@ -544,6 +544,15 @@ export class BrowserLocalSubject implements SubjectAdapter {
         escalations: [],
         markdown,
         links,
+        document: {
+          title: extracted.title,
+          pageType: extracted.pageType,
+          strategy: extracted.strategy,
+          confidence: extracted.confidence,
+          product: extracted.product ?? null,
+          adapter: extracted.adapter,
+          entities: extracted.entities,
+        },
         usage: { ...base.usage, contentTokens: estimateTokens(markdown) },
       }
     } catch (err) {

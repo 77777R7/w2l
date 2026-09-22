@@ -10,12 +10,12 @@ describe('MCP tools', () => {
   })
 
   it('dispatches to the REST SDK with A1 fields', async () => {
-    const calls: string[] = []
+    const calls: Array<{ line: string; body: unknown }> = []
     const client = new W2L({
       baseUrl: 'http://127.0.0.1:8787',
       fetch: (async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input)
-        calls.push(`${init?.method ?? 'GET'} ${url}`)
+        calls.push({ line: `${init?.method ?? 'GET'} ${url}`, body: init?.body ? JSON.parse(String(init.body)) : null })
         if (url.endsWith('/v1/scrape')) {
           return json({ status: 'success', markdown: 'ok', requestedUrl: 'https://example.com/' })
         }
@@ -38,7 +38,7 @@ describe('MCP tools', () => {
     expect((await callTool(client, 'get_crawl_pages', { id: 'task-1', limit: 1 }) as { items: unknown[] }).items).toHaveLength(1)
     expect((await callTool(client, 'get_crawl_errors', { id: 'task-1' }) as { items: unknown[] }).items).toEqual([])
     expect((await callTool(client, 'cancel_crawl', { id: 'task-1' }) as { status: string }).status).toBe('cancelled')
-    expect(calls).toEqual([
+    expect(calls.map(call => call.line)).toEqual([
       'POST http://127.0.0.1:8787/v1/scrape',
       'POST http://127.0.0.1:8787/v1/crawl',
       'GET http://127.0.0.1:8787/v1/crawl/task-1',
@@ -46,6 +46,17 @@ describe('MCP tools', () => {
       'GET http://127.0.0.1:8787/v1/crawl/task-1/errors',
       'POST http://127.0.0.1:8787/v1/crawl/task-1/cancel',
     ])
+    expect(calls[0]?.body).toEqual({ url: 'https://example.com/', mode: 'standard', formats: ['markdown'], debug: false })
+  })
+
+  it('forwards custom formats and debug to REST', async () => {
+    let body: Record<string, unknown> | null = null
+    const client = new W2L({ baseUrl: 'http://127.0.0.1:8787', fetch: (async (_input, init) => {
+      body = JSON.parse(String(init?.body))
+      return json({ status: 'success' })
+    }) as typeof fetch })
+    await callTool(client, 'scrape', { url: 'https://example.com/', formats: [{ type: 'json', schema: { type: 'object' } }], debug: true })
+    expect(body).toMatchObject({ formats: [{ type: 'json', schema: { type: 'object' } }], debug: true })
   })
 
   it('has no resource or oauth surface', async () => {

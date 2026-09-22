@@ -73,7 +73,7 @@ function emptyFacts(): ProductFacts {
  * JSON-LD price is never overwritten by a text-scraped one.
  */
 function fillMissing(into: ProductFacts, from: Partial<ProductFacts>): void {
-  for (const key of Object.keys(into) as (keyof ProductFacts)[]) {
+  for (const key of ['name', 'price', 'priceCurrency', 'sku', 'brand', 'availability'] as const) {
     if (into[key] === null && from[key]) into[key] = from[key]!
   }
 }

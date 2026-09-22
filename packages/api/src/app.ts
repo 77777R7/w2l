@@ -11,6 +11,7 @@ import {
   wrapCrawlAccepted,
   wrapCrawlStatus,
   wrapScrape,
+  type ScrapeResponse,
 } from '@w2l/contracts'
 
 export interface AppOptions {
@@ -180,7 +181,7 @@ export function createApp(engine: ApiEngine, options: AppOptions = {}): Hono {
 
   app.post('/fc/v1/scrape', async (c) => {
     const req = parseFirecrawlScrapeRequest(await c.req.json())
-    return c.json(wrapScrape(await engine.scrape(req)), 200)
+    return c.json(wrapScrape(await engine.scrape({ ...req, debug: true }) as ScrapeResponse), 200)
   })
 
   app.post('/fc/v1/crawl', async (c) => {
