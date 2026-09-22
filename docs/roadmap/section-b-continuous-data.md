@@ -1,6 +1,6 @@
 # Section B · Continuous Updates And Authorized Access
 
-状态核对：2026-09-22，本地冻结提交 `99894bd636ecafd254a7c7bc79d26e9a97fa9199`（`codex/gate2-delivery-sdk`，基于 `e28500b`）。**B1–B4 均为 in_progress；核心切片验收不等于整个阶段 accepted。**
+状态核对：2026-09-22，冻结提交 `99894bd636ecafd254a7c7bc79d26e9a97fa9199` 已由 PR #50 合并并发布为源码预发布版 `v0.4.0-rc.1`。**B1–B4 均为 in_progress；核心切片验收和源码发布不等于整个阶段 accepted。**
 
 设计原文：[Section B technical design v1](section-b-technical-design-v1.md)。
 当前事实：[Gate 2–4 验收](gate-2-4-acceptance.md)；历史发现及后续解决情况：[阶段复盘](stage-review-2026-09-22.md)。

@@ -3,9 +3,10 @@
 Section C packages a validated recurring data task for adoption. It reuses the
 existing collection engine, REST/SDK contracts and stored task state.
 
-Status reviewed 2026-09-22 at local source freeze
-`99894bd636ecafd254a7c7bc79d26e9a97fa9199` on
-`codex/gate2-delivery-sdk` (parent `e28500b`):
+Status reviewed 2026-09-22 at source freeze
+`99894bd636ecafd254a7c7bc79d26e9a97fa9199` (parent `e28500b`), merged by
+PR #50 into `main@1c14817` and published as source prerelease
+`v0.4.0-rc.1`:
 
 | Phase | Status | Boundary |
 | --- | --- | --- |

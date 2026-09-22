@@ -2,7 +2,9 @@
 
 ## Unreleased
 
-- Gate 2–4 source frozen in local commit `99894bd636ecafd254a7c7bc79d26e9a97fa9199` on `codex/gate2-delivery-sdk`, based on `e28500b`. No push, release or deployment is implied.
+## 0.4.0-rc.1 — 2026-09-22
+
+- Gate 2–4 implementation freeze `99894bd636ecafd254a7c7bc79d26e9a97fa9199` was merged by [PR #50](https://github.com/77777R7/w2l/pull/50) into `main` at `1c1481722ade26b717d18a34fa4b46362f53acf8` and published as the `v0.4.0-rc.1` source prerelease. Workspace packages remain private; no npm package or permanent service deployment is included.
 - Gate 2: explicit captureMode, shared cancellation/deadlines, full Retry-After waits and persisted Monitor cooldown; actual process recovery/claim races, baseline/fencing, A/B/A/B, conditional-cache body and multi-Monitor isolation checks passed.
 - Gate 3: durable HTTPS destinations/delivery worker, lease/fencing, retry/dead-letter, same-event replay and a transactional deduplicating receiver. Real HTTPS ACK-loss/restart experiment passed; its temporary endpoint is stopped.
 - Gate 4: Monitor/Delivery SDKs, examples, install/restart documentation and a sanitized agent clean-install record. Independent human acceptance remains pending; Gate 5 external two-week and repeat-use validation has not started.

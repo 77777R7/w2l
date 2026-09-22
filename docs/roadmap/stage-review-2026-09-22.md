@@ -91,7 +91,7 @@
 
 ## 6. Gate 2–4 冻结后的更新
 
-更新日期：2026-09-22。源码冻结基线：`99894bd636ecafd254a7c7bc79d26e9a97fa9199`，分支 `codex/gate2-delivery-sdk`，父提交 `e28500b`。这是本地提交；不表示 push、PR、合并、发布或部署。
+更新日期：2026-09-22。源码冻结基线：`99894bd636ecafd254a7c7bc79d26e9a97fa9199`，分支 `codex/gate2-delivery-sdk`，父提交 `e28500b`；随后由 [PR #50](https://github.com/77777R7/w2l/pull/50) 合并到 `main@1c14817`，并发布源码预发布版 [`v0.4.0-rc.1`](https://github.com/77777R7/w2l/releases/tag/v0.4.0-rc.1)。这不表示 npm 包或永久服务已部署。
 
 | 原始发现 | 后续解决情况 | 当前证据边界 |
 | --- | --- | --- |

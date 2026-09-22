@@ -1,12 +1,12 @@
 # Section B Handoff
 
-Current status (2026-09-22, local freeze `99894bd636ecafd254a7c7bc79d26e9a97fa9199`, parent `e28500b`): **B1–B4 in_progress**.
+Current status (2026-09-22, freeze `99894bd636ecafd254a7c7bc79d26e9a97fa9199`, merged by PR #50 and published as source prerelease `v0.4.0-rc.1`): **B1–B4 in_progress**.
 The B1/B2 execution and trusted-change core plus C1 delivery engineering slice
 passed [Gate 2–3 acceptance](gate-2-4-acceptance.md). Gate 4 has SDK/docs/examples
 and an agent clean install; independent human acceptance remains pending.
 Use [the stage review addendum](stage-review-2026-09-22.md#6-gate-24-冻结后的更新)
 for resolution of earlier findings and [Section C](section-c-delivery.md) for
-the next C2/C3 entry and runtime slices. No push or deployment is implied.
+the next C2/C3 entry and runtime slices. Publication does not imply a permanent service deployment.
 
 The full technical design is in [`section-b-technical-design-v1.md`](./section-b-technical-design-v1.md).
 

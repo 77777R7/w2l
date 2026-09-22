@@ -4,7 +4,7 @@ Date: 2026-09-22 (Asia/Shanghai). Scope: the user's execution/reliability, event
 
 Outcome: Gate 2's listed engineering acceptance checks and Gate 3's delivery checks passed. Gate 4's implementation and handoff are supplied; independent human acceptance remains pending.
 
-Source freeze: `99894bd636ecafd254a7c7bc79d26e9a97fa9199` on `codex/gate2-delivery-sdk`, parent `e28500b09116eb5931305e8638d9d5cc704a8205`. The supplied Gate 1 and interdependent Crawl/SDK/MCP working edits were retained. Evidence was collected before this local commit; it is not a merge or published release. The review archive's `handoff-manifest.json` identifies the original 346 captured files and SHA-256 hashes. Those files match the first commit; that commit additionally contains the sanitized clean-install record. Subsequent roadmap/document changes are separate from the tested source archive.
+Source freeze: `99894bd636ecafd254a7c7bc79d26e9a97fa9199` on `codex/gate2-delivery-sdk`, parent `e28500b09116eb5931305e8638d9d5cc704a8205`. The supplied Gate 1 and interdependent Crawl/SDK/MCP working edits were retained. Evidence was collected before the freeze commit. [PR #50](https://github.com/77777R7/w2l/pull/50) later merged it into `main` at `1c1481722ade26b717d18a34fa4b46362f53acf8`, and that merge was published as source prerelease [`v0.4.0-rc.1`](https://github.com/77777R7/w2l/releases/tag/v0.4.0-rc.1). The review archive's `handoff-manifest.json` identifies the original 346 captured files and SHA-256 hashes. Those files match the first commit; that commit additionally contains the sanitized clean-install record. Subsequent roadmap/document changes are separate from the tested source archive.
 
 ## Gate 2: execution contract and reliability
 
@@ -84,7 +84,7 @@ Gate 5 remains unstarted by this work: there is no claimed external trial user, 
 
 Freeze verification: the 346-file manifest matched the source, all three experiment reports passed with their original timestamps, and archive/full-regression-log hashes matched the installation record. The first commit includes 83 existing changed files plus the sanitized installation record (84 files total). Eight unrelated `* 2.md` / `* 2.mjs` files were excluded and preserved. The second commit changes only status/roadmap documentation. No runtime code changed during this freeze; the 79-file / 925-test result above is the original run, not a new run attributed to document editing.
 
-Tests can be rerun with `npm run typecheck && npm test`. Local commits, source archive and runtime output are separate artifacts. This work performs no push, PR, merge, publication or permanent deployment.
+Tests can be rerun with `npm run typecheck && npm test`. Commits, source archive, prerelease and runtime output are separate artifacts. PR #50 is merged and the source prerelease is published; no npm package or permanent service deployment has been performed.
 
 ## Next slice and phase boundaries
 
