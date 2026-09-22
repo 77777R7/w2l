@@ -411,14 +411,18 @@ export async function extractStructured(
   }
 }
 
-function requestedFormats(req: ScrapeRequest, result: ScrapeResponse): readonly ScrapeFormat[] {
-  if (req.formats !== undefined) return req.formats
-  const adapted = result.document?.adapter.status === 'beta adapter' || result.document?.adapter.status === 'verified adapter'
-  return adapted && (result.document?.entities.length ?? 0) > 0 ? ['json'] : ['markdown']
+function requestedFormats(req: ScrapeRequest): readonly ScrapeFormat[] {
+  // Preserve the legacy REST/SDK body and link response. MCP explicitly
+  // requests ['markdown'], so its default remains compact.
+  return req.formats ?? ['markdown', 'links']
 }
 
-function hasFormat(formats: readonly ScrapeFormat[], name: ScrapeFormat): boolean {
-  return formats.includes(name)
+function hasFormat(formats: readonly ScrapeFormat[], name: 'markdown' | 'links' | 'json'): boolean {
+  return formats.some(format => typeof format === 'string' ? format === name : name === 'json')
+}
+
+function customJsonFormat(formats: readonly ScrapeFormat[]): JsonFormatRequest | undefined {
+  return formats.find((format): format is JsonFormatRequest => typeof format === 'object')
 }
 
 function withoutRepeatedBodies(summary: ScrapeResponse['summary']): ScrapeResponse['summary'] {
@@ -438,20 +442,20 @@ export async function prepareScrapeResponse(
   modelConfig: StructuredModelConfig | null,
   overallStart: number,
 ): Promise<ScrapeResponse | CompactScrapeResponse> {
-  const formats = requestedFormats(req, result)
+  const formats = requestedFormats(req)
   const modelStart = performance.now()
   const json = hasFormat(formats, 'json')
-    ? await extractStructured(result, undefined, execution, modelConfig ?? structuredModelConfigFromEnv())
+    ? await extractStructured(result, customJsonFormat(formats), execution, modelConfig ?? structuredModelConfigFromEnv())
     : undefined
   const modelMs = json?.modelUsage ? Math.max(0, performance.now() - modelStart) : 0
   const serializeStart = performance.now()
-  const includeLinks = req.includeLinks === true
+  const includeLinks = req.includeLinks === true || hasFormat(formats, 'links')
   const next: ScrapeResponse = {
     ...result,
     markdown: hasFormat(formats, 'markdown') ? result.markdown : null,
     links: includeLinks ? result.links ?? [] : [],
     ...(json === undefined ? {} : { json }),
-    summary: withoutRepeatedBodies(result.summary),
+    summary: req.debug === true ? result.summary : withoutRepeatedBodies(result.summary),
   }
   const serializeMs = Math.max(0, performance.now() - serializeStart)
   const totalMs = Math.max(0, performance.now() - overallStart)
@@ -471,10 +475,10 @@ export async function prepareScrapeResponse(
 export function compactScrapeResponse(
   next: ScrapeResponse,
   req: ScrapeRequest,
-  formats: readonly ScrapeFormat[] = requestedFormats(req, next),
+  formats: readonly ScrapeFormat[] = requestedFormats(req),
   totalMs = next.summary.totalMs ?? next.usage.wallMs,
 ): CompactScrapeResponse {
-  const includeLinks = req.includeLinks === true
+  const includeLinks = req.includeLinks === true || hasFormat(formats, 'links')
   return {
     requestedUrl: next.requestedUrl,
     finalUrl: next.evidence.finalUrl,
@@ -486,6 +490,7 @@ export function compactScrapeResponse(
     lane: next.lane,
     formats: [
       ...(hasFormat(formats, 'markdown') ? ['markdown' as const] : []),
+      ...(includeLinks ? ['links' as const] : []),
       ...(hasFormat(formats, 'json') ? ['json' as const] : []),
     ],
     ...(hasFormat(formats, 'markdown') ? { markdown: next.markdown } : {}),

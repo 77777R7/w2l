@@ -36,7 +36,7 @@ export interface CompactScrapeResponse {
   budgetExceeded: FetchResult['budgetExceeded']
   retryAt?: number
   lane: FetchResult['lane']
-  formats: readonly ('markdown' | 'json')[]
+  formats: readonly ('markdown' | 'links' | 'json')[]
   markdown?: string | null
   links?: readonly string[]
   document?: DocumentExtraction | null
