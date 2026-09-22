@@ -6,7 +6,7 @@ This is the current product roadmap. It reorganizes the older Phase 1/2/3 plan i
 
 **Section B core reliability validated → Section C delivery and onboarding**
 
-Source freeze: `99894bd636ecafd254a7c7bc79d26e9a97fa9199` on `codex/gate2-delivery-sdk`, based on `e28500b`, reviewed 2026-09-22. This is a local commit, not a published release. Section A remains a conditional developer alpha.
+Source freeze: `99894bd636ecafd254a7c7bc79d26e9a97fa9199`, merged by [PR #50](https://github.com/77777R7/w2l/pull/50) into `main` at `1c1481722ade26b717d18a34fa4b46362f53acf8` and published as source prerelease [`v0.4.0-rc.1`](https://github.com/77777R7/w2l/releases/tag/v0.4.0-rc.1), reviewed 2026-09-22. No npm package or permanent hosted deployment is implied. Section A remains a conditional developer alpha.
 
 Current truth:
 
