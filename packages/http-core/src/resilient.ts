@@ -236,7 +236,7 @@ export async function resilientFetch(
       trace.push({ at, event: 'request_complete', detail: { status: response.status } })
 
       // Redirect handling.
-      if (response.status >= 300 && response.status < 400) {
+      if (response.status >= 300 && response.status < 400 && response.status !== 304) {
         const location = response.headers.get('location')
         if (!location) {
           return {

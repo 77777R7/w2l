@@ -56,6 +56,15 @@ describe('resilientFetch: plain responses', () => {
     expect(out.status).toBe(404)
     expect(out.requestCount).toBe(1)
   })
+
+  it('treats 304 as a terminal representation response, not a redirect', async () => {
+    const f = scripted([res(304, { etag: '"v1"' })])
+    const out = await resilientFetch(U, f)
+    expect(out.kind).toBe('ok')
+    expect(out.status).toBe(304)
+    expect(out.redirectChain).toEqual([U])
+    expect(out.requestCount).toBe(1)
+  })
 })
 
 describe('resilientFetch: redirects', () => {
