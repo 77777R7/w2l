@@ -23,10 +23,10 @@ import { assertSafeUrl, BodyTooLargeError, defaultNetworkPolicy } from '../egres
 import type { SubjectAdapter } from '../subject.js'
 import { RobotsOriginCache } from '../robotsLookup.js'
 import { waitForRenderedStability } from '../browserSettle.js'
+import { OriginScheduler, type OriginPermit } from './originScheduler.js'
 import {
   BROWSER_FINGERPRINT,
   CHROME_MAJOR_FLOOR,
-  DEFAULT_NETWORK_POLICY,
   assertIdentityBundle,
   checkIdentityHonesty,
   identityBundleFrom,
@@ -74,8 +74,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
   }
 
   private activeExecutions = 0
-  private readonly pendingByOrigin = new Map<string, Promise<void>>()
-  private readonly cooldownUntilByOrigin = new Map<string, number>()
+  private readonly scheduler: OriginScheduler
   private browser: Browser | null = null
   private browserPromise: Promise<Browser> | null = null
   private managedContext: BrowserContext | null = null
@@ -111,11 +110,13 @@ export class BrowserLocalSubject implements SubjectAdapter {
     private readonly headed = false,
     networkPolicy?: NetworkPolicy,
     private readonly managedProfileDir: string | null = null,
+    scheduler?: OriginScheduler,
   ) {
     this.chain = new ComplianceChain(crypto.randomUUID(), mode)
     this.access = normalizeAccessConfig(access)
     this.accessConfig = access ?? null
     this.networkPolicy = networkPolicy ?? defaultNetworkPolicy()
+    this.scheduler = scheduler ?? new OriginScheduler(this.networkPolicy)
     this.robotsCache = new RobotsOriginCache(this.networkPolicy)
   }
 
@@ -151,37 +152,32 @@ export class BrowserLocalSubject implements SubjectAdapter {
     }
     const origin = new URL(url).origin
     this.activeExecutions++
-    const previous = this.pendingByOrigin.get(origin) ?? Promise.resolve()
-    let release!: () => void
-    const ticket = new Promise<void>(resolve => { release = resolve })
-    const pending = previous.then(() => ticket)
-    this.pendingByOrigin.set(origin, pending)
+    let permit: OriginPermit | undefined
     try {
-      await raceWithSignal(previous, scope.signal)
-      queueMs = Math.max(0, performance.now() - monotonicStart)
+      permit = await this.scheduler.acquire(origin, scope.signal)
+      queueMs = permit.queueMs
+      cooldownWaitMs = permit.cooldownWaitMs
       throwIfExecutionStopped(scope)
-      const retryAt = this.cooldownUntilByOrigin.get(origin) ?? 0
-      if (retryAt > Date.now()) {
-        if (scope.deadlineAt !== undefined && retryAt >= scope.deadlineAt) return finish({ ...this.denied(url, start, [], new Error('aborted')), retryAt })
-        const cooldownStart = performance.now()
-        try { await abortableSleep(retryAt - Date.now(), scope.signal) }
-        finally { cooldownWaitMs += Math.max(0, performance.now() - cooldownStart) }
-      }
-      const result = await this.fetchWithinBudget(url, scope)
-      if (result.retryAt !== undefined) this.cooldownUntilByOrigin.set(origin, Math.max(retryAt, result.retryAt))
+      const result = await this.fetchWithinBudget(url, scope, (intervalMs, cooldownMs) => { queueMs += intervalMs; cooldownWaitMs += cooldownMs })
+      if (result.retryAt !== undefined) this.scheduler.cooldown(origin, result.retryAt)
       return finish(result)
     } catch (error) {
-      if (!scope.signal.aborted) throw error
-      return finish(this.denied(url, start, [], new Error('aborted')))
+      if (!scope.signal.aborted && (deadlineMs === undefined || Date.now() < deadlineMs)) throw error
+      const retryAt = this.scheduler.retryAt(origin)
+      if (!permit) {
+        const waited = Math.max(0, performance.now() - monotonicStart)
+        queueMs = retryAt === undefined ? waited : 0
+        cooldownWaitMs = retryAt === undefined ? 0 : waited
+      }
+      return finish({ ...this.denied(url, start, [], new Error('aborted')), ...(retryAt === undefined ? {} : { retryAt }) })
     } finally {
       this.activeExecutions--
       scope.dispose()
-      release()
-      void pending.then(() => { if (this.pendingByOrigin.get(origin) === pending) this.pendingByOrigin.delete(origin) })
+      permit?.release()
     }
   }
 
-  private async fetchWithinBudget(url: string, execution: ExecutionContext): Promise<FetchResult> {
+  private async fetchWithinBudget(url: string, execution: ExecutionContext, onRequestWait?: (intervalMs: number, cooldownMs: number) => void): Promise<FetchResult> {
     const signal = execution.signal
     const start = Date.now()
     const trace: TraceEvent[] = [{ at: 0, lane: 'browser_local', event: 'browser_start' }]
@@ -242,7 +238,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
           rateLimit: {
             previousRequestAtMs: this.lastRequestAtMsByHost.get(host) ?? null,
             observedDelayMs: null,
-            requiredDelayMs: DEFAULT_NETWORK_POLICY.perHostMinDelayMs,
+            requiredDelayMs: this.networkPolicy.perHostMinDelayMs,
             compliant: true,
             recentSameHostCount: 0,
           },
@@ -346,12 +342,11 @@ export class BrowserLocalSubject implements SubjectAdapter {
       page = await raceWithSignal(pendingPage, signal)
       throwIfExecutionStopped(execution)
 
-      // Rate-limit facts for this host, captured before the request.
-      const previousRequestAtMs = this.lastRequestAtMsByHost.get(host) ?? null
-      const observedDelayMs = previousRequestAtMs === null ? null : Date.now() - previousRequestAtMs
-      const requiredDelayMs = DEFAULT_NETWORK_POLICY.perHostMinDelayMs
-      const compliant = observedDelayMs === null || observedDelayMs >= requiredDelayMs
-      this.lastRequestAtMsByHost.set(host, Date.now())
+      // Rate-limit facts are captured at actual navigation, after setup.
+      let previousRequestAtMs: number | null = null
+      let observedDelayMs: number | null = null
+      const requiredDelayMs = this.networkPolicy.perHostMinDelayMs
+      let compliant = true
 
       // Browser-tier retry: the same transport-independent policy the
       // http engine shares (503 only, once, authoritative Retry-After). The
@@ -361,6 +356,12 @@ export class BrowserLocalSubject implements SubjectAdapter {
       let attemptCount = 1
       let response: Response | null = null
       for (;;) {
+        await this.scheduler.beforeRequest(new URL(url).origin, signal, onRequestWait)
+        previousRequestAtMs = this.lastRequestAtMsByHost.get(host) ?? null
+        const navigationAt = Date.now()
+        observedDelayMs = previousRequestAtMs === null ? null : navigationAt - previousRequestAtMs
+        compliant = observedDelayMs === null || observedDelayMs >= requiredDelayMs
+        this.lastRequestAtMsByHost.set(host, navigationAt)
         trace.push({ at: Date.now() - start, lane: 'browser_local', event: 'navigate', detail: { url, attempt: attemptCount } })
         response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: remainingTimeout(execution, 20_000) })
         const status = response?.status() ?? 0
@@ -369,7 +370,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
           if (delay !== null) {
             const target = response?.url() ?? url
             const retryAt = Date.now() + delay
-            for (const origin of new Set([new URL(url).origin, new URL(target).origin])) this.cooldownUntilByOrigin.set(origin, Math.max(this.cooldownUntilByOrigin.get(origin) ?? 0, retryAt))
+            for (const origin of new Set([new URL(url).origin, new URL(target).origin])) this.scheduler.cooldown(origin, retryAt)
             execution.onRetryAfter?.(target, retryAt)
           }
         }

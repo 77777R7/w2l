@@ -1,0 +1,25 @@
+{
+  "kind": "batch-actual-process-crash-recovery",
+  "startedAt": "2026-09-22T19:03:00.733Z",
+  "endedAt": "2026-09-22T19:03:01.502Z",
+  "taskId": "b7ed8312-55b4-4908-b6b4-2711ea16519e",
+  "firstProcessStoppedBy": "SIGKILL",
+  "status": "completed",
+  "requested": 2,
+  "completed": 2,
+  "items": [
+    {
+      "url": "http://127.0.0.1:63977/item/1",
+      "status": "success"
+    },
+    {
+      "url": "http://127.0.0.1:63977/item/2",
+      "status": "success"
+    }
+  ],
+  "hits": {
+    "first": 1,
+    "second": 2
+  },
+  "passed": true
+}

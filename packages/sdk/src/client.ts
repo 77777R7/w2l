@@ -11,6 +11,8 @@ import type {
   CrawlPageQuery,
   CrawlReport,
   CrawlStartRequest,
+  BatchStartRequest,
+  BatchStatusResponse,
   CompactScrapeResponse,
   FetchResult,
   MonitorRevision,
@@ -59,6 +61,45 @@ export class W2L {
 
   async crawl(url: string, opts: Omit<CrawlStartRequest, 'url'> = {}, request: RequestOptions = {}): Promise<CrawlAccepted> {
     return this.post<CrawlAccepted>('/v1/crawl', { ...opts, url }, 202, request)
+  }
+
+  async batchScrape(urls: readonly string[], opts: Omit<BatchStartRequest, 'urls'> = {}, request: RequestOptions = {}): Promise<CrawlAccepted> {
+    return this.post<CrawlAccepted>('/v1/batches', { ...opts, urls }, 202, request)
+  }
+
+  async getBatch(id: string, request: RequestOptions = {}): Promise<BatchStatusResponse> {
+    return this.get<BatchStatusResponse>(`/v1/batches/${encodeURIComponent(id)}`, request, `batch not found: ${id}`)
+  }
+
+  async getBatchItems(id: string, options: CrawlPageQuery = {}, request: RequestOptions = {}): Promise<CrawlPageList<CrawlPage>> {
+    return this.getPageList<CrawlPage>(`/v1/batches/${encodeURIComponent(id)}/items`, options, request)
+  }
+
+  async *listBatchItems(id: string, options: Omit<CrawlPageQuery, 'cursor'> = {}, request: RequestOptions = {}): AsyncGenerator<CrawlPage> {
+    let cursor: string | undefined
+    do {
+      const page = await this.getBatchItems(id, { ...options, cursor }, request)
+      for (const item of page.items) { request.signal?.throwIfAborted(); yield item }
+      cursor = page.hasMore ? page.nextCursor ?? undefined : undefined
+      if (page.hasMore && cursor === undefined) throw new Error('batch items response omitted nextCursor')
+    } while (cursor !== undefined)
+  }
+
+  async waitBatch(id: string, request: RequestOptions = {}): Promise<BatchStatusResponse> {
+    for (;;) {
+      request.signal?.throwIfAborted()
+      const report = await this.getBatch(id, request)
+      if (['completed', 'failed', 'cancelled'].includes(report.status)) return report
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => { request.signal?.removeEventListener('abort', abort); resolve() }, 500)
+        const abort = () => { clearTimeout(timer); reject(request.signal?.reason) }
+        request.signal?.addEventListener('abort', abort, { once: true })
+      })
+    }
+  }
+
+  async cancelBatch(id: string, request: RequestOptions = {}): Promise<BatchStatusResponse> {
+    return this.post<BatchStatusResponse>(`/v1/batches/${encodeURIComponent(id)}/cancel`, undefined, 200, request)
   }
 
   async getCrawl(id: string, request: RequestOptions = {}): Promise<CrawlReport> {
@@ -181,6 +222,7 @@ export class W2L {
     if (options.cursor !== undefined) params.set('cursor', options.cursor)
     if (options.limit !== undefined) params.set('limit', String(options.limit))
     if (options.attemptId !== undefined) params.set('attemptId', options.attemptId)
+    if (options.debug !== undefined) params.set('debug', String(options.debug))
     const suffix = params.size === 0 ? '' : `?${params.toString()}`
     return this.get<CrawlPageList<T>>(`${path}${suffix}`, request, `crawl not found: ${path}`)
   }

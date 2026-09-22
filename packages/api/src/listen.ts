@@ -24,7 +24,7 @@ export function parseListen(argv: readonly string[], env: NodeJS.ProcessEnv = pr
       host: readFlag(argv, '--host') ?? env['W2L_API_HOST'] ?? '0.0.0.0',
       port,
       token,
-      networkPolicy: hostedNetworkPolicy(),
+      networkPolicy: tunedPolicy(hostedNetworkPolicy(), env),
       defaultMaxPages: 100,
     }
   }
@@ -33,9 +33,17 @@ export function parseListen(argv: readonly string[], env: NodeJS.ProcessEnv = pr
     host: readFlag(argv, '--host') ?? env['W2L_API_HOST'] ?? '127.0.0.1',
     port,
     token,
-    networkPolicy: localNetworkPolicy(),
+    networkPolicy: tunedPolicy(localNetworkPolicy(), env),
     defaultMaxPages: null,
   }
+}
+
+function tunedPolicy(base: NetworkPolicy, env: NodeJS.ProcessEnv): NetworkPolicy {
+  const concurrency = env['W2L_PER_HOST_CONCURRENCY'] === undefined ? base.perHostConcurrency : Number(env['W2L_PER_HOST_CONCURRENCY'])
+  const delay = env['W2L_PER_HOST_MIN_DELAY_MS'] === undefined ? base.perHostMinDelayMs : Number(env['W2L_PER_HOST_MIN_DELAY_MS'])
+  if (!Number.isInteger(concurrency) || concurrency < 1 || concurrency > 4) throw new Error('W2L_PER_HOST_CONCURRENCY must be 1, 2, 3, or 4')
+  if (!Number.isInteger(delay) || delay < 1 || delay > 60_000) throw new Error('W2L_PER_HOST_MIN_DELAY_MS must be 1..60000')
+  return { ...base, perHostConcurrency: concurrency, perHostMinDelayMs: delay }
 }
 
 export function parsePort(argv: readonly string[], env: NodeJS.ProcessEnv = process.env): number {

@@ -58,7 +58,7 @@ npm run mcp
 
 `npm run api` binds `127.0.0.1` and allows loopback/RFC1918 so fixture servers work. Hosted mode is explicit: `npm run api -- --hosted --token $W2L_API_TOKEN`. That binds `0.0.0.0`, requires `Authorization: Bearer`, denies private/metadata IPs, and defaults crawl `maxPages` to 100.
 
-The current MCP uses local stdio and talks to the REST server. Its six tools cover scrape and Crawl (including result pagination and cancellation); Monitor/Delivery tools and a remote HTTPS MCP URL are planned in [C2/C3](docs/roadmap/section-c-delivery.md). Configure the MCP client to launch it from this repository:
+The current MCP uses local stdio and talks to the REST server. It covers scrape, Crawl, and persistent URL-array batches (including result pagination and cancellation); Monitor/Delivery tools and a remote HTTPS MCP URL are planned in [C2/C3](docs/roadmap/section-c-delivery.md). Configure the MCP client to launch it from this repository:
 
 ```json
 {
@@ -73,6 +73,8 @@ The current MCP uses local stdio and talks to the REST server. Its six tools cov
 ```
 
 MCP `scrape` is compact by default: it returns the selected content, document/product metadata, aggregate usage and errors without repeating the body under `summary.attempts`. Pass `debug: true` when you need the full route, trace and per-attempt audit. REST and SDK calls that omit `formats` and `debug` keep the legacy full Markdown response.
+
+For many known URLs, use `batch_scrape` in MCP, then `get_batch`, `get_batch_items`, or `wait_batch`. REST and SDK support the same durable task, paginated items, and completion events; see [batch scraping](docs/batch-scrape.md). The per-origin concurrency ceiling is configurable up to four, with a shared Retry-After cooldown and minimum request interval. The controlled [1/2/4 comparison](docs/evidence/same-origin-concurrency-controlled.json) is local fixture evidence, not an Amazon speed claim.
 
 Request deterministic structured data with a JSON Schema alongside, or instead of, Markdown:
 

@@ -1,7 +1,9 @@
 import { Hono } from 'hono'
+import { streamSSE } from 'hono/streaming'
 import type { ApiEngine } from './engine.js'
 import {
   parseCrawlStartRequest,
+  parseBatchStartRequest,
   parseCrawlPageQuery,
   parseFirecrawlCrawlRequest,
   parseFirecrawlScrapeRequest,
@@ -41,6 +43,48 @@ export function createApp(engine: ApiEngine, options: AppOptions = {}): Hono {
   app.post('/v1/crawl', async (c) => {
     const req = parseCrawlStartRequest(await c.req.json())
     return c.json(await engine.startCrawl(req), 202)
+  })
+
+  app.post('/v1/batches', async (c) => {
+    const req = parseBatchStartRequest(await c.req.json())
+    return c.json(await engine.startBatch(req), 202)
+  })
+
+  app.get('/v1/batches/:id', async (c) => {
+    const report = await engine.getBatch(c.req.param('id'))
+    return report ? c.json(report) : c.json({ error: 'not found' }, 404)
+  })
+
+  app.get('/v1/batches/:id/items', async (c) => {
+    const query = parseCrawlPageQuery(c.req.query())
+    if (query.limit !== undefined && query.limit > 50) throw new RequestError('batch item limit must be at most 50')
+    const page = await engine.getBatchItems(c.req.param('id'), query)
+    return page ? c.json(page) : c.json({ error: 'not found' }, 404)
+  })
+
+  app.post('/v1/batches/:id/cancel', async (c) => {
+    const report = await engine.cancelBatch(c.req.param('id'))
+    return report ? c.json(report) : c.json({ error: 'not found' }, 404)
+  })
+
+  /** Reconnecting after a restart receives the current state and terminal event. */
+  app.get('/v1/batches/:id/events', async (c) => {
+    const id = c.req.param('id')
+    if (await engine.getBatch(id) === null) return c.json({ error: 'not found' }, 404)
+    return streamSSE(c, async (stream) => {
+      let last = ''
+      while (!c.req.raw.signal.aborted) {
+        const report = await engine.getBatch(id)
+        if (!report) break
+        const data = JSON.stringify(report)
+        if (data !== last) {
+          await stream.writeSSE({ event: ['completed', 'failed', 'cancelled'].includes(report.status) ? 'complete' : report.status === 'paused' ? 'paused' : 'progress', data })
+          last = data
+        }
+        if (['completed', 'failed', 'cancelled', 'paused'].includes(report.status)) break
+        await new Promise(resolve => setTimeout(resolve, 500))
+      }
+    })
   })
 
   app.get('/v1/crawl/:id', async (c) => {

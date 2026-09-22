@@ -137,6 +137,16 @@ function runStoreContract(name: string, open: () => Promise<{ store: TaskStore; 
       expect(await store.getStepByCanonicalUrl('task-1', 'https://example.com/')).toEqual(step())
     })
 
+    it('counts unique completed URLs and pages all outcomes without loading bodies for status', async () => {
+      ;({ store, cleanup } = await open())
+      await seed(store)
+      await store.putStep(step())
+      await store.putStep(step({ id: 'step-2', result: pageResult('https://example.com/'), createdAt: LATER }))
+      await store.putStep(step({ id: 'step-3', url: 'https://example.com/other', canonicalUrl: 'https://example.com/other', status: 'failed', result: null, createdAt: LATER }))
+      expect(await store.countCompletedSteps('task-1')).toBe(1)
+      expect((await store.listStepsPage('task-1', { limit: 10, kind: 'all' })).steps).toHaveLength(3)
+    })
+
     it('is idempotent: the same (taskId, attemptId, stepId) does not create a second row', async () => {
       ;({ store, cleanup } = await open())
       await seed(store)

@@ -8,7 +8,7 @@
 
 import type { Attempt, StepRecord, Task } from '@w2l/contracts'
 
-export type StepPageKind = 'pages' | 'errors'
+export type StepPageKind = 'pages' | 'errors' | 'all'
 export interface StepPageQuery {
   attemptId?: string
   cursor?: string
@@ -31,6 +31,8 @@ export interface TaskStore {
   putStep(step: StepRecord): Promise<void>
   getStep(stepId: string): Promise<StepRecord | null>
   listSteps(taskId: string, attemptId?: string): Promise<readonly StepRecord[]>
+  /** Count terminal URL checkpoints without reading their result bodies. */
+  countCompletedSteps(taskId: string): Promise<number>
   listStepsPage(taskId: string, query: StepPageQuery): Promise<StepPage>
   /**
    * Latest step for this canonical URL on the task (any attempt).

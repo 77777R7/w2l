@@ -32,7 +32,7 @@ export interface CachedRobots {
 
 export class RobotsOriginCache {
   private readonly byOrigin = new Map<string, CachedRobots>()
-  private readonly pending = new Map<string, Promise<CachedRobots | null>>()
+  private readonly pending = new Map<string, { promise: Promise<CachedRobots | null>; controller: AbortController; users: number }>()
   constructor(private readonly networkPolicy: NetworkPolicy = defaultNetworkPolicy()) {}
 
   async lookup(url: string, userAgent: string, execution: ExecutionContext = {}): Promise<CachedRobots | null> {
@@ -49,11 +49,11 @@ export class RobotsOriginCache {
 
     const cached = this.byOrigin.get(origin)
     if (cached) return cached
-    const pending = this.pending.get(origin)
-    if (pending !== undefined && execution.signal === undefined && execution.deadlineAt === undefined) return pending
-
-    const request = (async (): Promise<CachedRobots | null> => {
-      const scope = createExecutionScope({ signal: execution.signal, deadlineAt: Math.min(execution.deadlineAt ?? Infinity, Date.now() + 5_000) })
+    let pending = this.pending.get(origin)
+    if (pending === undefined) {
+      const controller = new AbortController()
+      const request = (async (): Promise<CachedRobots | null> => {
+      const scope = createExecutionScope({ signal: controller.signal, deadlineAt: Date.now() + 5_000 })
       let entry: CachedRobots = { robotsUrl, robots: null, sha256: null, absent: false }
       try {
       await raceWithSignal(assertSafeUrl(robotsUrl, this.networkPolicy), scope.signal)
@@ -103,17 +103,30 @@ export class RobotsOriginCache {
       break
       }
     } catch {
-      throwIfExecutionStopped(execution)
+      throwIfExecutionStopped(scope)
       entry = { robotsUrl, robots: null, sha256: null, absent: false }
     } finally { scope.dispose() }
 
-      throwIfExecutionStopped(execution)
+      throwIfExecutionStopped(scope)
       this.byOrigin.set(origin, entry)
       return entry
     })()
-    const shareable = execution.signal === undefined && execution.deadlineAt === undefined
-    if (shareable) this.pending.set(origin, request)
-    try { return await request } finally { if (shareable && this.pending.get(origin) === request) this.pending.delete(origin) }
+      pending = { promise: request, controller, users: 0 }
+      this.pending.set(origin, pending)
+      const current = pending
+      void request.finally(() => { if (this.pending.get(origin) === current) this.pending.delete(origin) }).catch(() => {})
+    }
+    pending.users++
+    const caller = createExecutionScope(execution)
+    try { return await raceWithSignal(pending.promise, caller.signal) }
+    finally {
+      caller.dispose()
+      pending.users--
+      if (pending.users === 0 && this.pending.get(origin) === pending) {
+        this.pending.delete(origin)
+        pending.controller.abort(new DOMException('No robots lookup waiters remain', 'AbortError'))
+      }
+    }
   }
 
   decision(cached: CachedRobots | null, url: string, userAgent: string): ComplianceRobotsDecision {

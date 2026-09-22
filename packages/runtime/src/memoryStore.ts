@@ -73,13 +73,19 @@ export class MemoryTaskStore implements TaskStore {
       .map(cloneJson)
   }
 
+  async countCompletedSteps(taskId: string): Promise<number> {
+    return new Set([...this.steps.values()]
+      .filter(step => step.taskId === taskId && step.result !== null)
+      .map(step => step.canonicalUrl)).size
+  }
+
   async listStepsPage(taskId: string, query: StepPageQuery) {
     const errorStatuses = new Set(['failed', 'blocked', 'cancelled', 'budget_exceeded'])
     const cursor = query.cursor === undefined ? null : decodeStepCursor(query.cursor)
     const rows = [...this.steps.values()]
       .filter((step) => step.taskId === taskId)
       .filter((step) => query.attemptId === undefined || step.attemptId === query.attemptId)
-      .filter((step) => query.kind === 'errors' ? errorStatuses.has(step.status) : !errorStatuses.has(step.status))
+      .filter((step) => query.kind === 'all' || (query.kind === 'errors' ? errorStatuses.has(step.status) : !errorStatuses.has(step.status)))
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
       .filter((step) => cursor === null || step.createdAt > cursor.createdAt || (step.createdAt === cursor.createdAt && step.id > cursor.id))
     const rowsWithLookahead = rows.slice(0, query.limit + 1)

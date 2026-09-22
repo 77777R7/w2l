@@ -13,7 +13,7 @@ import { createApp } from '../src/app.js'
 
 describe('Gate 2 real HTTP Monitor reliability', () => {
   let root: string, url: string, server: Server, engine: ApiEngine, client: W2L
-  let price: string, title: string, force304: boolean, delay: boolean, injectedCalls: number
+  let price: string, title: string, force304: boolean, delay: boolean, injectedCalls: number, amazonLike: boolean
   let requests: { validator: string | undefined; status: number }[]
   let started: (() => void) | undefined
   let release: (() => void) | undefined
@@ -37,7 +37,7 @@ describe('Gate 2 real HTTP Monitor reliability', () => {
 
   beforeEach(async () => {
     root = await mkdtemp(join(tmpdir(), 'w2l-gate2-http-'))
-    price = '10.00'; title = 'Product'; force304 = false; delay = false; injectedCalls = 0; requests = []
+    price = '10.00'; title = 'Product'; force304 = false; delay = false; injectedCalls = 0; requests = []; amazonLike = false
     started = undefined; release = undefined
     server = createServer(async (req, res) => {
       if (req.url === '/robots.txt') { res.writeHead(200).end('User-agent: *\nAllow: /'); return }
@@ -45,10 +45,12 @@ describe('Gate 2 real HTTP Monitor reliability', () => {
       if (res.destroyed) return
       const etag = `"${title}:${price}"`
       const validator = typeof req.headers['if-none-match'] === 'string' ? req.headers['if-none-match'] : undefined
-      const status = force304 || validator === etag ? 304 : 200
+      const status = !amazonLike && (force304 || validator === etag) ? 304 : 200
       requests.push({ validator, status })
       if (status === 304) { res.writeHead(304, { etag }).end(); return }
-      res.writeHead(200, { 'content-type': 'text/html', etag, 'cache-control': 'public, max-age=0' })
+      res.writeHead(200, amazonLike
+        ? { 'content-type': 'text/html', 'cache-control': 'no-cache', 'set-cookie': 'session=fixture; Path=/' }
+        : { 'content-type': 'text/html', etag, 'cache-control': 'public, max-age=0' })
       res.end(`<html><head><title>${title}</title></head><body><main><article><h1>${title}</h1><h2>Price</h2><p>${price}</p><h2>Description</h2><p>This controlled fixture describes a publicly available sample product with an exact price field. The surrounding description provides stable content so that extraction can preserve the document identity and the complete price section. Changes in the price are the only business changes evaluated by this deterministic integration test.</p></article></main></body></html>`)
     })
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
@@ -175,6 +177,21 @@ describe('Gate 2 real HTTP Monitor reliability', () => {
     expect((await client.runMonitor('ladder', { triggerKey: 'one' })).runs[0]?.quality).toBe('valid')
     expect(injectedCalls).toBe(1)
     await expect(client.createMonitor(config('unsupported', { captureMode: 'ladder', conditionalRequests: true }))).rejects.toThrow('400')
+  })
+
+  it('does not claim 304 reuse or store a public body for cookie-bearing no-cache pages without validators', async () => {
+    amazonLike = true
+    await client.createMonitor(config('cookie-page'))
+    await client.runMonitor('cookie-page', { triggerKey: 'first' })
+    await client.runMonitor('cookie-page', { triggerKey: 'second' })
+    expect(requests).toEqual([{ validator: undefined, status: 200 }, { validator: undefined, status: 200 }])
+    expect(query('SELECT key FROM monitor_transport')).toHaveLength(0)
+    const observations = query<{ outcome_json: string }>('SELECT outcome_json FROM monitor_observations ORDER BY observed_at')
+    expect(observations).toHaveLength(2)
+    for (const row of observations) {
+      const outcome = JSON.parse(row.outcome_json)
+      expect(outcome.result.evidence).toMatchObject({ cacheControl: 'no-cache', setsCookie: true, etag: null, lastModified: null })
+    }
   })
 
   it('cancels actual delayed capture, fences its result, and preserves pause/resume controls', async () => {

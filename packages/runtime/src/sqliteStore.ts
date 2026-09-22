@@ -13,6 +13,7 @@ interface TaskRow {
   mode: string
   status: string
   budget_json: string
+  batch_json: string | null
   created_at: string
   updated_at: string
 }
@@ -58,6 +59,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   mode TEXT NOT NULL,
   status TEXT NOT NULL,
   budget_json TEXT NOT NULL,
+  batch_json TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -131,6 +133,7 @@ export class SqliteTaskStore implements TaskStore {
       try { this.db.exec('ALTER TABLE attempts ADD COLUMN cost_unknown INTEGER NOT NULL DEFAULT 0') } catch {}
       try { this.db.exec('ALTER TABLE attempts ADD COLUMN content_tokens_unknown INTEGER NOT NULL DEFAULT 0') } catch {}
       try { this.db.exec('ALTER TABLE attempts ADD COLUMN recovered_from_attempt_id TEXT') } catch {}
+      try { this.db.exec('ALTER TABLE tasks ADD COLUMN batch_json TEXT') } catch {}
       chmodSync(dbPath, 0o600)
     }
   }
@@ -139,14 +142,15 @@ export class SqliteTaskStore implements TaskStore {
     assertId('task.id', task.id)
     this.db
       .prepare(
-        `INSERT INTO tasks (id, seed_url, task_dir, mode, status, budget_json, created_at, updated_at)
-         VALUES (@id, @seed_url, @task_dir, @mode, @status, @budget_json, @created_at, @updated_at)
+        `INSERT INTO tasks (id, seed_url, task_dir, mode, status, budget_json, batch_json, created_at, updated_at)
+         VALUES (@id, @seed_url, @task_dir, @mode, @status, @budget_json, @batch_json, @created_at, @updated_at)
          ON CONFLICT(id) DO UPDATE SET
            seed_url = excluded.seed_url,
            task_dir = excluded.task_dir,
            mode = excluded.mode,
            status = excluded.status,
            budget_json = excluded.budget_json,
+           batch_json = excluded.batch_json,
            created_at = excluded.created_at,
            updated_at = excluded.updated_at`,
       )
@@ -157,6 +161,7 @@ export class SqliteTaskStore implements TaskStore {
         mode: task.mode,
         status: task.status,
         budget_json: JSON.stringify(task.budget),
+        batch_json: task.batch === undefined ? null : JSON.stringify(task.batch),
         created_at: task.createdAt,
         updated_at: task.updatedAt,
       })
@@ -300,6 +305,11 @@ export class SqliteTaskStore implements TaskStore {
     return rows.map(stepFromRow)
   }
 
+  async countCompletedSteps(taskId: string): Promise<number> {
+    const row = this.db.prepare('SELECT COUNT(DISTINCT canonical_url) AS count FROM steps WHERE task_id = ? AND result_json IS NOT NULL').get(taskId) as { count: number }
+    return row.count
+  }
+
   async listStepsPage(taskId: string, query: StepPageQuery) {
     const cursor = query.cursor === undefined ? null : decodeStepCursor(query.cursor)
     const errorStatuses = ['failed', 'blocked', 'cancelled', 'budget_exceeded']
@@ -312,7 +322,7 @@ export class SqliteTaskStore implements TaskStore {
     if (query.kind === 'errors') {
       conditions.push(`status IN (${errorStatuses.map(() => '?').join(', ')})`)
       params.push(...errorStatuses)
-    } else {
+    } else if (query.kind === 'pages') {
       conditions.push(`status NOT IN (${errorStatuses.map(() => '?').join(', ')})`)
       params.push(...errorStatuses)
     }
@@ -359,6 +369,7 @@ function taskFromRow(row: TaskRow): Task {
     mode: row.mode as CrawlMode,
     status: row.status as TaskStatus,
     budget: JSON.parse(row.budget_json) as CrawlBudget,
+    ...(row.batch_json ? { batch: JSON.parse(row.batch_json) as NonNullable<Task['batch']> } : {}),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }

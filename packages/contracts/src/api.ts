@@ -60,11 +60,25 @@ export interface CrawlAccepted {
   taskId: string
 }
 
+export interface BatchStartRequest {
+  urls: readonly string[]
+  mode?: ApiCrawlMode
+  formats?: readonly ScrapeFormat[]
+  includeLinks?: boolean
+}
+
+export interface BatchStatusResponse extends CrawlReport {
+  requested: number
+  completed: number
+  remaining: number
+}
+
 export type CrawlStatusResponse = CrawlReport
 export interface CrawlPageQuery {
   attemptId?: string
   cursor?: string
   limit?: number
+  debug?: boolean
 }
 export type CrawlPagesResponse = CrawlPageList<CrawlPage>
 export type CrawlErrorsResponse = CrawlPageList<CrawlError>
@@ -227,6 +241,17 @@ export function parseCrawlStartRequest(body: unknown): CrawlStartRequest {
   }
 }
 
+export function parseBatchStartRequest(body: unknown): BatchStartRequest {
+  const rec = asRecord(body)
+  if (!Array.isArray(rec.urls) || rec.urls.length < 1 || rec.urls.length > 1000) {
+    throw new RequestError('urls must contain 1 to 1000 URLs')
+  }
+  const urls = rec.urls.map(readUrl)
+  if (new Set(urls.map(url => new URL(url).href)).size !== urls.length) throw new RequestError('urls must be unique')
+  if (rec.includeLinks !== undefined && typeof rec.includeLinks !== 'boolean') throw new RequestError('includeLinks must be a boolean')
+  return { urls, mode: readMode(rec.mode), formats: readFormats(rec.formats), includeLinks: rec.includeLinks as boolean | undefined }
+}
+
 export function parseCrawlPageQuery(query: Record<string, string | undefined>): CrawlPageQuery {
   const limitValue = query.limit
   const limit = limitValue === undefined ? undefined : Number(limitValue)
@@ -235,5 +260,6 @@ export function parseCrawlPageQuery(query: Record<string, string | undefined>): 
   }
   if (query.cursor !== undefined && query.cursor.length === 0) throw new RequestError('cursor must not be empty')
   if (query.attemptId !== undefined && query.attemptId.length === 0) throw new RequestError('attemptId must not be empty')
-  return { cursor: query.cursor, limit, attemptId: query.attemptId }
+  if (query.debug !== undefined && query.debug !== 'true' && query.debug !== 'false') throw new RequestError('debug must be true or false')
+  return { cursor: query.cursor, limit, attemptId: query.attemptId, debug: query.debug === undefined ? undefined : query.debug === 'true' }
 }

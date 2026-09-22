@@ -9,12 +9,13 @@ import {
   type TraceEvent,
 } from '@w2l/contracts'
 import { collectLinks, extractTf, htmlToMarkdown } from '@w2l/extract-tf'
-import { resilientFetch, abortableSleep, createExecutionScope, raceWithSignal, throwIfExecutionStopped, classifyGate, escalationForBlock, parseRetryAfterMs, sha256Utf8, type ResilientFetcher } from '@w2l/http-core'
+import { resilientFetch, createExecutionScope, throwIfExecutionStopped, classifyGate, escalationForBlock, parseRetryAfterMs, sha256Utf8, type ResilientFetcher } from '@w2l/http-core'
 import { request } from 'undici'
 import { assertSafeUrl, BodyTooLargeError, defaultNetworkPolicy, readCappedBody } from '../egress.js'
 import { prepareHttpIdentity, recordHttpIdentity } from '../httpIdentity.js'
 import { RobotsOriginCache } from '../robotsLookup.js'
 import type { SubjectAdapter } from '../subject.js'
+import { OriginScheduler, type OriginPermit } from './originScheduler.js'
 
 /**
  * Resilient HTTP subject: the resilient transport engine (redirect following
@@ -34,19 +35,20 @@ export class ResilientHttpSubject implements SubjectAdapter {
   }
 
   private readonly prepared: ReturnType<typeof prepareHttpIdentity>
-  private readonly fetcherFor: (initialUrl: string, validators: { etag?: string; lastModified?: string }, signal?: AbortSignal, onBodyRead?: (ms: number) => void) => ResilientFetcher
+  private readonly fetcherFor: (initialUrl: string, validators: { etag?: string; lastModified?: string }, signal?: AbortSignal, onBodyRead?: (ms: number) => void, onRequestWait?: (intervalMs: number, cooldownMs: number) => void) => ResilientFetcher
   private readonly robotsCache: RobotsOriginCache
   private readonly networkPolicy: NetworkPolicy
-  private readonly pendingByOrigin = new Map<string, Promise<void>>()
-  private readonly cooldownUntilByHost = new Map<string, number>()
+  private readonly scheduler: OriginScheduler
 
-  constructor(mode: CrawlMode = 'standard', networkPolicy?: NetworkPolicy) {
+  constructor(mode: CrawlMode = 'standard', networkPolicy?: NetworkPolicy, scheduler?: OriginScheduler) {
     this.prepared = prepareHttpIdentity(mode)
     this.networkPolicy = networkPolicy ?? defaultNetworkPolicy()
+    this.scheduler = scheduler ?? new OriginScheduler(this.networkPolicy)
     this.robotsCache = new RobotsOriginCache(this.networkPolicy)
     const headers = this.prepared.headers
     const maxBodyBytes = this.networkPolicy.maxBodyBytes
-    this.fetcherFor = (initialUrl, validators, signal, onBodyRead) => async (url, init) => {
+    this.fetcherFor = (initialUrl, validators, signal, onBodyRead, onRequestWait) => async (url, init) => {
+      await this.scheduler.beforeRequest(new URL(url).origin, init.signal ?? signal, onRequestWait)
       const response = await request(url, {
         method: 'GET',
         headersTimeout: init.headersTimeoutMs,
@@ -82,39 +84,34 @@ export class ResilientHttpSubject implements SubjectAdapter {
     const start = Date.now()
     const monotonicStart = performance.now()
     const origin = new URL(url).origin
-    const previous = this.pendingByOrigin.get(origin) ?? Promise.resolve()
-    let release!: () => void
-    const ticket = new Promise<void>(resolve => { release = resolve })
-    const pending = previous.then(() => ticket)
-    this.pendingByOrigin.set(origin, pending)
+    let permit: OriginPermit | undefined
     try {
-      await raceWithSignal(previous, scope.signal)
-      const queueMs = performance.now() - monotonicStart
+      permit = await this.scheduler.acquire(origin, scope.signal)
       throwIfExecutionStopped(scope)
-      const result = await this.fetchWithinBudget(url, scope, validators, monotonicStart, queueMs)
+      const result = await this.fetchWithinBudget(url, scope, validators, monotonicStart, permit.queueMs, permit.cooldownWaitMs)
       return scope.signal.reason?.name === 'TimeoutError' || deadlineMs !== undefined && Date.now() >= deadlineMs
         ? { ...result, budgetExceeded: 'time' }
         : result
     } catch (error) {
-      if (!scope.signal.aborted) throw error
+      if (!scope.signal.aborted && (deadlineMs === undefined || Date.now() < deadlineMs)) throw error
       const result = this.denied(url, start, [], 'timeout')
       const totalMs = Math.max(0, performance.now() - monotonicStart)
-      const timed = { ...result, usage: { ...result.usage, wallMs: totalMs, timings: { queueMs: totalMs, robotsMs: 0, cooldownWaitMs: 0, retryWaitMs: 0, requestMs: 0, bodyReadMs: 0, transportMs: 0, parseMs: 0, extractMs: 0, formatMs: 0, serializeMs: 0, modelMs: 0, totalMs } } }
+      const retryAt = this.scheduler.retryAt(origin)
+      const timed = { ...result, ...(retryAt === undefined ? {} : { retryAt }), usage: { ...result.usage, wallMs: totalMs, timings: { queueMs: permit?.queueMs ?? (retryAt === undefined ? totalMs : 0), robotsMs: 0, cooldownWaitMs: permit?.cooldownWaitMs ?? (retryAt === undefined ? 0 : totalMs), retryWaitMs: 0, requestMs: 0, bodyReadMs: 0, transportMs: 0, parseMs: 0, extractMs: 0, formatMs: 0, serializeMs: 0, modelMs: 0, totalMs } } }
       return scope.signal.reason?.name === 'TimeoutError' || deadlineMs !== undefined && Date.now() >= deadlineMs ? { ...timed, budgetExceeded: 'time' } : timed
     } finally {
       scope.dispose()
-      release()
-      if (this.pendingByOrigin.get(origin) === pending) {
-        void pending.then(() => { if (this.pendingByOrigin.get(origin) === pending) this.pendingByOrigin.delete(origin) })
-      }
+      permit?.release()
     }
   }
 
-  private async fetchWithinBudget(url: string, execution: ExecutionContext, validators: { etag?: string; lastModified?: string }, monotonicStart: number, queueMs: number): Promise<FetchResult> {
+  private async fetchWithinBudget(url: string, execution: ExecutionContext, validators: { etag?: string; lastModified?: string }, monotonicStart: number, initialQueueMs: number, initialCooldownWaitMs: number): Promise<FetchResult> {
     const { signal, deadlineAt, onRetryAfter } = execution
     const start = Date.now()
     let robotsMs = 0
-    let cooldownWaitMs = 0
+    let queueMs = initialQueueMs
+    let cooldownWaitMs = initialCooldownWaitMs
+    let pacingWaitMs = 0
     let transportMs = 0
     let retryWaitMs = 0
     let bodyReadMs = 0
@@ -190,48 +187,41 @@ export class ResilientHttpSubject implements SubjectAdapter {
 
     if (signal?.aborted) return timedDenied('timeout')
     const host = new URL(url).origin
-    const cooldownUntil = this.cooldownUntilByHost.get(host) ?? 0
-    if (cooldownUntil > Date.now()) {
-      const waitMs = cooldownUntil - Date.now()
-      trace.push({ at: Date.now() - start, lane: 'http', event: 'host_cooldown_wait', detail: { host, waitMs } })
-      if (deadlineAt !== undefined && cooldownUntil >= deadlineAt) {
-        trace.push({ at: Date.now() - start, lane: 'http', event: 'retry_deferred', detail: { retryAt: cooldownUntil } })
-        return timedDenied('timeout', cooldownUntil)
-      }
-      const cooldownStart = performance.now()
-      try { await abortableSleep(waitMs, signal) }
-      catch (error) {
-        cooldownWaitMs += performance.now() - cooldownStart
-        if (signal?.aborted) return timedDenied('timeout', cooldownUntil)
-        throw error
-      }
-      cooldownWaitMs += performance.now() - cooldownStart
-    }
+    if (cooldownWaitMs > 0) trace.push({ at: Date.now() - start, lane: 'http', event: 'host_cooldown_wait', detail: { host, waitMs: cooldownWaitMs } })
     const transportStart = performance.now()
-    const out = await resilientFetch(url, this.fetcherFor(url, validators, signal, ms => { bodyReadMs += ms }), {
+    const out = await resilientFetch(url, this.fetcherFor(url, validators, signal, ms => { bodyReadMs += ms }, (intervalMs, cooldownMs) => {
+      queueMs += intervalMs
+      cooldownWaitMs += cooldownMs
+      pacingWaitMs += intervalMs + cooldownMs
+    }), {
       signal,
       deadlineAt,
       onRetryAfter: (target, retryAt) => {
         for (const origin of new Set([host, new URL(target).origin])) {
-          this.cooldownUntilByHost.set(origin, Math.max(this.cooldownUntilByHost.get(origin) ?? 0, retryAt))
+          this.scheduler.cooldown(origin, retryAt)
         }
         onRetryAfter?.(target, retryAt)
       },
       maxRedirects: this.networkPolicy.maxRedirects,
       assertUrl: (target) => assertSafeUrl(target, this.networkPolicy),
+    }).catch(error => {
+      if (!signal?.aborted && (deadlineAt === undefined || Date.now() < deadlineAt)) throw error
+      transportMs = Math.max(0, performance.now() - transportStart - pacingWaitMs)
+      return null
     })
+    if (out === null) return timedDenied('timeout', this.scheduler.retryAt(host))
     const transportTotalMs = performance.now() - transportStart
     retryWaitMs = out.trace
       .filter(event => event.event === 'retry')
       .reduce((sum, event) => sum + (typeof event.detail?.waitedMs === 'number' ? event.detail.waitedMs : typeof event.detail?.delayMs === 'number' ? event.detail.delayMs : 0), 0)
-    transportMs = Math.max(0, transportTotalMs - retryWaitMs)
+    transportMs = Math.max(0, transportTotalMs - retryWaitMs - pacingWaitMs)
     const wallMs = Date.now() - start
     let retryAt = out.retryAt
     if (out.status === 429 || out.status === 503) {
       const retryAfter = parseRetryAfterMs(out.headers?.get('retry-after') ?? null) ?? 250
       const next = out.retryAt ?? Date.now() + Math.max(retryAfter, 250)
       retryAt = next
-      this.cooldownUntilByHost.set(host, Math.max(this.cooldownUntilByHost.get(host) ?? 0, next))
+      this.scheduler.cooldown(host, next)
       trace.push({ at: wallMs, lane: 'http', event: 'host_cooldown_set', detail: { host, status: out.status, cooldownMs: next - Date.now() } })
     }
     for (const t of out.trace) {
