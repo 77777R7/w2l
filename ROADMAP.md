@@ -4,9 +4,9 @@ This is the current product roadmap. It reorganizes the older Phase 1/2/3 plan i
 
 ## Current Position
 
-**Section B · Controlled prototypes → reliability and adoption validation**
+**Section B core reliability validated → Section C delivery and onboarding**
 
-Review baseline: `main@e29dc6b` (PR46), reviewed 2026-09-22. Section A remains a conditional developer alpha.
+Source freeze: `99894bd636ecafd254a7c7bc79d26e9a97fa9199` on `codex/gate2-delivery-sdk`, based on `e28500b`, reviewed 2026-09-22. This is a local commit, not a published release. Section A remains a conditional developer alpha.
 
 Current truth:
 
@@ -24,11 +24,12 @@ Current truth:
 - External billed USD is unmeasured for the recorded local runs. Resource meters are separate; missing cost must not be invented as zero. A vendor-evidenced zero is a legitimate measurement.
 - A6 is a scoped developer alpha. Unconditional pass still requires a second human install.
 - Anti-blocking reliability slice: Retry-After HTTP-date parsing, bounded 503 backoff/jitter, and same-host 429/503 cooldown are implemented. This is compliant request discipline, not stealth or CAPTCHA bypass.
-- Retry correctness remains open: long Retry-After values are currently shortened by caps; cooldown is per-instance and does not serialize concurrent requests.
-- B1/B2 supports one fixed Firecrawl documentation task. General monitor configuration, full fault validation and cross-date operation remain open.
+- Gate 2 execution checks passed: explicit captureMode, cancellation/deadline propagation, uncapped Retry-After, persisted Monitor origin cooldown, actual process-crash recovery and concurrent claim/fencing.
+- Generic B1/B2 public-document configuration, typed fields, rule/schema attribution, A/B/A/B changes, real HTTP 304 with cached-body reassessment and multi-Monitor isolation have controlled integration evidence. Cross-date endurance, backup/restore and broader completeness remain open.
 - B3 managed-session APIs exist; Existing Chrome/CDP and B4 Recipe are library-level implementations without dedicated integration evidence in this baseline.
-- Section C is planned, not implemented. A local pending outbox is not downstream delivery.
-- Generic B1/B2 monitor configuration, typed field values, identity keys, rule/schema attribution, and transport-representation records are implemented on the closeout branch; full multi-monitor/conditional-cache evidence remains open.
+- C1's delivery engineering slice passed: persistent worker/leases, retry/dead-letter, real HTTPS, stable event IDs, receiver deduplication and restart recovery. Long-term use by a real downstream customer is unverified.
+- Gate 4 includes Crawl/Monitor/Delivery SDKs, examples, installation docs and an agent clean-install record. Independent human acceptance is pending; Gate 5 external pilots have not started.
+- The current MCP is local stdio for scrape/Crawl. Monitor/Delivery MCP and simpler first use are next in C2; unified process management and remote HTTPS URL MCP are next in C3. None of those new entry points is implemented.
 - B3/B4 external validation is blocked on an authorized backend/account and a second reusable workflow; see `research/section-b-real-adoption-blockers.md`.
 - Hosted arbitrary-URL browser execution remains gated on a separate egress/security review.
 
@@ -44,15 +45,15 @@ Section A: Reliable data collection
   A6 Expanded validation and base-product gate    conditional alpha; second-developer install deferred
 
 Section B: Continuous updates and authorized access
-  B1 Stateful recurring tasks and data versions          in_progress (fixed task)
-  B2 Trusted change detection and incremental updates   in_progress (string fields)
+  B1 Stateful recurring tasks and data versions          in_progress (core reliability validated)
+  B2 Trusted change detection and incremental updates   in_progress (typed changes/cache validated)
   B3 Chrome/user-authorized session reuse                in_progress (API + CDP library)
   B4 Narrow authorized-backend automation                in_progress (Recipe library)
 
 Section C: Workflow productization and delivery
-  C1 Reliable downstream data delivery                   not_started
-  C2 n8n integration and a narrow task UI                 not_started
-  C3 Enterprise self-hosting and optional hosted delivery not_started
+  C1 Reliable downstream data delivery                   in_progress (engineering slice validated)
+  C2 MCP integrations, n8n and a narrow task UI           not_started (REST/SDK foundation exists)
+  C3 Self-hosting, remote URL MCP and optional hosting    in_progress (install foundation exists)
   C4 Paid validation and limited scenario expansion      not_started
 ```
 
@@ -62,6 +63,18 @@ Section B technical design: `docs/roadmap/section-b-technical-design-v1.md`.
 B/C handoff: `docs/roadmap/section-b-handoff.md`.
 Stage review: `docs/roadmap/stage-review-2026-09-22.md`.
 Section C complete plan: `docs/roadmap/section-c-delivery.md`.
+
+### Gate Status
+
+| Gate | Current status |
+| --- | --- |
+| Gate 2 · Sustainable execution | Listed execution-contract and reliability engineering checks passed |
+| Gate 3 · Deliverable events | Durable delivery, real HTTPS, retry, deduplication and restart recovery passed |
+| Gate 4 · Independent onboarding | SDK, docs, examples and agent clean install complete; non-author human acceptance pending |
+| Gate 5 · Pilot readiness | Two external users, two weeks of operation, repeat use and a real downstream scenario not yet verified |
+
+Evidence and boundaries: [Gate 2–4 acceptance](docs/roadmap/gate-2-4-acceptance.md).
+Next priority: C2 Monitor/Delivery MCP and conversational first use → C3 unified service management and remote URL MCP, with hosted isolation/egress/resource gates before persistent public hosting. Connection, task completion and continued monitoring require separate acceptance. These are planned slices, not delivery-date commitments; the roadmap remains A → B → C.
 
 ## Section A
 
@@ -144,13 +157,13 @@ Section B combines the future differentiators around one customer task rather th
 
 Track stable object identity, extraction-rule version, last valid result, last check, last success, and history. A failed refresh must not overwrite valid data.
 
-**Status:** in_progress. Fixed Firecrawl monitor implemented; durable deployment, cancellation, complete recovery tests and generic configuration remain open.
+**Status:** in_progress. Generic Monitor configuration, cancellation/deadlines, durable run claims, fencing and actual crash recovery passed the scoped Gate 2 checks. Cross-date operation, managed deployment and backup/restore remain open.
 
 ### B2 · Trusted Change Detection And Incremental Updates
 
 Distinguish `changed`, `unchanged`, `cannot_verify`, and `stale`. Compare target fields/content after quality validation. Do not promise a percentage cost reduction before measuring it.
 
-**Status:** in_progress. String-field diff and local outbox implemented; typed field states, rule-version attribution, completeness and conditional cache remain open.
+**Status:** in_progress. Typed fields, rule/schema attribution, controlled A/B/A/B changes, conditional HTTP/cache-body validation and multi-Monitor isolation passed. Broader list completeness/deletion semantics and real-world efficiency measurements remain open.
 
 ### B3 · Authorized Session Reuse And Handoff
 
@@ -168,15 +181,15 @@ Support a small number of repeatable, authorized workflows only after evidence s
 
 ### C1 · Reliable Data Delivery
 
-Keep the API. Add Webhook and one validated downstream destination first. Ensure idempotency, updates by stable key, retry without duplicates, and preservation of the last valid value after fetch failure.
+**Status:** in_progress. Persistent HTTPS Webhook delivery, leases, retry/dead-letter and an idempotent receiver are implemented and verified. Actual customer consumption over time remains unverified. Keep the existing API/SDK as the business contract.
 
-### C2 · n8n Integration And Narrow Task UI
+### C2 · MCP Integrations, n8n And Narrow Task UI
 
-Integrate first; build a task configuration UI before considering a general workflow canvas. The first UI should be source → fields → schedule → output → sample check → run history.
+**Status:** not_started for the new product entry points. Next: Monitor/Delivery MCP tools and a conversational source → task → sample → result/failure flow, reusing REST/SDK and stored task state. n8n and a narrow task UI remain planned; they share the same contract.
 
 ### C3 · Self-Hosted And Optional Hosted Delivery
 
-Self-hosted deployment, secrets, storage, backups, and allowed egress are one track. Public hosted delivery requires the separate Hosted Egress Gate, tenant isolation, quotas, cancellation, resource limits, and operational evidence.
+**Status:** in_progress. Installation docs, source packaging and agent clean-install evidence exist. Unified API/scheduler/delivery-worker start/status/stop/recovery, remote HTTPS URL MCP with authentication/client setup, and persistent hosting remain unimplemented. Public hosting requires the separate Hosted Egress Gate, identity isolation, quotas, cancellation, resource limits and operational evidence.
 
 ### C4 · Paid Validation And Limited Expansion
 

@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Gate 2–4 source frozen in local commit `99894bd636ecafd254a7c7bc79d26e9a97fa9199` on `codex/gate2-delivery-sdk`, based on `e28500b`. No push, release or deployment is implied.
+- Gate 2: explicit captureMode, shared cancellation/deadlines, full Retry-After waits and persisted Monitor cooldown; actual process recovery/claim races, baseline/fencing, A/B/A/B, conditional-cache body and multi-Monitor isolation checks passed.
+- Gate 3: durable HTTPS destinations/delivery worker, lease/fencing, retry/dead-letter, same-event replay and a transactional deduplicating receiver. Real HTTPS ACK-loss/restart experiment passed; its temporary endpoint is stopped.
+- Gate 4: Monitor/Delivery SDKs, examples, install/restart documentation and a sanitized agent clean-install record. Independent human acceptance remains pending; Gate 5 external two-week and repeat-use validation has not started.
+- Native Crawl results expose paginated `/v1/crawl/:id/pages` and `/v1/crawl/:id/errors`, persistent cancellation via `/v1/crawl/:id/cancel`, and matching SDK/MCP operations.
+- Roadmap calibration: B1/B2 and C1 remain in_progress; C2 Monitor/Delivery MCP and guided first use, plus C3 unified process management and remote HTTPS URL MCP are the next unimplemented slices. Existing B3/B4/C4 gaps remain open.
+
 - API listen is loopback by default (`hostname: 127.0.0.1`). `--hosted --token` is the public mode: bearer auth, private/metadata SSRF deny on seed + redirects, 10 MB body cap, crawl `maxPages` default 100.
 - Local mode still allowlists loopback/RFC1918 so fixture servers work. API callers cannot widen that list.
 - Crawl scrape or store errors write task/attempt `failed` instead of leaving `running`. Resume with no contentful checkpoint reseeds the seed URL.
@@ -10,7 +17,7 @@
 - Ladder runs now expose task-level execution accounting: every attempted channel remains available alongside `channelsTried` and `ladderTrace`; unknown cost, token, or wire-byte measurements stay `null` instead of being treated as zero.
 - Browser-rendered DOM size is not reported as `bytesWire`; browser paths use `null` when actual network transfer bytes cannot be proven. `artifacts: []` means this run produced no screenshot or DOM artifact.
 - Multi-page crawls use bounded workers, enforce Frontier host concurrency and robots crawl delays, reuse channels and routing history within an API engine, and reuse browser processes while keeping fetch contexts isolated.
-- New review baseline: `main@6965168` after PR #14 and PR #15 were merged.
+- Earlier foundation review baseline: `main@6965168` after PR #14 and PR #15 were merged; current freeze evidence is linked in [Gate 2–4 acceptance](docs/roadmap/gate-2-4-acceptance.md).
 
 ## 0.3.0 — 2026-09-18
 
@@ -50,4 +57,3 @@ First product-shaped cut of the identity ladder.
 - Provider lane measures vendor identity and does not inject ours; HeadlessChrome / research-as-Chrome / UA-hint mismatch are not success.
 - Changing IP or session does not change identity (`identityForRoute`).
 - Workspace packages versioned `0.1.0`.
-- Native Crawl results now expose paginated `/v1/crawl/:id/pages` and `/v1/crawl/:id/errors`, persistent cancellation via `/v1/crawl/:id/cancel`, and matching SDK/MCP operations.

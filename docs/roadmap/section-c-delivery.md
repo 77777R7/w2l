@@ -1,482 +1,328 @@
 # Section C · Workflow Productization And Delivery
 
-Section C packages a validated recurring data task for adoption. It does not
-replace the API, create a second scraping engine, or turn W2L into a general
-purpose browser agent.
+Section C packages a validated recurring data task for adoption. It reuses the
+existing collection engine, REST/SDK contracts and stored task state.
 
-Status at `main@e29dc6b`: **not started**. The current B1/B2, B3, and B4 code
-are controlled slices, not proof that Section C is ready for general delivery.
+Status reviewed 2026-09-22 at local source freeze
+`99894bd636ecafd254a7c7bc79d26e9a97fa9199` on
+`codex/gate2-delivery-sdk` (parent `e28500b`):
 
-## Product Outcome
+| Phase | Status | Boundary |
+| --- | --- | --- |
+| C1 | in_progress | Delivery engineering slice passed; real customer consumption over time unverified |
+| C2 | not_started | Monitor/Delivery MCP, guided first use, n8n and task UI remain planned; REST/SDK are reusable foundations |
+| C3 | in_progress | Install/docs/source packaging and agent clean install exist; unified process management, remote URL MCP and persistent hosting remain planned |
+| C4 | not_started | External pilot, repeat-use and willingness-to-pay evidence pending |
 
-Section C should let a user move from:
+Current evidence: [Gate 2–4 acceptance](gate-2-4-acceptance.md).
+[The earlier stage review](stage-review-2026-09-22.md) retains its original
+baseline and records subsequent resolution separately. No new Section D is added.
 
-```text
-configured source + fields + schedule
-    -> validated snapshot/change event
-    -> reliable downstream destination
-    -> observable run history and failure state
-```
-
-The customer-facing promise is:
-
-> When a validated source changes, deliver the new value exactly enough for the
-> receiving workflow to use it; when validation fails, preserve the last valid
-> value and expose the reason.
-
-## Non-Goals
-
-- No second scraper or extraction engine.
-- No general workflow canvas in the first C release.
-- No arbitrary hosted browser execution before the Hosted Egress Gate.
-- No universal connector catalog.
-- No automatic delivery of unverified or `effect_unknown` data.
-- No claim that webhooks are end-to-end exactly-once; use idempotency and
-  version checks instead.
-
-## Dependency Order
+## Product Outcome And Dependencies
 
 ```text
-A evidence and supported boundary
-        ↓
-B1/B2 valid Snapshot + ChangeEvent
-        ↓
-C1 reliable delivery to one destination
-        ↓
-C2 integration and narrow task UI
-        ↓
-C3 self-hosted/hosted deployment modes
-        ↓
-C4 repeat-use and willingness-to-pay validation
+A: reliable collection within its supported scope
+    -> B1/B2: valid snapshot + trusted change event
+    -> C1: durable delivery and idempotent consumption
+    -> C2: MCP tools and simpler first use
+       + C3: managed processes and remote HTTPS MCP
+    -> independent onboarding and external pilot
+    -> C4: repeat-use and willingness-to-pay validation
 ```
 
-B3/B4 are only required by C1/C2 tasks that actually use authorization or
-backend recipes. A public documentation monitor can reach C1 without login.
+C2 and C3 can progress together. B3/B4 gates apply to tasks using authorized
+sessions or backend recipes; public documentation delivery does not require
+all B3/B4 work to finish.
 
----
+When validation fails, preserve the last valid value and expose the reason.
+No general workflow canvas, universal connector catalog, automatic delivery
+of unverified/effect_unknown data, or end-to-end exactly-once promise is made.
+Public hosted execution still requires the separate Hosted Egress Gate.
 
 # C1 · Reliable Data Delivery
 
-## Goal
+## Implemented Engineering Slice
 
-Deliver one validated Snapshot or ChangeEvent to one useful destination while
-preserving stable identity, ordering, retry state, and the last valid value.
+The first destination is an HTTPS Webhook. The recorded experiment captured
+the public Firecrawl Introduction page and delivered its event to a receiver
+under our control through a temporary HTTPS tunnel. After injected ACK loss,
+receiver and sender restarted and retried the same event: two attempts,
+one durable receipt and one document projection. The tunnel is now stopped;
+it is neither a permanent hosted service nor a real customer's downstream use.
 
-## Highest-ROI First Destination
+The worker persists destinations, deliveries, attempts, leases/fencing,
+Retry-After/backoff and dead-letter state. Monitor snapshot/baseline/event/
+outbox/delivery creation shares a control-database transaction. Destination
+registration and historical-event backfill are atomic. Paused destinations
+retain backlog; network delivery runs outside the transaction.
 
-Use a generic HTTPS Webhook as the first destination because it validates the
-delivery contract without prematurely choosing a database, CRM, or vertical
-connector.
+## Current Event Contract
 
-The first production-shaped demo should deliver the Firecrawl Introduction
-monitor event to a local test receiver or a user-provided endpoint. A second
-destination, preferably a simple SQL table or spreadsheet-like store, follows
-only after the webhook contract is stable.
+The implemented wire shape is
+[`WebhookEventEnvelope`](../../packages/contracts/src/delivery.ts), with
+nested [Monitor event and snapshot types](../../packages/contracts/src/monitor.ts):
 
-## Delivery Contract
-
-Every delivery should include:
-
-```json
-{
-  "eventId": "evt-...",
-  "monitorId": "firecrawl-introduction",
-  "entityKey": "firecrawl:introduction",
-  "eventVersion": 2,
-  "changeKind": "changed",
-  "fromSnapshotId": "snap-1",
-  "toSnapshotId": "snap-2",
-  "changedFields": [
-    { "field": "scrapeDescription", "before": "...", "after": "..." }
-  ],
-  "observedAt": "...",
-  "verifiedAt": "...",
-  "evidenceRefs": ["obs-...", "assessment-..."]
+```typescript
+interface WebhookEventEnvelope {
+  schemaVersion: 'w2l.monitor-event/v1'
+  eventId: string
+  eventVersion: number
+  monitorId: string
+  workspaceId: string
+  entityKey: string
+  viewKey: string
+  event: MonitorEvent
+  snapshot: MonitorSnapshot
 }
 ```
 
-The payload must distinguish:
+`event.kind` is initialized or changed. Typed changes and event cause live in
+the nested event; revision, fields, observation/assessment references and
+version live in the snapshot. Unchanged/cannot_verify are run outcomes, not
+additional event kinds. Freshness/stale status is available through the
+Monitor view; there is no top-level delivery `lastVerifiedAt` field.
 
-- `initialized`: first valid snapshot;
-- `changed`: validated field change;
-- `unchanged`: normally no delivery;
-- `cannot_verify`: no business event and no baseline movement;
-- `stale`: old valid data may be readable, but not presented as fresh.
+The snapshot version is scoped to the Monitor/entity/view, distinct from
+schemaVersion. A later A→B transition creates a new event; delivery retries
+and dead-letter replay keep the original eventId and payload.
 
-## Outbox State Machine
-
-```text
-pending -> delivering -> acknowledged
-                 └──> retry_wait -> delivering
-                 └──> dead_letter
-```
-
-Required fields:
+## Current Delivery State Machine
 
 ```text
-eventId
-destinationId
-attemptCount
-nextAttemptAt
-lastStatus
-lastErrorClass
-leaseUntil
-payloadHash
-acknowledgedAt
+pending -> delivering -> delivered
+              |  |
+              |  +-> dead_letter --explicit replay--> pending
+              +----> pending (nextAttemptAt)
 ```
 
-The outbox row and ChangeEvent are created in the same control-database
-transaction as the valid Snapshot/Baseline commit. Network delivery happens
-after the transaction.
+Expired delivery leases are reclaimed with a new fencing token. Retry waiting
+is represented by pending plus nextAttemptAt, not a separate retry_wait state.
 
-## Idempotency and Ordering
+Public delivery fields are `id`, `destinationId`, `monitorId`, `eventId`,
+`eventVersion`, `state`, `attemptCount`, `maxAttempts`, `nextAttemptAt`,
+`leaseUntil`, `fencingToken`, `createdAt`, `deliveredAt`, `lastStatus`,
+`lastError` and `payload`. Detail reads include the attempt history.
+There are no public payloadHash, lastErrorClass or acknowledgedAt fields.
 
-The receiver must use `eventId` for duplicate suppression and
-`monitorId + entityKey + eventVersion` for stale-update rejection.
+The legacy monitor_outbox retains pending/acknowledged and its manual
+acknowledgement API. Automatic acknowledgement waits for all fanout deliveries
+to succeed. That legacy state machine is separate from delivery state.
 
-The sender may retry after a timeout. It must not create a new business event
-just because the HTTP response was lost.
+## Sender/Receiver Protocol And Boundaries
 
-If a receiver reports that it has already accepted an event, the sender marks
-the existing delivery acknowledged. If the receiver does not support
-idempotency, W2L must label the destination as duplicate-prone rather than
-promising exactly-once delivery.
+- Each event/destination pair is unique. Retry preserves the immutable event
+  bytes and eventId; a lost response cannot create a new business event.
+- The example receiver deduplicates eventId with a body hash. It commits
+  receipt and business projection together, rejecting stale projection updates
+  by workspace + Monitor + entity + view identity and eventVersion.
+- Optional destination `secretEnv` references an operator environment variable
+  named `W2L_WEBHOOK_SECRET_[A-Z0-9_]+`. HMAC-SHA256 covers timestamp + "." +
+  body; headers are `x-w2l-timestamp` and `x-w2l-signature`. The signed example
+  validates the replay window. Key-ID/versioned rotation remains a proposal.
+- Any 2xx HTTP status acknowledges delivery; no structured receipt body is
+  required by the sender. An arbitrary 409 is not treated as duplicate success.
+- Timeouts, 429 and retryable server failures use bounded attempts and backoff.
+  Retry-After is a lower bound, persists across restart and is shared by
+  receiver origin, including explicit replay. Exhaustion or terminal failure
+  becomes dead_letter; explicit retry does not recrawl.
+- Destination URL/configuration is immutable for an existing ID; enabled state
+  can change. A different URL requires a new destination ID. There is no
+  separate subscription resource or destination revision model.
+- HTTPS verifies TLS and pins an address accepted by delivery egress policy.
+  Redirects are refused. Delivery policy is separate from local crawler mode.
+  An operator may explicitly configure a trusted CONNECT proxy; this does not
+  establish general hosted egress readiness.
 
-## C1 Acceptance
+## Current REST Surface
 
-1. First valid snapshot creates exactly one delivery.
-2. Unchanged refresh creates no new delivery.
-3. Changed refresh creates one new delivery with typed before/after fields.
-4. Invalid/partial refresh preserves the old destination value.
-5. Lost response causes retry of the same event ID, not a new event.
-6. Duplicate receiver acknowledgement is safe.
-7. Delivery failure becomes visible and retryable.
-8. Old event versions cannot overwrite newer destination state.
-9. Payload contains evidence references but no cookies, passwords, or CDP URLs.
+These endpoints are implemented, with matching SDK operations:
 
----
+| Operation | Route |
+| --- | --- |
+| Register/list Monitor | POST / GET `/v1/monitors` |
+| Read Monitor view | GET `/v1/monitors/:id` |
+| Create revision | POST `/v1/monitors/:id/revisions` |
+| Run now | POST `/v1/monitors/:id/run` (`triggerKey` optional) |
+| Cancel active run | POST `/v1/monitors/:id/runs/:runId/cancel` |
+| Pause/resume Monitor | POST `/v1/monitors/:id/pause` or `/resume` |
+| Register/list destination | POST / GET `/v1/delivery/destinations` (list filter: monitorId) |
+| Pause/resume destination | POST `/v1/delivery/destinations/:id/pause` or `/resume` |
+| List deliveries | GET `/v1/deliveries` (monitorId, destinationId, state filters) |
+| Read delivery and attempts | GET `/v1/deliveries/:id` |
+| Retry dead-letter | POST `/v1/deliveries/:id/retry` (409 unless dead_letter) |
 
-# C2 · n8n Integration And Narrow Task UI
+Monitor views include events; no standalone Monitor events endpoint is
+implemented. Monitor/Delivery lists are currently unpaginated. The optional
+API bearer token does not provide per-workspace authorization.
 
-## Goal
+The older proposed `/v1/destinations`, destination `/test`, Monitor
+`/subscriptions` and `/events` routes remain proposals, not aliases for these
+APIs. Workspace authorization, pagination and destination revisioning must
+not be described as already shipped.
 
-Make one validated recurring task configurable and observable without building
-a general workflow canvas.
+## C1 Acceptance And Work Units
 
-## Integration Order
+The scoped checks passed: initialization/change creates one delivery per
+registered destination; unchanged or invalid refresh creates no new business
+delivery; failures preserve the last valid value; ACK loss retries the same
+event; receiver duplicates are safe; older versions cannot overwrite newer
+data; retry/dead-letter is observable. Evidence references are included without
+cookies, passwords or CDP URLs.
 
-1. **Webhook contract and examples.**
-2. **n8n integration** using one trigger/node pair.
-3. **Narrow task UI** that configures the same API, not a second state system.
+| Unit | Current status | Deliverable / remaining boundary |
+| --- | --- | --- |
+| C1.1 | Engineering slice passed | Versioned envelope, destination-to-Monitor binding, atomic delivery rows and event/destination uniqueness; separate subscriptions not implemented |
+| C1.2 | Engineering slice passed | Persistent worker, leases/fencing, HTTP ACK, retry/Retry-After, dead-letter and restart recovery |
+| C1.3 | Engineering slice passed | Controlled durable receiver, deduplication/version checks and delivery replay API; generalized reconciliation tooling remains future work |
+| C1.4 | not_started | A real customer's receiver and repeated downstream consumption; the controlled document projection is engineering evidence only |
 
-The integration should expose:
+# C2 · MCP Integrations, n8n And Narrow Task UI
 
-```text
-create monitor
-run now
-pause/resume
-view current snapshot
-view run history
-view change events
-view failure / waiting_user state
-test destination
-```
+## Next Priority: Monitor/Delivery MCP And First Use
 
-The UI must call the API and never directly edit SQLite or browser profiles.
+Current MCP is local stdio with six scrape/Crawl tools: scrape, crawl,
+get_crawl, get_crawl_pages, get_crawl_errors and cancel_crawl. It has no
+Monitor/Delivery tools and no remote HTTP transport.
 
-## First UI Flow
+The next C2 slice will expose Monitor creation, querying, run-now,
+pause/resume and active-run cancellation, plus destination configuration,
+delivery/attempt reads and dead-letter retry. It must reuse existing REST/SDK
+contracts and task states, distinguishing pause from cancellation and delivery
+retry from recrawl. Tool names and new endpoints are not implemented here.
 
-```text
-source URL
-    -> fields/schema
-    -> schedule
-    -> destination
-    -> sample check
-    -> save revision
-    -> run now
-    -> history / evidence / failure state
-```
+The simpler first-use flow is conversational: create a task, inspect a sample,
+obtain results and understand failure. Show extracted fields, quality decision,
+identity, freshness and evidence. Invalid samples must be explained before
+enabling an unattended schedule. Future narrow UI uses the same business
+contract; it never edits SQLite or profiles directly.
 
-The sample check must show the extracted fields, quality decision, source
-identity, lane, resource meters, and what would be delivered. Save is blocked
-when the sample is invalid or the destination is not safely configured.
+## Later Integration And UI
 
-## n8n Node Boundary
+After the MCP entry slice, validate an n8n workflow using ordinary HTTP/Webhook
+nodes before deciding whether a custom node is worthwhile. Proposed interfaces:
+Monitor Trigger, Get Snapshot and Run Monitor. Do not expose arbitrary browser
+commands or JavaScript. A narrow UI follows source → fields → schedule →
+destination → sample → revision → run/history.
 
-Initial nodes:
+| Unit | Status | Deliverable / acceptance |
+| --- | --- | --- |
+| C2.1 | not_started | Versioned n8n example; duplicate-safe consumption survives workflow restart |
+| C2.2 | not_started | Custom node only after repeated friction; credentials, pagination, retry and upgrades verified |
+| C2.3 | not_started | Narrow task UI; same stored revisions as API/MCP-created tasks |
+| C2.4 | not_started as product entry | Expose existing control APIs; distinguish pause/cancel and delivery retry/recrawl |
+| C2.5 | next, not_started | Monitor/Delivery MCP and guided first use; create/query/run/control, sample/result and actionable failure explanation |
 
-- `W2L Monitor Trigger`: emits a validated ChangeEvent or initialized snapshot.
-- `W2L Get Snapshot`: returns the last valid data and freshness state.
-- `W2L Run Monitor`: explicit manual run with an idempotency key.
-
-Do not expose arbitrary browser commands or arbitrary JavaScript to n8n.
-
-## C2 Acceptance
-
-1. UI-created monitor and API-created monitor have the same stored revision.
-2. n8n receives one event per event ID and survives duplicate delivery.
-3. User can see why a run is waiting, stale, partial, blocked, or failed.
-4. Login handoff is a first-class state; no cookie or profile material appears
-   in UI or n8n payloads.
-5. A failed delivery can be retried without re-running the source scrape.
-
----
+UI/MCP must distinguish initialization, changed, cannot_verify, stale and delivery
+failure. Authorized-session waiting_user/revoked flows remain subject to B3;
+a resume click is not proof of restored login or account scope.
 
 # C3 · Self-Hosted And Optional Hosted Delivery
 
-## C3.1 Self-Hosted Track
+## Self-Hosted Foundation And Unified Management
 
-Self-hosted delivery is the first deployment target.
+Docs, source packaging, SDK examples and an agent clean-install smoke exist.
+Independent non-author installation is still pending. API, Monitor scheduler
+and delivery worker currently require separate processes; there is no unified
+supervisor or installed background service.
 
-Required surfaces:
+The next management slice will provide one entry for API/scheduler/delivery
+start, readiness/status, stop and recovery, sharing the persisted control DB.
+It must preserve IDs and pending work across restart, distinguish graceful
+shutdown from user cancellation, and clean up owned browser/worker resources.
+Persistent monitors must outlive an MCP conversation.
 
-- reproducible install and upgrade;
-- secrets and session-profile storage;
-- control database and evidence backups;
-- retention and cleanup;
-- structured logs;
-- allowed egress configuration;
-- health and readiness checks;
-- cancellation and graceful shutdown;
-- outbox retry visibility;
-- SQLite/WAL backup procedure;
-- browser cleanup verification.
+## Remote URL MCP (C3, Planned)
 
-The self-hosted package must make the supported scope explicit: public GET
-sources, permitted authorized sessions, bounded local browser use, and the
-recipe capabilities actually installed.
+Add an HTTPS MCP endpoint, authentication and client connection instructions,
+so the user can connect without a local repository or manually starting a
+worker. This transport and its hosting are C3; Monitor/Delivery tool semantics
+are C2. No public MCP URL, OAuth implementation or permanent hosting exists yet.
 
-## C3.2 Hosted Track
+Accept separately:
 
-Hosted delivery is gated separately and is not a consequence of the local
-prototype passing.
+1. Connection: authenticated client can connect and discover tools.
+2. Task completion: create a real task, inspect its result and receive its event.
+3. Continued monitoring: scheduling/delivery survive client disconnect and
+   server restart without losing or duplicating business effects.
 
-Required before public hosted browser execution:
+Client setup documentation must use the actual deployed endpoint and tested
+authentication flow, not a speculative domain or an unverified one-click claim.
 
-- DNS-to-connection binding;
-- subresource egress policy;
-- SSRF and metadata protection;
-- workspace/tenant isolation;
-- browser and model quotas;
-- cancellation and lease cleanup;
-- request size and download limits;
-- evidence retention and deletion;
-- secret isolation;
-- abuse controls;
-- operational alerting;
-- cost attribution with real provider meters.
+## Hosted Track And Remaining Operational Gates
 
-No hosted promise should be made while arbitrary URL browser execution remains
-outside the separate Hosted Egress Gate.
+Hosted deployment is separately gated: identity/workspace/tenant isolation,
+DNS-to-connection binding, subresource egress, SSRF/metadata protection, secret
+isolation, quotas, cancellation/lease cleanup, request/download/resource limits,
+retention/deletion, abuse controls, alerting and actual cost attribution.
+Local tests and a temporary HTTPS receiver do not satisfy these requirements.
 
-## C3 Acceptance
+| Unit | Status | Deliverable / acceptance |
+| --- | --- | --- |
+| C3.1 | in_progress, next | Install foundation exists; add unified process management/readiness; independent developer installs from a frozen revision and completes the flow |
+| C3.2 | not_started | Explicit DB upgrade/rollback plan; incompatible schema fails clearly and pre-upgrade state restores |
+| C3.3 | not_started | Consistent backup, evidence/profile retention and restore drill; baseline references and pending event IDs survive |
+| C3.4 | not_started | Operations dashboard/runbook for queue age, health, browser count, disk limits, retries and correction cost |
+| C3.5 | not_started | Persistent hosted mode; independent identity/auth/egress/quota/resource/cancellation evidence before exposure |
+| C3.6 | next, not_started | Remote HTTPS URL MCP, authentication and tested client instructions; connection/task/continued-monitoring gates separate |
 
-1. Clean self-hosted install can create a monitor and complete a first run.
-2. Upgrade preserves control state and last valid snapshots.
-3. Backup/restore preserves baseline, events, and pending outbox rows.
-4. Shutdown does not leave unbounded browser or worker processes.
-5. Hosted mode has a separate security evidence package before exposure.
-
----
+Record actual sqlite_version() and sqlite_source_id() in release evidence.
+Use SQLite's backup mechanism, not a copy of a live DB without WAL. Secrets
+need a separate owner and key-storage decision; 0600 is not encryption.
+Browser profiles are credentials, not ordinary evidence. Pilot RPO/RTO,
+retention, budgets and alert thresholds require an agreed target and measured
+restore drill; no SLA is implied by this freeze.
 
 # C4 · Paid Validation And Limited Expansion
 
-## Goal
+Status remains not_started. Gate 5 requires at least two external trial users,
+at least two weeks of operation, at least one repeat user and one real
+downstream consumption scenario. No such outcome is claimed by this work.
 
-Validate repeated use and willingness to pay before adding vertical connectors
-or a broad platform surface.
+For each pilot record the user, decision supported, source/fields/destination,
+refresh frequency, manual work before/after, false alerts, missed changes,
+support/correction minutes, delivery failures, repeated use and price/budget
+signals. Quiet days are checks, not evidence of detecting changes; controlled
+change tests remain separate. Pricing, offer acceptance and payment are
+separate from technical success.
 
-## Evidence To Collect
-
-For each pilot task:
-
-```text
-who uses the data
-what decision it supports
-refresh frequency
-manual work before W2L
-manual work after W2L
-false alerts
-missed changes
-support minutes
-delivery failures
-retention / repeated runs
-requested destination
-price or budget signal
-```
-
-Do not infer product-market fit from one successful scrape, one demo, or a
-large benchmark.
-
-## Expansion Rule
-
-Add a vertical adapter only when multiple real users share:
-
-- the same backend shape;
-- the same object and field semantics;
-- the same authorization pattern;
-- enough repeated volume to justify maintenance.
-
-Otherwise keep the work in the generic monitor, quality, diff, or delivery
-layers.
-
-## C4 Acceptance
-
-1. At least one real workflow uses the output repeatedly.
-2. The user can identify the value of freshness and validation, not only raw
-   extraction.
-3. Support and correction time are recorded.
-4. Pricing evidence is separated from technical success evidence.
-5. Expansion decisions reference actual repeated demand.
-
----
-
-# C Implementation Order
-
-```text
-C1.1 event payload + outbox delivery state
-    -> C1.2 webhook receiver test + idempotency
-    -> C1.3 one SQL/table destination
-    -> C2.1 n8n integration
-    -> C2.2 narrow task UI
-    -> C3.1 self-host packaging and backup/restore
-    -> C3.2 hosted egress/security gate
-    -> C4 pilot measurement and pricing validation
-```
-
-The next implementation after the current B work is **C1.1/C1.2**, but only
-after B1/B2 has a stable event contract and one recurring monitor has a real
-consumer. Do not start C2 UI work as a substitute for proving delivery.
-
----
-
-# Implementation Contracts And Work Packages
-
-All items below are **proposals / not_started**, not existing endpoints or
-approved deployment actions. Source of current status:
-[stage review](stage-review-2026-09-22.md).
-
-## C1 Detailed Units
-
-| Unit | Deliverable | Gate / dependencies |
+| Unit | Status | Deliverable / acceptance |
 | --- | --- | --- |
-| C1.1 | Versioned event envelope; destination/subscription/delivery tables and migrations | B1/B2 valid-event contract; `(eventId,destinationId)` uniqueness |
-| C1.2 | Delivery worker, leases, HTTP receipt, retry/backoff, dead letter | No DB transaction around network I/O; crash during send recovers same delivery |
-| C1.3 | Controlled receiver + reconciliation/replay API | Receiver deduplicates after ACK loss; rejects stale entity versions |
-| C1.4 | One real receiver adapter selected with the user | Full snapshot initially; credentials referenced, not embedded in event payload |
+| C4.1 | not_started | Pilot brief with named consumer, decision, supported scope and manual baseline |
+| C4.2 | not_started | Real dated repeat-use/support ledger; Gate 5 external two-week evidence |
+| C4.3 | not_started | Actual offer/pricing experiment; quotes, acceptance and payment distinguished |
+| C4.4 | not_started | Expansion justified by repeated shared demand and maintenance economics |
 
-Use a single control DB for Snapshot/Baseline/Event/Delivery creation. The
-existing monitor_outbox table must be migrated rather than treated as a
-complete delivery subsystem. Separate event schema version from monotonically
-increasing per-entity data version. Include workspace, revision, event cause,
-assessment/observation references and lastVerifiedAt in the envelope. A replay
-keeps eventId; a new A→B change later in history gets a new eventId.
-
-### Sender/receiver protocol
-
-- Idempotency key: `eventId + destinationId`; payload hash is stable across
-  retries. The consumer commits receipt and data update in its own transaction.
-- Sign the exact request bytes with destination-specific HMAC key plus
-  timestamp and key ID. Verify signature, replay window and duplicate receipt;
-  retry gets a new signature timestamp, not a new business event.
-- Use bounded request/body sizes and deadlines. Retry timeouts, 429 and selected
-  5xx with backoff; preserve Retry-After as a lower bound. If it exceeds the
-  current budget, schedule later instead of shortening it.
-- Treat authentication failure as a destination configuration problem;
-  structured 2xx receipt is successful acknowledgement under the agreed
-  receiver contract. Do not treat arbitrary 409 as “already delivered”.
-- Pin the destination configuration revision for each delivery. Editing a URL
-  must not silently redirect an old event containing customer data elsewhere.
-- Resolve allowed destinations separately from scrape origins. Revalidate
-  redirects/connection targets; private test receivers require explicit local
-  configuration. Public hosted delivery needs its own egress validation.
-- Dead-letter replay is an explicit action on the same immutable event.
-  Record attempt/reason/nextAttemptAt and expose backlog age.
-
-### Proposed API additions
-
-`POST /v1/destinations`, `POST /v1/destinations/:id/test`,
-`POST /v1/monitors/:id/subscriptions`, `GET /v1/deliveries`,
-`POST /v1/deliveries/:id/retry`, `GET /v1/monitors/:id/events`.
-
-Workspace authorization and pagination apply to every read/write. Generic
-monitor creation is a B dependency; the current fixed Firecrawl route does
-not already satisfy these APIs.
-
-## C2 Detailed Units
-
-| Unit | Deliverable | Gate |
-| --- | --- | --- |
-| C2.1 | n8n example workflow using existing HTTP/Webhook nodes | End-to-end duplicate-safe event consumption; versioned example |
-| C2.2 | Custom node only if the example shows repeated friction | Credentials, pagination, retry and upgrade compatibility tested |
-| C2.3 | Narrow task UI | Source→fields→schedule→destination→sample→history through one API |
-| C2.4 | Operational actions | Pause future schedule vs cancel active run distinguished; failed delivery retry does not recrawl |
-
-“Trigger/node pair” is an interface goal, not a requirement to publish a new
-n8n package before proving an ordinary workflow. UI shows initialization,
-changed, cannot_verify, stale, waiting_user, revoked and delivery failures as
-different states. Waiting-user resume requests must reference the current
-handoff and revalidate account/scope; a button click is not login proof.
-
-## C3 Detailed Units
-
-| Unit | Deliverable | Gate |
-| --- | --- | --- |
-| C3.1 | Pinned self-host install, readiness, runner supervision | Second developer installs from release commit and completes first task |
-| C3.2 | Explicit DB migration/upgrade and rollback plan | Restore old state from pre-upgrade backup; incompatible schema fails clearly |
-| C3.3 | Backup + evidence/profile retention + restore drill | Pending deliveries retain IDs; baseline/evidence references valid after restore |
-| C3.4 | Resource/operations dashboard and runbook | Queue age, run health, browser count, disk limits, retry/correction meters observable |
-| C3.5 | Optional hosted track | Independent tenant/auth/egress/quota/cancellation evidence; not a local-mode switch |
-
-Use actual `sqlite_version()` and `sqlite_source_id()` in release evidence.
-Back up consistently through the SQLite backup mechanism; copying only a live
-DB file can lose WAL data. Export secrets separately with an explicit owner
-and encryption/key-storage decision. File permission 0600 is not encryption.
-Treat browser profiles as credentials, not ordinary evidence artifacts.
-
-RPO/RTO, retention, resource budgets and alert thresholds must be agreed for
-the pilot, then measured in a restore drill; no SLA is claimed in advance.
-Self-hosted C3 is required before handing an unattended pilot to another
-operator and may run alongside C2; it need not wait for the UI to be complete.
-
-## C4 Detailed Units
-
-| Unit | Deliverable | Gate |
-| --- | --- | --- |
-| C4.1 | Pilot brief: user, decision, source, fields, destination, baseline manual process | Named consumer and explicit supported scope |
-| C4.2 | Repeat-use observation and support ledger | Real dates, event outcomes, correction minutes and failures; no fabricated zeroes |
-| C4.3 | Offer/pricing experiment | Actual quote/acceptance/payment outcomes separated; no hard-coded price assumptions |
-| C4.4 | Expansion decision | Repeated shared demand and maintenance economics justify second adapter/template |
-
-C4 interviews and recruitment can begin before C1; repeat-use/payment gates
-depend on delivered value. Suggested initial observation window is seven
-consecutive real days for one workflow (a proposed pilot criterion, not a
-claim of production durability). Quiet source days still count as checks, not
-as proof of detecting changes. Use a separate controlled-change test.
+Recruitment/interviews may start before all product surfaces are complete.
+Add a vertical adapter only when real users share backend shape, field
+semantics, authorization pattern and sufficient repeated volume. One scrape
+or successful demo is not product-market fit.
 
 ## Cross-Phase Verification Matrix
 
-| Failure/scenario | Expected outcome | Owner |
+| Scenario | Expected outcome | Owner / current boundary |
 | --- | --- | --- |
-| Invalid source refresh | No new valid snapshot or business delivery | B1/B2 |
-| Receiver committed, ACK lost | Same event retried, business update deduplicated | C1 |
-| Older event arrives late | Recorded receipt; no stale overwrite | C1 |
-| Sender dies during delivery | Expired delivery lease recovered, same ID | C1 |
-| Destination returns long Retry-After | Deferred until allowed time | C1 |
-| Source rule revised | `extraction_reprocessed`, not fabricated source change | B2/C1 |
-| n8n workflow restarts | Cursor/receipts preserve consumer semantics | C2 |
-| Login expires or account changes | waiting_user/cannot_verify; last valid data retained | B3/C2 |
-| Disk full / failed migration | Clear failure; no half-published baseline/delivery | B1/C3 |
-| Restore with pending deliveries | Same event IDs; receiver handles possible duplicates | C3/C1 |
-| No demand for another connector | Keep current adapter; record decision | C4 |
+| Invalid refresh | No new valid snapshot/business delivery | B1/B2 scoped checks passed |
+| Receiver committed, ACK lost | Same event retried, business update deduplicated | C1 scoped checks passed |
+| Older event arrives late | Receipt retained, no stale overwrite | C1 scoped checks passed |
+| Sender dies during delivery | Lease recovery retains event ID | C1 scoped checks passed |
+| Long Retry-After | No early retry; persisted delay respected | B1/C1 scoped checks passed |
+| Rule revised | extraction_reprocessed, not fabricated source change | B2 scoped checks passed |
+| n8n restarts | Receipt semantics survive | C2 planned |
+| Login/account changes | waiting_user/cannot_verify; last valid data retained | B3/C2 still open |
+| Disk full / failed migration | Clear failure without half-published data | B1/C3 still open |
+| Restore pending deliveries | IDs and evidence survive; receiver handles duplicates | C3/C1 backup drill still open |
+| No repeated connector demand | Keep current adapter and record decision | C4 planned |
 
-## Execution Policy
+## Next Slice Order And Execution Policy
 
-For each unit: inspect → implement → focused tests → real/controlled evidence
-→ review → CI → merge → evaluate acceptance separately. Do not turn a green
-CI into customer adoption, paid validation or multi-day operational evidence.
+1. C2.5: Monitor/Delivery MCP and conversational first use, reusing REST/SDK.
+2. C3.1: unified API/scheduler/delivery-worker lifecycle; may progress alongside C2.
+3. C3.6 + C3.5 gates: authenticated remote URL MCP and persistent hosting within
+   isolation, egress and resource constraints.
+4. Independent human Gate 4 acceptance, then Gate 5 external two-week use;
+   n8n/narrow UI and C4 expansion follow demonstrated friction and demand.
 
-The next concrete implementation is **B1/B2 acceptance closeout for Firecrawl**,
-then **C1.1+C1.2 with a test receiver**. Select the real receiver and usage owner
-before claiming C1 delivered. B3/B4 must pass their own gates before C is used
-for authenticated backend work.
+These are priorities, not delivery-date commitments. This document update
+implements none of the next slice. Inspect → implement → focused verification
+→ evidence → review → acceptance; commits, CI, merges, deployments, customer
+adoption and payments are distinct outcomes. B3/B4 retain their own open gates.

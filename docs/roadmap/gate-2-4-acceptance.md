@@ -4,7 +4,7 @@ Date: 2026-09-22 (Asia/Shanghai). Scope: the user's execution/reliability, event
 
 Outcome: Gate 2's listed engineering acceptance checks and Gate 3's delivery checks passed. Gate 4's implementation and handoff are supplied; independent human acceptance remains pending.
 
-Source: working branch `codex/gate2-delivery-sdk`, base `e28500b09116eb5931305e8638d9d5cc704a8205`. The supplied Gate 1 working edits were retained. This record describes uncommitted local implementation, not a merge or published release. The review archive's `handoff-manifest.json` identifies the exact captured files and SHA-256 hashes beyond the base commit.
+Source freeze: `99894bd636ecafd254a7c7bc79d26e9a97fa9199` on `codex/gate2-delivery-sdk`, parent `e28500b09116eb5931305e8638d9d5cc704a8205`. The supplied Gate 1 and interdependent Crawl/SDK/MCP working edits were retained. Evidence was collected before this local commit; it is not a merge or published release. The review archive's `handoff-manifest.json` identifies the original 346 captured files and SHA-256 hashes. Those files match the first commit; that commit additionally contains the sanitized clean-install record. Subsequent roadmap/document changes are separate from the tested source archive.
 
 ## Gate 2: execution contract and reliability
 
@@ -67,7 +67,9 @@ Crawl, Monitor and Delivery SDK methods, cancellation controls, complete install
 npm run package:handoff
 ```
 
-The archive includes the supplied working source and tests, a per-file hash manifest and this acceptance evidence. It excludes Git history, dependencies, runtime databases, environment files, credentials and unrelated untracked duplicate documents. The tarball is necessary for reviewing these local edits before a release branch or package is published.
+The preserved `w2l-review-source.tar.gz` is a **pre-commit review snapshot**, with source/tests, a per-file hash manifest and the acceptance record as it existed then. Its SHA-256 remains `b86534484ec8e24025fc634e158332bbdbce3e5299ce4b122ecbd95b8551096c`. It has not been regenerated to include the later documentation updates. Git history, dependencies, runtime databases, environment files, credentials and unrelated untracked duplicate documents are excluded. The archive and original checksums remain local under `.w2l/gate4-handoff/`; they are not committed.
+
+The [sanitized clean-install record](../../research/gate4-clean-install.generated.json) retains the original 2026-09-22 10:07:45–10:07:52 UTC timestamps, Node v26.8.1, npm 11.19.0, archive/manifest/log hashes, command results and SDK/restart outcomes. It identifies the executor as Codex agent. Its focused installation check passed 4 files / 22 tests; public HTTPS was verified in the separate Gate 3 experiment, not repeated by that installation smoke.
 
 Gate 5 remains unstarted by this work: there is no claimed external trial user, repeat customer, two-week run or real customer's downstream use case. The controlled document projection demonstrates delivery mechanics.
 
@@ -78,6 +80,14 @@ Gate 5 remains unstarted by this work: there is no claimed external trial user, 
 - Standalone strict TypeScript check passed for all `scripts/section-b/*.ts` and `examples/*.ts` using `--allowImportingTsExtensions` for the pre-existing scripts.
 - Four actual process-recovery experiments passed; two-process cold-start claim experiment passed.
 - Public HTTPS delivery, lost-ACK retry, sender/receiver restart and persistent receiver deduplication passed.
-- Clean archive installation smoke: recorded after extraction in the accompanying `.w2l/gate4-handoff/clean-install-smoke.json`, including the archive SHA-256 and command results. It remains distinct from independent human acceptance.
+- Clean archive installation smoke: [committed sanitized record](../../research/gate4-clean-install.generated.json); original `.w2l/gate4-handoff/clean-install-smoke.json` and logs remain local. It remains distinct from independent human acceptance.
 
-Tests can be rerun with `npm run typecheck && npm test`. The source package and runtime output are separate artifacts. No commit, PR, merge or permanent deployment was performed for this implementation.
+Freeze verification: the 346-file manifest matched the source, all three experiment reports passed with their original timestamps, and archive/full-regression-log hashes matched the installation record. The first commit includes 83 existing changed files plus the sanitized installation record (84 files total). Eight unrelated `* 2.md` / `* 2.mjs` files were excluded and preserved. The second commit changes only status/roadmap documentation. No runtime code changed during this freeze; the 79-file / 925-test result above is the original run, not a new run attributed to document editing.
+
+Tests can be rerun with `npm run typecheck && npm test`. Local commits, source archive and runtime output are separate artifacts. This work performs no push, PR, merge, publication or permanent deployment.
+
+## Next slice and phase boundaries
+
+B1/B2 and C1 remain in_progress: scoped execution/change/delivery engineering passed, while long-term operation, broader completeness and actual customer consumption remain open. C3 has installation foundations; C2's new entry points and C3's remote/managed runtime are still pending. B3/B4/C4 are not upgraded by the regression total.
+
+Next in [Section C](section-c-delivery.md): C2 Monitor/Delivery MCP plus a simpler conversational first-use flow; C3 unified API/scheduler/delivery-worker management plus authenticated remote HTTPS URL MCP. Persistent hosting requires identity isolation, egress and resource gates. Connection, a completed task and continued monitoring have separate acceptance. These are planned priorities, not implementations or delivery-date commitments.

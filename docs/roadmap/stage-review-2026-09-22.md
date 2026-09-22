@@ -1,5 +1,7 @@
 # W2L 阶段复盘与下一步
 
+> 历史复盘：以下第 1–5 节保留 `main@3a74076` 的原始基线和发现，不代表冻结后的当前状态。后续解决情况和新证据见[第 6 节](#6-gate-24-冻结后的更新)及 [Gate 2–4 验收](gate-2-4-acceptance.md)。
+
 复盘日期：2026-09-22。代码基线：`main@3a74076`（PR48）。
 
 本次依据：当前主干源码、测试文件、已提交研究记录和 GitHub 合并记录。未重新执行线上 200 次采集、全部测试或客户安装；历史测试通过不能代替新增功能专项验收。此文覆盖此前对阶段完成度过于宽泛的描述。
@@ -86,3 +88,24 @@
 继续原路线，不另造抓取引擎，也不靠无目的扩样证明能力。优先完成“同一个任务长期可靠地更新并交给使用者”。第二开发者安装仍未完成；账单 unknown 可透明保留；模型辅助仍是后续按收益验证的可选项。
 
 下一次复盘必须同时列出：源码版本、所跑命令、样本范围、实际输出、未跑项，以及谁在用结果。合并、CI、演示、验收、生产采用分别记录。
+
+## 6. Gate 2–4 冻结后的更新
+
+更新日期：2026-09-22。源码冻结基线：`99894bd636ecafd254a7c7bc79d26e9a97fa9199`，分支 `codex/gate2-delivery-sdk`，父提交 `e28500b`。这是本地提交；不表示 push、PR、合并、发布或部署。
+
+| 原始发现 | 后续解决情况 | 当前证据边界 |
+| --- | --- | --- |
+| Retry-After 被截短、取消/期限未贯穿 | 明确 captureMode；统一取消/期限；长等待不提前重试；Monitor 同源冷却持久化 | Gate 2 工程检查通过，不代表多周运行 |
+| 恢复只 kill 等待进程并推进时钟 | 四种实际 SIGKILL，包含采集中、提交前后和 Retry-After 等待；实等租约后恢复 | [进程恢复记录](../../research/gate2-process-recovery.generated.json)，不是掉电或备份恢复 |
+| 缺真实并行领取、旧 worker 验证 | 双进程冷启动竞争、单次采集与提交；另有 fencing/基线/事务回滚测试 | [竞争记录](../../research/gate2-claim-race.generated.json) |
+| 变化来自构造 Assessment；304/隔离缺证据 | 生产 HTTP/验证路径 A/B/A/B、真实 304 与缓存正文重验、多 Monitor/workspace 隔离 | [验收记录](gate-2-4-acceptance.md)，受控源而非全网覆盖 |
+| 只有 pending/acknowledged outbox | 新增持久 delivery worker、租约、重试、dead-letter 和幂等 receiver；旧 outbox 保留其兼容状态 | [真实 HTTPS 记录](../../research/gate3-https-delivery.generated.json)，临时端点已停止 |
+| 安装与使用链路不完整 | Crawl/Monitor/Delivery SDK、完整示例和文档、agent 干净安装 | [脱敏安装记录](../../research/gate4-clean-install.generated.json)，非作者真人验收仍待完成 |
+
+原始全量回归为 2026-09-22 18:06:34 CST 开始的 **79 文件 / 925 测试通过**；本次冻结核对源码与 346 文件验收快照及日志校验值，不把文档更新日期当成新的测试时间。
+
+当前口径：Gate 2 所列执行与可靠性验收通过；Gate 3 持久投递、真实 HTTPS、重试、去重与重启恢复通过；Gate 4 工程交付和 agent 安装完成、真人待验；Gate 5 两名外部用户、两周运行、重复使用和真实下游消费尚未开展。
+
+B1/B2、C1 保持 in_progress，跨日期运行、备份恢复、更广的完整性语义及真实用户消费仍开放。B3/B4、A6 独立 holdout/人工计时/真人安装和账单证据缺口不因测试总数增长而关闭。C4 保持 not_started。
+
+下一切片归属：[C2](section-c-delivery.md) 补 Monitor/Delivery MCP 和对话式首次使用入口；C3 补 API/scheduler/delivery worker 统一运行管理、认证的远程 HTTPS URL MCP，并满足持久托管的身份隔离、出站和资源门槛。上述入口尚未实现，连接成功、任务完成、持续监控分别验收；不新增 D，不把粗略工期当交付承诺。

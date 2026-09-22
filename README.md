@@ -58,7 +58,7 @@ npm run mcp
 
 `npm run api` binds `127.0.0.1` and allows loopback/RFC1918 so fixture servers work. Hosted mode is explicit: `npm run api -- --hosted --token $W2L_API_TOKEN`. That binds `0.0.0.0`, requires `Authorization: Bearer`, denies private/metadata IPs, and defaults crawl `maxPages` to 100.
 
-MCP (Cursor / Claude) talks to the REST server:
+The current MCP uses local stdio and talks to the REST server. Its six tools cover scrape and Crawl (including result pagination and cancellation); Monitor/Delivery tools and a remote HTTPS MCP URL are planned in [C2/C3](docs/roadmap/section-c-delivery.md). Configure the MCP client to launch it from this repository:
 
 ```json
 {
@@ -92,9 +92,11 @@ export W2L_TASK_ROOT="$PWD/.w2l/api"
 npm run delivery:worker
 ```
 
-See [onboarding](docs/onboarding.md) for the HTTPS receiver, authentication, worker configuration, and pending-delivery restart exercise. Local working-copy changes require the corresponding review/release revision before a clean clone can reproduce them. Independent human installation remains a separate acceptance item; documentation and automated tests do not mark that gate complete.
+See [onboarding](docs/onboarding.md) for the HTTPS receiver, authentication, worker configuration, and pending-delivery restart exercise. Gate 2–4 source is frozen locally at `99894bd636ecafd254a7c7bc79d26e9a97fa9199` on `codex/gate2-delivery-sdk`; it has not been pushed or published by this freeze. A remote default-branch clone does not include this local commit until it is shared. Independent human installation remains pending.
 
-The [Gate 2–4 acceptance record](docs/roadmap/gate-2-4-acceptance.md) links the process-crash, concurrent-claim and public HTTPS evidence and distinguishes completed engineering checks from pending human onboarding. `npm run package:handoff` captures the current review source with per-file hashes for installation before publication.
+The [Gate 2–4 acceptance record](docs/roadmap/gate-2-4-acceptance.md) links the process-crash, concurrent-claim, public HTTPS and agent clean-install evidence. Gate 2/3 engineering acceptance passed; Gate 4 awaits a non-author human, and Gate 5 external two-week/repeat-use validation has not started. `npm run package:handoff` captures review source with per-file hashes. The existing tested archive is a preserved pre-commit snapshot, not a package of subsequent roadmap edits.
+
+Next: C2 Monitor/Delivery MCP and conversational first use; C3 unified service start/status/stop/recovery and authenticated remote URL MCP. These are not implemented yet. B1/B2 and C1 remain in_progress for their broader operational/adoption gates, and persistent hosting requires separate isolation, egress and resource checks.
 
 ## Benchmark
 
@@ -168,10 +170,17 @@ docs/
 - [ ] Phase A4 real-task gate: 100-200 permitted pages, human correction time, repeated task evidence, and complete failure taxonomy
 - [x] Phase A4 diagnostic expansion: 20 real tasks, 11 domains, 40 repeated runs, and holdout results
 - [x] A6 scale slice: 100 pages, 10 domains, two runs; labeled holdout is not independent
-- [x] A6 recovery/install/correction/cost evidence: interrupt-resume lost 0 URLs; clean-clone first task; 18 minutes human correction; billed USD unknown
+- [x] A6 recovery/install evidence recorded: interrupt-resume lost 0 URLs; same-machine clean-clone first task; historical 18-minute correction record lacks human confirmation; billed USD unknown
 - [x] A6 deferred exceptions recorded: second-developer install is deferred, not passed; billed USD is unknown, not zero
 - [ ] A6 unconditional pass still needs a second human install
 - [x] A5/A6 gate report: conditional alpha; billed USD remains unknown
+- [x] Gate 2 execution contract, actual process recovery, controlled changes/cache and Monitor isolation
+- [x] Gate 3 durable HTTPS delivery, same-event retry, deduplication and restart recovery
+- [x] Gate 4 SDK, docs, examples and agent clean installation
+- [ ] Gate 4 independent non-author human installation and full workflow
+- [ ] C2 Monitor/Delivery MCP and simpler first-use entry; n8n and narrow task UI
+- [ ] C3 unified process management, remote URL MCP and persistent hosting
+- [ ] Gate 5 two external trial users, two weeks, repeat use and real downstream consumption
 - [x] Phase 3 Benchmark Gate harness: fixed W2L run, comparator evidence, and blocked-until-real-comparators decision
 - [ ] Hosted Egress Gate: browser subresource policy enforcement and DNS-to-connection binding
 

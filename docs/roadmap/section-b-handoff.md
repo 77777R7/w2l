@@ -1,9 +1,12 @@
 # Section B Handoff
 
-Current status (2026-09-22, `main@e29dc6b`): **B1–B4 in_progress**.
-Use [the stage review](stage-review-2026-09-22.md) for current evidence limits
-and [Section C](section-c-delivery.md) for the next delivery plan. Earlier
-completion summaries do not supersede these acceptance gaps.
+Current status (2026-09-22, local freeze `99894bd636ecafd254a7c7bc79d26e9a97fa9199`, parent `e28500b`): **B1–B4 in_progress**.
+The B1/B2 execution and trusted-change core plus C1 delivery engineering slice
+passed [Gate 2–3 acceptance](gate-2-4-acceptance.md). Gate 4 has SDK/docs/examples
+and an agent clean install; independent human acceptance remains pending.
+Use [the stage review addendum](stage-review-2026-09-22.md#6-gate-24-冻结后的更新)
+for resolution of earlier findings and [Section C](section-c-delivery.md) for
+the next C2/C3 entry and runtime slices. No push or deployment is implied.
 
 The full technical design is in [`section-b-technical-design-v1.md`](./section-b-technical-design-v1.md).
 
@@ -29,7 +32,8 @@ Monitor revision
   -> QualityAssessment
   -> valid Snapshot / Baseline
   -> typed field diff
-  -> ChangeEvent / local Outbox
+  -> ChangeEvent / local Outbox / durable Delivery
+  -> HTTPS receiver / deduplicated projection
 ```
 
 The slice must preserve the last valid snapshot when a refresh is blocked, partial, stale, or otherwise unverifiable.
@@ -41,15 +45,16 @@ The slice must preserve the last valid snapshot when a refresh is blocked, parti
 - `CrawlOrchestrator` and SQLite `TaskStore` remain the checkpoint path.
 - Existing REST/SDK/MCP scrape and crawl APIs remain compatible.
 
-## First Deliverables
+## Core Deliverables Now Implemented And Verified
 
 1. Versioned monitor configuration with a stable `monitorId` and immutable revision.
 2. Durable run state with one active logical run per monitor and an idempotent trigger key.
 3. Observation and quality records that distinguish `valid`, `partial`, `invalid`, and `unknown`.
 4. Snapshot and baseline persistence where invalid observations cannot advance the baseline.
 5. A typed diff for one narrow field schema, with `changed`, `unchanged`, and `cannot_verify` outcomes.
-6. A local outbox record with a stable event ID and duplicate-safe retry state.
-7. Failure-injection tests for restart, stale worker submission, invalid refresh, and duplicate trigger.
+6. An atomic outbox/delivery record, stable event ID, leased delivery worker and duplicate-safe receiver.
+7. Actual process-crash and concurrent-claim experiments plus tests for stale workers, invalid refresh, duplicate trigger, A/B/A/B changes, HTTP 304 bodies and Monitor isolation.
+8. Explicit captureMode, end-to-end cancellation/deadlines and persisted Retry-After; Crawl/Monitor/Delivery SDKs and installation examples.
 
 ## Explicit Non-Goals
 
@@ -70,7 +75,7 @@ The slice must preserve the last valid snapshot when a refresh is blocked, parti
 
 The first slice is complete only when the same monitor can run repeatedly and after a restart while preserving the last valid snapshot, refusing stale-worker commits, producing at most one event per committed change, and exposing the full run/quality/change state through one API path.
 
-## First Real Task Evidence
+## Historical First Real Task Evidence
 
 The first real task is `https://docs.firecrawl.dev/introduction`, using the deterministic `firecrawl-introduction/v1` field schema. The recorded local evidence is in [`../../research/section-b-firecrawl-monitor-evidence.json`](../../research/section-b-firecrawl-monitor-evidence.json).
 
@@ -93,12 +98,35 @@ W2L_B1_ROOT=.w2l/section-b npm run section-b:export-evidence
 It reads `nextRunAt` from SQLite. A production scheduler would replace the
 polling loop, not the persisted claim/lease/commit protocol.
 
-The slice has recorded initialization and unchanged refresh semantics through
-the fixed monitor API. Field change is covered by a constructed-assessment
-SQLite test, not by a captured-source controlled-mutation experiment. The
-PR42 recovery smoke kills a waiting process and advances the supplied clock;
-it is not full capture-in-flight recovery. Historical regression totals are
-not acceptance evidence for untested paths.
+That initial slice recorded initialization and unchanged semantics through
+the fixed Monitor API; its change test constructed an assessment. The PR42
+recovery smoke killed a waiting process and advanced the supplied clock, so it
+did not establish capture-in-flight recovery. These historical limits are
+preserved here; subsequent Gate 2 evidence now covers real SIGKILL during
+capture/commit/retry waiting, real elapsed lease recovery, two-process cold
+claims and production HTTP A/B/A/B, cache-body and isolation paths.
+
+## Current Generic Monitor And Delivery Entry
+
+Follow [onboarding](../onboarding.md) for installation, source/sample setup,
+SDK calls, HTTPS destination, worker configuration and restart checks.
+The API, scheduler and delivery worker share the same `W2L_TASK_ROOT`:
+
+```bash
+npm run api
+# Separate terminals, with the same configured task root:
+npm run monitors:worker
+npm run delivery:worker
+```
+
+These remain separate commands, not a unified service manager. The local
+fixture needs the explicit Monitor network-mode setting described in onboarding.
+[Recovery](../../research/gate2-process-recovery.generated.json),
+[claim race](../../research/gate2-claim-race.generated.json),
+[real HTTPS](../../research/gate3-https-delivery.generated.json) and
+[agent clean install](../../research/gate4-clean-install.generated.json)
+retain their original test times. They do not establish cross-date endurance
+or independent human installation.
 
 ## B3 Scope Now Started
 
@@ -134,8 +162,12 @@ not bound to Run/Step/Recipe. End-to-end reauthentication remains unverified.
 
 ## Current Prototype Boundary
 
-The prototype has one fixed monitor, lease/epoch/baseline checks and local
-outbox rows. The session broker and recipe libraries are separate paths;
-their integration with monitor waiting_user, baseline commit and actual
-delivery remains work. No installed scheduler or cross-date operation is
-established by the checked-in evidence alone.
+The public-document core now supports generic typed Monitor configuration,
+lease/fencing/baseline checks and durable HTTPS delivery. Controlled execution
+checks and the real public-document delivery experiment passed. B1/B2/C1 stay
+in_progress because long-term operation and actual customer use remain open.
+The session broker and recipe libraries remain separate paths; integration
+with Monitor waiting_user, baseline commit and delivery retains B3/B4 gates.
+No installed supervisor, cross-date endurance, backup/restore drill or
+permanent hosting is established by these records. Next: C2 Monitor/Delivery
+MCP and simpler first use, C3 unified process management and remote URL MCP.
