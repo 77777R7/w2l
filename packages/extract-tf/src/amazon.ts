@@ -240,6 +240,9 @@ export function collectAmazonProductFacts(doc: Document, url: string | undefined
     : domFact(sellerHit.value, sellerHit.selector)
   const availabilityHit = first(doc, ['#availability span', '#availability', '#outOfStock'])
   const deliveryHit = first(doc, ['#glow-ingress-line2', '#contextualIngressPtLabel_deliveryShortLine', '#mir-layout-DELIVERY_BLOCK-slot-PRIMARY_DELIVERY_MESSAGE_LARGE'])
+  const deliveryLocation = deliveryHit === null || /^(?:update|select|choose)\s+(?:your\s+)?location$/i.test(deliveryHit.value)
+    ? null
+    : domFact(deliveryHit.value, deliveryHit.selector)
   const ratingRaw = attr(doc, '#acrPopover', 'title') ?? text(doc, '#acrPopover .a-icon-alt') ?? text(doc, '[data-hook="rating-out-of-text"]')
   const reviewRaw = text(doc, '#acrCustomerReviewText') ?? text(doc, '[data-hook="total-review-count"]')
   const images: ProductFact[] = []
@@ -276,7 +279,7 @@ export function collectAmazonProductFacts(doc: Document, url: string | undefined
     subjectId: asin === null ? null : { value: asin, source: 'dom', path: 'url:/dp/{asin}' },
     prices,
     seller: effectiveSeller,
-    deliveryLocation: deliveryHit === null ? null : domFact(deliveryHit.value, deliveryHit.selector),
+    deliveryLocation,
     rating: domFact(ratingRaw?.match(/[0-5](?:\.[0-9])?/)?.[0] ?? null, '#acrPopover'),
     reviewCount: domFact(reviewRaw?.match(/[\d,]+/)?.[0]?.replaceAll(',', '') ?? null, '#acrCustomerReviewText'),
     images: subjectImages,

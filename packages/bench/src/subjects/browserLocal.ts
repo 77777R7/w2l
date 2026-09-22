@@ -130,6 +130,25 @@ export class BrowserLocalSubject implements SubjectAdapter {
   async fetch(url: string, deadlineMs?: number, signal?: AbortSignal, onRetryAfter?: ExecutionContext['onRetryAfter']): Promise<FetchResult> {
     const scope = createExecutionScope({ signal, deadlineAt: deadlineMs, onRetryAfter })
     const start = Date.now()
+    const monotonicStart = performance.now()
+    let queueMs = 0
+    let cooldownWaitMs = 0
+    const finish = (result: FetchResult): FetchResult => {
+      const totalMs = Math.max(0, performance.now() - monotonicStart)
+      return {
+        ...result,
+        usage: {
+          ...result.usage,
+          wallMs: totalMs,
+          timings: {
+            ...(result.usage.timings ?? {}),
+            queueMs,
+            cooldownWaitMs,
+            totalMs,
+          },
+        },
+      }
+    }
     const origin = new URL(url).origin
     this.activeExecutions++
     const previous = this.pendingByOrigin.get(origin) ?? Promise.resolve()
@@ -139,18 +158,21 @@ export class BrowserLocalSubject implements SubjectAdapter {
     this.pendingByOrigin.set(origin, pending)
     try {
       await raceWithSignal(previous, scope.signal)
+      queueMs = Math.max(0, performance.now() - monotonicStart)
       throwIfExecutionStopped(scope)
       const retryAt = this.cooldownUntilByOrigin.get(origin) ?? 0
       if (retryAt > Date.now()) {
-        if (scope.deadlineAt !== undefined && retryAt >= scope.deadlineAt) return { ...this.denied(url, start, [], new Error('aborted')), retryAt }
-        await abortableSleep(retryAt - Date.now(), scope.signal)
+        if (scope.deadlineAt !== undefined && retryAt >= scope.deadlineAt) return finish({ ...this.denied(url, start, [], new Error('aborted')), retryAt })
+        const cooldownStart = performance.now()
+        try { await abortableSleep(retryAt - Date.now(), scope.signal) }
+        finally { cooldownWaitMs += Math.max(0, performance.now() - cooldownStart) }
       }
       const result = await this.fetchWithinBudget(url, scope)
       if (result.retryAt !== undefined) this.cooldownUntilByOrigin.set(origin, Math.max(retryAt, result.retryAt))
-      return result
+      return finish(result)
     } catch (error) {
       if (!scope.signal.aborted) throw error
-      return this.denied(url, start, [], new Error('aborted'))
+      return finish(this.denied(url, start, [], new Error('aborted')))
     } finally {
       this.activeExecutions--
       scope.dispose()

@@ -343,6 +343,16 @@ describe('Amazon product adapter', () => {
     expect(out.mainHtml).not.toContain('recommended.jpg')
   })
 
+  it('does not treat the Amazon location prompt as an observed delivery region', () => {
+    const html = `<!doctype html><html><body><div id="dp-container">
+      <h1 id="productTitle">Subject</h1>
+      <span id="glow-ingress-line2">Update location</span>
+      <div id="corePrice_feature_div"><span class="a-offscreen">$10.00</span></div>
+    </div></body></html>`
+    const out = extractTf.extract(html, { url: 'https://www.amazon.com/dp/B012345678' })
+    expect(out.product?.deliveryLocation).toBeNull()
+  })
+
   it('marks an Amazon subscription offer without treating it as a physical item', () => {
     const html = `<!doctype html><html><body><div id="dp-container">
       <h1 id="productTitle">Blink Plus subscription plan</h1>

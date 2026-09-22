@@ -95,10 +95,11 @@ try {
           if (observedRegion === null && region) observedRegion = region
           if (asin && currency) observedCurrencyByAsin.set(asin, currency)
         }
+        const regionUnobserved = round > 1 && region === null
         const regionMismatch = round > 1 && observedRegion !== null && region !== null && region !== observedRegion
         const pinnedCurrency = asin ? observedCurrencyByAsin.get(asin) : null
         const currencyMismatch = round > 1 && pinnedCurrency && currency && pinnedCurrency !== currency
-        const comparable = round > 1 && !regionMismatch && !currencyMismatch && observedRegion !== null
+        const comparable = round > 1 && !regionUnobserved && !regionMismatch && !currencyMismatch && observedRegion !== null
         const otherKnownAsins = manifest.urls.map(item => item.slice(-10)).filter(item => item !== asin)
         const serializedData = JSON.stringify(data)
         const evidencePaths = new Set((result.json?.evidence ?? []).map(item => item.path))
@@ -106,7 +107,7 @@ try {
         record = {
           round, index: index + 1, asin, url, clientMs: performance.now() - began, responseBytes: called.bytes,
           discovery: round === 1, comparable,
-          comparisonStatus: round === 1 ? 'region_discovery' : regionMismatch || currencyMismatch ? 'region_mismatch' : observedRegion === null ? 'region_unobserved' : 'comparable',
+          comparisonStatus: round === 1 ? 'region_discovery' : regionUnobserved || observedRegion === null ? 'region_unobserved' : regionMismatch || currencyMismatch ? 'region_mismatch' : 'comparable',
           region, currency,
           outcome: { status: result.status, lane: result.lane, failureReason: result.failureReason, blockReason: result.blockReason },
           usage: result.usage,

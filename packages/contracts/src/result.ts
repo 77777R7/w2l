@@ -4,20 +4,20 @@ import type { DocumentExtraction } from './extractor.js'
 import type { StructuredExtractionResult } from './structured.js'
 
 export interface ResourceTimings {
-  queueMs: number
-  robotsMs: number
-  cooldownWaitMs: number
-  retryWaitMs: number
+  queueMs?: number
+  robotsMs?: number
+  cooldownWaitMs?: number
+  retryWaitMs?: number
   /** Initial request/headers time, excluding body read and retry sleep. */
-  requestMs: number
-  bodyReadMs: number
+  requestMs?: number
+  bodyReadMs?: number
   /** Total network work excluding retry sleep. */
-  transportMs: number
-  parseMs: number
-  extractMs: number
-  formatMs: number
-  serializeMs: number
-  modelMs: number
+  transportMs?: number
+  parseMs?: number
+  extractMs?: number
+  formatMs?: number
+  serializeMs?: number
+  modelMs?: number
   totalMs: number
 }
 
