@@ -55,12 +55,13 @@ export async function connectVendor(
    *  session the gate cleared was not the session on offer. */
   resume?: VendorResumeContext | null,
   deadlineMs?: number,
+  signal?: AbortSignal,
 ): Promise<ConnectedVendor> {
   const transport = new CdpVendorTransport(ops, connector)
   if (resume !== undefined && resume !== null) {
     transport.useResumedSession(resume)
   }
-  const declaredUserAgent = await transport.resolveUserAgent(deadlineMs)
+  const declaredUserAgent = await transport.resolveUserAgent(deadlineMs, signal)
   const declaration: ProviderDeclaration = {
     id: ops.vendorId,
     declaredUserAgent,

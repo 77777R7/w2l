@@ -410,3 +410,105 @@ describe('CrawlOrchestrator with a fake scrape atom', () => {
     expect(resumedAttempt?.recoveredFromAttemptId).toBe('attempt-kill')
   })
 })
+
+describe('CrawlOrchestrator execution lifecycle', () => {
+  function waitingAtom() {
+    let started!: () => void
+    const active = new Promise<void>(resolve => { started = resolve })
+    let seenSignal: AbortSignal | undefined
+    let seenDeadline: number | undefined
+    let closed = false
+    const atom: ScrapeAtom = {
+      async scrape(_url, context) {
+        seenSignal = context?.signal
+        seenDeadline = context?.deadlineAt
+        started()
+        return new Promise((_resolve, reject) => {
+          context?.signal?.addEventListener('abort', () => reject(context.signal!.reason), { once: true })
+        })
+      },
+      async close() { closed = true },
+    }
+    return { atom, active, signal: () => seenSignal, deadline: () => seenDeadline, closed: () => closed }
+  }
+
+  it('aborts active work and wakes idle workers on explicit cancellation', async () => {
+    const store = new MemoryTaskStore()
+    const pending = waitingAtom()
+    const controller = new AbortController()
+    const run = new CrawlOrchestrator({ store, atom: pending.atom, signal: controller.signal, workerCount: 4 }).run({ seedUrl: SEED, taskDir: '/tmp/lifecycle' })
+    await pending.active
+    controller.abort()
+    const report = await run
+    expect(report.status).toBe('cancelled')
+    expect(pending.signal()?.aborted).toBe(true)
+    expect(pending.closed()).toBe(true)
+    expect((await store.getAttempt(report.attemptId))?.status).toBe('cancelled')
+    expect(await store.listSteps(report.taskId)).toEqual([])
+  })
+
+  it('wall deadline aborts a live request and records a time budget instead of failure', async () => {
+    const store = new MemoryTaskStore()
+    const pending = waitingAtom()
+    const started = Date.now()
+    const report = await new CrawlOrchestrator({ store, atom: pending.atom, workerCount: 4 }).run({ seedUrl: SEED, taskDir: '/tmp/lifecycle', budget: { maxWallMs: 80, maxPages: null, maxCostUsd: null, maxTokens: null } })
+    expect(report.status).toBe('completed')
+    expect(report.budgetExceeded).toBe('time')
+    expect(report.pagesFetched).toBe(0)
+    expect(pending.deadline()).toBeGreaterThanOrEqual(started + 80)
+    expect(pending.signal()?.aborted).toBe(true)
+    expect(Date.now() - started).toBeLessThan(1_000)
+    expect((await store.getAttempt(report.attemptId))?.status).toBe('completed')
+  })
+
+  it('interrupts a long frontier politeness wait without fetching another page', async () => {
+    const store = new MemoryTaskStore()
+    const controller = new AbortController()
+    const atom = new FakeAtom(new Map([[SEED, outcome(SEED, [ITEM_A])]]))
+    const run = new CrawlOrchestrator({ store, atom, signal: controller.signal, perHostMinDelayMs: 60_000, workerCount: 1 }).run({ seedUrl: SEED, taskDir: '/tmp/lifecycle', budget: { ...DEFAULT_CRAWL_BUDGET, maxWallMs: null } })
+    await expect.poll(async () => (await store.listTasks()).length && (await store.listSteps((await store.listTasks())[0]!.id)).length).toBe(1)
+    const started = Date.now()
+    controller.abort()
+    const report = await run
+    expect(report.status).toBe('cancelled')
+    expect(Date.now() - started).toBeLessThan(1_000)
+    expect(atom.fetches).toEqual([SEED])
+  })
+
+  it('service shutdown checkpoints paused/interrupted and permits resume', async () => {
+    const store = new MemoryTaskStore()
+    const shutdown = new AbortController()
+    const pending = waitingAtom()
+    const run = new CrawlOrchestrator({ store, atom: pending.atom, shutdownSignal: shutdown.signal }).run({ seedUrl: SEED, taskDir: '/tmp/lifecycle' })
+    await pending.active
+    shutdown.abort(new DOMException('service shutdown', 'ShutdownError'))
+    const report = await run
+    expect(report.status).toBe('paused')
+    expect((await store.getAttempt(report.attemptId))?.status).toBe('interrupted')
+    const resumed = await new CrawlOrchestrator({ store, atom: new FakeAtom(new Map([[SEED, outcome(SEED, [])]])) }).run({ seedUrl: SEED, taskDir: '/tmp/lifecycle', resumeFrom: report.taskId })
+    expect(resumed.status).toBe('completed')
+    expect(resumed.taskId).toBe(report.taskId)
+  })
+
+  it('observes another SQLite connection cancelling an in-flight request', async () => {
+    const { mkdtemp, rm } = await import('node:fs/promises')
+    const { tmpdir } = await import('node:os')
+    const { join } = await import('node:path')
+    const { SqliteTaskStore } = await import('../src/sqliteStore.js')
+    const dir = await mkdtemp(join(tmpdir(), 'w2l-cancel-'))
+    const local = SqliteTaskStore.open(dir)
+    const other = SqliteTaskStore.open(dir)
+    try {
+      const pending = waitingAtom()
+      const run = new CrawlOrchestrator({ store: local, atom: pending.atom }).run({ seedUrl: SEED, taskDir: dir })
+      await pending.active
+      const task = (await other.listTasks())[0]!
+      await other.putTask({ ...task, status: 'cancelled', updatedAt: new Date().toISOString() })
+      const report = await run
+      expect(report.status).toBe('cancelled')
+      expect(pending.signal()?.aborted).toBe(true)
+      expect((await other.getAttempt(report.attemptId))?.status).toBe('cancelled')
+      expect(await other.listSteps(task.id)).toEqual([])
+    } finally { await local.close(); await other.close(); await rm(dir, { recursive: true, force: true }) }
+  })
+})

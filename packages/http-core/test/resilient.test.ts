@@ -197,14 +197,16 @@ describe('resilientFetch: retry', () => {
     expect(out.attemptCount).toBe(2)
   })
 
-  it('honours Retry-After capped at retryAfterCapMs', async () => {
+  it('never shortens server Retry-After with the fallback cap', async () => {
     const f = scripted([res(503, { 'retry-after': '9999' }), res(200)])
-    const out = await resilientFetch(U, f, { retryAfterCapMs: 50 })
+    const sleeps: number[] = []
+    const out = await resilientFetch(U, f, { retryAfterCapMs: 50 }, { sleep: async ms => { sleeps.push(ms) } })
     const retry = out.trace.find((t) => t.event === 'retry')
-    expect(retry?.detail?.delayMs).toBe(50)
+    expect(retry?.detail?.delayMs).toBe(9_999_000)
+    expect(sleeps).toEqual([9_999_000])
   })
 
-  it('parses HTTP-date Retry-After and waits the server-directed delay up to the cap', async () => {
+  it('parses HTTP-date Retry-After and waits the full server-directed delay', async () => {
     const now = Date.parse('2026-09-21T00:00:00.000Z')
     const sleeps: number[] = []
     const f = scripted([res(503, { 'retry-after': new Date(now + 1000).toUTCString() }), res(200)])
@@ -252,5 +254,42 @@ describe('resilientFetch: defaults', () => {
   it('ships the fixture-aligned default config', () => {
     expect(DEFAULT_RESILIENT_CONFIG.maxRedirects).toBe(5)
     expect(DEFAULT_RESILIENT_CONFIG.maxRetries).toBe(1)
+  })
+})
+
+describe('resilientFetch execution budget', () => {
+  it('defers a server wait beyond the budget without starting another request', async () => {
+    const now = Date.now()
+    const f = scripted([res(503, { 'retry-after': '60' }), res(200)])
+    const out = await resilientFetch(U, f, { deadlineAt: now + 500, retryAfterCapMs: 1 })
+    expect(out.kind).toBe('failure')
+    expect(out.failureReason).toBe('timeout')
+    expect(out.retryAt).toBeGreaterThanOrEqual(now + 60_000)
+    expect(f.calls).toEqual([U])
+  })
+
+  it('abort during Retry-After clears the wait and prevents retry', async () => {
+    const controller = new AbortController()
+    let calls = 0
+    const out = resilientFetch(U, async (_url, init) => {
+      expect(init.signal).toBeDefined()
+      calls++
+      setTimeout(() => controller.abort(), 20)
+      return res(503, { 'retry-after': '60' })
+    }, { signal: controller.signal })
+    expect((await out).failureReason).toBe('timeout')
+    expect(calls).toBe(1)
+  })
+
+  it('an expired deadline issues no request', async () => {
+    const f = scripted([res(200)])
+    const out = await resilientFetch(U, f, { deadlineAt: Date.now() - 1 })
+    expect(out.failureReason).toBe('timeout')
+    expect(f.calls).toEqual([])
+  })
+
+  it('retains deadline protection while reading a deferred response body', async () => {
+    const out = await resilientFetch(U, async () => ({ ...res(200), bodyText: async () => new Promise<string>(() => {}) }), { deadlineAt: Date.now() + 40 })
+    await expect(out.bodyText()).rejects.toMatchObject({ name: 'TimeoutError' })
   })
 })

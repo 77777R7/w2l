@@ -50,3 +50,4 @@ First product-shaped cut of the identity ladder.
 - Provider lane measures vendor identity and does not inject ours; HeadlessChrome / research-as-Chrome / UA-hint mismatch are not success.
 - Changing IP or session does not change identity (`identityForRoute`).
 - Workspace packages versioned `0.1.0`.
+- Native Crawl results now expose paginated `/v1/crawl/:id/pages` and `/v1/crawl/:id/errors`, persistent cancellation via `/v1/crawl/:id/cancel`, and matching SDK/MCP operations.

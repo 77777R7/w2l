@@ -6,8 +6,11 @@
  * pretends the publisher published an empty file.
  */
 
-import { type NetworkPolicy } from '@w2l/contracts'
+import { type NetworkPolicy, type ExecutionContext } from '@w2l/contracts'
 import {
+  createExecutionScope,
+  raceWithSignal,
+  throwIfExecutionStopped,
   evaluateRobots,
   parseRobotsTxt,
   sha256Hex,
@@ -32,7 +35,8 @@ export class RobotsOriginCache {
   private readonly pending = new Map<string, Promise<CachedRobots | null>>()
   constructor(private readonly networkPolicy: NetworkPolicy = defaultNetworkPolicy()) {}
 
-  async lookup(url: string, userAgent: string): Promise<CachedRobots | null> {
+  async lookup(url: string, userAgent: string, execution: ExecutionContext = {}): Promise<CachedRobots | null> {
+    throwIfExecutionStopped(execution)
     let origin: string
     let robotsUrl: string
     try {
@@ -46,21 +50,23 @@ export class RobotsOriginCache {
     const cached = this.byOrigin.get(origin)
     if (cached) return cached
     const pending = this.pending.get(origin)
-    if (pending !== undefined) return pending
+    if (pending !== undefined && execution.signal === undefined && execution.deadlineAt === undefined) return pending
 
     const request = (async (): Promise<CachedRobots | null> => {
+      const scope = createExecutionScope({ signal: execution.signal, deadlineAt: Math.min(execution.deadlineAt ?? Infinity, Date.now() + 5_000) })
       let entry: CachedRobots = { robotsUrl, robots: null, sha256: null, absent: false }
       try {
-      await assertSafeUrl(robotsUrl, this.networkPolicy)
+      await raceWithSignal(assertSafeUrl(robotsUrl, this.networkPolicy), scope.signal)
       let currentUrl = robotsUrl
       for (let hop = 0; hop <= this.networkPolicy.maxRedirects; hop++) {
-        await assertSafeUrl(currentUrl, this.networkPolicy)
+        await raceWithSignal(assertSafeUrl(currentUrl, this.networkPolicy), scope.signal)
         const res = await fetch(currentUrl, {
         headers: { 'user-agent': userAgent },
-        signal: AbortSignal.timeout(5_000),
+        signal: scope.signal,
         redirect: 'manual',
       })
         if (res.status >= 300 && res.status < 400) {
+          await res.body?.cancel()
           const location = res.headers.get('location')
           if (location === null) throw new Error('robots redirect missing location')
           currentUrl = new URL(location, currentUrl).href
@@ -79,7 +85,7 @@ export class RobotsOriginCache {
           const next = await reader.read()
           if (next.done) break
           size += next.value.byteLength
-          if (size > Math.min(this.networkPolicy.maxBodyBytes, 1024 * 1024)) throw new Error('robots body too large')
+          if (size > Math.min(this.networkPolicy.maxBodyBytes, 1024 * 1024)) { await reader.cancel(); throw new Error('robots body too large') }
           chunks.push(next.value)
         }
         const bytes = new Uint8Array(size)
@@ -97,14 +103,17 @@ export class RobotsOriginCache {
       break
       }
     } catch {
+      throwIfExecutionStopped(execution)
       entry = { robotsUrl, robots: null, sha256: null, absent: false }
-    }
+    } finally { scope.dispose() }
 
+      throwIfExecutionStopped(execution)
       this.byOrigin.set(origin, entry)
       return entry
     })()
-    this.pending.set(origin, request)
-    try { return await request } finally { this.pending.delete(origin) }
+    const shareable = execution.signal === undefined && execution.deadlineAt === undefined
+    if (shareable) this.pending.set(origin, request)
+    try { return await request } finally { if (shareable && this.pending.get(origin) === request) this.pending.delete(origin) }
   }
 
   decision(cached: CachedRobots | null, url: string, userAgent: string): ComplianceRobotsDecision {

@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import type { ApiEngine } from './engine.js'
 import {
   parseCrawlStartRequest,
+  parseCrawlPageQuery,
   parseFirecrawlCrawlRequest,
   parseFirecrawlScrapeRequest,
   parseScrapeRequest,
@@ -33,7 +34,7 @@ export function createApp(engine: ApiEngine, options: AppOptions = {}): Hono {
 
   app.post('/v1/scrape', async (c) => {
     const req = parseScrapeRequest(await c.req.json())
-    return c.json(await engine.scrape(req), 200)
+    return c.json(await engine.scrape(req, { signal: c.req.raw.signal }), 200)
   })
 
   app.post('/v1/crawl', async (c) => {
@@ -48,11 +49,29 @@ export function createApp(engine: ApiEngine, options: AppOptions = {}): Hono {
     return c.json(report, 200)
   })
 
+  app.get('/v1/crawl/:id/pages', async (c) => {
+    const result = await engine.getCrawlPages(c.req.param('id'), parseCrawlPageQuery(c.req.query()))
+    if (result === null) return c.json({ error: 'not found' }, 404)
+    return c.json(result, 200)
+  })
+
+  app.get('/v1/crawl/:id/errors', async (c) => {
+    const result = await engine.getCrawlErrors(c.req.param('id'), parseCrawlPageQuery(c.req.query()))
+    if (result === null) return c.json({ error: 'not found' }, 404)
+    return c.json(result, 200)
+  })
+
+  app.post('/v1/crawl/:id/cancel', async (c) => {
+    const report = await engine.cancelCrawl(c.req.param('id'))
+    if (report === null) return c.json({ error: 'not found' }, 404)
+    return c.json(report, 200)
+  })
+
   app.post('/v1/monitors/firecrawl-introduction/run', async (c) => {
     const body = await c.req.json() as { triggerKey?: unknown }
     if (!body || typeof body !== 'object' || Array.isArray(body) || (body.triggerKey !== undefined && (typeof body.triggerKey !== 'string' || !body.triggerKey.trim() || body.triggerKey.length > 200))) return c.json({ error: 'invalid triggerKey' }, 400)
     const triggerKey = body.triggerKey as string | undefined
-    return c.json(await engine.runFirecrawlMonitor(triggerKey), 200)
+    return c.json(await engine.runFirecrawlMonitor(triggerKey, { signal: c.req.raw.signal }), 200)
   })
 
   app.get('/v1/monitors/firecrawl-introduction', async (c) => {
@@ -81,7 +100,38 @@ export function createApp(engine: ApiEngine, options: AppOptions = {}): Hono {
     const body = await c.req.json() as { triggerKey?: unknown }
     if (!body || typeof body !== 'object' || Array.isArray(body) || (body.triggerKey !== undefined && (typeof body.triggerKey !== 'string' || !body.triggerKey.trim() || body.triggerKey.length > 200))) return c.json({ error: 'invalid triggerKey' }, 400)
     if (!engine.getMonitor(c.req.param('id'))) return c.json({ error: 'monitor not found' }, 404)
-    return c.json(await engine.runMonitor(c.req.param('id'), body.triggerKey as string | undefined))
+    return c.json(await engine.runMonitor(c.req.param('id'), body.triggerKey as string | undefined, { signal: c.req.raw.signal }))
+  })
+
+  app.post('/v1/monitors/:id/runs/:runId/cancel', (c) => {
+    try { return c.json(engine.cancelMonitorRun(c.req.param('id'), c.req.param('runId'))) }
+    catch { return c.json({error: 'monitor run not found'}, 404) }
+  })
+  for (const action of ['pause', 'resume'] as const) app.post(`/v1/monitors/:id/${action}`, (c) => {
+    try { return c.json(engine.setMonitorEnabled(c.req.param('id'), action === 'resume')) }
+    catch { return c.json({error: 'monitor not found'}, 404) }
+  })
+  app.post('/v1/delivery/destinations', async (c) => {
+    try { return c.json(engine.createDeliveryDestination(await c.req.json()), 201) }
+    catch (error) { return c.json({error: error instanceof Error ? error.message : 'invalid destination'}, 400) }
+  })
+  app.get('/v1/delivery/destinations', (c) => c.json(engine.listDeliveryDestinations(c.req.query('monitorId'))))
+  for (const action of ['pause', 'resume'] as const) app.post(`/v1/delivery/destinations/:id/${action}`, (c) => {
+    try { return c.json(engine.setDeliveryDestinationEnabled(c.req.param('id'), action === 'resume')) }
+    catch { return c.json({error: 'destination not found'}, 404) }
+  })
+  app.get('/v1/deliveries', (c) => {
+    const state = c.req.query('state')
+    if (state && !['pending','delivering','delivered','dead_letter'].includes(state)) return c.json({error: 'invalid delivery state'}, 400)
+    return c.json(engine.listDeliveries({monitorId: c.req.query('monitorId'), destinationId: c.req.query('destinationId'), state: state as import('@w2l/contracts').DeliveryState | undefined}))
+  })
+  app.get('/v1/deliveries/:id', (c) => {
+    const detail = engine.getDelivery(c.req.param('id'))
+    return detail ? c.json(detail) : c.json({error: 'delivery not found'}, 404)
+  })
+  app.post('/v1/deliveries/:id/retry', (c) => {
+    try { return c.json(engine.retryDelivery(c.req.param('id'))) }
+    catch (error) { return c.json({error: error instanceof Error ? error.message : 'retry conflict'}, 409) }
   })
 
   app.post('/v1/sessions/managed', async (c) => {

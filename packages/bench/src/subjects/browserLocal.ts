@@ -1,6 +1,11 @@
-import { estimateTokens, type FetchResult, type NetworkPolicy, type TraceEvent } from '@w2l/contracts'
+import { estimateTokens, type ExecutionContext, type FetchResult, type NetworkPolicy, type TraceEvent } from '@w2l/contracts'
 import { collectLinks, extractTf, htmlToMarkdown } from '@w2l/extract-tf'
 import {
+  abortableSleep,
+  createExecutionScope,
+  raceWithSignal,
+  remainingTimeout,
+  throwIfExecutionStopped,
   classifyGate,
   escalationForBlock,
   isRetryableStatus,
@@ -13,7 +18,7 @@ import {
   type ComplianceRecord,
   type ComplianceSentHeader,
 } from '@w2l/http-core'
-import { chromium, type Browser, type BrowserContext, type Response } from 'playwright'
+import { chromium, type Browser, type BrowserContext, type Page, type Response } from 'playwright'
 import { assertSafeUrl, BodyTooLargeError, defaultNetworkPolicy } from '../egress.js'
 import type { SubjectAdapter } from '../subject.js'
 import { RobotsOriginCache } from '../robotsLookup.js'
@@ -68,6 +73,9 @@ export class BrowserLocalSubject implements SubjectAdapter {
     hosting: 'self_hosted' as const,
   }
 
+  private activeExecutions = 0
+  private readonly pendingByOrigin = new Map<string, Promise<void>>()
+  private readonly cooldownUntilByOrigin = new Map<string, number>()
   private browser: Browser | null = null
   private browserPromise: Promise<Browser> | null = null
   private managedContext: BrowserContext | null = null
@@ -119,22 +127,55 @@ export class BrowserLocalSubject implements SubjectAdapter {
     return this.chain.toLedger()
   }
 
-  async fetch(url: string, _deadlineMs?: number, signal?: AbortSignal): Promise<FetchResult> {
-    if (signal?.aborted) return this.denied(url, Date.now(), [], new Error('aborted'))
+  async fetch(url: string, deadlineMs?: number, signal?: AbortSignal, onRetryAfter?: ExecutionContext['onRetryAfter']): Promise<FetchResult> {
+    const scope = createExecutionScope({ signal, deadlineAt: deadlineMs, onRetryAfter })
+    const start = Date.now()
+    const origin = new URL(url).origin
+    this.activeExecutions++
+    const previous = this.pendingByOrigin.get(origin) ?? Promise.resolve()
+    let release!: () => void
+    const ticket = new Promise<void>(resolve => { release = resolve })
+    const pending = previous.then(() => ticket)
+    this.pendingByOrigin.set(origin, pending)
+    try {
+      await raceWithSignal(previous, scope.signal)
+      throwIfExecutionStopped(scope)
+      const retryAt = this.cooldownUntilByOrigin.get(origin) ?? 0
+      if (retryAt > Date.now()) {
+        if (scope.deadlineAt !== undefined && retryAt >= scope.deadlineAt) return { ...this.denied(url, start, [], new Error('aborted')), retryAt }
+        await abortableSleep(retryAt - Date.now(), scope.signal)
+      }
+      const result = await this.fetchWithinBudget(url, scope)
+      if (result.retryAt !== undefined) this.cooldownUntilByOrigin.set(origin, Math.max(retryAt, result.retryAt))
+      return result
+    } catch (error) {
+      if (!scope.signal.aborted) throw error
+      return this.denied(url, start, [], new Error('aborted'))
+    } finally {
+      this.activeExecutions--
+      scope.dispose()
+      release()
+      void pending.then(() => { if (this.pendingByOrigin.get(origin) === pending) this.pendingByOrigin.delete(origin) })
+    }
+  }
+
+  private async fetchWithinBudget(url: string, execution: ExecutionContext): Promise<FetchResult> {
+    const signal = execution.signal
     const start = Date.now()
     const trace: TraceEvent[] = [{ at: 0, lane: 'browser_local', event: 'browser_start' }]
-    try {
-      await assertSafeUrl(url, this.networkPolicy)
-    } catch (err) {
-      return this.denied(url, start, trace, err)
+    let context: BrowserContext | undefined
+    let page: Page | undefined
+    const onAbort = () => {
+      void page?.close().catch(() => {})
+      if (context !== this.managedContext) void context?.close().catch(() => {})
     }
-      const managedContext = this.managedProfileDir === null ? null : await this.getManagedContext()
-      const browser = managedContext?.browser() ?? await this.getBrowser()
-      if (signal?.aborted) return this.denied(url, Date.now(), [], new Error('aborted'))
-
-    let context
-    let page
+    signal?.addEventListener('abort', onAbort, { once: true })
     try {
+      throwIfExecutionStopped(execution)
+      await raceWithSignal(assertSafeUrl(url, this.networkPolicy), signal)
+      const managedContext = this.managedProfileDir === null ? null : await raceWithSignal(this.getManagedContext(execution), signal)
+      const browser = managedContext?.browser() ?? await raceWithSignal(this.getBrowser(execution), signal)
+      throwIfExecutionStopped(execution)
       // Real Chromium major, not the floor constant: declaring a Chrome
       // version we are not running is an inconsistency, not a feature.
       const version = browser.version()
@@ -149,7 +190,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
       // anything is if a disallow actually stops the fetch — a record that
       // says "disallowed" next to a page we fetched anyway would be a
       // self-documenting violation.
-      const cachedRobots = await this.robotsCache.lookup(url, identity.userAgent)
+      const cachedRobots = await this.robotsCache.lookup(url, identity.userAgent, execution)
       const robotsDecision = this.robotsCache.decision(cachedRobots, url, identity.userAgent)
       trace.push({
         at: Date.now() - start,
@@ -225,7 +266,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
         }
       }
 
-      context = managedContext ?? await browser.newContext({
+      const pendingContext = managedContext ? Promise.resolve(managedContext) : browser.newContext({
         userAgent: identity.userAgent,
         locale: BROWSER_FINGERPRINT.locale,
         timezoneId: BROWSER_FINGERPRINT.timezoneId,
@@ -257,6 +298,9 @@ export class BrowserLocalSubject implements SubjectAdapter {
             }
           : {}),
       })
+      void pendingContext.then(created => { if (signal?.aborted && created !== this.managedContext) void created.close().catch(() => {}) }, () => {})
+      context = await raceWithSignal(pendingContext, signal)
+      throwIfExecutionStopped(execution)
       // The user's session, if they inherited one to us. Cookies go in through
       // the context API rather than a header so the browser scopes them the
       // way the origin expects.
@@ -274,7 +318,11 @@ export class BrowserLocalSubject implements SubjectAdapter {
           detail: { cookieCount: userCookies.length, sessionSha256: this.access.sessionSha256 },
         })
       }
-      page = await context.newPage()
+      throwIfExecutionStopped(execution)
+      const pendingPage = context.newPage()
+      void pendingPage.then(created => { if (signal?.aborted) void created.close().catch(() => {}) }, () => {})
+      page = await raceWithSignal(pendingPage, signal)
+      throwIfExecutionStopped(execution)
 
       // Rate-limit facts for this host, captured before the request.
       const previousRequestAtMs = this.lastRequestAtMsByHost.get(host) ?? null
@@ -284,7 +332,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
       this.lastRequestAtMsByHost.set(host, Date.now())
 
       // Browser-tier retry: the same transport-independent policy the
-      // http engine shares (503 only, once, Retry-After bounded). The
+      // http engine shares (503 only, once, authoritative Retry-After). The
       // runner resets fixture state per subject, so the browser arm
       // genuinely sees flaky attempt 1 and must retry to survive it.
       const MAX_ATTEMPTS = 2
@@ -292,19 +340,35 @@ export class BrowserLocalSubject implements SubjectAdapter {
       let response: Response | null = null
       for (;;) {
         trace.push({ at: Date.now() - start, lane: 'browser_local', event: 'navigate', detail: { url, attempt: attemptCount } })
-        response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20_000 })
+        response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: remainingTimeout(execution, 20_000) })
         const status = response?.status() ?? 0
+        if (status === 429 || status === 503) {
+          const delay = parseRetryAfterMs(response?.headers()['retry-after'] ?? null)
+          if (delay !== null) {
+            const target = response?.url() ?? url
+            const retryAt = Date.now() + delay
+            for (const origin of new Set([new URL(url).origin, new URL(target).origin])) this.cooldownUntilByOrigin.set(origin, Math.max(this.cooldownUntilByOrigin.get(origin) ?? 0, retryAt))
+            execution.onRetryAfter?.(target, retryAt)
+          }
+        }
         if (isRetryableStatus(status) && attemptCount < MAX_ATTEMPTS) {
           const retryAfter = response?.headers()['retry-after'] ?? null
-          const delayMs = Math.min(parseRetryAfterMs(retryAfter) ?? 250, 2000)
+          const delayMs = parseRetryAfterMs(retryAfter) ?? 250
+          const retryAt = Date.now() + delayMs
+          if (execution.deadlineAt !== undefined && retryAt >= execution.deadlineAt) {
+            trace.push({ at: Date.now() - start, lane: 'browser_local', event: 'retry_deferred', detail: { retryAt, delayMs, status } })
+            const deferred = this.denied(url, start, trace, new Error('aborted'))
+            return { ...deferred, retryAt, evidence: { ...deferred.evidence, httpStatus: status, finalUrl: page.url() } }
+          }
           trace.push({ at: Date.now() - start, lane: 'browser_local', event: 'retry', detail: { attempt: attemptCount, status, delayMs } })
           attemptCount++
-          if (delayMs > 0) await page.waitForTimeout(delayMs)
+          if (delayMs > 0) await abortableSleep(delayMs, signal)
           continue
         }
         break
       }
-      await waitForRenderedStability(page)
+      await raceWithSignal(waitForRenderedStability(page, { maxMs: remainingTimeout(execution, 1_500) }), signal)
+      throwIfExecutionStopped(execution)
       const status = response?.status() ?? 0
       const finalUrl = page.url()
       if (finalUrl !== url) {
@@ -361,6 +425,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
 
       const base = {
         requestedUrl: url,
+        ...([429, 503].includes(status) ? { retryAt: Date.now() + (parseRetryAfterMs(response?.headers()['retry-after'] ?? null) ?? 250) } : {}),
         truncated: false,
         truncatedAt: null,
         compliance: record,
@@ -486,7 +551,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
       // Playwright surfaces deadline misses as TimeoutError; map them to the
       // contract's timeout reason so the timeout fixtures match, and leave
       // every other navigation failure as connection_error.
-      const reason = err instanceof Error && err.name === 'TimeoutError' ? 'timeout' : 'connection_error'
+      const reason = signal?.aborted || err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError') ? 'timeout' : err instanceof Error && err.name === 'SsrfDeniedError' ? 'policy_denied' : 'connection_error'
       trace.push({
         at: wallMs,
         lane: 'browser_local',
@@ -526,6 +591,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
         trace,
       }
     } finally {
+      signal?.removeEventListener('abort', onAbort)
       await page?.close().catch(() => {})
       if (context !== this.managedContext) await context?.close().catch(() => {})
     }
@@ -592,31 +658,51 @@ export class BrowserLocalSubject implements SubjectAdapter {
     }
   }
 
-  private async getBrowser(): Promise<Browser> {
+  private async getBrowser(execution: ExecutionContext): Promise<Browser> {
+    throwIfExecutionStopped(execution)
     if (this.browser !== null) return this.browser
     if (this.browserPromise === null) {
-      this.browserPromise = chromium.launch({ headless: !this.headed }).then((browser) => {
+      // Startup belongs to the shared subject. Each caller has its own budget;
+      // one short caller must not set the launch deadline for another monitor.
+      const pending = chromium.launch({ headless: !this.headed, timeout: 30_000 }).then(async browser => {
+        if (this.activeExecutions === 0) {
+          if (this.browserPromise === pending) this.browserPromise = null
+          await browser.close().catch(() => {})
+          throw new DOMException('Browser startup abandoned', 'AbortError')
+        }
         this.browser = browser
         return browser
-      }).catch((err) => {
-        this.browserPromise = null
-        throw err
+      }).catch(error => {
+        if (this.browserPromise === pending) this.browserPromise = null
+        throw error
       })
+      this.browserPromise = pending
     }
     return this.browserPromise
   }
 
-  private async getManagedContext(): Promise<BrowserContext> {
+  private async getManagedContext(execution: ExecutionContext): Promise<BrowserContext> {
+    throwIfExecutionStopped(execution)
     if (this.managedContext !== null) return this.managedContext
     if (this.managedContextPromise === null) {
-      this.managedContextPromise = chromium.launchPersistentContext(this.managedProfileDir!, { headless: !this.headed })
-        .then((context) => { this.managedContext = context; return context })
-        .catch((error) => { this.managedContextPromise = null; throw error })
+      const pending = chromium.launchPersistentContext(this.managedProfileDir!, { headless: !this.headed, timeout: 30_000 })
+        .then(async context => {
+          if (this.activeExecutions === 0) {
+            if (this.managedContextPromise === pending) this.managedContextPromise = null
+            await context.close().catch(() => {})
+            throw new DOMException('Managed browser startup abandoned', 'AbortError')
+          }
+          this.managedContext = context
+          return context
+        })
+        .catch(error => { if (this.managedContextPromise === pending) this.managedContextPromise = null; throw error })
+      this.managedContextPromise = pending
     }
     return this.managedContextPromise
   }
 
   async teardown(): Promise<void> {
+    if (this.managedContextPromise !== null && this.managedContext === null) await this.managedContextPromise.catch(() => {})
     await this.managedContext?.close().catch(() => {})
     this.managedContext = null
     this.managedContextPromise = null

@@ -1,3 +1,4 @@
+import { createExecutionScope, raceWithSignal, throwIfExecutionStopped } from '@w2l/http-core'
 /**
  * The CDP seam: what a vendor transport needs from a remote browser, as a
  * structural subset of Playwright's types. Injectable so the transports can
@@ -52,7 +53,7 @@ export interface CdpBrowser {
   close(): Promise<void>
 }
 
-export type CdpConnector = (wsUrl: string, deadlineMs?: number) => Promise<CdpBrowser>
+export type CdpConnector = (wsUrl: string, deadlineMs?: number, signal?: AbortSignal) => Promise<CdpBrowser>
 
 /**
  * Real connector: Playwright over CDP. Imported lazily so a test run that
@@ -60,10 +61,13 @@ export type CdpConnector = (wsUrl: string, deadlineMs?: number) => Promise<CdpBr
  * the connect timeout — an explicit remaining-ms computation, never a read
  * of a non-standard signal property.
  */
-export const playwrightConnector: CdpConnector = async (wsUrl, deadlineMs) => {
+export const playwrightConnector: CdpConnector = async (wsUrl, deadlineMs, signal) => {
+  throwIfExecutionStopped({ signal, deadlineAt: deadlineMs })
   const { chromium } = await import('playwright')
   const remaining = deadlineMs === undefined ? 30_000 : Math.max(1, deadlineMs - Date.now())
-  return chromium.connectOverCDP(wsUrl, { timeout: remaining })
+  const pending = chromium.connectOverCDP(wsUrl, { timeout: remaining })
+  void pending.then(browser => { if (signal?.aborted) void browser.close().catch(() => {}) }, () => {})
+  return raceWithSignal(pending, signal)
 }
 
 /** The vendor's default context, or a clear error if it provisioned none. */
@@ -91,16 +95,32 @@ export function defaultContext(browser: CdpBrowser): CdpContext {
  * wire could rewrite the header. Hence every fetch re-checks it and reports a
  * mismatch rather than assuming they agree.
  */
-export async function measureUserAgent(browser: CdpBrowser): Promise<string> {
-  const page = await defaultContext(browser).newPage()
+/** A page created after cancellation is still owned here and must be closed. */
+async function createExecutionPage(browser: CdpBrowser, signal: AbortSignal): Promise<CdpPage> {
+  signal.throwIfAborted()
+  const pending = defaultContext(browser).newPage()
+  void pending.then(page => { if (signal.aborted) void page.close().catch(() => {}) }, () => {})
+  return raceWithSignal(pending, signal)
+}
+
+export async function measureUserAgent(browser: CdpBrowser, deadlineMs?: number, signal?: AbortSignal): Promise<string> {
+  const scope = createExecutionScope({ signal, deadlineAt: deadlineMs })
+  let page: CdpPage | undefined
+  const abort = () => { void page?.close().catch(() => {}) }
+  scope.signal.addEventListener('abort', abort, { once: true })
   try {
-    const ua = await page.evaluate('navigator.userAgent')
+    throwIfExecutionStopped(scope)
+    page = await createExecutionPage(browser, scope.signal)
+    throwIfExecutionStopped(scope)
+    const ua = await raceWithSignal(page.evaluate('navigator.userAgent'), scope.signal)
     if (typeof ua !== 'string' || ua.trim().length === 0) {
       throw new Error('vendor browser reported no navigator.userAgent')
     }
     return ua
   } finally {
-    await page.close().catch(() => {})
+    scope.signal.removeEventListener('abort', abort)
+    scope.dispose()
+    await page?.close().catch(() => {})
   }
 }
 
@@ -141,17 +161,25 @@ export async function navigateOnce(
   browser: CdpBrowser,
   url: string,
   deadlineMs?: number,
+  signal?: AbortSignal,
 ): Promise<NavigationOutcome> {
   // The caller's absolute deadline maps onto the page's own navigation
   // timeout. Remaining budget is computed explicitly from the deadline —
   // no AbortSignal.timeout property is read anywhere.
-  const timeout = navigationTimeout(deadlineMs, Date.now())
-  const page = await defaultContext(browser).newPage()
+  const scope = createExecutionScope({ signal, deadlineAt: deadlineMs })
+  let page: CdpPage | undefined
+  const abort = () => { void page?.close().catch(() => {}) }
+  scope.signal.addEventListener('abort', abort, { once: true })
   try {
-    const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout })
-    await waitForRenderedStability(page, {
+    throwIfExecutionStopped(scope)
+    page = await createExecutionPage(browser, scope.signal)
+    throwIfExecutionStopped(scope)
+    const timeout = navigationTimeout(deadlineMs, Date.now())
+    const response = await raceWithSignal(page.goto(url, { waitUntil: 'domcontentloaded', timeout }), scope.signal)
+    await raceWithSignal(waitForRenderedStability(page, {
       maxMs: deadlineMs === undefined ? 1_500 : Math.min(1_500, Math.max(1, deadlineMs - Date.now())),
-    })
+    }), scope.signal)
+    throwIfExecutionStopped(scope)
 
     const headers: Record<string, string> = {}
     for (const [name, value] of Object.entries(response?.headers() ?? {})) {
@@ -175,14 +203,16 @@ export async function navigateOnce(
 
     return {
       status: response?.status() ?? 0,
-      body: await page.content(),
+      body: await raceWithSignal(page.content(), scope.signal),
       finalUrl: page.url(),
       headers,
       sentUserAgent,
       sentClientHints,
     }
   } finally {
-    await page.close().catch(() => {})
+    scope.signal.removeEventListener('abort', abort)
+    scope.dispose()
+    await page?.close().catch(() => {})
   }
 }
 import { waitForRenderedStability } from '../browserSettle.js'

@@ -1,0 +1,44 @@
+{
+  "generatedAt": "2026-09-22T09:54:37.170Z",
+  "passed": true,
+  "root": "/Users/howard07/Documents/ChatGPT/爬虫机会/.w2l/gate3-https-1790070805361",
+  "sourceUrl": "https://docs.firecrawl.dev/introduction",
+  "httpsEndpoint": "https://happens-task-production-treating.trycloudflare.com/webhook",
+  "endpointLifetime": "temporary acceptance tunnel, stopped after test",
+  "realPublicSource": true,
+  "baselineVersion": 1,
+  "eventId": "22cda19c-cfa1-4e1e-9b9a-bdebf87b211d",
+  "deliveryId": "f4bdb954-a90c-490b-9d96-6aa9621c5f14",
+  "attempts": [
+    {
+      "id": "73d6d133-003e-4b5e-81bd-7593fa5d229b",
+      "deliveryId": "f4bdb954-a90c-490b-9d96-6aa9621c5f14",
+      "fencingToken": 1,
+      "startedAt": 1790070875601,
+      "endedAt": 1790070876011,
+      "outcome": "retry",
+      "status": null,
+      "error": "injected ACK loss after actual HTTPS acceptance",
+      "retryAfterAt": null
+    },
+    {
+      "id": "d039cc5b-c9de-4893-8b33-5a34fcbcf30b",
+      "deliveryId": "f4bdb954-a90c-490b-9d96-6aa9621c5f14",
+      "fencingToken": 2,
+      "startedAt": 1790070876593,
+      "endedAt": 1790070876981,
+      "outcome": "delivered",
+      "status": 200,
+      "error": null,
+      "retryAfterAt": null
+    }
+  ],
+  "receiverRestarted": true,
+  "senderWorkerNewProcess": true,
+  "receiverReceipts": 1,
+  "downstreamProjections": 1,
+  "duplicateBusinessUpdates": 0,
+  "signature": "HMAC-SHA256; ephemeral secret not persisted",
+  "tls": "public certificate verified; no insecure override",
+  "deliveryTransport": "explicit operator CONNECT proxy to validated target IP; original hostname TLS verification"
+}

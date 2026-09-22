@@ -24,7 +24,7 @@
  */
 
 import { pathToFileURL } from 'node:url'
-import type { FetchResult, IdentityBundle, SessionConfig, TraceEvent } from '@w2l/contracts'
+import type { ExecutionContext, FetchResult, IdentityBundle, SessionConfig, TraceEvent } from '@w2l/contracts'
 import {
   CONTENTFUL_STATUS,
   formatIdentitySummary,
@@ -127,8 +127,8 @@ export function buildChannels(
     /** Test seam: override the local http/browser subjects entirely, so a
      *  composition test can drive the ladder without real network. */
     localSubjects?: {
-      http?: { fetch: (url: string) => Promise<FetchResult>; teardown?: () => Promise<void> }
-      browser_local?: { fetch: (url: string) => Promise<FetchResult>; teardown?: () => Promise<void> }
+      http?: { fetch: (url: string, deadlineAt?: number, signal?: AbortSignal, execution?: ExecutionContext) => Promise<FetchResult>; teardown?: () => Promise<void> }
+      browser_local?: { fetch: (url: string, deadlineAt?: number, signal?: AbortSignal, execution?: ExecutionContext) => Promise<FetchResult>; teardown?: () => Promise<void> }
     }
     /** Opt-in headed Chromium on the browser arm only. Default remains headless. */
     headed?: boolean
@@ -176,8 +176,8 @@ export function buildChannels(
     {
       id: 'http',
       identity: declared,
-      fetch: (url) =>
-        opts.localSubjects?.http !== undefined ? opts.localSubjects.http.fetch(url) : http.fetch(url),
+      fetch: (url, _session, execution) =>
+        opts.localSubjects?.http !== undefined ? opts.localSubjects.http.fetch(url, execution?.deadlineAt, execution?.signal, execution) : http.fetch(url, execution?.deadlineAt, execution?.signal, {}, execution?.onRetryAfter),
       close: async () => {
         await opts.localSubjects?.http?.teardown?.()
       },
@@ -186,10 +186,10 @@ export function buildChannels(
       id: 'browser_local',
       identity: declared,
       // No session here, ever: the plain rung is the public browser.
-      fetch: (url) =>
+      fetch: (url, _session, execution) =>
         opts.localSubjects?.browser_local !== undefined
-          ? opts.localSubjects.browser_local.fetch(url)
-          : plainBrowser.fetch(url),
+          ? opts.localSubjects.browser_local.fetch(url, execution?.deadlineAt, execution?.signal, execution)
+          : plainBrowser.fetch(url, execution?.deadlineAt, execution?.signal, execution?.onRetryAfter),
       close: async () => {
         await plainBrowser.teardown()
         await opts.localSubjects?.browser_local?.teardown?.()
@@ -201,7 +201,7 @@ export function buildChannels(
     channels.push({
       id: 'authed_session',
       identity: identityForRoute('authed', { session: true }),
-      fetch: async (url, session) => {
+      fetch: async (url, session, execution) => {
         const host = new URL(url).hostname.toLowerCase()
         // Skip, never terminal, never a throw: without a local session this
         // rung has nothing to offer, and the ladder must move on to the
@@ -257,7 +257,7 @@ export function buildChannels(
           }
           return skip
         }
-        return authedSubjectFor(session).fetch(url)
+        return authedSubjectFor(session).fetch(url, execution?.deadlineAt, execution?.signal, execution?.onRetryAfter)
       },
       close: async () => {
         for (const subject of authedSubjects.values()) await subject.teardown()
@@ -285,25 +285,25 @@ export function buildChannels(
      *  session is created. */
     let pendingResume: VendorResumeContext | null = null
 
-    const preparePersistence = async (): Promise<void> => {
+    const preparePersistence = async (execution?: ExecutionContext): Promise<void> => {
       if (persistenceAttempted) return
       persistenceAttempted = true
       if (typeof ops.ensurePersistence !== 'function') return
-      establishedResume = await ops.ensurePersistence()
+      establishedResume = await ops.ensurePersistence(execution?.deadlineAt, execution?.signal)
       if (establishedResume !== null) pendingResume = establishedResume
     }
 
-    const ensureConnected = async () => {
+    const ensureConnected = async (execution?: ExecutionContext) => {
       if (connected !== null) return connected
       if (pending === null) {
         opts.onVendorConnect?.(vendorId)
         // pendingResume was established by preparePersistence BEFORE this
         // point, so the very first session the transport creates already
         // carries the context — the UA probe and the fetch share it.
-        pending = connectVendor(ops, opts.vendorConnector, pendingResume ?? null).then((c) => {
+        pending = connectVendor(ops, opts.vendorConnector, pendingResume ?? null, execution?.deadlineAt, execution?.signal).then((c) => {
           connected = c
           return c
-        })
+        }).catch(error => { pending = null; throw error })
       }
       return await pending
     }
@@ -312,7 +312,7 @@ export function buildChannels(
       id: 'provider',
       vendorId,
       identity: identityForRoute(mode, { resume: true }),
-      fetch: async (url, session) => {
+      fetch: async (url, session, execution) => {
         // Session resume acceptance is strict: only this vendor's own
         // material, only for this domain. A Steel profile never reaches
         // Browserbase.
@@ -381,9 +381,9 @@ export function buildChannels(
           pendingResume = session!.resume as VendorResumeContext
           persistenceAttempted = true
         } else {
-          await preparePersistence()
+          await preparePersistence(execution)
         }
-        const { declaration, transport } = await ensureConnected()
+        const { declaration, transport } = await ensureConnected(execution)
         if (pendingResume !== null) {
           transport.useResumedSession(pendingResume)
         }
@@ -395,7 +395,7 @@ export function buildChannels(
           null,
           opts.robotsFetcher ?? undefined,
         )
-        return subject.fetch(url)
+        return subject.fetch(url, execution?.deadlineAt, execution?.signal, execution?.onRetryAfter)
       },
       close: async () => {
         if (connected !== null) {

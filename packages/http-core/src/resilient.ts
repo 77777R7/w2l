@@ -1,3 +1,4 @@
+import { abortableSleep, createExecutionScope, raceWithSignal, remainingTimeout, throwIfExecutionStopped, type ExecutionBudget } from './execution.js'
 /**
  * Resilient HTTP engine: redirect following and 503 retry as pure logic
  * over an injected fetcher. No network I/O of its own, no undici import —
@@ -10,7 +11,7 @@
  *  - allow http/https targets only; anything else is policy_denied
  *  - retry ONLY a 503 response (the flaky fixture shape), at most
  *    maxRetries times; 429 and every other status never retry
- *  - honour Retry-After (integer seconds) capped at retryAfterCapMs
+ *  - honour Retry-After seconds / HTTP-date without shortening server waits
  *  - map thrown transport errors by name: undici HeadersTimeoutError /
  *    BodyTimeoutError -> timeout, everything else -> connection_error
  *
@@ -22,12 +23,12 @@
 
 export type UrlGuard = (url: string) => Promise<void>
 
-export interface ResilientHttpConfig {
+export interface ResilientHttpConfig extends ExecutionBudget {
   /** Maximum redirects followed per logical attempt. */
   maxRedirects: number
   /** Retry count for a 503 response. */
   maxRetries: number
-  /** Ceiling on a Retry-After delay, ms. */
+  /** Ceiling for fallback backoff only. Server Retry-After is authoritative. */
   retryAfterCapMs: number
   /** Base delay for bounded exponential backoff when Retry-After is absent. */
   retryBackoffBaseMs: number
@@ -50,6 +51,7 @@ export const DEFAULT_RESILIENT_CONFIG: ResilientHttpConfig = {
 }
 
 export interface ResilientRequestInit {
+  signal?: AbortSignal
   headersTimeoutMs: number
   bodyTimeoutMs: number
 }
@@ -78,6 +80,8 @@ export type ResilientFailureReason =
 
 export interface ResilientOutcome {
   kind: 'ok' | 'failure'
+  /** Server-authorized next request time when the current budget cannot wait. */
+  retryAt?: number
   /** Terminal HTTP status of the final response (null when a transport error fired). */
   status: number | null
   failureReason: ResilientFailureReason | null
@@ -99,19 +103,16 @@ export function isRetryableStatus(status: number): boolean {
   return status === 503
 }
 
-/** Parse Retry-After as integer seconds; anything else yields null (no delay). */
+/** Parse standard Retry-After delay-seconds or an HTTP-date. */
 export function parseRetryAfterMs(value: string | null, nowMs = Date.now()): number | null {
   if (!value) return null
   const trimmed = value.trim()
   const seconds = Number(trimmed)
-  if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1000
+  if (/^\d+$/.test(trimmed) && Number.isSafeInteger(seconds)) return seconds * 1000
+  if (/^[+-]?[\d.]+$/.test(trimmed)) return null
   const dateMs = Date.parse(trimmed)
   if (!Number.isFinite(dateMs)) return null
   return Math.max(0, dateMs - nowMs)
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 function resolveNextUrl(base: string, location: string): string | null {
@@ -181,6 +182,8 @@ export async function resilientFetch(
   hooks: { sleep?: (ms: number) => Promise<void>; random?: () => number; now?: () => number } = {},
 ): Promise<ResilientOutcome> {
   const cfg = { ...DEFAULT_RESILIENT_CONFIG, ...config }
+  const scope = createExecutionScope(cfg)
+  const assertUrl = cfg.assertUrl === undefined ? undefined : (url: string) => raceWithSignal(cfg.assertUrl!(url), scope.signal)
   const start = Date.now()
   const trace: ResilientOutcome['trace'] = []
   const chain: string[] = [initialUrl]
@@ -189,33 +192,39 @@ export async function resilientFetch(
   let attemptCount = 0
   let retriesLeft = cfg.maxRetries
   let retryIndex = 0
-  const wait = hooks.sleep ?? sleep
+  const wait = (ms: number) => hooks.sleep ? raceWithSignal(hooks.sleep(ms), scope.signal) : abortableSleep(ms, scope.signal)
   const random = hooks.random ?? Math.random
   const now = hooks.now ?? Date.now
 
-  const blocked = await guardUrl(current, cfg.assertUrl, 0, current, chain, requestCount, attemptCount, trace)
+  try {
+  throwIfExecutionStopped(scope)
+  const blocked = await guardUrl(current, assertUrl, 0, current, chain, requestCount, attemptCount, trace)
+  throwIfExecutionStopped(scope)
   if (blocked !== null) return blocked
 
   // Outer loop: logical attempts. A 503 with retries left re-enters here.
   for (;;) {
+    throwIfExecutionStopped(scope)
     attemptCount++
     const seen = new Set<string>([current])
     let hops = 0
 
     // Inner loop: one attempt's redirect chain.
     for (;;) {
+      throwIfExecutionStopped(scope)
       requestCount++
       const at = Date.now() - start
       let response: ResilientResponseLike
       try {
-        response = await fetcher(current, {
-          headersTimeoutMs: cfg.headersTimeoutMs,
-          bodyTimeoutMs: cfg.bodyTimeoutMs,
-        })
+        response = await raceWithSignal(fetcher(current, {
+          headersTimeoutMs: remainingTimeout(scope, cfg.headersTimeoutMs),
+          bodyTimeoutMs: remainingTimeout(scope, cfg.bodyTimeoutMs),
+          signal: scope.signal,
+        }), scope.signal)
       } catch (err) {
         const name = err instanceof Error ? err.name : ''
         const reason: ResilientFailureReason =
-          name === 'HeadersTimeoutError' || name === 'BodyTimeoutError'
+          scope.signal.aborted || name === 'AbortError' || name === 'TimeoutError' || name === 'HeadersTimeoutError' || name === 'BodyTimeoutError'
             ? 'timeout'
             : name === 'SsrfDeniedError'
               ? 'policy_denied'
@@ -234,6 +243,10 @@ export async function resilientFetch(
       }
 
       trace.push({ at, event: 'request_complete', detail: { status: response.status } })
+      if (response.status === 429 || response.status === 503) {
+        const delay = parseRetryAfterMs(response.headers.get('retry-after'), now())
+        if (delay !== null) cfg.onRetryAfter?.(current, now() + delay)
+      }
 
       // Redirect handling.
       if (response.status >= 300 && response.status < 400 && response.status !== 304) {
@@ -295,7 +308,8 @@ export async function resilientFetch(
         }
         hops++
         seen.add(next)
-        const hopDenied = await guardUrl(next, cfg.assertUrl, at, current, chain, requestCount, attemptCount, trace)
+        const hopDenied = await guardUrl(next, assertUrl, at, current, chain, requestCount, attemptCount, trace)
+        throwIfExecutionStopped(scope)
         if (hopDenied !== null) return { ...hopDenied, status: response.status, headers: response.headers }
         chain.push(next)
         trace.push({ at, event: 'redirect', detail: { from: current, to: next, status: response.status } })
@@ -311,10 +325,13 @@ export async function resilientFetch(
         const parsed = parseRetryAfterMs(response.headers.get('retry-after'), now())
         const backoff = cfg.retryBackoffBaseMs * 2 ** retryIndex
         const jitter = Math.floor(Math.max(0, cfg.retryJitterMs) * Math.max(0, Math.min(1, random())))
-        // A server-provided Retry-After is authoritative up to our safety cap;
-        // absent/invalid values use bounded exponential backoff with jitter.
-        const requestedDelay = parsed ?? backoff + jitter
-        const delayMs = Math.min(requestedDelay, cfg.retryAfterCapMs)
+        // Server timing is authoritative; only fallback backoff has a local cap.
+        const delayMs = parsed ?? Math.min(backoff + jitter, cfg.retryAfterCapMs)
+        const retryAt = now() + delayMs
+        if (cfg.deadlineAt !== undefined && retryAt >= cfg.deadlineAt) {
+          trace.push({ at, event: 'retry_deferred', detail: { retryAt, delayMs, status: response.status } })
+          return { kind: 'failure', status: response.status, failureReason: 'timeout', retryAt, finalUrl: current, ...emptyOutcomeFields(chain, requestCount, attemptCount, trace), headers: response.headers }
+        }
         retryIndex++
         trace.push({
           at,
@@ -335,9 +352,17 @@ export async function resilientFetch(
         requestCount,
         attemptCount,
         headers: response.headers,
-        bodyText: () => response.bodyText(),
+        bodyText: async () => {
+          const bodyScope = createExecutionScope(cfg)
+          try { throwIfExecutionStopped(bodyScope); return await raceWithSignal(response.bodyText(), bodyScope.signal) } finally { bodyScope.dispose() }
+        },
         trace,
       }
     }
   }
+  } catch (error) {
+    if (!scope.signal.aborted && !(error instanceof Error && error.name === 'TimeoutError')) throw error
+    trace.push({ at: Date.now() - start, event: 'execution_stopped' })
+    return { kind: 'failure', status: null, failureReason: 'timeout', finalUrl: current, ...emptyOutcomeFields(chain, requestCount, attemptCount, trace), headers: null }
+  } finally { scope.dispose() }
 }

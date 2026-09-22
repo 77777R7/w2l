@@ -6,7 +6,7 @@
  */
 
 import type { CrawlMode } from './compliance.js'
-import type { CrawlReport } from './crawl.js'
+import type { CrawlError, CrawlPage, CrawlPageList, CrawlReport } from './crawl.js'
 import type { FetchResult, LadderRunAudit } from './result.js'
 
 export const CRAWL_MODES = ['research', 'standard', 'authed'] as const
@@ -34,6 +34,13 @@ export interface CrawlAccepted {
 }
 
 export type CrawlStatusResponse = CrawlReport
+export interface CrawlPageQuery {
+  attemptId?: string
+  cursor?: string
+  limit?: number
+}
+export type CrawlPagesResponse = CrawlPageList<CrawlPage>
+export type CrawlErrorsResponse = CrawlPageList<CrawlError>
 
 export function isApiCrawlMode(value: string): value is ApiCrawlMode {
   return (CRAWL_MODES as readonly string[]).includes(value)
@@ -120,4 +127,15 @@ export function parseCrawlStartRequest(body: unknown): CrawlStartRequest {
     useCached,
     allowlistedDomains: readAllowlist(rec.allowlistedDomains),
   }
+}
+
+export function parseCrawlPageQuery(query: Record<string, string | undefined>): CrawlPageQuery {
+  const limitValue = query.limit
+  const limit = limitValue === undefined ? undefined : Number(limitValue)
+  if (limit !== undefined && (!Number.isInteger(limit) || limit < 1 || limit > 1000)) {
+    throw new RequestError('limit must be an integer between 1 and 1000')
+  }
+  if (query.cursor !== undefined && query.cursor.length === 0) throw new RequestError('cursor must not be empty')
+  if (query.attemptId !== undefined && query.attemptId.length === 0) throw new RequestError('attemptId must not be empty')
+  return { cursor: query.cursor, limit, attemptId: query.attemptId }
 }

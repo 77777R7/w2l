@@ -8,6 +8,7 @@ export {
   FIRECRAWL_SHIM_DIFFS,
   FIRECRAWL_SHIM_SNAPSHOT,
   parseCrawlStartRequest,
+  parseCrawlPageQuery,
   parseFirecrawlCrawlRequest,
   parseFirecrawlScrapeRequest,
   parseScrapeRequest,

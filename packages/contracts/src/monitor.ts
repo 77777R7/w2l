@@ -32,6 +32,8 @@ export interface DocumentMonitorConfig {
   schemaVersion: string
   fields: MonitorFieldRule[]
   conditionalRequests: boolean
+  /** Acquisition capability is independent of transport caching. Defaults to ladder. */
+  captureMode?: 'http' | 'ladder'
 }
 export type DocumentField = keyof DocumentFields
 export interface FieldEvidence {
@@ -68,12 +70,13 @@ export interface MonitorRun {
   monitorId: string
   revision: number
   triggerKey: string
-  state: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled'
+  state: 'queued' | 'running' | 'waiting_retry' | 'completed' | 'failed' | 'cancelled' | 'expired'
   epoch: number
   fencingToken: number
   attemptId: string | null
   leaseUntil: number | null
   deadlineAt: number | null
+  nextAttemptAt?: number | null
   expectedBaselineId: string | null
   createdAt: number
   endedAt: number | null
@@ -137,6 +140,7 @@ export interface MonitorView {
 }
 
 export interface TransportRepresentation {
+  bodySha256?: string
   key: string
   url: string
   etag: string | null

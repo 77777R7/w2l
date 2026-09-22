@@ -1,0 +1,211 @@
+{
+  "recordKind": "sanitized-copy-of-existing-agent-run",
+  "sourceRecordSha256": "2df95a54072a10eff374f91cd26d612accbf9c55e11e25166127f9a37066ac06",
+  "startedAt": "2026-09-22T10:07:45.010410+00:00",
+  "endedAt": "2026-09-22T10:07:52.170005+00:00",
+  "performedBy": "Codex agent",
+  "independentHumanAcceptance": "pending",
+  "passed": true,
+  "source": {
+    "baseSha": "e28500b09116eb5931305e8638d9d5cc704a8205",
+    "branch": "codex/gate2-delivery-sdk",
+    "sourceFiles": 346,
+    "manifestVerified": true,
+    "archiveName": "w2l-review-source.tar.gz",
+    "archiveSha256": "b86534484ec8e24025fc634e158332bbdbce3e5299ce4b122ecbd95b8551096c",
+    "manifestSha256": "a062d689b69df7e2a3a04346937e69be18b24ece27c6402eb2fef07551df3284",
+    "snapshotState": "uncommitted working tree at time of capture"
+  },
+  "environment": {
+    "nodeVersion": "v26.8.1",
+    "npmVersion": "11.19.0"
+  },
+  "commands": [
+    {
+      "label": "npm-ci",
+      "args": [
+        "npm",
+        "ci"
+      ],
+      "exitCode": 0,
+      "seconds": 1.873
+    },
+    {
+      "label": "typecheck",
+      "args": [
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "exitCode": 0,
+      "seconds": 1.662
+    },
+    {
+      "label": "tests",
+      "args": [
+        "npx",
+        "vitest",
+        "run",
+        "packages/sdk/test/client.test.ts",
+        "packages/api/test/monitorReliability.test.ts",
+        "packages/api/test/delivery.test.ts",
+        "packages/api/test/deliveryRegistration.test.ts"
+      ],
+      "exitCode": 0,
+      "seconds": 1.73
+    },
+    {
+      "label": "price-initial",
+      "args": [
+        "node",
+        "--import",
+        "tsx",
+        "examples/monitor-workflow.ts",
+        "price",
+        "10.00"
+      ],
+      "exitCode": 0,
+      "seconds": 0.051
+    },
+    {
+      "label": "monitor-setup",
+      "args": [
+        "node",
+        "--import",
+        "tsx",
+        "examples/monitor-workflow.ts",
+        "setup"
+      ],
+      "exitCode": 0,
+      "seconds": 0.074
+    },
+    {
+      "label": "monitor-initialized",
+      "args": [
+        "node",
+        "--import",
+        "tsx",
+        "examples/monitor-workflow.ts",
+        "run"
+      ],
+      "exitCode": 0,
+      "seconds": 0.073
+    },
+    {
+      "label": "monitor-unchanged",
+      "args": [
+        "node",
+        "--import",
+        "tsx",
+        "examples/monitor-workflow.ts",
+        "run"
+      ],
+      "exitCode": 0,
+      "seconds": 0.06
+    },
+    {
+      "label": "price-change",
+      "args": [
+        "node",
+        "--import",
+        "tsx",
+        "examples/monitor-workflow.ts",
+        "price",
+        "12.00"
+      ],
+      "exitCode": 0,
+      "seconds": 0.05
+    },
+    {
+      "label": "monitor-changed",
+      "args": [
+        "node",
+        "--import",
+        "tsx",
+        "examples/monitor-workflow.ts",
+        "run"
+      ],
+      "exitCode": 0,
+      "seconds": 0.061
+    },
+    {
+      "label": "crawl",
+      "args": [
+        "node",
+        "--import",
+        "tsx",
+        "--input-type=module"
+      ],
+      "exitCode": 0,
+      "seconds": 0.122
+    },
+    {
+      "label": "restart-delivery",
+      "args": [
+        "node",
+        "--import",
+        "tsx",
+        "--input-type=module"
+      ],
+      "exitCode": 0,
+      "seconds": 0.074
+    }
+  ],
+  "focusedTests": {
+    "files": 4,
+    "tests": 22,
+    "logSha256": "ef5cde55ce427f7655b91934fd604ca7b0a88b7add98cd26a7e1afa91881b854"
+  },
+  "sdkWorkflow": {
+    "baselineVersions": [
+      1,
+      1,
+      2
+    ],
+    "changes": [
+      "initialized",
+      "unchanged",
+      "changed"
+    ],
+    "source304Observed": true,
+    "eventIds": [
+      "9096bcf7-9c78-4971-9db9-8c5f9802debd",
+      "dc360b67-8b89-43fa-82d8-0262a8e4ed9e"
+    ],
+    "crawl": {
+      "taskId": "4521fc55-c961-497c-9f7f-3c0565bbc769",
+      "status": "completed",
+      "pages": 1,
+      "markdownRetrieved": true,
+      "errors": 0
+    },
+    "restartAndDelivery": {
+      "baselineVersion": 2,
+      "eventIds": [
+        "9096bcf7-9c78-4971-9db9-8c5f9802debd",
+        "dc360b67-8b89-43fa-82d8-0262a8e4ed9e"
+      ],
+      "deliveries": 2,
+      "deliveryDetailRead": true,
+      "externalSending": false
+    }
+  },
+  "temporaryCheckoutRemoved": true,
+  "relatedFullRegression": {
+    "startedAt": "2026-09-22T18:06:34+08:00",
+    "files": 79,
+    "tests": 925,
+    "logSha256": "6446b73585c76ce983481d403065acb8f255fe8511a5d988bd7b2f6bed971289",
+    "scope": "Frozen working tree before archive extraction; not rerun by this evidence export"
+  },
+  "redactions": [
+    "Absolute repository and temporary checkout paths omitted",
+    "Local-only command log paths omitted; original logs remain beside the source archive"
+  ],
+  "limits": [
+    "Agent clean installation does not satisfy independent human onboarding",
+    "This installation smoke did not send a public webhook; public HTTPS evidence is recorded separately",
+    "Chromium installation was not rerun in this installation smoke",
+    "Original timestamps and outcomes are preserved; this export is not a new test run"
+  ]
+}

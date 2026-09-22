@@ -18,6 +18,9 @@ import {
   defaultApiMode,
   localNetworkPolicy,
   type CrawlAccepted,
+  type CrawlError,
+  type CrawlPage,
+  type CrawlPageList,
   type CrawlReport,
   type CrawlStartRequest,
   type FetchResult,
@@ -26,11 +29,18 @@ import {
   type StepRecord,
   type Task,
   type LadderRunAudit,
+  type CrawlPageQuery,
+  type ExecutionContext,
+  type DeliveryDestinationInput,
+  type DeliveryDestination,
+  type DeliveryQuery,
+  type WebhookDelivery,
+  type DeliveryDetail,
 } from '@w2l/contracts'
-import type { CrawlPolicy } from '@w2l/http-core'
-import { CrawlOrchestrator, crawlReportFromStore, SqliteTaskStore } from '@w2l/runtime'
+import { createExecutionScope, type CrawlPolicy } from '@w2l/http-core'
+import { CrawlOrchestrator, crawlReportFromStore, SqliteTaskStore, type StepPageQuery } from '@w2l/runtime'
 import { initializeFirecrawlMonitor, runFirecrawlMonitor as executeMonitor, runConfiguredMonitor } from '@w2l/runtime'
-import { MonitorStore } from '@w2l/runtime'
+import { MonitorStore, DeliveryStore } from '@w2l/runtime'
 import { FileSessionBrokerStore, SessionBroker } from '@w2l/bench'
 import { FIRECRAWL_INTRO_URL, FIRECRAWL_MONITOR_ID, type MonitorView, type MonitorRevision } from '@w2l/contracts'
 import type { ManagedSessionRef, SessionAccessResult } from '@w2l/contracts'
@@ -41,16 +51,27 @@ export interface CrawlWithSteps {
 }
 
 export interface ApiEngine {
-  scrape(req: ScrapeRequest): Promise<FetchResult & LadderRunAudit>
+  scrape(req: ScrapeRequest, context?: ExecutionContext): Promise<FetchResult & LadderRunAudit>
   startCrawl(req: CrawlStartRequest): Promise<CrawlAccepted>
   getCrawl(taskId: string): Promise<CrawlReport | null>
   getCrawlWithSteps(taskId: string): Promise<CrawlWithSteps | null>
-  runFirecrawlMonitor(triggerKey?: string): Promise<MonitorView>
+  getCrawlPages(taskId: string, query?: CrawlPageQuery): Promise<CrawlPageList<CrawlPage> | null>
+  getCrawlErrors(taskId: string, query?: CrawlPageQuery): Promise<CrawlPageList<CrawlError> | null>
+  cancelCrawl(taskId: string): Promise<CrawlReport | null>
+  runFirecrawlMonitor(triggerKey?: string, context?: ExecutionContext): Promise<MonitorView>
   getFirecrawlMonitor(): Promise<MonitorView>
   configureMonitor(revision: MonitorRevision): MonitorRevision
   getMonitor(id: string): MonitorView | null
   listMonitors(): MonitorView[]
-  runMonitor(id: string, triggerKey?: string): Promise<MonitorView>
+  runMonitor(id: string, triggerKey?: string, context?: ExecutionContext): Promise<MonitorView>
+  cancelMonitorRun(id: string, runId: string): MonitorView
+  setMonitorEnabled(id: string, enabled: boolean): MonitorView
+  createDeliveryDestination(input: DeliveryDestinationInput): DeliveryDestination
+  listDeliveryDestinations(monitorId?: string): DeliveryDestination[]
+  setDeliveryDestinationEnabled(id: string, enabled: boolean): DeliveryDestination
+  listDeliveries(query?: DeliveryQuery): WebhookDelivery[]
+  getDelivery(id: string): DeliveryDetail | null
+  retryDelivery(id: string): WebhookDelivery
   createManagedSession(input: { workspaceId: string; accountRef: string; originScope: string; expiresAt?: string | null }): Promise<ManagedSessionRef>
   authorizeManagedSession(sessionRef: string, accountRef: string): Promise<ManagedSessionRef>
   revokeManagedSession(sessionRef: string): Promise<void>
@@ -58,11 +79,13 @@ export interface ApiEngine {
   renewManagedSession(sessionRef: string, expiresAt?: string | null): Promise<ManagedSessionRef>
   requestManagedHandoff(sessionRef: string, reason: string, expiresAt?: string | null): Promise<ManagedSessionRef>
   captureManagedSession(input: { sessionRef: string; workspaceId: string; accountRef: string; url: string }): Promise<FetchResult | SessionAccessResult>
-  close(): Promise<void>
+  close(options?: {cancelActive?: boolean}): Promise<void>
 }
 
 export interface ApiEngineOptions {
   taskRoot?: string
+  monitorLeaseMs?: number
+  monitorAttemptTimeoutMs?: number
   headed?: boolean
   networkPolicy?: NetworkPolicy
   /** Hosted crawl default when the request omits maxPages. Local stays unbounded. */
@@ -77,7 +100,10 @@ export interface ApiEngineOptions {
 
 export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
   const taskRoot = options.taskRoot ?? '.w2l/api'
-  const monitorStore = MonitorStore.open(join(taskRoot, 'section-b-control.sqlite'))
+  const monitorStore = MonitorStore.open(join(taskRoot, 'section-b-control.sqlite'), {leaseMs: options.monitorLeaseMs, attemptTimeoutMs: options.monitorAttemptTimeoutMs})
+  const deliveryStore = DeliveryStore.open(join(taskRoot, 'section-b-control.sqlite'))
+  const shutdownController = new AbortController()
+  const monitorControllers = new Map<string, Set<AbortController>>()
   const sessionBroker = new SessionBroker(new FileSessionBrokerStore(join(taskRoot, 'b3-sessions.json')))
   const headed = options.headed === true
   const networkPolicy = options.networkPolicy ?? localNetworkPolicy()
@@ -85,6 +111,7 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
   const defaultMaxPages = options.defaultMaxPages ?? null
   const inflight = new Map<string, Promise<void>>()
   const activeScrapes = new Set<Promise<unknown>>()
+  const crawlControllers = new Map<string, AbortController>()
   const createChannels =
     options.channelsFor ??
     ((mode: 'standard' | 'research' | 'authed') => buildChannels(mode, { headed, networkPolicy }))
@@ -119,8 +146,31 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
     }
   }
 
+  async function loadCrawlPageList(taskId: string, query: CrawlPageQuery | undefined, kind: StepPageQuery['kind']): Promise<CrawlPageList<CrawlPage> | null> {
+    if (!existsSync(join(taskRoot, taskId))) return null
+    const store = SqliteTaskStore.openReadOnly(join(taskRoot, taskId))
+    try {
+      const report = await crawlReportFromStore(store, taskId)
+      if (report === null) return null
+      const page = await store.listStepsPage(taskId, {
+        attemptId: query?.attemptId ?? (report.attemptId.length > 0 ? report.attemptId : undefined),
+        cursor: query?.cursor,
+        limit: query?.limit ?? 50,
+        kind,
+      })
+      return {
+        items: page.steps.map((step) => toCrawlPage(step)),
+        nextCursor: page.nextCursor,
+        hasMore: page.hasMore,
+      }
+    } finally {
+      await store.close()
+    }
+  }
+
   return {
-    async scrape(req) {
+    async scrape(req, context = {}) {
+      const scope = createExecutionScope({...context, signal: context.signal ? AbortSignal.any([context.signal, shutdownController.signal]) : shutdownController.signal, deadlineAt: context.deadlineAt ?? Date.now() + 300_000})
       const mode = defaultApiMode(req.mode)
       const channels = channelsFor(mode)
       const policy: CrawlPolicy = {
@@ -131,7 +181,7 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
       }
       const runner = new LadderRunner(channels, policy, historyFor(mode))
       const operation = (async () => {
-        const run = await runner.run(req.url)
+        const run = await runner.run(req.url, undefined, scope)
         return {
           ...run.result,
           channelsTried: run.channelsTried,
@@ -140,7 +190,7 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
         }
       })()
       activeScrapes.add(operation)
-      try { return await operation } finally { activeScrapes.delete(operation) }
+      try { return await operation } finally { activeScrapes.delete(operation); scope.dispose() }
     },
 
     async startCrawl(req) {
@@ -183,6 +233,12 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
         perHostConcurrency: options.perHostConcurrency,
         perHostMinDelayMs: options.perHostMinDelayMs,
         crawlDelayMsByHost: options.crawlDelayMsByHost,
+        shutdownSignal: shutdownController.signal,
+        signal: (() => {
+          const controller = new AbortController()
+          crawlControllers.set(taskId, controller)
+          return controller.signal
+        })(),
       })
       const job = orchestrator
         .run({
@@ -198,10 +254,12 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
         })
         .then(async () => {
           inflight.delete(taskId)
+          crawlControllers.delete(taskId)
            await store.close()
         })
         .catch(async () => {
           inflight.delete(taskId)
+          crawlControllers.delete(taskId)
           await markCrawlFailed(store, taskId)
            await store.close()
         })
@@ -216,37 +274,84 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
 
     getCrawlWithSteps: loadCrawlWithSteps,
 
-    async runFirecrawlMonitor(triggerKey) {
-      const operation = executeMonitor(monitorStore, async () => {
-        const result = await this.scrape({ url: FIRECRAWL_INTRO_URL })
-        return { result, links: result.links ?? [], audit: { channelsTried: result.channelsTried, ladderTrace: result.ladderTrace, summary: result.summary } }
-      }, triggerKey)
-      activeScrapes.add(operation)
-      try { return await operation } finally { activeScrapes.delete(operation) }
+    getCrawlPages: (taskId, query) => loadCrawlPageList(taskId, query, 'pages'),
+
+    getCrawlErrors: async (taskId, query) => {
+      const page = await loadCrawlPageList(taskId, query, 'errors')
+      if (page === null) return null
+      return page
     },
 
+    async cancelCrawl(taskId) {
+      if (!existsSync(join(taskRoot, taskId))) return null
+      const store = SqliteTaskStore.open(join(taskRoot, taskId))
+      try {
+        const task = await store.getTask(taskId)
+        if (task === null) return null
+        if (task.status === 'pending' || task.status === 'running' || task.status === 'paused') {
+          const now = new Date().toISOString()
+          await store.putTask({ ...task, status: 'cancelled', updatedAt: now })
+          const attempts = await store.listAttempts(taskId)
+          const latest = attempts[attempts.length - 1]
+          if (latest?.status === 'running') await store.putAttempt({ ...latest, status: 'cancelled', endedAt: now })
+          crawlControllers.get(taskId)?.abort()
+        }
+      } finally {
+        await store.close()
+      }
+      return (await loadCrawlWithSteps(taskId))?.report ?? null
+    },
+
+    async runFirecrawlMonitor(triggerKey, context) {
+      initializeFirecrawlMonitor(monitorStore)
+      return this.runMonitor(FIRECRAWL_MONITOR_ID, triggerKey, context)
+    },
     async getFirecrawlMonitor() {
       initializeFirecrawlMonitor(monitorStore)
       return monitorStore.view(FIRECRAWL_MONITOR_ID, Date.now())
     },
-
     configureMonitor(revision) { return monitorStore.createOrGetRevision(revision) },
     getMonitor(id) { return monitorStore.hasMonitor(id) ? monitorStore.view(id, Date.now()) : null },
     listMonitors() { return monitorStore.listMonitorIds().map((id) => monitorStore.view(id, Date.now())) },
-    async runMonitor(id, triggerKey) {
+    async runMonitor(id, triggerKey, context = {}) {
       const revision = monitorStore.getRevision(id)
-      const operation = runConfiguredMonitor(monitorStore, revision, async (validators) => {
-        if (revision.config?.conditionalRequests) {
-          const fetchConditional = conditionalHttp.fetch as unknown as (url: string, deadline?: number, signal?: AbortSignal, validators?: { etag?: string; lastModified?: string }) => Promise<FetchResult>
-          const result = await fetchConditional.call(conditionalHttp, revision.url, undefined, validators.signal, validators)
-          return { result, links: result.links ?? [] }
+      const controller = new AbortController()
+      const controllers = monitorControllers.get(id) ?? new Set<AbortController>()
+      controllers.add(controller); monitorControllers.set(id, controllers)
+      const signal = AbortSignal.any([controller.signal, shutdownController.signal, ...(context.signal ? [context.signal] : [])])
+      const operation = runConfiguredMonitor(monitorStore, revision, async (capture) => {
+        if (capture.captureMode === 'http') {
+          const result = await conditionalHttp.fetch(revision.url, capture.deadlineAt, capture.signal, capture, capture.onRetryAfter)
+          return {result, links: result.links ?? []}
         }
-        const result = await this.scrape({ url: revision.url })
-        return { result, links: result.links ?? [], audit: { channelsTried: result.channelsTried, ladderTrace: result.ladderTrace, summary: result.summary } }
-      }, triggerKey)
+        const result = await this.scrape({url: revision.url}, capture)
+        return {result, links: result.links ?? [], audit: {channelsTried: result.channelsTried, ladderTrace: result.ladderTrace, summary: result.summary}}
+      }, triggerKey, {...context, signal})
       activeScrapes.add(operation)
-      try { return await operation } finally { activeScrapes.delete(operation) }
+      try { return await operation } finally {
+        activeScrapes.delete(operation); controllers.delete(controller)
+        if (!controllers.size) monitorControllers.delete(id)
+      }
     },
+    cancelMonitorRun(id, runId) {
+      const view = monitorStore.cancel(id, runId)
+      // Only abort live work when the cancelled run is the currently active one.
+      if (!view.runs.some(run => run.state === 'running')) for (const controller of monitorControllers.get(id) ?? []) controller.abort()
+      return view
+    },
+    setMonitorEnabled(id, enabled) {
+      const view = monitorStore.setEnabled(id, enabled)
+      if (!enabled) for (const controller of monitorControllers.get(id) ?? []) controller.abort()
+      return view
+    },
+    createDeliveryDestination(input) {
+      return monitorStore.registerDestination(input)
+    },
+    listDeliveryDestinations: (id) => deliveryStore.listDestinations(id),
+    setDeliveryDestinationEnabled: (id, enabled) => deliveryStore.setDestinationEnabled(id, enabled),
+    listDeliveries: (query) => deliveryStore.listDeliveries(query),
+    getDelivery(id) { const delivery = deliveryStore.getDelivery(id); return delivery ? {delivery, attempts: deliveryStore.attempts(id)} : null },
+    retryDelivery: (id) => deliveryStore.replayDeadLetter(id),
 
     async createManagedSession(input) {
       const profileDir = join(taskRoot, 'profiles', crypto.randomUUID())
@@ -275,13 +380,41 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
       try { return await subject.fetch(input.url) } finally { await subject.teardown() }
     },
 
-    async close() {
+    async close(options = {}) {
+      if (options.cancelActive) {
+        shutdownController.abort(new DOMException('service shutdown', 'ShutdownError'))
+      }
       await Promise.all([...inflight.values()].map((job) => job.catch(() => {})))
       await Promise.all([...activeScrapes].map((job) => job.catch(() => {})))
       await Promise.all([...channelsByMode.values()].flatMap((channels) => channels.map((channel) => channel.close?.().catch(() => {}))))
       channelsByMode.clear()
+      crawlControllers.clear()
       monitorStore.close()
+      deliveryStore.close()
     },
+  }
+}
+
+function toCrawlPage(step: StepRecord): CrawlPage {
+  const result = step.result
+  return {
+    id: step.id,
+    url: step.url,
+    canonicalUrl: step.canonicalUrl,
+    depth: step.depth,
+    status: step.status,
+    lane: step.lane,
+    markdown: result?.markdown ?? null,
+    failureReason: result?.failureReason ?? null,
+    blockReason: result?.blockReason ?? null,
+    budgetExceeded: result?.budgetExceeded ?? null,
+    evidence: result?.evidence ?? null,
+    trace: result?.trace ?? [],
+    audit: step.audit,
+    cached: step.cached,
+    contentHash: step.contentHash,
+    createdAt: step.createdAt,
+    updatedAt: step.updatedAt,
   }
 }
 

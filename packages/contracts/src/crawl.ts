@@ -5,10 +5,12 @@
  * Types only — no I/O.
  */
 
-import type { CrawlBudget, TaskStatus } from './checkpoint.js'
+import type { CrawlBudget, StepStatus, TaskStatus } from './checkpoint.js'
 import type { CrawlMode } from './compliance.js'
-import type { FetchResult, LadderRunAudit } from './result.js'
+import type { Evidence, FetchResult, LadderRunAudit, TraceEvent } from './result.js'
+import type { Lane } from './status.js'
 import type { BudgetKind } from './status.js'
+import type { ExecutionContext } from './execution.js'
 
 export interface ScrapeOutcome {
   result: FetchResult
@@ -22,7 +24,7 @@ export interface ScrapeOutcome {
  * implementation; Phase 4 tests inject a fake.
  */
 export interface ScrapeAtom {
-  scrape(url: string): Promise<ScrapeOutcome>
+  scrape(url: string, context?: ExecutionContext): Promise<ScrapeOutcome>
   close(): Promise<void>
 }
 
@@ -53,6 +55,37 @@ export interface CrawlReport {
   contentTokens: number | null
   contentTokensUnknown?: boolean
 }
+
+export interface CrawlPage {
+  id: string
+  url: string
+  canonicalUrl: string
+  depth: number
+  status: StepStatus
+  lane: Lane | null
+  markdown: string | null
+  failureReason: string | null
+  blockReason: string | null
+  budgetExceeded: BudgetKind | null
+  evidence: Evidence | null
+  trace: readonly TraceEvent[]
+  audit?: LadderRunAudit
+  cached: boolean
+  contentHash: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CrawlError extends CrawlPage {
+  trace: readonly TraceEvent[]
+}
+
+export interface CrawlPageList<T> {
+  items: readonly T[]
+  nextCursor: string | null
+  hasMore: boolean
+}
+
 
 export const DEFAULT_CRAWL_SPEC: Omit<CrawlSpec, 'seedUrl' | 'taskDir'> = {
   mode: 'standard',

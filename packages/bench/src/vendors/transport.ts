@@ -1,3 +1,4 @@
+import { createExecutionScope, throwIfExecutionStopped } from '@w2l/http-core'
 /**
  * Shared CDP-vendor transport: one vendor session per run, the vendor's own
  * default context, and the vendor's own identity — measured, not asserted.
@@ -84,8 +85,8 @@ export interface VendorOps {
   secrets: readonly string[]
   /** The policy decision this ops instance obeys (three-layer split). */
   decision: PolicyDecision
-  createSession(resume?: VendorResumeContext | null, deadlineMs?: number): Promise<VendorSession>
-  releaseSession(sessionId: string, deadlineMs?: number): Promise<void>
+  createSession(resume?: VendorResumeContext | null, deadlineMs?: number, signal?: AbortSignal): Promise<VendorSession>
+  releaseSession(sessionId: string, deadlineMs?: number, signal?: AbortSignal): Promise<void>
   /**
    * Establish first-use persistence, when the policy authorized
    * session_persistence and no saved resume context exists yet: Browserbase
@@ -93,7 +94,7 @@ export interface VendorOps {
    * profile is created so a later response can persist it. Returns resume
    * material, or null when the vendor has no such operation.
    */
-  ensurePersistence?(deadlineMs?: number): Promise<VendorResumeContext | null>
+  ensurePersistence?(deadlineMs?: number, signal?: AbortSignal): Promise<VendorResumeContext | null>
 }
 
 interface LiveSession {
@@ -130,11 +131,17 @@ export class CdpVendorTransport implements ProviderTransport {
    * for reuse: paying for a throwaway probe session would double the price of
    * being honest.
    */
-  async resolveUserAgent(deadlineMs?: number): Promise<string> {
+  async resolveUserAgent(deadlineMs?: number, signal?: AbortSignal): Promise<string> {
+    const scope = createExecutionScope({ signal, deadlineAt: deadlineMs })
+    try { return await this.resolveWithinBudget(deadlineMs, scope.signal) } finally { scope.dispose() }
+  }
+
+  private async resolveWithinBudget(deadlineMs?: number, signal?: AbortSignal): Promise<string> {
+    throwIfExecutionStopped({ signal, deadlineAt: deadlineMs })
     if (this.declaredUserAgent !== null) return this.declaredUserAgent
-    const { browser } = await this.ensureSession(deadlineMs)
+    const { browser } = await this.ensureSession(deadlineMs, signal)
     try {
-      const ua = await measureUserAgent(browser)
+      const ua = await measureUserAgent(browser, deadlineMs, signal)
       this.declaredUserAgent = ua
       return ua
     } catch (err) {
@@ -143,11 +150,16 @@ export class CdpVendorTransport implements ProviderTransport {
     }
   }
 
-  async fetch(url: string, deadlineMs?: number): Promise<ProviderResponse> {
-    const declared = await this.resolveUserAgent(deadlineMs)
-    const { browser } = await this.ensureSession(deadlineMs)
+  async fetch(url: string, deadlineMs?: number, signal?: AbortSignal): Promise<ProviderResponse> {
+    const scope = createExecutionScope({ signal, deadlineAt: deadlineMs })
+    try { return await this.fetchWithinBudget(url, deadlineMs, scope.signal) } finally { scope.dispose() }
+  }
+
+  private async fetchWithinBudget(url: string, deadlineMs?: number, signal?: AbortSignal): Promise<ProviderResponse> {
+    const declared = await this.resolveUserAgent(deadlineMs, signal)
+    const { browser } = await this.ensureSession(deadlineMs, signal)
     try {
-      const res = await navigateOnce(browser, url, deadlineMs)
+      const res = await navigateOnce(browser, url, deadlineMs, signal)
       return {
         status: res.status,
         body: res.body,
@@ -179,21 +191,22 @@ export class CdpVendorTransport implements ProviderTransport {
     await this.dropSession()
   }
 
-  private async ensureSession(deadlineMs?: number): Promise<LiveSession> {
+  private async ensureSession(deadlineMs?: number, signal?: AbortSignal): Promise<LiveSession> {
+    throwIfExecutionStopped({ signal, deadlineAt: deadlineMs })
     if (this.live !== null) return this.live
 
     let session: VendorSession
     try {
-      session = await this.ops.createSession(this.resume, deadlineMs)
+      session = await this.ops.createSession(this.resume, deadlineMs, signal)
     } catch (err) {
       throw new Error(this.scrub(err instanceof Error ? err.message : String(err)))
     }
 
     let browser: CdpBrowser
     try {
-      browser = await this.connector(session.connectUrl, deadlineMs)
+      browser = await this.connector(session.connectUrl, deadlineMs, signal)
     } catch (err) {
-      await this.ops.releaseSession(session.sessionId, deadlineMs).catch(() => {})
+      await this.ops.releaseSession(session.sessionId, Date.now() + 5_000).catch(() => {})
       throw new Error(this.scrub(err instanceof Error ? err.message : String(err)))
     }
 
@@ -201,15 +214,15 @@ export class CdpVendorTransport implements ProviderTransport {
       // A reconnect must still be the identity the gate cleared.
       let current: string
       try {
-        current = await measureUserAgent(browser)
+        current = await measureUserAgent(browser, deadlineMs, signal)
       } catch (err) {
         await browser.close().catch(() => {})
-        await this.ops.releaseSession(session.sessionId, deadlineMs).catch(() => {})
+        await this.ops.releaseSession(session.sessionId, Date.now() + 5_000).catch(() => {})
         throw new Error(this.scrub(err instanceof Error ? err.message : String(err)))
       }
       if (current !== this.declaredUserAgent) {
         await browser.close().catch(() => {})
-        await this.ops.releaseSession(session.sessionId, deadlineMs).catch(() => {})
+        await this.ops.releaseSession(session.sessionId, Date.now() + 5_000).catch(() => {})
         throw new Error(
           `${this.ops.vendorId}: session user agent changed from "${this.declaredUserAgent}" to ` +
             `"${current}". The identity the robots gate evaluated is not the identity on offer; ` +
@@ -227,12 +240,12 @@ export class CdpVendorTransport implements ProviderTransport {
     return this.live
   }
 
-  private async dropSession(deadlineMs?: number): Promise<void> {
+  private async dropSession(_deadlineMs?: number): Promise<void> {
     const live = this.live
     this.live = null
     if (live === null) return
     await live.browser.close().catch(() => {})
-    await this.ops.releaseSession(live.sessionId, deadlineMs).catch(() => {})
+    await this.ops.releaseSession(live.sessionId, Date.now() + 5_000).catch(() => {})
   }
 
   private scrub(message: string): string {

@@ -107,7 +107,7 @@ export async function runBenchmark(
 
       let result: FetchResult
       try {
-        result = await Promise.race([subject.fetch(truth.target, caseTimeoutMs, controller.signal), timeoutPromise])
+        result = await Promise.race([subject.fetch(truth.target, Date.now() + caseTimeoutMs, controller.signal), timeoutPromise])
       } finally {
         clearTimeout(timer)
       }

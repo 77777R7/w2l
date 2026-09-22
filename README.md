@@ -33,8 +33,10 @@ Most crawlers report "success" when they return empty pages, challenge screens, 
 
 ## Quick Start
 
+Use Node.js 22.12+ or 24+ and npm. The SDK is currently a private workspace package; build it from this checkout. For the full Monitor → result → HTTPS event → restart workflow, follow [the onboarding guide](docs/onboarding.md) and [independent developer acceptance checklist](docs/independent-developer-acceptance.md).
+
 ```bash
-git clone https://github.com/YOUR_USERNAME/w2l.git
+git clone https://github.com/77777R7/w2l.git
 cd w2l
 npm ci
 npx playwright install chromium
@@ -42,7 +44,15 @@ npm run typecheck
 npm test
 npm run scrape -- https://example.com
 npm run crawl -- https://example.com --max-pages 20
+```
+
+Start each long-running service in its own terminal from the repository root:
+
+```bash
 npm run api
+```
+
+```bash
 npm run mcp
 ```
 
@@ -62,7 +72,29 @@ MCP (Cursor / Claude) talks to the REST server:
 }
 ```
 
-Firecrawl v1 clients: set the base URL to `http://127.0.0.1:8787/fc` so `/v1/scrape` and `/v1/crawl` hit the shim. Snapshot 2026-09-18; known diffs in [docs/firecrawl-shim.md](docs/firecrawl-shim.md). Search / Interact / Agent / Monitor are not implemented.
+Firecrawl v1 clients: set the base URL to `http://127.0.0.1:8787/fc` so `/v1/scrape` and `/v1/crawl` hit the shim. Snapshot 2026-09-18; known diffs in [docs/firecrawl-shim.md](docs/firecrawl-shim.md). Firecrawl Search / Interact / Agent / Monitor compatibility is not implemented. W2L's native Monitor and Delivery APIs use their own contracts.
+
+## Continuous Monitors and event delivery
+
+The native SDK includes Crawl pagination/cancellation, Monitor creation/revisions/runs/control, and Delivery destinations/status/retry. [The runnable example](examples/monitor-workflow.ts) uses a controlled price source, explicit `captureMode`, validated baselines, conditional HTTP requests, and persisted events. [The webhook receiver](examples/webhook-receiver.ts) stores event receipts and applies a versioned product projection transactionally.
+
+The API, Monitor scheduler and delivery worker share a persistent control database. Run the workers in separate terminals with the same `W2L_TASK_ROOT` as the API:
+
+```bash
+export W2L_TASK_ROOT="$PWD/.w2l/api"
+npm run monitors:worker
+```
+
+The Monitor worker defaults to public-source network policy. For the controlled local source in the onboarding example, explicitly set `W2L_MONITOR_NETWORK_MODE=local` in that worker terminal. A locally running worker does not inherit broader network access from the API or database.
+
+```bash
+export W2L_TASK_ROOT="$PWD/.w2l/api"
+npm run delivery:worker
+```
+
+See [onboarding](docs/onboarding.md) for the HTTPS receiver, authentication, worker configuration, and pending-delivery restart exercise. Local working-copy changes require the corresponding review/release revision before a clean clone can reproduce them. Independent human installation remains a separate acceptance item; documentation and automated tests do not mark that gate complete.
+
+The [Gate 2–4 acceptance record](docs/roadmap/gate-2-4-acceptance.md) links the process-crash, concurrent-claim and public HTTPS evidence and distinguishes completed engineering checks from pending human onboarding. `npm run package:handoff` captures the current review source with per-file hashes for installation before publication.
 
 ## Benchmark
 
@@ -97,9 +129,14 @@ packages/
   sdk/             TypeScript client (MIT)
   mcp/             stdio MCP server (MIT)
 
+examples/monitor-workflow.ts       Runnable Monitor + Delivery SDK workflow
+examples/webhook-receiver.ts       Durable idempotent sample receiver
+
 ROADMAP.md                         Current Section A/B/C roadmap
 
 docs/
+  onboarding.md                  Install, Crawl, Monitor, HTTPS events and recovery
+  independent-developer-acceptance.md  Pending human Gate 4 run sheet
   roadmap/section-a-foundation.md  Section A phases and A4 gate
   roadmap/section-b-continuous-data.md  Section B future direction
   roadmap/section-c-delivery.md    Section C future delivery direction
@@ -120,8 +157,8 @@ docs/
 - [x] Honest identity bundle (UA / hints / locale / viewport must agree)
 - [x] `w2l scrape` product CLI (`w2l-fetch` is an alias)
 - [x] `w2l crawl` + SQLite checkpoint resume
-- [x] REST API + TypeScript SDK (`POST /v1/scrape`, `POST /v1/crawl`, `GET /v1/crawl/:id`)
-- [x] MCP server (`scrape`, `crawl`, `get_crawl` over REST)
+- [x] REST API + TypeScript SDK (`POST /v1/scrape`, `POST /v1/crawl`, `GET /v1/crawl/:id`, paginated crawl pages/errors, cancel)
+- [x] MCP server (`scrape`, `crawl`, `get_crawl`, paginated pages/errors, and cancel over REST)
 - [x] Firecrawl `/scrape` `/crawl` migration shim (snapshot 2026-09-18; not a compatibility layer)
 - [x] Task-level ladder accounting, preserved per-channel attempts, and honest unknown cost/evidence fields
 - [x] Bounded multi-page workers, shared host scheduling, conditional browser settling, and runtime resource reuse

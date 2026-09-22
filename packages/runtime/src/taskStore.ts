@@ -8,6 +8,19 @@
 
 import type { Attempt, StepRecord, Task } from '@w2l/contracts'
 
+export type StepPageKind = 'pages' | 'errors'
+export interface StepPageQuery {
+  attemptId?: string
+  cursor?: string
+  limit: number
+  kind: StepPageKind
+}
+export interface StepPage {
+  steps: readonly StepRecord[]
+  nextCursor: string | null
+  hasMore: boolean
+}
+
 export interface TaskStore {
   putTask(task: Task): Promise<void>
   getTask(taskId: string): Promise<Task | null>
@@ -18,6 +31,7 @@ export interface TaskStore {
   putStep(step: StepRecord): Promise<void>
   getStep(stepId: string): Promise<StepRecord | null>
   listSteps(taskId: string, attemptId?: string): Promise<readonly StepRecord[]>
+  listStepsPage(taskId: string, query: StepPageQuery): Promise<StepPage>
   /**
    * Latest step for this canonical URL on the task (any attempt).
    * Resume uses this to decide refetch vs `--use-cached`.
@@ -34,4 +48,18 @@ export function assertId(label: string, value: string): void {
 
 export function cloneJson<T>(value: T): T {
   return structuredClone(value)
+}
+
+export function encodeStepCursor(createdAt: string, id: string): string {
+  return Buffer.from(JSON.stringify({ createdAt, id }), 'utf8').toString('base64url')
+}
+
+export function decodeStepCursor(cursor: string): { createdAt: string; id: string } {
+  try {
+    const value = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')) as { createdAt?: unknown; id?: unknown }
+    if (typeof value.createdAt !== 'string' || typeof value.id !== 'string' || value.id.length === 0) throw new Error()
+    return { createdAt: value.createdAt, id: value.id }
+  } catch {
+    throw new Error('invalid crawl cursor')
+  }
 }

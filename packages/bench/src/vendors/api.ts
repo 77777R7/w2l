@@ -1,3 +1,4 @@
+import { createExecutionScope, throwIfExecutionStopped } from '@w2l/http-core'
 /**
  * The thin HTTP seam every vendor integration goes through.
  *
@@ -15,6 +16,7 @@ export interface VendorApiRequest {
    *  request; passed explicitly so no layer ever reads AbortSignal.timeout's
    *  non-standard property. */
   deadlineMs?: number
+  signal?: AbortSignal
 }
 
 export interface VendorApiResponse {
@@ -27,12 +29,14 @@ export type VendorApi = (req: VendorApiRequest) => Promise<VendorApiResponse>
 export const fetchVendorApi: VendorApi = async (req) => {
   // Remaining budget computed from the deadline, not from any signal
   // property. No deadline = the vendor-call default.
-  const remaining = req.deadlineMs === undefined ? 30_000 : Math.max(1, req.deadlineMs - Date.now())
+  const scope = createExecutionScope({ signal: req.signal, deadlineAt: Math.min(req.deadlineMs ?? Infinity, Date.now() + 30_000) })
+  try {
+  throwIfExecutionStopped(scope)
   const res = await fetch(req.url, {
     method: req.method,
     headers: { 'content-type': 'application/json', ...req.headers },
     body: req.body === undefined ? undefined : JSON.stringify(req.body),
-    signal: AbortSignal.timeout(remaining),
+    signal: scope.signal,
   })
   const text = await res.text()
   let json: unknown = null
@@ -42,6 +46,7 @@ export const fetchVendorApi: VendorApi = async (req) => {
     json = null
   }
   return { status: res.status, json }
+  } finally { scope.dispose() }
 }
 
 /**

@@ -23,7 +23,15 @@
     "scrape": "tsc --build && node --import tsx packages/bench/src/w2lCli.ts scrape",
     "crawl": "tsc --build && node --import tsx packages/bench/src/w2lCli.ts crawl",
     "api": "tsc --build && node --import tsx packages/api/src/cli.ts",
-    "mcp": "tsc --build && node --import tsx packages/mcp/src/stdio.ts"
+    "mcp": "tsc --build && node --import tsx packages/mcp/src/stdio.ts",
+    "monitors:worker": "tsc --build && node --import tsx scripts/section-b/monitor-scheduler.ts",
+    "delivery:worker": "tsc --build && node --import tsx scripts/section-b/delivery-worker.ts",
+    "webhook:receiver": "tsc --build && node --import tsx examples/webhook-receiver.ts",
+    "example:monitor": "tsc --build && node --import tsx examples/monitor-workflow.ts",
+    "gate2:recovery": "tsc --build && node --import tsx scripts/section-b/reliability-evidence.ts",
+    "gate2:claim-race": "tsc --build && node --import tsx scripts/section-b/monitor-claim-race.ts",
+    "gate3:https": "tsc --build && node --import tsx scripts/section-b/https-delivery-evidence.ts",
+    "package:handoff": "node scripts/section-b/package-handoff.mjs"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",

@@ -10,11 +10,19 @@ export { parseListen, parsePort }
 async function main(): Promise<void> {
   const listen = parseListen(process.argv.slice(2), process.env)
   const engine = createApiEngine({
+    taskRoot: process.env.W2L_TASK_ROOT ?? '.w2l/api',
     networkPolicy: listen.networkPolicy,
     defaultMaxPages: listen.defaultMaxPages,
   })
   const app = createApp(engine, { token: listen.token })
-  serve({ fetch: app.fetch, hostname: listen.host, port: listen.port })
+  const server = serve({ fetch: app.fetch, hostname: listen.host, port: listen.port })
+  let stopping = false
+  for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, () => {
+    if (stopping) return
+    stopping = true
+    server.close()
+    void engine.close({cancelActive: true}).catch((error) => { console.error(error); process.exitCode = 1 })
+  })
   console.log(`w2l-api ${listen.mode} listening on http://${listen.host}:${listen.port}`)
 }
 

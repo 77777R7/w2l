@@ -1,0 +1,154 @@
+{
+  "generatedAt": "2026-09-22T10:06:42.376Z",
+  "scope": "controlled source with production HTTP capture, validator and SQLite; real SIGKILL",
+  "root": "/Users/howard07/Documents/ChatGPT/爬虫机会/.w2l/gate2-evidence-1790071595346",
+  "leaseMs": 700,
+  "requests": [
+    {
+      "at": 1790071595801,
+      "url": "/product"
+    },
+    {
+      "at": 1790071596544,
+      "url": "/product"
+    },
+    {
+      "at": 1790071597026,
+      "url": "/product"
+    },
+    {
+      "at": 1790071597757,
+      "url": "/product"
+    },
+    {
+      "at": 1790071598240,
+      "url": "/product"
+    },
+    {
+      "at": 1790071599321,
+      "url": "/product"
+    },
+    {
+      "at": 1790071602369,
+      "url": "/product"
+    }
+  ],
+  "experiments": [
+    {
+      "mode": "capture-in-flight",
+      "killedAt": 1790071595802,
+      "earliestRetryAt": null,
+      "realLeaseWaitMs": 720,
+      "runId": "ca77aedc-fe08-4e95-b067-3d164fade5c2",
+      "oldAttemptId": "006cc1e1-3978-43c9-85be-ba7266ffe85a",
+      "attempts": [
+        {
+          "id": "006cc1e1-3978-43c9-85be-ba7266ffe85a",
+          "runId": "ca77aedc-fe08-4e95-b067-3d164fade5c2",
+          "fencingToken": 1,
+          "state": "interrupted",
+          "startedAt": 1790071595788,
+          "endedAt": 1790071596534,
+          "recoveredFromAttemptId": null
+        },
+        {
+          "id": "5b318398-eec9-4262-b315-f186c16937f3",
+          "runId": "ca77aedc-fe08-4e95-b067-3d164fade5c2",
+          "fencingToken": 2,
+          "state": "succeeded",
+          "startedAt": 1790071596534,
+          "endedAt": 1790071596550,
+          "recoveredFromAttemptId": "006cc1e1-3978-43c9-85be-ba7266ffe85a"
+        }
+      ],
+      "eventId": "c404ae69-8ccd-4797-8b91-0db050a22ebf",
+      "baselineVersion": 1,
+      "passed": true
+    },
+    {
+      "mode": "before-commit",
+      "killedAt": 1790071597034,
+      "earliestRetryAt": null,
+      "realLeaseWaitMs": 710,
+      "runId": "887c674a-ffd6-41dc-811e-ff25e7ace3c3",
+      "oldAttemptId": "7081bb7f-a73b-4692-8623-03ce4d47b76c",
+      "attempts": [
+        {
+          "id": "7081bb7f-a73b-4692-8623-03ce4d47b76c",
+          "runId": "887c674a-ffd6-41dc-811e-ff25e7ace3c3",
+          "fencingToken": 1,
+          "state": "interrupted",
+          "startedAt": 1790071597011,
+          "endedAt": 1790071597754,
+          "recoveredFromAttemptId": null
+        },
+        {
+          "id": "f9941968-7b07-4add-8bc8-008955d370a0",
+          "runId": "887c674a-ffd6-41dc-811e-ff25e7ace3c3",
+          "fencingToken": 2,
+          "state": "succeeded",
+          "startedAt": 1790071597754,
+          "endedAt": 1790071597759,
+          "recoveredFromAttemptId": "7081bb7f-a73b-4692-8623-03ce4d47b76c"
+        }
+      ],
+      "eventId": "2ff8a34c-f778-4ca9-ab53-e17749490811",
+      "baselineVersion": 1,
+      "passed": true
+    },
+    {
+      "mode": "after-commit",
+      "killedAt": 1790071598251,
+      "earliestRetryAt": null,
+      "realLeaseWaitMs": 706,
+      "runId": "b74e0826-4a61-4afc-87ca-1bd7984708b7",
+      "oldAttemptId": "a2ad3d2b-297a-40a7-ae08-8507f65097a0",
+      "attempts": [
+        {
+          "id": "a2ad3d2b-297a-40a7-ae08-8507f65097a0",
+          "runId": "b74e0826-4a61-4afc-87ca-1bd7984708b7",
+          "fencingToken": 1,
+          "state": "succeeded",
+          "startedAt": 1790071598225,
+          "endedAt": 1790071598250,
+          "recoveredFromAttemptId": null
+        }
+      ],
+      "eventId": "98b2d4b3-12b5-4e7d-9aa8-3f6487b42011",
+      "baselineVersion": 1,
+      "passed": true
+    },
+    {
+      "mode": "retry-after-in-flight",
+      "killedAt": 1790071599333,
+      "earliestRetryAt": 1790071602324,
+      "realLeaseWaitMs": 709,
+      "runId": "96b5c778-2912-4236-89f8-f547802f16c0",
+      "oldAttemptId": "5d1cd75b-60be-4f34-94ad-b47f8be0f3a4",
+      "attempts": [
+        {
+          "id": "5d1cd75b-60be-4f34-94ad-b47f8be0f3a4",
+          "runId": "96b5c778-2912-4236-89f8-f547802f16c0",
+          "fencingToken": 1,
+          "state": "interrupted",
+          "startedAt": 1790071599308,
+          "endedAt": 1790071600049,
+          "recoveredFromAttemptId": null
+        },
+        {
+          "id": "64a67919-c8d6-47d9-8723-a7be0a7e75b6",
+          "runId": "96b5c778-2912-4236-89f8-f547802f16c0",
+          "fencingToken": 2,
+          "state": "succeeded",
+          "startedAt": 1790071602364,
+          "endedAt": 1790071602373,
+          "recoveredFromAttemptId": "5d1cd75b-60be-4f34-94ad-b47f8be0f3a4"
+        }
+      ],
+      "eventId": "64d728f7-624d-4e5a-bb37-d00c4bfd28e2",
+      "baselineVersion": 1,
+      "passed": true
+    }
+  ],
+  "passed": true
+}
