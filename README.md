@@ -105,7 +105,7 @@ Run the fixed 10-product, three-round Amazon MCP baseline with:
 npm run baseline:amazon
 ```
 
-Round 1 pins the observed delivery region; later region/currency mismatches are retained but excluded from latency conclusions. Reports are written under ignored `.w2l/amazon-baseline/`; the versioned URL manifest and schema live in `research/`.
+Round 1 pins the observed delivery region; later unobserved or mismatched region/currency records are retained but excluded from latency conclusions. Reports are written under ignored `.w2l/amazon-baseline/`; the versioned URL manifest, schema and latest reviewed summary live in `research/`. See [the 2026-09-22 baseline summary](research/amazon-product-baseline-2026-09-22.md).
 
 Firecrawl v1 clients: set the base URL to `http://127.0.0.1:8787/fc` so `/v1/scrape` and `/v1/crawl` hit the shim. Snapshot 2026-09-18; known diffs in [docs/firecrawl-shim.md](docs/firecrawl-shim.md). Firecrawl Search / Interact / Agent / Monitor compatibility is not implemented. W2L's native Monitor and Delivery APIs use their own contracts.
 
