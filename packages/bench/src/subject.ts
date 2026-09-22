@@ -9,6 +9,7 @@ export interface SubjectAdapter {
 
   /**
    * Execute one case: fetch the target URL and return a FetchResult.
+   * deadlineMs is an absolute epoch-millisecond deadline, shared across all waits.
    * The adapter translates its internal result shape into the canonical contract.
    */
   fetch(url: string, deadlineMs?: number, signal?: AbortSignal): Promise<FetchResult>

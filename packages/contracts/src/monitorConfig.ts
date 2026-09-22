@@ -12,6 +12,9 @@ export function parseMonitorRevision(input: unknown): MonitorRevision {
   if (![r.revision,r.intervalMs,r.staleAfterMs].every((v) => Number.isSafeInteger(v) && v > 0) || !Number.isSafeInteger(r.createdAt) || r.createdAt < 0) return fail()
   const c = r.config
   if (!c || c.adapter !== 'markdown-sections/v1' || c.viewKey !== 'public' || typeof c.conditionalRequests !== 'boolean') return fail()
+  const captureMode = c.captureMode ?? 'ladder'
+  if (captureMode !== 'http' && captureMode !== 'ladder') return fail()
+  if (c.conditionalRequests && captureMode !== 'http') throw new RequestError('conditionalRequests requires explicit captureMode: http; ladder capability is never disabled by caching')
   if (![c.workspaceId,c.entityKey,c.schemaVersion,c.expectedTitle].every((v) => typeof v === 'string' && v.trim().length > 0 && v.length <= 256)) return fail()
   if (!Array.isArray(c.fields) || !c.fields.length || c.fields.length > 50) return fail()
   const names = new Set<string>()
@@ -22,7 +25,7 @@ export function parseMonitorRevision(input: unknown): MonitorRevision {
     names.add(f.name)
     return { name: f.name, heading: f.heading, type: f.type, required: f.required, ...(f.nullMarker === undefined ? {} : {nullMarker:f.nullMarker}), ...(f.redactedMarker === undefined ? {} : {redactedMarker:f.redactedMarker}), ...(f.unit === undefined ? {} : {unit:f.unit}), ...(f.currency === undefined ? {} : {currency:f.currency}) }
   })
-  const config: DocumentMonitorConfig = { adapter: c.adapter, workspaceId:c.workspaceId, entityKey:c.entityKey, viewKey:c.viewKey, expectedTitle:c.expectedTitle, schemaVersion:c.schemaVersion, conditionalRequests:c.conditionalRequests, fields }
+  const config: DocumentMonitorConfig = { adapter: c.adapter, workspaceId:c.workspaceId, entityKey:c.entityKey, viewKey:c.viewKey, expectedTitle:c.expectedTitle, schemaVersion:c.schemaVersion, conditionalRequests:c.conditionalRequests, captureMode, fields }
   return { monitorId:r.monitorId, revision:r.revision, url:u.href, ruleVersion:r.ruleVersion, intervalMs:r.intervalMs, staleAfterMs:r.staleAfterMs, createdAt:r.createdAt, config }
 }
 

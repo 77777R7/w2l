@@ -33,8 +33,10 @@ Most crawlers report "success" when they return empty pages, challenge screens, 
 
 ## Quick Start
 
+Use Node.js 22.12+ or 24+ and npm. The SDK is currently a private workspace package; build it from this checkout. For the full Monitor → result → HTTPS event → restart workflow, follow [the onboarding guide](docs/onboarding.md) and [independent developer acceptance checklist](docs/independent-developer-acceptance.md).
+
 ```bash
-git clone https://github.com/YOUR_USERNAME/w2l.git
+git clone https://github.com/77777R7/w2l.git
 cd w2l
 npm ci
 npx playwright install chromium
@@ -42,13 +44,21 @@ npm run typecheck
 npm test
 npm run scrape -- https://example.com
 npm run crawl -- https://example.com --max-pages 20
+```
+
+Start each long-running service in its own terminal from the repository root:
+
+```bash
 npm run api
+```
+
+```bash
 npm run mcp
 ```
 
 `npm run api` binds `127.0.0.1` and allows loopback/RFC1918 so fixture servers work. Hosted mode is explicit: `npm run api -- --hosted --token $W2L_API_TOKEN`. That binds `0.0.0.0`, requires `Authorization: Bearer`, denies private/metadata IPs, and defaults crawl `maxPages` to 100.
 
-MCP (Cursor / Claude) talks to the REST server:
+The current MCP uses local stdio and talks to the REST server. Its six tools cover scrape and Crawl (including result pagination and cancellation); Monitor/Delivery tools and a remote HTTPS MCP URL are planned in [C2/C3](docs/roadmap/section-c-delivery.md). Configure the MCP client to launch it from this repository:
 
 ```json
 {
@@ -62,7 +72,31 @@ MCP (Cursor / Claude) talks to the REST server:
 }
 ```
 
-Firecrawl v1 clients: set the base URL to `http://127.0.0.1:8787/fc` so `/v1/scrape` and `/v1/crawl` hit the shim. Snapshot 2026-09-18; known diffs in [docs/firecrawl-shim.md](docs/firecrawl-shim.md). Search / Interact / Agent / Monitor are not implemented.
+Firecrawl v1 clients: set the base URL to `http://127.0.0.1:8787/fc` so `/v1/scrape` and `/v1/crawl` hit the shim. Snapshot 2026-09-18; known diffs in [docs/firecrawl-shim.md](docs/firecrawl-shim.md). Firecrawl Search / Interact / Agent / Monitor compatibility is not implemented. W2L's native Monitor and Delivery APIs use their own contracts.
+
+## Continuous Monitors and event delivery
+
+The native SDK includes Crawl pagination/cancellation, Monitor creation/revisions/runs/control, and Delivery destinations/status/retry. [The runnable example](examples/monitor-workflow.ts) uses a controlled price source, explicit `captureMode`, validated baselines, conditional HTTP requests, and persisted events. [The webhook receiver](examples/webhook-receiver.ts) stores event receipts and applies a versioned product projection transactionally.
+
+The API, Monitor scheduler and delivery worker share a persistent control database. Run the workers in separate terminals with the same `W2L_TASK_ROOT` as the API:
+
+```bash
+export W2L_TASK_ROOT="$PWD/.w2l/api"
+npm run monitors:worker
+```
+
+The Monitor worker defaults to public-source network policy. For the controlled local source in the onboarding example, explicitly set `W2L_MONITOR_NETWORK_MODE=local` in that worker terminal. A locally running worker does not inherit broader network access from the API or database.
+
+```bash
+export W2L_TASK_ROOT="$PWD/.w2l/api"
+npm run delivery:worker
+```
+
+See [onboarding](docs/onboarding.md) for the HTTPS receiver, authentication, worker configuration, and pending-delivery restart exercise. Gate 2–4 source is frozen locally at `99894bd636ecafd254a7c7bc79d26e9a97fa9199` on `codex/gate2-delivery-sdk`; it has not been pushed or published by this freeze. A remote default-branch clone does not include this local commit until it is shared. Independent human installation remains pending.
+
+The [Gate 2–4 acceptance record](docs/roadmap/gate-2-4-acceptance.md) links the process-crash, concurrent-claim, public HTTPS and agent clean-install evidence. Gate 2/3 engineering acceptance passed; Gate 4 awaits a non-author human, and Gate 5 external two-week/repeat-use validation has not started. `npm run package:handoff` captures review source with per-file hashes. The existing tested archive is a preserved pre-commit snapshot, not a package of subsequent roadmap edits.
+
+Next: C2 Monitor/Delivery MCP and conversational first use; C3 unified service start/status/stop/recovery and authenticated remote URL MCP. These are not implemented yet. B1/B2 and C1 remain in_progress for their broader operational/adoption gates, and persistent hosting requires separate isolation, egress and resource checks.
 
 ## Benchmark
 
@@ -97,9 +131,14 @@ packages/
   sdk/             TypeScript client (MIT)
   mcp/             stdio MCP server (MIT)
 
+examples/monitor-workflow.ts       Runnable Monitor + Delivery SDK workflow
+examples/webhook-receiver.ts       Durable idempotent sample receiver
+
 ROADMAP.md                         Current Section A/B/C roadmap
 
 docs/
+  onboarding.md                  Install, Crawl, Monitor, HTTPS events and recovery
+  independent-developer-acceptance.md  Pending human Gate 4 run sheet
   roadmap/section-a-foundation.md  Section A phases and A4 gate
   roadmap/section-b-continuous-data.md  Section B future direction
   roadmap/section-c-delivery.md    Section C future delivery direction
@@ -120,8 +159,8 @@ docs/
 - [x] Honest identity bundle (UA / hints / locale / viewport must agree)
 - [x] `w2l scrape` product CLI (`w2l-fetch` is an alias)
 - [x] `w2l crawl` + SQLite checkpoint resume
-- [x] REST API + TypeScript SDK (`POST /v1/scrape`, `POST /v1/crawl`, `GET /v1/crawl/:id`)
-- [x] MCP server (`scrape`, `crawl`, `get_crawl` over REST)
+- [x] REST API + TypeScript SDK (`POST /v1/scrape`, `POST /v1/crawl`, `GET /v1/crawl/:id`, paginated crawl pages/errors, cancel)
+- [x] MCP server (`scrape`, `crawl`, `get_crawl`, paginated pages/errors, and cancel over REST)
 - [x] Firecrawl `/scrape` `/crawl` migration shim (snapshot 2026-09-18; not a compatibility layer)
 - [x] Task-level ladder accounting, preserved per-channel attempts, and honest unknown cost/evidence fields
 - [x] Bounded multi-page workers, shared host scheduling, conditional browser settling, and runtime resource reuse
@@ -131,10 +170,17 @@ docs/
 - [ ] Phase A4 real-task gate: 100-200 permitted pages, human correction time, repeated task evidence, and complete failure taxonomy
 - [x] Phase A4 diagnostic expansion: 20 real tasks, 11 domains, 40 repeated runs, and holdout results
 - [x] A6 scale slice: 100 pages, 10 domains, two runs; labeled holdout is not independent
-- [x] A6 recovery/install/correction/cost evidence: interrupt-resume lost 0 URLs; clean-clone first task; 18 minutes human correction; billed USD unknown
+- [x] A6 recovery/install evidence recorded: interrupt-resume lost 0 URLs; same-machine clean-clone first task; historical 18-minute correction record lacks human confirmation; billed USD unknown
 - [x] A6 deferred exceptions recorded: second-developer install is deferred, not passed; billed USD is unknown, not zero
 - [ ] A6 unconditional pass still needs a second human install
 - [x] A5/A6 gate report: conditional alpha; billed USD remains unknown
+- [x] Gate 2 execution contract, actual process recovery, controlled changes/cache and Monitor isolation
+- [x] Gate 3 durable HTTPS delivery, same-event retry, deduplication and restart recovery
+- [x] Gate 4 SDK, docs, examples and agent clean installation
+- [ ] Gate 4 independent non-author human installation and full workflow
+- [ ] C2 Monitor/Delivery MCP and simpler first-use entry; n8n and narrow task UI
+- [ ] C3 unified process management, remote URL MCP and persistent hosting
+- [ ] Gate 5 two external trial users, two weeks, repeat use and real downstream consumption
 - [x] Phase 3 Benchmark Gate harness: fixed W2L run, comparator evidence, and blocked-until-real-comparators decision
 - [ ] Hosted Egress Gate: browser subresource policy enforcement and DNS-to-connection binding
 

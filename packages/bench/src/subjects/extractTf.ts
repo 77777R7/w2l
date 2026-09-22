@@ -1,3 +1,4 @@
+import { createExecutionScope, remainingTimeout, throwIfExecutionStopped } from '@w2l/http-core'
 import { estimateTokens, type CrawlMode, type FetchResult, type TraceEvent } from '@w2l/contracts'
 import { extractTf, htmlToMarkdown } from '@w2l/extract-tf'
 import { classifyGate, escalationForBlock } from '@w2l/http-core'
@@ -27,13 +28,16 @@ export class ExtractTfSubject implements SubjectAdapter {
     this.prepared = prepareHttpIdentity(mode)
   }
 
-  async fetch(url: string): Promise<FetchResult> {
+  async fetch(url: string, deadlineMs?: number, signal?: AbortSignal): Promise<FetchResult> {
+    const scope = createExecutionScope({ signal, deadlineAt: deadlineMs })
     const start = Date.now()
     try {
+      throwIfExecutionStopped(scope)
       const response = await request(url, {
         method: 'GET',
-        headersTimeout: 10_000,
-        bodyTimeout: 30_000,
+        signal: scope.signal,
+        headersTimeout: remainingTimeout(scope, 10_000),
+        bodyTimeout: remainingTimeout(scope, 30_000),
         headers: this.prepared.headers,
       })
 
@@ -198,7 +202,7 @@ export class ExtractTfSubject implements SubjectAdapter {
       return {
         requestedUrl: url,
         status: 'failed',
-        failureReason: 'connection_error',
+        failureReason: scope.signal.aborted ? 'timeout' : 'connection_error',
         blockReason: null,
         budgetExceeded: null,
         lane: 'http',
@@ -230,7 +234,7 @@ export class ExtractTfSubject implements SubjectAdapter {
           { at: wallMs, lane: 'http', event: 'request_failed', detail: { error: String(err) } },
         ],
       }
-    }
+    } finally { scope.dispose() }
   }
 
   async teardown(): Promise<void> {}

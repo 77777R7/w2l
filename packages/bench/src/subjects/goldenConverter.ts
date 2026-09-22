@@ -1,3 +1,4 @@
+import { createExecutionScope, remainingTimeout, throwIfExecutionStopped } from '@w2l/http-core'
 import { estimateTokens, type FetchResult } from '@w2l/contracts'
 import { toGfmTable } from '@w2l/fixtures'
 import { request } from 'undici'
@@ -23,13 +24,16 @@ export class GoldenConverterSubject implements SubjectAdapter {
     hosting: 'self_hosted' as const,
   }
 
-  async fetch(url: string): Promise<FetchResult> {
+  async fetch(url: string, deadlineMs?: number, signal?: AbortSignal): Promise<FetchResult> {
+    const scope = createExecutionScope({ signal, deadlineAt: deadlineMs })
     const start = Date.now()
     try {
+      throwIfExecutionStopped(scope)
       const response = await request(url, {
         method: 'GET',
-        headersTimeout: 10_000,
-        bodyTimeout: 30_000,
+        signal: scope.signal,
+        headersTimeout: remainingTimeout(scope, 10_000),
+        bodyTimeout: remainingTimeout(scope, 30_000),
         headers: { 'user-agent': POLITE_UA },
       })
 
@@ -80,7 +84,7 @@ export class GoldenConverterSubject implements SubjectAdapter {
       return {
         requestedUrl: url,
         status: 'failed',
-        failureReason: 'connection_error',
+        failureReason: scope.signal.aborted ? 'timeout' : 'connection_error',
         blockReason: null,
         budgetExceeded: null,
         lane: 'http',
@@ -112,7 +116,7 @@ export class GoldenConverterSubject implements SubjectAdapter {
           { at: wallMs, lane: 'http', event: 'request_failed', detail: { error: String(err) } },
         ],
       }
-    }
+    } finally { scope.dispose() }
   }
 
   async teardown(): Promise<void> {}

@@ -1,4 +1,4 @@
-import { CONTENTFUL_STATUS, type FetchResult, type Subject } from '@w2l/contracts'
+import { CONTENTFUL_STATUS, type ExecutionContext, type FetchResult, type Subject } from '@w2l/contracts'
 import type { CrawlPolicy } from '@w2l/http-core'
 import { buildChannels } from '../ladderCli.js'
 import { LadderRunner } from '../routing/ladder.js'
@@ -19,8 +19,8 @@ export class LadderSubject implements SubjectAdapter {
     new MemoryRoutingHistory(),
   )
 
-  async fetch(url: string): Promise<FetchResult> {
-    const run = await this.runner.run(url)
+  async fetch(url: string, deadlineMs?: number, signal?: AbortSignal, onRetryAfter?: ExecutionContext['onRetryAfter']): Promise<FetchResult> {
+    const run = await this.runner.run(url, undefined, { deadlineAt: deadlineMs, signal, onRetryAfter })
     const result = run.result
     return {
       ...result,

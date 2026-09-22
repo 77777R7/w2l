@@ -1,11 +1,15 @@
-import { estimateTokens, vendorIdentityIssues, type FetchResult, type TraceEvent } from '@w2l/contracts'
+import { estimateTokens, vendorIdentityIssues, type ExecutionContext, type FetchResult, type TraceEvent } from '@w2l/contracts'
 import { collectLinks, extractTf, htmlToMarkdown } from '@w2l/extract-tf'
 import {
+  createExecutionScope,
+  raceWithSignal,
+  throwIfExecutionStopped,
   classifyGate,
   escalationForBlock,
   evaluateProviderGate,
   normalizeAccessConfig,
   parseRobotsTxt,
+  parseRetryAfterMs,
   sha256Hex,
   ComplianceChain,
   type AccessConfigInput,
@@ -53,7 +57,7 @@ export interface ProviderTransport {
    * status of the vendor's own API — a 200 from the vendor wrapping a 403
    * from the target is a 403.
    */
-  fetch(url: string, deadlineMs?: number): Promise<ProviderResponse>
+  fetch(url: string, deadlineMs?: number, signal?: AbortSignal): Promise<ProviderResponse>
   close?(): Promise<void>
 }
 
@@ -103,13 +107,16 @@ export interface ProviderResponse {
 export type RobotsFetcher = (
   robotsUrl: string,
   userAgent: string,
+  execution?: ExecutionContext,
 ) => Promise<{ text: string; status: number; contentType: string | null } | null>
 
-const defaultRobotsFetcher: RobotsFetcher = async (robotsUrl, userAgent) => {
+const defaultRobotsFetcher: RobotsFetcher = async (robotsUrl, userAgent, execution = {}) => {
+  const scope = createExecutionScope({ signal: execution.signal, deadlineAt: Math.min(execution.deadlineAt ?? Infinity, Date.now() + 5_000) })
   try {
+    throwIfExecutionStopped(scope)
     const res = await fetch(robotsUrl, {
       headers: { 'user-agent': userAgent },
-      signal: AbortSignal.timeout(5_000),
+      signal: scope.signal,
     })
     return {
       text: res.status >= 400 ? '' : await res.text(),
@@ -117,8 +124,9 @@ const defaultRobotsFetcher: RobotsFetcher = async (robotsUrl, userAgent) => {
       contentType: res.headers.get('content-type'),
     }
   } catch {
+    throwIfExecutionStopped(execution)
     return null
-  }
+  } finally { scope.dispose() }
 }
 
 interface CachedRobots {
@@ -165,7 +173,13 @@ export class ProviderSubject implements SubjectAdapter {
     return this.chain.toLedger()
   }
 
-  async fetch(url: string, deadlineMs?: number): Promise<FetchResult> {
+  async fetch(url: string, deadlineMs?: number, signal?: AbortSignal, onRetryAfter?: ExecutionContext['onRetryAfter']): Promise<FetchResult> {
+    const scope = createExecutionScope({ signal, deadlineAt: deadlineMs, onRetryAfter })
+    try { return await this.fetchWithinBudget(url, scope) } finally { scope.dispose() }
+  }
+
+  private async fetchWithinBudget(url: string, execution: ExecutionContext): Promise<FetchResult> {
+    throwIfExecutionStopped(execution)
     const start = Date.now()
     const trace: TraceEvent[] = [
       { at: 0, lane: 'provider', event: 'provider_selected', detail: { provider: this.provider.id } },
@@ -187,7 +201,7 @@ export class ProviderSubject implements SubjectAdapter {
     }
 
     const ua = this.provider.declaredUserAgent!
-    const cached = await this.robotsFor(url, ua)
+    const cached = await this.robotsFor(url, ua, execution)
     const path = this.pathOf(url)
     const verdict = evaluateProviderGate(this.provider, cached?.robots ?? null, path)
     trace.push({
@@ -228,7 +242,11 @@ export class ProviderSubject implements SubjectAdapter {
 
     let res: ProviderResponse
     try {
-      res = await this.transport.fetch(url, deadlineMs)
+      res = await raceWithSignal(this.transport.fetch(url, execution.deadlineAt, execution.signal), execution.signal)
+      if (res.status === 429 || res.status === 503) {
+        const delay = parseRetryAfterMs(res.headers['retry-after'] ?? null)
+        if (delay !== null) execution.onRetryAfter?.(res.finalUrl, Date.now() + delay)
+      }
     } catch (err) {
       const wallMs = Date.now() - start
       trace.push({
@@ -242,7 +260,7 @@ export class ProviderSubject implements SubjectAdapter {
         status: 'failed',
         // The provider broke, not the target. Reporting this as http_error
         // would blame the publisher for our vendor's outage.
-        failureReason: 'provider_error',
+        failureReason: execution.signal?.aborted ? 'timeout' : 'provider_error',
         blockReason: null,
         budgetExceeded: null,
         lane: 'provider',
@@ -338,6 +356,7 @@ export class ProviderSubject implements SubjectAdapter {
 
     const base = {
       requestedUrl: url,
+      ...([429, 503].includes(res.status) ? { retryAt: Date.now() + (parseRetryAfterMs(res.headers['retry-after'] ?? null) ?? 250) } : {}),
       truncated: false,
       truncatedAt: null,
       compliance: record,
@@ -595,7 +614,7 @@ export class ProviderSubject implements SubjectAdapter {
     }
   }
 
-  private async robotsFor(url: string, userAgent: string): Promise<CachedRobots | null> {
+  private async robotsFor(url: string, userAgent: string, execution: ExecutionContext): Promise<CachedRobots | null> {
     let origin: string
     let robotsUrl: string
     try {
@@ -609,7 +628,7 @@ export class ProviderSubject implements SubjectAdapter {
     const cached = this.robotsByOrigin.get(origin)
     if (cached) return cached
 
-    const res = await this.robotsFetcher(robotsUrl, userAgent)
+    const res = await raceWithSignal(this.robotsFetcher(robotsUrl, userAgent, execution), execution.signal)
     let entry: CachedRobots
     if (res === null) {
       // Fetch failure. NOT the same as "no robots.txt": absent stays false, so

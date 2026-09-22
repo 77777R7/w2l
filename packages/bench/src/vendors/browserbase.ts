@@ -94,6 +94,7 @@ export async function browserbaseCreateContext(
   api: VendorApi = fetchVendorApi,
   name?: string,
   deadlineMs?: number,
+  signal?: AbortSignal,
 ): Promise<string> {
   const base = (config.baseUrl ?? 'https://api.browserbase.com').replace(/\/$/, '')
   const res = await api({
@@ -101,7 +102,7 @@ export async function browserbaseCreateContext(
     url: `${base}/v1/contexts`,
     headers: { 'x-bb-api-key': config.apiKey },
     body: { ...(name === undefined ? {} : { name }) },
-    deadlineMs,
+    deadlineMs, signal,
   })
   if (res.status !== 200 && res.status !== 201) {
     throw new Error(`browserbase: context create returned ${res.status}`)
@@ -133,21 +134,21 @@ export function browserbaseOps(
      * material the ladder saves; the next independent run passes it back and
      * the session restores the context's cookies/storage.
      */
-    async ensurePersistence(deadlineMs?: number): Promise<VendorResumeContext | null> {
+    async ensurePersistence(deadlineMs?: number, signal?: AbortSignal): Promise<VendorResumeContext | null> {
       const persistEnabled = decision.enabled.some((c) => c.capability === 'session_persistence')
       if (!persistEnabled) return null
-      const id = await browserbaseCreateContext(config, api, undefined, deadlineMs)
+      const id = await browserbaseCreateContext(config, api, undefined, deadlineMs, signal)
       return { browserbaseContextId: id }
     },
 
-    async createSession(resume?: VendorResumeContext | null, deadlineMs?: number): Promise<VendorSession> {
+    async createSession(resume?: VendorResumeContext | null, deadlineMs?: number, signal?: AbortSignal): Promise<VendorSession> {
       const body = browserbaseSessionBody(decision, config.projectId, resume ?? null)
       const res = await api({
         method: 'POST',
         url: `${base}/v1/sessions`,
         headers,
         body,
-        deadlineMs,
+        deadlineMs, signal,
       })
       if (res.status !== 200 && res.status !== 201) {
         throw new Error(`browserbase: session create returned ${res.status}`)
@@ -167,7 +168,7 @@ export function browserbaseOps(
       // is part of what "not authorized" means.
       let handoffUrl: string | null = null
       if (decision.enabled.some((c) => c.capability === 'live_view_handoff')) {
-        const dbg = await api({ method: 'GET', url: `${base}/v1/sessions/${sessionId}/debug`, headers, deadlineMs })
+        const dbg = await api({ method: 'GET', url: `${base}/v1/sessions/${sessionId}/debug`, headers, deadlineMs, signal })
         if (dbg.status === 200) {
           const dbgJson = dbg.json as { debuggerFullscreenUrl?: unknown } | null
           if (typeof dbgJson?.debuggerFullscreenUrl === 'string') handoffUrl = dbgJson.debuggerFullscreenUrl
@@ -182,13 +183,13 @@ export function browserbaseOps(
       }
     },
 
-    async releaseSession(sessionId: string, deadlineMs?: number): Promise<void> {
+    async releaseSession(sessionId: string, deadlineMs?: number, signal?: AbortSignal): Promise<void> {
       await api({
         method: 'POST',
         url: `${base}/v1/sessions/${sessionId}`,
         headers,
         body: { status: 'REQUEST_RELEASE' },
-        deadlineMs,
+        deadlineMs, signal,
       })
     },
   }

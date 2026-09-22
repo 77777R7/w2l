@@ -2,7 +2,7 @@ import { chmodSync, mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import Database from 'better-sqlite3'
 import type { Attempt, AttemptStatus, CrawlBudget, CrawlMode, FetchResult, Lane, LadderRunAudit, StepRecord, StepStatus, Task, TaskStatus } from '@w2l/contracts'
-import { assertId, type TaskStore } from './taskStore.js'
+import { assertId, decodeStepCursor, encodeStepCursor, type StepPageQuery, type TaskStore } from './taskStore.js'
 
 export const CHECKPOINT_FILENAME = 'checkpoint.sqlite'
 
@@ -97,6 +97,8 @@ CREATE TABLE IF NOT EXISTS steps (
 
 CREATE INDEX IF NOT EXISTS steps_task_canonical ON steps(task_id, canonical_url, updated_at);
 CREATE INDEX IF NOT EXISTS steps_attempt ON steps(attempt_id);
+CREATE INDEX IF NOT EXISTS steps_task_created_id ON steps(task_id, created_at, id);
+CREATE INDEX IF NOT EXISTS steps_task_status_created_id ON steps(task_id, status, created_at, id);
 CREATE INDEX IF NOT EXISTS attempts_task ON attempts(task_id);
 `
 
@@ -296,6 +298,40 @@ export class SqliteTaskStore implements TaskStore {
             .prepare(`SELECT * FROM steps WHERE task_id = ? AND attempt_id = ? ORDER BY created_at ASC, id ASC`)
             .all(taskId, attemptId) as StepRow[])
     return rows.map(stepFromRow)
+  }
+
+  async listStepsPage(taskId: string, query: StepPageQuery) {
+    const cursor = query.cursor === undefined ? null : decodeStepCursor(query.cursor)
+    const errorStatuses = ['failed', 'blocked', 'cancelled', 'budget_exceeded']
+    const conditions = ['task_id = ?']
+    const params: (string | number)[] = [taskId]
+    if (query.attemptId !== undefined) {
+      conditions.push('attempt_id = ?')
+      params.push(query.attemptId)
+    }
+    if (query.kind === 'errors') {
+      conditions.push(`status IN (${errorStatuses.map(() => '?').join(', ')})`)
+      params.push(...errorStatuses)
+    } else {
+      conditions.push(`status NOT IN (${errorStatuses.map(() => '?').join(', ')})`)
+      params.push(...errorStatuses)
+    }
+    if (cursor !== null) {
+      conditions.push('(created_at > ? OR (created_at = ? AND id > ?))')
+      params.push(cursor.createdAt, cursor.createdAt, cursor.id)
+    }
+    params.push(query.limit + 1)
+    const rows = this.db
+      .prepare(`SELECT * FROM steps WHERE ${conditions.join(' AND ')} ORDER BY created_at ASC, id ASC LIMIT ?`)
+      .all(...params) as StepRow[]
+    const hasMore = rows.length > query.limit
+    const page = rows.slice(0, query.limit).map(stepFromRow)
+    const last = page[page.length - 1]
+    return {
+      steps: page,
+      nextCursor: hasMore && last !== undefined ? encodeStepCursor(last.createdAt, last.id) : null,
+      hasMore,
+    }
   }
 
   async getStepByCanonicalUrl(taskId: string, canonicalUrl: string): Promise<StepRecord | null> {

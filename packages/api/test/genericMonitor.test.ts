@@ -17,7 +17,7 @@ describe('generic public document monitor API', () => {
     const config = {
       monitorId: 'example-home', revision: 1, url: 'https://example.com/', ruleVersion: 'example/v1',
       intervalMs: 86_400_000, staleAfterMs: 172_800_000,
-      config: { adapter: 'markdown-sections/v1', workspaceId: 'w1', entityKey: 'example:home', viewKey: 'public', expectedTitle: 'Example Domain', schemaVersion: 'example/v1', conditionalRequests: true, fields: [{ name: 'body', heading: 'Example Domain', type: 'text', required: true }] },
+      config: { adapter: 'markdown-sections/v1', workspaceId: 'w1', entityKey: 'example:home', viewKey: 'public', expectedTitle: 'Example Domain', schemaVersion: 'example/v1', conditionalRequests: true, captureMode: 'http', fields: [{ name: 'body', heading: 'Example Domain', type: 'text', required: true }] },
     }
     const created = await app.request('/v1/monitors', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(config) })
     expect(created.status).toBe(201)

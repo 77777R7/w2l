@@ -6,7 +6,7 @@
 import { parseCrawlStartRequest, parseScrapeRequest } from '@w2l/contracts'
 import type { W2L } from '@w2l/sdk'
 
-export const TOOL_NAMES = ['scrape', 'crawl', 'get_crawl'] as const
+export const TOOL_NAMES = ['scrape', 'crawl', 'get_crawl', 'get_crawl_pages', 'get_crawl_errors', 'cancel_crawl'] as const
 export type ToolName = (typeof TOOL_NAMES)[number]
 
 export const TOOLS = [
@@ -53,6 +53,46 @@ export const TOOLS = [
       additionalProperties: false,
     },
   },
+  {
+    name: 'get_crawl_pages',
+    description: 'Read a paginated list of crawl page results by task id.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        cursor: { type: 'string' },
+        limit: { type: 'number', minimum: 1, maximum: 1000 },
+        attemptId: { type: 'string' },
+      },
+      required: ['id'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'get_crawl_errors',
+    description: 'Read a paginated list of crawl errors by task id.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        cursor: { type: 'string' },
+        limit: { type: 'number', minimum: 1, maximum: 1000 },
+        attemptId: { type: 'string' },
+      },
+      required: ['id'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'cancel_crawl',
+    description: 'Cancel a crawl task. Completed pages remain queryable.',
+    inputSchema: {
+      type: 'object',
+      properties: { id: { type: 'string' } },
+      required: ['id'],
+      additionalProperties: false,
+    },
+  },
 ] as const
 
 export async function callTool(client: W2L, name: string, args: unknown): Promise<unknown> {
@@ -76,5 +116,29 @@ export async function callTool(client: W2L, name: string, args: unknown): Promis
     if (typeof id !== 'string' || id.length === 0) throw new Error('id is required')
     return client.getCrawl(id)
   }
+  if (name === 'get_crawl_pages' || name === 'get_crawl_errors') {
+    const input = readCrawlQuery(args)
+    return name === 'get_crawl_pages' ? client.getCrawlPages(input.id, input.options) : client.getCrawlErrors(input.id, input.options)
+  }
+  if (name === 'cancel_crawl') {
+    const rec = args !== null && typeof args === 'object' && !Array.isArray(args) ? (args as Record<string, unknown>) : null
+    const id = rec?.id
+    if (typeof id !== 'string' || id.length === 0) throw new Error('id is required')
+    return client.cancelCrawl(id)
+  }
   throw new Error(`unknown tool: ${name}`)
+}
+
+function readCrawlQuery(args: unknown): { id: string; options: { cursor?: string; limit?: number; attemptId?: string } } {
+  const rec = args !== null && typeof args === 'object' && !Array.isArray(args) ? (args as Record<string, unknown>) : null
+  if (typeof rec?.id !== 'string' || rec.id.length === 0) throw new Error('id is required')
+  if (rec.limit !== undefined && (typeof rec.limit !== 'number' || !Number.isInteger(rec.limit))) throw new Error('limit must be an integer')
+  return {
+    id: rec.id,
+    options: {
+      cursor: typeof rec.cursor === 'string' ? rec.cursor : undefined,
+      limit: rec.limit as number | undefined,
+      attemptId: typeof rec.attemptId === 'string' ? rec.attemptId : undefined,
+    },
+  }
 }

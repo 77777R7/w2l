@@ -3,12 +3,13 @@ import {
   QUALITY_ESCALATION_MAX_CONFIDENCE,
   QUALITY_ESCALATION_MAX_TOKENS,
   type CrawlMode,
+  type ExecutionContext,
   type FetchResult,
   type NetworkPolicy,
   type TraceEvent,
 } from '@w2l/contracts'
 import { collectLinks, extractTf, htmlToMarkdown } from '@w2l/extract-tf'
-import { resilientFetch, classifyGate, escalationForBlock, parseRetryAfterMs, sha256Utf8, type ResilientFetcher } from '@w2l/http-core'
+import { resilientFetch, abortableSleep, createExecutionScope, raceWithSignal, throwIfExecutionStopped, classifyGate, escalationForBlock, parseRetryAfterMs, sha256Utf8, type ResilientFetcher } from '@w2l/http-core'
 import { request } from 'undici'
 import { assertSafeUrl, defaultNetworkPolicy, readCappedBody } from '../egress.js'
 import { prepareHttpIdentity, recordHttpIdentity } from '../httpIdentity.js'
@@ -36,6 +37,7 @@ export class ResilientHttpSubject implements SubjectAdapter {
   private readonly fetcherFor: (initialUrl: string, validators: { etag?: string; lastModified?: string }, signal?: AbortSignal) => ResilientFetcher
   private readonly robotsCache: RobotsOriginCache
   private readonly networkPolicy: NetworkPolicy
+  private readonly pendingByOrigin = new Map<string, Promise<void>>()
   private readonly cooldownUntilByHost = new Map<string, number>()
 
   constructor(mode: CrawlMode = 'standard', networkPolicy?: NetworkPolicy) {
@@ -51,7 +53,7 @@ export class ResilientHttpSubject implements SubjectAdapter {
         bodyTimeout: init.bodyTimeoutMs,
         // Validators are bound to one representation; never forward on redirects.
         headers: { ...headers, ...(url === initialUrl ? validators.etag ? { 'if-none-match': validators.etag } : validators.lastModified ? { 'if-modified-since': validators.lastModified } : {} : {}) },
-        signal,
+        signal: init.signal ?? signal,
       })
       const buf = await readCappedBody(response.body, maxBodyBytes)
       const responseHeaders = response.headers
@@ -68,7 +70,37 @@ export class ResilientHttpSubject implements SubjectAdapter {
     }
   }
 
-  async fetch(url: string, _deadlineMs?: number, signal?: AbortSignal, validators: { etag?: string; lastModified?: string } = {}): Promise<FetchResult> {
+  async fetch(url: string, deadlineMs?: number, signal?: AbortSignal, validators: { etag?: string; lastModified?: string } = {}, onRetryAfter?: ExecutionContext['onRetryAfter']): Promise<FetchResult> {
+    const scope = createExecutionScope({ signal, deadlineAt: deadlineMs, onRetryAfter })
+    const start = Date.now()
+    const origin = new URL(url).origin
+    const previous = this.pendingByOrigin.get(origin) ?? Promise.resolve()
+    let release!: () => void
+    const ticket = new Promise<void>(resolve => { release = resolve })
+    const pending = previous.then(() => ticket)
+    this.pendingByOrigin.set(origin, pending)
+    try {
+      await raceWithSignal(previous, scope.signal)
+      throwIfExecutionStopped(scope)
+      const result = await this.fetchWithinBudget(url, scope, validators)
+      return scope.signal.reason?.name === 'TimeoutError' || deadlineMs !== undefined && Date.now() >= deadlineMs
+        ? { ...result, budgetExceeded: 'time' }
+        : result
+    } catch (error) {
+      if (!scope.signal.aborted) throw error
+      const result = this.denied(url, start, [], 'timeout')
+      return scope.signal.reason?.name === 'TimeoutError' || deadlineMs !== undefined && Date.now() >= deadlineMs ? { ...result, budgetExceeded: 'time' } : result
+    } finally {
+      scope.dispose()
+      release()
+      if (this.pendingByOrigin.get(origin) === pending) {
+        void pending.then(() => { if (this.pendingByOrigin.get(origin) === pending) this.pendingByOrigin.delete(origin) })
+      }
+    }
+  }
+
+  private async fetchWithinBudget(url: string, execution: ExecutionContext, validators: { etag?: string; lastModified?: string }): Promise<FetchResult> {
+    const { signal, deadlineAt, onRetryAfter } = execution
     const start = Date.now()
     const trace: TraceEvent[] = []
     const honest = recordHttpIdentity(this.prepared, trace, 0)
@@ -77,7 +109,7 @@ export class ResilientHttpSubject implements SubjectAdapter {
     }
 
     if (this.prepared.identity.respectsRobots) {
-      const cached = await this.robotsCache.lookup(url, this.prepared.identity.userAgent)
+      const cached = await this.robotsCache.lookup(url, this.prepared.identity.userAgent, execution)
       const robotsDecision = this.robotsCache.decision(cached, url, this.prepared.identity.userAgent)
       trace.push({
         at: Date.now() - start,
@@ -102,21 +134,35 @@ export class ResilientHttpSubject implements SubjectAdapter {
     }
 
     if (signal?.aborted) return this.denied(url, start, trace, 'timeout')
-    const host = new URL(url).host
+    const host = new URL(url).origin
     const cooldownUntil = this.cooldownUntilByHost.get(host) ?? 0
     if (cooldownUntil > Date.now()) {
       const waitMs = cooldownUntil - Date.now()
       trace.push({ at: Date.now() - start, lane: 'http', event: 'host_cooldown_wait', detail: { host, waitMs } })
-      await new Promise((resolve) => setTimeout(resolve, waitMs))
+      if (deadlineAt !== undefined && cooldownUntil >= deadlineAt) {
+        trace.push({ at: Date.now() - start, lane: 'http', event: 'retry_deferred', detail: { retryAt: cooldownUntil } })
+        return { ...this.denied(url, start, trace, 'timeout'), retryAt: cooldownUntil }
+      }
+      await abortableSleep(waitMs, signal)
     }
     const out = await resilientFetch(url, this.fetcherFor(url, validators, signal), {
+      signal,
+      deadlineAt,
+      onRetryAfter: (target, retryAt) => {
+        for (const origin of new Set([host, new URL(target).origin])) {
+          this.cooldownUntilByHost.set(origin, Math.max(this.cooldownUntilByHost.get(origin) ?? 0, retryAt))
+        }
+        onRetryAfter?.(target, retryAt)
+      },
       maxRedirects: this.networkPolicy.maxRedirects,
       assertUrl: (target) => assertSafeUrl(target, this.networkPolicy),
     })
     const wallMs = Date.now() - start
+    let retryAt = out.retryAt
     if (out.status === 429 || out.status === 503) {
       const retryAfter = parseRetryAfterMs(out.headers?.get('retry-after') ?? null) ?? 250
-      const next = Date.now() + Math.min(Math.max(retryAfter, 250), 30_000)
+      const next = out.retryAt ?? Date.now() + Math.max(retryAfter, 250)
+      retryAt = next
       this.cooldownUntilByHost.set(host, Math.max(this.cooldownUntilByHost.get(host) ?? 0, next))
       trace.push({ at: wallMs, lane: 'http', event: 'host_cooldown_set', detail: { host, status: out.status, cooldownMs: next - Date.now() } })
     }
@@ -137,6 +183,7 @@ export class ResilientHttpSubject implements SubjectAdapter {
 
     const base = {
       requestedUrl: url,
+      ...(retryAt === undefined ? {} : { retryAt }),
       truncated: false,
       truncatedAt: null,
       compliance: null,

@@ -1,9 +1,30 @@
 export { W2L } from './client.js'
-export type { W2LOptions } from './client.js'
+export type { W2LOptions, RequestOptions, CreateMonitorRequest, ReviseMonitorRequest, RunMonitorRequest } from './client.js'
 export type {
   CrawlAccepted,
+  DeliveryAttempt,
+  DeliveryDestination,
+  DeliveryDestinationInput,
+  DeliveryDetail,
+  DeliveryQuery,
+  DeliveryState,
+  WebhookDelivery,
+  WebhookEventEnvelope,
   CrawlReport,
+  CrawlError,
+  CrawlPage,
+  CrawlPageList,
+  CrawlPageQuery,
   CrawlStartRequest,
   FetchResult,
+  DocumentMonitorConfig,
+  DocumentFields,
+  FieldValue,
+  MonitorFieldRule,
+  MonitorRevision,
+  MonitorRun,
+  MonitorView,
+  MonitorEvent,
+  MonitorSnapshot,
   ScrapeRequest,
 } from '@w2l/contracts'

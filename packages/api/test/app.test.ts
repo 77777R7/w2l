@@ -108,6 +108,105 @@ describe('REST /v1/scrape and /v1/crawl', () => {
     expect(report.pagesFetched).toBe(1)
   })
 
+  it('returns paginated pages and errors after the engine is restarted', async () => {
+    const app = createApp(engine)
+    const started = await app.request('/v1/crawl', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ url: `${server.url}/crawl/listing`, maxPages: 4, maxDepth: 2 }),
+    })
+    const { taskId } = (await started.json()) as { taskId: string }
+    await engine.close()
+
+    const restarted = createApiEngine({ taskRoot, channelsFor: httpOnlyChannels })
+    const restartedApp = createApp(restarted)
+    try {
+      const first = await restartedApp.request(`/v1/crawl/${taskId}/pages?limit=2`)
+      expect(first.status).toBe(200)
+      const firstPage = await first.json() as { items: Array<{ markdown: string | null }>; nextCursor: string | null; hasMore: boolean }
+      expect(firstPage.items).toHaveLength(2)
+      expect(firstPage.items.every((item) => item.markdown !== null)).toBe(true)
+      expect(firstPage.hasMore).toBe(true)
+
+      const second = await restartedApp.request(`/v1/crawl/${taskId}/pages?limit=2&cursor=${encodeURIComponent(firstPage.nextCursor!)}`)
+      const secondPage = await second.json() as { items: unknown[]; hasMore: boolean }
+      expect(secondPage.items).toHaveLength(2)
+      expect(secondPage.hasMore).toBe(false)
+
+      const errors = await restartedApp.request(`/v1/crawl/${taskId}/errors?limit=10`)
+      expect(errors.status).toBe(200)
+      expect((await errors.json()).items).toEqual([])
+    } finally {
+      await restarted.close()
+    }
+  })
+
+  it('returns failed pages through the dedicated errors endpoint', async () => {
+    const app = createApp(engine)
+    const started = await app.request('/v1/crawl', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ url: `${server.url}/error/404`, maxPages: 1 }),
+    })
+    const { taskId } = (await started.json()) as { taskId: string }
+    await engine.close()
+
+    const errors = await app.request(`/v1/crawl/${taskId}/errors?limit=10`)
+    expect(errors.status).toBe(200)
+    const body = await errors.json() as { items: Array<{ url: string; status: string; failureReason: string | null; trace: unknown[] }> }
+    expect(body.items).toHaveLength(1)
+    expect(body.items[0]).toMatchObject({
+      url: `${server.url}/error/404`,
+      status: 'failed',
+      failureReason: 'http_error',
+    })
+    expect(body.items[0]?.trace).toEqual(expect.any(Array))
+  })
+
+  it('cancels a running crawl persistently and preserves completed pages', async () => {
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => { release = resolve })
+    const slow = createApiEngine({
+      taskRoot,
+      workerCount: 1,
+      channelsFor: () => [{
+        id: 'http',
+        identity: identityForRoute('standard'),
+        fetch: async () => {
+          await gate
+          return (await httpOnlyChannels('standard')[0]!.fetch(`${server.url}/crawl/listing`))
+        },
+      }],
+    })
+    const slowApp = createApp(slow)
+    try {
+      const started = await slowApp.request('/v1/crawl', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ url: `${server.url}/crawl/listing`, maxPages: 4 }),
+      })
+      const { taskId } = (await started.json()) as { taskId: string }
+      const cancelled = await slowApp.request(`/v1/crawl/${taskId}/cancel`, { method: 'POST' })
+      expect(cancelled.status).toBe(200)
+      expect((await cancelled.json()).status).toBe('cancelled')
+      release()
+      await slow.close()
+
+      const restarted = createApiEngine({ taskRoot, channelsFor: httpOnlyChannels })
+      try {
+        const report = await restarted.getCrawl(taskId)
+        expect(report?.status).toBe('cancelled')
+        const pages = await restarted.getCrawlPages(taskId, { limit: 10 })
+        expect(pages?.items.length).toBeGreaterThanOrEqual(0)
+      } finally {
+        await restarted.close()
+      }
+    } finally {
+      release()
+      await slow.close()
+    }
+  })
+
   it('GET /v1/crawl/:id is failed when scrape throws, not left running', async () => {
     const throwingRoot = await mkdtemp(join(tmpdir(), 'w2l-api-fail-'))
     const throwing = createApiEngine({

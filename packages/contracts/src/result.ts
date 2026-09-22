@@ -109,6 +109,8 @@ export interface HandoffRequest {
  * (see RESULT_STATUS); the reason fields narrow it.
  */
 export interface FetchResult {
+  /** Earliest permitted next request after a deferred Retry-After, UTC milliseconds. */
+  retryAt?: number
   requestedUrl: string
   status: ResultStatus
   /** Set iff status === 'failed'. Duplicate content uses status `duplicate`. */

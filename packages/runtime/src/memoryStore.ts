@@ -1,5 +1,5 @@
 import type { Attempt, StepRecord, Task } from '@w2l/contracts'
-import { assertId, cloneJson, type TaskStore } from './taskStore.js'
+import { assertId, cloneJson, decodeStepCursor, encodeStepCursor, type StepPageQuery, type TaskStore } from './taskStore.js'
 
 /**
  * In-memory TaskStore for tests and the benchmark harness (ADR 0003).
@@ -71,6 +71,26 @@ export class MemoryTaskStore implements TaskStore {
       .filter((step) => step.taskId === taskId && (attemptId === undefined || step.attemptId === attemptId))
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
       .map(cloneJson)
+  }
+
+  async listStepsPage(taskId: string, query: StepPageQuery) {
+    const errorStatuses = new Set(['failed', 'blocked', 'cancelled', 'budget_exceeded'])
+    const cursor = query.cursor === undefined ? null : decodeStepCursor(query.cursor)
+    const rows = [...this.steps.values()]
+      .filter((step) => step.taskId === taskId)
+      .filter((step) => query.attemptId === undefined || step.attemptId === query.attemptId)
+      .filter((step) => query.kind === 'errors' ? errorStatuses.has(step.status) : !errorStatuses.has(step.status))
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
+      .filter((step) => cursor === null || step.createdAt > cursor.createdAt || (step.createdAt === cursor.createdAt && step.id > cursor.id))
+    const rowsWithLookahead = rows.slice(0, query.limit + 1)
+    const hasMore = rowsWithLookahead.length > query.limit
+    const page = rowsWithLookahead.slice(0, query.limit)
+    const last = page[page.length - 1]
+    return {
+      steps: page.map(cloneJson),
+      nextCursor: hasMore && last !== undefined ? encodeStepCursor(last.createdAt, last.id) : null,
+      hasMore,
+    }
   }
 
   async getStepByCanonicalUrl(taskId: string, canonicalUrl: string): Promise<StepRecord | null> {

@@ -16,9 +16,12 @@
  * content is caught by the false-success checks upstream.
  */
 
-import type { Escalation, FetchResult, HandoffRequest, IdentityBundle, LadderExecutionSummary, Meter } from '@w2l/contracts'
+import type { ExecutionContext, Escalation, FetchResult, HandoffRequest, IdentityBundle, LadderExecutionSummary, Meter } from '@w2l/contracts'
 import { CONTENTFUL_STATUS, identityBundleIssues } from '@w2l/contracts'
 import {
+  createExecutionScope,
+  raceWithSignal,
+  throwIfExecutionStopped,
   classifyFetchFailure,
   evaluateGovernance,
   LADDER_CONTINUES_FAILURE_CLASS,
@@ -43,7 +46,7 @@ export interface Channel {
    */
   readonly identity?: IdentityBundle
   /** Run the channel against url, optionally with a user session attached. */
-  fetch(url: string, session?: SessionSnapshot | null): Promise<FetchResult>
+  fetch(url: string, session?: SessionSnapshot | null, execution?: ExecutionContext): Promise<FetchResult>
   /** Release the channel's resources (browser processes, vendor sessions).
    *  The owner of the channel list calls this when the run is over. */
   close?(): Promise<void>
@@ -56,7 +59,7 @@ export interface HumanHandoff {
    * the session they produced (saved and reused for the retry), or null to
    * abort the attempt.
    */
-  takeOver(url: string, request: HandoffRequest): Promise<SessionSnapshot | null>
+  takeOver(url: string, request: HandoffRequest, execution?: ExecutionContext): Promise<SessionSnapshot | null>
 }
 
 export interface LadderRunResult {
@@ -186,7 +189,13 @@ export class LadderRunner {
    * the winning subject's own; the ladder audit travels alongside it,
    * unrewritten and unsigned — that boundary is deliberate.
    */
-  async run(url: string, session?: SessionSnapshot | null): Promise<LadderRunResult> {
+  async run(url: string, session?: SessionSnapshot | null, execution: ExecutionContext = {}): Promise<LadderRunResult> {
+    const scope = createExecutionScope(execution)
+    try { return await this.runWithinBudget(url, session, scope) } finally { scope.dispose() }
+  }
+
+  private async runWithinBudget(url: string, session: SessionSnapshot | null | undefined, execution: ExecutionContext): Promise<LadderRunResult> {
+    throwIfExecutionStopped(execution)
     const decision = evaluateGovernance(url, this.policy)
     const channelsTried: string[] = []
     const ladderTrace: LadderRunResult['ladderTrace'][number][] = []
@@ -209,7 +218,7 @@ export class LadderRunner {
         session !== undefined && session !== null
           ? session
           : this.sessionStore !== null
-            ? await this.sessionStore.load(safeHost(url))
+            ? await raceWithSignal(this.sessionStore.load(safeHost(url)), execution.signal)
             : null
     }
     if (effectiveSession !== null) {
@@ -236,7 +245,7 @@ export class LadderRunner {
     const local = this.channels.filter((c) => c.vendorId === undefined && permitted.has(c.id))
     const providers = this.channels.filter((c) => c.vendorId !== undefined && permitted.has(c.id))
 
-    const ordered = [...local, ...(await this.orderProviders(url, providers))]
+    const ordered = [...local, ...(await raceWithSignal(this.orderProviders(url, providers), execution.signal))]
 
     let last: FetchResult | null = null
     let best: FetchResult | null = null
@@ -246,6 +255,7 @@ export class LadderRunner {
      *  final result can stamp whether that hop actually improved things. */
     let qualityEscalation: Escalation | null = null
       for (const channel of ordered) {
+        throwIfExecutionStopped(execution)
         const identityBlock = refuseChannelIdentity(url, channel)
         if (identityBlock !== null) {
           channelsTried.push(channel.id)
@@ -262,9 +272,10 @@ export class LadderRunner {
           return finish(identityBlock, false)
         }
         channelsTried.push(channel.id)
-        const result = await channel.fetch(url, effectiveSession)
+        const result = await raceWithSignal(channel.fetch(url, effectiveSession, execution), execution.signal)
         attempts.push({ channel: channel.id, result })
       last = result
+      if (result.retryAt !== undefined || execution.signal?.aborted) return finish(result, false)
 
       // Vendor attribution happens for every attempt, successful or not —
       // a vendor's win IS its history. The outcome is judged on the
@@ -392,7 +403,7 @@ export class LadderRunner {
           })
           continue
         }
-        return await this.attemptHandoff(url, result, channelsTried, channel, effectiveSession, ladderTrace, best, attempts)
+        return await this.attemptHandoff(url, result, channelsTried, channel, effectiveSession, ladderTrace, best, attempts, execution)
       }
 
       const cls = classifyFetchFailure(result)
@@ -504,6 +515,7 @@ export class LadderRunner {
     ladderTrace: LadderRunResult['ladderTrace'][number][],
     best: FetchResult | null,
     attempts: { channel: string; result: FetchResult }[],
+    execution: ExecutionContext,
   ): Promise<LadderRunResult> {
     ladderTrace.push({
       at: result.usage.wallMs,
@@ -546,7 +558,7 @@ export class LadderRunner {
       // No human configured: report the pause point rather than loop forever.
       return { result: sanitizeResult(best ?? result), channelsTried, handoffRequested: true, ladderTrace, summary: summarize(channelsTried, attempts) }
     }
-    const snapshot = await this.handoff.takeOver(url, result.handoff!)
+    const snapshot = await raceWithSignal(this.handoff.takeOver(url, result.handoff!, execution), execution.signal)
     if (snapshot === null) {
       return { result: sanitizeResult(best ?? result), channelsTried, handoffRequested: true, ladderTrace, summary: summarize(channelsTried, attempts) }
     }
@@ -583,7 +595,7 @@ export class LadderRunner {
         summary: summarize([...channelsTried, `${channel.id}(retry)`], attempts),
       }
     }
-    const retry = await channel.fetch(url, snapshot)
+    const retry = await raceWithSignal(channel.fetch(url, snapshot, execution), execution.signal)
     attempts.push({ channel: `${channel.id}(retry)`, result: retry })
     ladderTrace.push({
       at: retry.usage.wallMs,

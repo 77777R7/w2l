@@ -24,18 +24,19 @@ import {
   type StepRecord,
   type Task,
 } from '@w2l/contracts'
+import { abortableSleep, createExecutionScope, raceWithSignal, throwIfExecutionStopped } from '@w2l/http-core'
 import { reportFromTaskAttempt } from './crawlReport.js'
 import { Frontier } from './frontier.js'
 import type { TaskStore } from './taskStore.js'
 
 export interface CrawlClock {
   now(): number
-  wait(ms: number): Promise<void>
+  wait(ms: number, signal?: AbortSignal): Promise<void>
 }
 
 export const systemClock: CrawlClock = {
   now: () => Date.now(),
-  wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  wait: (ms, signal) => abortableSleep(ms, signal),
 }
 
 export interface OrchestratorOptions {
@@ -47,6 +48,9 @@ export interface OrchestratorOptions {
   perHostMinDelayMs?: number
   crawlDelayMsByHost?: ReadonlyMap<string, number>
   workerCount?: number
+  signal?: AbortSignal
+  /** Service shutdown interrupts work but leaves the task resumable. */
+  shutdownSignal?: AbortSignal
 }
 
 const EMPTY_USAGE = {
@@ -67,6 +71,8 @@ export class CrawlOrchestrator {
   private readonly newId: () => string
   private readonly frontierOptions: Pick<OrchestratorOptions, 'perHostConcurrency' | 'perHostMinDelayMs' | 'crawlDelayMsByHost'>
   private readonly workerCount: number
+  private readonly signal?: AbortSignal
+  private readonly shutdownSignal?: AbortSignal
 
   constructor(options: OrchestratorOptions) {
     this.store = options.store
@@ -75,11 +81,24 @@ export class CrawlOrchestrator {
     this.newId = options.newId ?? (() => crypto.randomUUID())
     this.frontierOptions = options
     this.workerCount = Math.max(1, options.workerCount ?? 4)
+    this.signal = options.signal
+    this.shutdownSignal = options.shutdownSignal
   }
 
   async run(partial: Pick<CrawlSpec, 'seedUrl' | 'taskDir'> & Partial<CrawlSpec>): Promise<CrawlReport> {
     const spec: CrawlSpec = { ...DEFAULT_CRAWL_SPEC, ...partial }
     const startedAtMs = this.clock.now()
+    // Injected clocks drive frontier tests; the transport contract is always epoch ms.
+    const deadlineAt = spec.budget.maxWallMs === null ? undefined : Date.now() + spec.budget.maxWallMs
+    const stopController = new AbortController()
+    const scope = createExecutionScope({
+      signal: AbortSignal.any([stopController.signal, ...(this.signal ? [this.signal] : []), ...(this.shutdownSignal ? [this.shutdownSignal] : [])]),
+      deadlineAt,
+    })
+    let pollTimer: ReturnType<typeof setTimeout> | undefined
+    let pollingStopped = false
+    let persistedCancellation = false
+    let wakeWorkers = (): void => {}
     const startedAt = new Date(startedAtMs).toISOString()
 
     const seenHash = new Map<string, string>()
@@ -94,6 +113,16 @@ export class CrawlOrchestrator {
     let task: Task | undefined
     let attempt: Attempt | undefined
 
+    const markTimeBudget = (): void => {
+      budgetExceeded = 'time'
+      stopController.abort(new DOMException('Crawl wall-time budget exhausted', 'TimeoutError'))
+    }
+    const stopped = (): boolean => {
+      if (scope.signal.aborted && !this.signal?.aborted && !this.shutdownSignal?.aborted && !persistedCancellation && failed === null) budgetExceeded = 'time'
+      return scope.signal.aborted
+    }
+    const onStop = (): void => { wakeWorkers() }
+    scope.signal.addEventListener('abort', onStop)
     try {
       const opened = await this.openRun(spec, startedAt)
       task = opened.task
@@ -111,17 +140,42 @@ export class CrawlOrchestrator {
       let reservedPages = 0
       let stopping = false
       const wakeResolvers: Array<() => void> = []
-      const wakeWorkers = (): void => {
+      wakeWorkers = (): void => {
         while (wakeResolvers.length > 0) wakeResolvers.shift()!()
       }
+
+      // Cancellation written by another engine/process must reach an in-flight
+      // request, rather than wait for that request to complete before polling.
+      const pollCancellation = async (): Promise<void> => {
+        try {
+          const current = await this.store.getTask(runningTask.id)
+          if (pollingStopped) return
+          if (current?.status === 'cancelled') {
+            persistedCancellation = true
+            stopController.abort(new DOMException('Crawl cancelled', 'AbortError'))
+          }
+        } catch (error) {
+          if (pollingStopped) return
+          failed = error
+          stopController.abort(error)
+        }
+        if (!pollingStopped && !scope.signal.aborted) pollTimer = setTimeout(() => { void pollCancellation() }, 100)
+      }
+      pollTimer = setTimeout(() => { void pollCancellation() }, 100)
 
       const work = async (): Promise<void> => {
         for (;;) {
           const now = this.clock.now()
-          if (stopping) break
+          if (stopping || stopped()) break
+          const persistedTask = await this.store.getTask(runningTask.id)
+          if (persistedTask?.status === 'cancelled') {
+            persistedCancellation = true
+            stopController.abort(new DOMException('Crawl cancelled', 'AbortError'))
+          }
+          if (stopped()) { stopping = true; break }
           const spent: CrawlBudgetSpent = { pages: pagesFetched + cachedPages + reservedPages, wallMs: now - startedAtMs, costUsd, costUnknown, tokens: contentTokens, tokensUnknown: contentTokensUnknown }
           const hit = budgetHit(spec.budget, spent)
-          if (hit !== null) { budgetExceeded = hit; break }
+          if (hit !== null) { budgetExceeded = hit; if (hit === 'time') markTimeBudget(); break }
           const next = frontier.dequeue(now)
           if (next.item === null) {
             if (next.nextReadyAtMs === null) {
@@ -130,8 +184,8 @@ export class CrawlOrchestrator {
               continue
             }
             const remainingWait = Math.max(0, next.nextReadyAtMs - now)
-            if (spec.budget.maxWallMs !== null && spent.wallMs + remainingWait >= spec.budget.maxWallMs) { budgetExceeded = 'time'; break }
-            await this.clock.wait(remainingWait)
+            if (spec.budget.maxWallMs !== null && spent.wallMs + remainingWait >= spec.budget.maxWallMs) { markTimeBudget(); break }
+            try { await raceWithSignal(this.clock.wait(remainingWait, scope.signal), scope.signal) } catch (error) { if (!stopped()) throw error }
             continue
           }
           const item = next.item
@@ -147,10 +201,17 @@ export class CrawlOrchestrator {
             if (reusable && cached.result !== null) {
               result = cached.result; links = linksOf(cached.result); audit = cached.audit; cachedPage = true
             } else {
-              const outcome = await this.atom.scrape(item.url)
+              const outcome = await raceWithSignal(this.atom.scrape(item.url, scope), scope.signal)
               result = outcome.result; links = outcome.links.length > 0 ? outcome.links : linksOf(outcome.result); audit = outcome.audit
               frontier.setCrawlDelay(item.host, outcome.crawlDelayMs ?? null)
             }
+            const latestTask = await this.store.getTask(runningTask.id)
+            if (latestTask?.status === 'cancelled') {
+              persistedCancellation = true
+              stopController.abort(new DOMException('Crawl cancelled', 'AbortError'))
+            }
+            if (spec.budget.maxWallMs !== null && this.clock.now() - startedAtMs >= spec.budget.maxWallMs) markTimeBudget()
+            throwIfExecutionStopped(scope)
             const hash = result.evidence.rawBodySha256
             if (hash !== null && CONTENTFUL_STATUS.has(result.status)) {
               const prior = seenHash.get(hash)
@@ -181,6 +242,9 @@ export class CrawlOrchestrator {
           } catch (err) {
             stopping = true
             wakeWorkers()
+            if (stopped()) return
+            failed = err
+            stopController.abort(err)
             throw err
           } finally {
             reservedPages--
@@ -195,8 +259,13 @@ export class CrawlOrchestrator {
       const firstFailure = settled.find((entry): entry is PromiseRejectedResult => entry.status === 'rejected')
       if (firstFailure !== undefined) throw firstFailure.reason
     } catch (err) {
-      failed = err
+      if (!stopped()) failed = err
     } finally {
+      pollingStopped = true
+      if (pollTimer !== undefined) clearTimeout(pollTimer)
+      scope.signal.removeEventListener('abort', onStop)
+      scope.dispose()
+      wakeWorkers()
       await this.atom.close().catch(() => {})
     }
 
@@ -206,10 +275,13 @@ export class CrawlOrchestrator {
     }
 
     const endedAt = new Date(this.clock.now()).toISOString()
-    const status = failed !== null ? 'failed' : 'completed'
+    const persistedTask = await this.store.getTask(task.id)
+    const cancelled = this.signal?.aborted === true || persistedCancellation || persistedTask?.status === 'cancelled'
+    const interrupted = !cancelled && this.shutdownSignal?.aborted === true
+    const status = cancelled ? 'cancelled' : interrupted ? 'paused' : failed !== null ? 'failed' : 'completed'
     const finishedAttempt: Attempt = {
       ...attempt,
-      status,
+      status: interrupted ? 'interrupted' : status === 'paused' ? 'interrupted' : status,
       endedAt,
       pagesFetched: pagesFetched + cachedPages,
       wallMs: this.clock.now() - startedAtMs,
@@ -230,7 +302,7 @@ export class CrawlOrchestrator {
     } catch (err) {
       if (failed === null) failed = err
     }
-    if (failed !== null) throw failed
+    if (failed !== null && !cancelled && !interrupted) throw failed
 
     return reportFromTaskAttempt(finished, finishedAttempt, cachedPages)
   }
@@ -239,6 +311,7 @@ export class CrawlOrchestrator {
     if (spec.resumeFrom !== null) {
       const existing = await this.store.getTask(spec.resumeFrom)
       if (existing === null) throw new Error(`resume: unknown task ${spec.resumeFrom}`)
+      if (existing.status === 'cancelled') throw new Error(`resume: task ${spec.resumeFrom} is cancelled`)
       const interruptedId = await this.interruptOpenAttempts(existing.id, startedAt)
       const task: Task = { ...existing, status: 'running', updatedAt: startedAt }
       await this.store.putTask(task)
@@ -250,6 +323,7 @@ export class CrawlOrchestrator {
     if (spec.taskId !== undefined) {
       const existing = await this.store.getTask(spec.taskId)
       if (existing === null) throw new Error(`unknown task ${spec.taskId}`)
+      if (existing.status === 'cancelled') throw new Error(`task ${spec.taskId} is cancelled`)
       const interruptedId = await this.interruptOpenAttempts(existing.id, startedAt)
       const task: Task = { ...existing, status: 'running', updatedAt: startedAt }
       await this.store.putTask(task)
@@ -276,7 +350,7 @@ export class CrawlOrchestrator {
 
   private async interruptOpenAttempts(taskId: string, endedAt: string): Promise<string | null> {
     const prior = await this.store.listAttempts(taskId)
-    let recoveredFrom: string | null = null
+    let recoveredFrom: string | null = prior.filter(attempt => attempt.status === 'interrupted').at(-1)?.id ?? null
     for (const attempt of prior) {
       if (attempt.status !== 'running') continue
       const steps = await this.store.listSteps(taskId, attempt.id)

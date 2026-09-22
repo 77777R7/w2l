@@ -1,0 +1,251 @@
+{
+  "generatedAt": "2026-09-22T10:06:43.562Z",
+  "passed": true,
+  "scope": "Two independent Node processes concurrently open an absent SQLite database and claim the same monitor/trigger using production HTTP capture and configured assessment; IPC barrier and real clock.",
+  "productionModules": {
+    "runtime": "file:///Users/howard07/Documents/ChatGPT/%E7%88%AC%E8%99%AB%E6%9C%BA%E4%BC%9A/packages/runtime/dist/index.js",
+    "bench": "file:///Users/howard07/Documents/ChatGPT/%E7%88%AC%E8%99%AB%E6%9C%BA%E4%BC%9A/packages/bench/dist/index.js"
+  },
+  "root": "/Users/howard07/Documents/ChatGPT/爬虫机会/.w2l/gate2-claim-race-1790071602694",
+  "dbPath": "/Users/howard07/Documents/ChatGPT/爬虫机会/.w2l/gate2-claim-race-1790071602694/section-b-control.sqlite",
+  "startAt": 1790071603105,
+  "triggerKey": "same-concurrent-trigger",
+  "monitorId": "concurrent-claim",
+  "processes": [
+    {
+      "pid": 74825,
+      "code": 0,
+      "signal": null,
+      "stderr": ""
+    },
+    {
+      "pid": 74826,
+      "code": 0,
+      "signal": null,
+      "stderr": ""
+    }
+  ],
+  "messages": [
+    {
+      "type": "ready",
+      "pid": 74825,
+      "at": 1790071603005
+    },
+    {
+      "type": "ready",
+      "pid": 74826,
+      "at": 1790071603005
+    },
+    {
+      "type": "starting",
+      "pid": 74826,
+      "at": 1790071603105
+    },
+    {
+      "type": "starting",
+      "pid": 74825,
+      "at": 1790071603105
+    },
+    {
+      "type": "db-opened",
+      "pid": 74826,
+      "at": 1790071603112
+    },
+    {
+      "type": "capture-starting",
+      "pid": 74826,
+      "at": 1790071603113
+    },
+    {
+      "type": "db-opened",
+      "pid": 74825,
+      "at": 1790071603134
+    },
+    {
+      "type": "result",
+      "pid": 74825,
+      "at": 1790071603135,
+      "runIds": [
+        "246f8e7a-67d8-43af-a14b-6e5bafa62a83"
+      ],
+      "states": [
+        "running"
+      ],
+      "eventIds": [],
+      "baselineVersion": null
+    },
+    {
+      "type": "result",
+      "pid": 74826,
+      "at": 1790071603539,
+      "runIds": [
+        "246f8e7a-67d8-43af-a14b-6e5bafa62a83"
+      ],
+      "states": [
+        "completed"
+      ],
+      "eventIds": [
+        "56f06c4e-4b3b-4f15-a895-1ac0691732e0"
+      ],
+      "baselineVersion": 1
+    }
+  ],
+  "sourceRequests": [
+    {
+      "at": 1790071603119,
+      "path": "/robots.txt",
+      "remotePort": 60371
+    },
+    {
+      "at": 1790071603124,
+      "path": "/product",
+      "remotePort": 60372
+    }
+  ],
+  "sourceCaptures": 1,
+  "counts": {
+    "monitor_runs": 1,
+    "monitor_attempts": 1,
+    "monitor_observations": 1,
+    "monitor_assessments": 1,
+    "monitor_snapshots": 1,
+    "monitor_baselines": 1,
+    "monitor_events": 1,
+    "monitor_outbox": 1
+  },
+  "runId": "246f8e7a-67d8-43af-a14b-6e5bafa62a83",
+  "attemptId": "50d1ab3d-7819-46d1-940b-a7d64b7104af",
+  "eventId": "56f06c4e-4b3b-4f15-a895-1ac0691732e0",
+  "baselineId": "6dc2b56b-1030-4c70-b5ac-1a1b3a824d51",
+  "baselineVersion": 1,
+  "postCompletionReplay": {
+    "captures": 0,
+    "sameRun": true,
+    "sameEvent": true,
+    "sameBaseline": true
+  },
+  "evidence": {
+    "generatedAt": 1790071603562,
+    "monitorId": "concurrent-claim",
+    "revision": {
+      "monitorId": "concurrent-claim",
+      "revision": 1,
+      "url": "http://127.0.0.1:60368/product",
+      "ruleVersion": "claim-race-price/v1",
+      "intervalMs": 3600000,
+      "staleAfterMs": 7200000,
+      "createdAt": 1790071602697,
+      "config": {
+        "adapter": "markdown-sections/v1",
+        "workspaceId": "claim-race-lab",
+        "entityKey": "product",
+        "viewKey": "public",
+        "expectedTitle": "Product",
+        "schemaVersion": "price/v1",
+        "conditionalRequests": false,
+        "captureMode": "http",
+        "fields": [
+          {
+            "name": "price",
+            "heading": "Price",
+            "type": "decimal",
+            "required": true
+          }
+        ]
+      }
+    },
+    "baseline": {
+      "id": "6dc2b56b-1030-4c70-b5ac-1a1b3a824d51",
+      "monitorId": "concurrent-claim",
+      "revision": 1,
+      "version": 1,
+      "observationId": "89e59057-69e7-4e45-9da9-7ec6b7b1bd65",
+      "assessmentId": "673a56b6-901e-4e51-b4c4-522624a12977",
+      "fields": {
+        "price": {
+          "state": "present",
+          "value": "10",
+          "evidenceRefs": [
+            "price:21:26"
+          ]
+        }
+      },
+      "createdAt": 1790071603538
+    },
+    "runs": [
+      {
+        "id": "246f8e7a-67d8-43af-a14b-6e5bafa62a83",
+        "monitorId": "concurrent-claim",
+        "revision": 1,
+        "triggerKey": "same-concurrent-trigger",
+        "state": "completed",
+        "epoch": 1,
+        "fencingToken": 1,
+        "attemptId": "50d1ab3d-7819-46d1-940b-a7d64b7104af",
+        "leaseUntil": 1790071633364,
+        "deadlineAt": 1790071903112,
+        "nextAttemptAt": null,
+        "expectedBaselineId": null,
+        "createdAt": 1790071603112,
+        "endedAt": 1790071603538,
+        "quality": "valid",
+        "change": "initialized",
+        "error": null
+      }
+    ],
+    "attempts": [
+      {
+        "id": "50d1ab3d-7819-46d1-940b-a7d64b7104af",
+        "runId": "246f8e7a-67d8-43af-a14b-6e5bafa62a83",
+        "fencingToken": 1,
+        "state": "succeeded",
+        "startedAt": 1790071603112,
+        "endedAt": 1790071603538,
+        "recoveredFromAttemptId": null
+      }
+    ],
+    "observations": [
+      {
+        "id": "89e59057-69e7-4e45-9da9-7ec6b7b1bd65",
+        "run_id": "246f8e7a-67d8-43af-a14b-6e5bafa62a83",
+        "attempt_id": "50d1ab3d-7819-46d1-940b-a7d64b7104af",
+        "observed_at": 1790071603537,
+        "client_wall_ms": 423.778583,
+        "markdown_sha256": "de69e0736d0fb79c30ff7209d871b3cda9957372b878a7ec3289da48ff2f0603",
+        "transport_json": "{\"etag\":null,\"lastModified\":null,\"representationKey\":\"ade5cd3275bc19839e7b38e4e68010d4ac2f7c1b3a71f707373b88bbecec21ab\",\"responseStatus\":200}",
+        "error": null
+      }
+    ],
+    "assessments": [
+      {
+        "id": "673a56b6-901e-4e51-b4c4-522624a12977",
+        "run_id": "246f8e7a-67d8-43af-a14b-6e5bafa62a83",
+        "observation_id": "89e59057-69e7-4e45-9da9-7ec6b7b1bd65",
+        "quality": "valid",
+        "reasons_json": "[]",
+        "fields_json": "{\"price\":{\"state\":\"present\",\"value\":\"10\",\"evidenceRefs\":[\"price:21:26\"]}}",
+        "evidence_json": "[{\"field\":\"price\",\"start\":21,\"end\":26,\"quote\":\"10.00\"}]"
+      }
+    ],
+    "events": [
+      {
+        "id": "56f06c4e-4b3b-4f15-a895-1ac0691732e0",
+        "runId": "246f8e7a-67d8-43af-a14b-6e5bafa62a83",
+        "monitorId": "concurrent-claim",
+        "kind": "initialized",
+        "reason": "initialized",
+        "fromSnapshotId": null,
+        "toSnapshotId": "6dc2b56b-1030-4c70-b5ac-1a1b3a824d51",
+        "changes": [],
+        "observedAt": 1790071603538
+      }
+    ],
+    "outbox": [
+      {
+        "eventId": "56f06c4e-4b3b-4f15-a895-1ac0691732e0",
+        "state": "pending",
+        "acknowledgedAt": null
+      }
+    ]
+  }
+}
