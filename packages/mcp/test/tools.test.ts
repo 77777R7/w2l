@@ -131,6 +131,29 @@ describe('MCP tools', () => {
     expect(await callTool(client,'run_monitor',{id:'firecrawl-introduction'})).toMatchObject({runId:'run-1',state:'queued'})
     expect(calls[1]?.url).toMatch(/\/v1\/monitors\/firecrawl-introduction\/runs$/)
   })
+
+  it('explains a dead-letter and retries the same event without exposing its payload by default', async () => {
+    const calls: string[] = []
+    const delivery = {id:'delivery-1',eventId:'event-1',state:'dead_letter',lastError:'HTTP 503',attemptCount:2,payload:{privateBody:'fixture'}}
+    const client = new W2L({baseUrl:'http://w2l.local',fetch:(async(input,init)=>{
+      calls.push(`${init?.method ?? 'GET'} ${String(input)}`)
+      return json(String(input).endsWith('/retry') ? {...delivery,state:'pending'} : {delivery,attempts:[{status:503,error:'HTTP 503'}]})
+    }) as typeof fetch})
+    const compact = await callTool(client,'get_delivery',{id:'delivery-1'}) as {delivery:Record<string,unknown>;attempts:unknown[]}
+    expect(compact.delivery).toMatchObject({eventId:'event-1',state:'dead_letter',lastError:'HTTP 503'})
+    expect(compact.delivery).not.toHaveProperty('payload')
+    expect(compact.attempts).toHaveLength(1)
+    const debug = await callTool(client,'get_delivery',{id:'delivery-1',debug:true}) as {delivery:Record<string,unknown>}
+    expect(debug.delivery).toHaveProperty('payload')
+    const retried = await callTool(client,'retry_dead_letter',{id:'delivery-1'}) as Record<string,unknown>
+    expect(retried).toMatchObject({eventId:'event-1',state:'pending'})
+    expect(retried).not.toHaveProperty('payload')
+    expect(calls).toEqual([
+      'GET http://w2l.local/v1/deliveries/delivery-1',
+      'GET http://w2l.local/v1/deliveries/delivery-1',
+      'POST http://w2l.local/v1/deliveries/delivery-1/retry',
+    ])
+  })
 })
 
 function json(body: unknown, status = 200): Response {
