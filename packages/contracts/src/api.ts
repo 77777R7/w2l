@@ -30,6 +30,8 @@ export type ScrapeResponse = FetchResult & LadderRunAudit
 export interface CompactScrapeResponse {
   requestedUrl: string
   finalUrl: string
+  /** Small capture identity for field audits; the HTML body remains local. */
+  snapshot: { rawBodySha256: string | null; artifacts: readonly string[]; httpStatus: number | null }
   status: FetchResult['status']
   failureReason: FetchResult['failureReason']
   blockReason: FetchResult['blockReason']
@@ -39,7 +41,7 @@ export interface CompactScrapeResponse {
   formats: readonly ('markdown' | 'links' | 'json')[]
   markdown?: string | null
   links?: readonly string[]
-  document?: DocumentExtraction | null
+  document?: Pick<DocumentExtraction, 'title' | 'pageType' | 'strategy' | 'confidence' | 'adapter' | 'adapterValidation'> | null
   json?: StructuredExtractionResult | null
   truncated: boolean
   truncatedAt: number | null

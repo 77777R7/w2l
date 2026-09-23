@@ -309,6 +309,38 @@ describe('price shape', () => {
 })
 
 describe('Amazon product adapter', () => {
+  it('does not promote an unbound unit price to the subject offer', () => {
+    const html = `<!doctype html><html><body><div id="dp-container">
+      <h1 id="productTitle">Subject lotion</h1><p id="feature-bullets">A complete subject description.</p>
+      <div class="unit-price">$1.21 / fl oz</div>
+    </div></body></html>`
+    const out = extractTf.extract(html, { url: 'https://www.amazon.com/dp/B012345678' })
+    expect(out.product?.price).toBeNull()
+    expect(out.entities[0]?.fields.price).toBeUndefined()
+  })
+
+  it('normalizes Singapore dollar symbols and marketplace inference', () => {
+    const html = `<!doctype html><html><body><div id="dp-container">
+      <h1 id="productTitle">Subject wipes</h1>
+      <div id="corePrice_feature_div"><span class="a-price"><span class="a-offscreen">S$32.73</span></span></div>
+      <p id="feature-bullets">A complete subject description.</p>
+    </div></body></html>`
+    const out = extractTf.extract(html, { url: 'https://www.amazon.sg/dp/B012345678' })
+    expect(out.product?.price?.value).toBe('32.73')
+    expect(out.product?.priceCurrency?.value).toBe('SGD')
+  })
+
+  it('skips the Amazon location placeholder and normalizes the visible Singapore postal code', () => {
+    const html = `<html><body><span id="glow-ingress-line2">Update location</span>
+      <span id="contextualIngressPtLabel_deliveryShortLine">Delivering to Singapore 170000 – Update location</span>
+      <div id="dp-container"><h1 id="productTitle">Subject wipes</h1>
+      <div id="corePrice_feature_div"><span class="a-price"><span class="a-offscreen">S$32.73</span></span></div></div>
+    </body></html>`
+    const out = extractTf.extract(html, { url: 'https://www.amazon.com/dp/B012345678' })
+    expect(out.product?.deliveryLocation?.value).toBe('Singapore 170000')
+    expect(out.product?.deliveryLocation?.path).toBe('#contextualIngressPtLabel_deliveryShortLine')
+  })
+
   it('uses the /dp subject identity even when the page declares an OfferCatalog', () => {
     const html = `<!doctype html><html><head>
       <script type="application/ld+json">{"@context":"https://schema.org","@type":"OfferCatalog","name":"Related products"}</script>
@@ -341,16 +373,6 @@ describe('Amazon product adapter', () => {
     expect(out.product?.specifications?.Model?.value).toBe('SC-10')
     expect(out.mainHtml).not.toContain('12.57')
     expect(out.mainHtml).not.toContain('recommended.jpg')
-  })
-
-  it('does not treat the Amazon location prompt as an observed delivery region', () => {
-    const html = `<!doctype html><html><body><div id="dp-container">
-      <h1 id="productTitle">Subject</h1>
-      <span id="glow-ingress-line2">Update location</span>
-      <div id="corePrice_feature_div"><span class="a-offscreen">$10.00</span></div>
-    </div></body></html>`
-    const out = extractTf.extract(html, { url: 'https://www.amazon.com/dp/B012345678' })
-    expect(out.product?.deliveryLocation).toBeNull()
   })
 
   it('marks an Amazon subscription offer without treating it as a physical item', () => {

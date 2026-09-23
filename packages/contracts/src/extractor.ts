@@ -51,6 +51,12 @@ export interface AdapterDescriptor {
   status: AdapterStatus
 }
 
+/** Identity and provenance checks performed by a site adapter. */
+export interface AdapterValidation {
+  valid: boolean
+  issues: readonly string[]
+}
+
 /** One product fact plus the evidence class it was drawn from. */
 export interface ProductFact {
   /** The value exactly as the page carried it. Never normalized — a
@@ -109,6 +115,7 @@ export interface DocumentExtraction {
   product: ProductFacts | null
   adapter: AdapterDescriptor
   entities: readonly ExtractedEntity[]
+  adapterValidation?: AdapterValidation
 }
 
 export interface ExtractorOutput {
@@ -139,6 +146,7 @@ export interface ExtractorOutput {
   /** Adapter identity and normalized entities are produced directly from HTML. */
   adapter: AdapterDescriptor
   entities: readonly ExtractedEntity[]
+  adapterValidation?: AdapterValidation
   /** Monotonic extractor stage timings. */
   timings: { parseMs: number; extractMs: number }
 }

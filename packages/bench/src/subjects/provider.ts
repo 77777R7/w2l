@@ -526,6 +526,7 @@ export class ProviderSubject implements SubjectAdapter {
         product: extracted.product ?? null,
         adapter: extracted.adapter,
         entities: extracted.entities,
+        adapterValidation: extracted.adapterValidation,
       },
       usage: { ...base.usage, contentTokens: estimateTokens(markdown) },
     }

@@ -24,6 +24,7 @@ import type { SubjectAdapter } from '../subject.js'
 import { RobotsOriginCache } from '../robotsLookup.js'
 import { waitForRenderedStability } from '../browserSettle.js'
 import { OriginScheduler, type OriginPermit } from './originScheduler.js'
+import { captureRawHtml } from '../rawArtifact.js'
 import {
   BROWSER_FINGERPRINT,
   CHROME_MAJOR_FLOOR,
@@ -111,7 +112,11 @@ export class BrowserLocalSubject implements SubjectAdapter {
     networkPolicy?: NetworkPolicy,
     private readonly managedProfileDir: string | null = null,
     scheduler?: OriginScheduler,
+    private readonly publicPreferenceState: string | null = null,
   ) {
+    if (publicPreferenceState !== null && (mode !== 'standard' || access != null || managedProfileDir !== null)) {
+      throw new Error('anonymous public preference state is only available to the standard public browser')
+    }
     this.chain = new ComplianceChain(crypto.randomUUID(), mode)
     this.access = normalizeAccessConfig(access)
     this.accessConfig = access ?? null
@@ -284,6 +289,8 @@ export class BrowserLocalSubject implements SubjectAdapter {
         }
       }
 
+      const amazonPublicState = this.publicPreferenceState !== null && /(^|\.)amazon\.(com|sg)$/i.test(host)
+        ? this.publicPreferenceState : null
       const pendingContext = managedContext ? Promise.resolve(managedContext) : browser.newContext({
         userAgent: identity.userAgent,
         locale: BROWSER_FINGERPRINT.locale,
@@ -295,8 +302,8 @@ export class BrowserLocalSubject implements SubjectAdapter {
         // Restore the user's full session state (cookies, localStorage,
         // sessionStorage) when they inherited a storageState blob — the
         // serialized JSON IS the Playwright shape, passed through verbatim.
-        ...(this.accessConfig?.session?.storageState
-          ? { storageState: JSON.parse(this.accessConfig.session.storageState) }
+        ...(this.accessConfig?.session?.storageState ?? amazonPublicState
+          ? { storageState: JSON.parse((this.accessConfig?.session?.storageState ?? amazonPublicState)!) }
           : {}),
         // The user's egress, if they supplied one. Note what does NOT change
         // alongside it: the UA, the locale, the timezone, the viewport. A
@@ -318,6 +325,10 @@ export class BrowserLocalSubject implements SubjectAdapter {
       })
       void pendingContext.then(created => { if (signal?.aborted && created !== this.managedContext) void created.close().catch(() => {}) }, () => {})
       context = await raceWithSignal(pendingContext, signal)
+      if (amazonPublicState !== null) trace.push({
+        at: Date.now() - start, lane: 'browser_local', event: 'anonymous_public_preference_attached',
+        detail: { host, stateSha256: sha256Utf8(amazonPublicState) },
+      })
       throwIfExecutionStopped(execution)
       // The user's session, if they inherited one to us. Cookies go in through
       // the context API rather than a header so the browser scopes them the
@@ -406,6 +417,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
         return this.denied(url, start, trace, new BodyTooLargeError(this.networkPolicy.maxDecompressedBytes))
       }
       const rawBodySha256 = sha256Utf8(body)
+      const rawArtifacts = await captureRawHtml(body, rawBodySha256)
       const wallMs = Date.now() - start
       const browserMs = wallMs
       trace.push({ at: wallMs, lane: 'browser_local', event: 'rendered', detail: { status, attemptCount } })
@@ -458,7 +470,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
           redirectChain: finalUrl !== url ? [url, finalUrl] : [],
           contentType: 'text/html; rendered',
           rawBodySha256,
-          artifacts: [],
+          artifacts: rawArtifacts,
         },
         usage: {
           wallMs,
@@ -575,6 +587,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
           product: extracted.product ?? null,
           adapter: extracted.adapter,
           entities: extracted.entities,
+          adapterValidation: extracted.adapterValidation,
         },
         usage: { ...base.usage, contentTokens: estimateTokens(markdown) },
       }

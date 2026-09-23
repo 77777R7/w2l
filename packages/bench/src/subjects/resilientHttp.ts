@@ -16,6 +16,7 @@ import { prepareHttpIdentity, recordHttpIdentity } from '../httpIdentity.js'
 import { RobotsOriginCache } from '../robotsLookup.js'
 import type { SubjectAdapter } from '../subject.js'
 import { OriginScheduler, type OriginPermit } from './originScheduler.js'
+import { captureRawHtml } from '../rawArtifact.js'
 
 /**
  * Resilient HTTP subject: the resilient transport engine (redirect following
@@ -246,6 +247,7 @@ export class ResilientHttpSubject implements SubjectAdapter {
     }
     transportMs += Math.max(0, bodyReadMs - bodyReadBeforeFinal)
     const rawBodySha256 = sha256Utf8(body)
+    const rawArtifacts = await captureRawHtml(body, rawBodySha256)
 
     const base = {
       requestedUrl: url,
@@ -259,7 +261,7 @@ export class ResilientHttpSubject implements SubjectAdapter {
         redirectChain,
         contentType: out.headers?.get('content-type') ?? null,
         rawBodySha256,
-        artifacts: [],
+        artifacts: rawArtifacts,
         etag: out.headers?.get('etag') ?? null,
         lastModified: out.headers?.get('last-modified') ?? null,
         cacheControl: out.headers?.get('cache-control') ?? null,
@@ -442,6 +444,7 @@ export class ResilientHttpSubject implements SubjectAdapter {
         product: extracted.product ?? null,
         adapter: extracted.adapter,
         entities: extracted.entities,
+        adapterValidation: extracted.adapterValidation,
       },
       usage: { ...base.usage, contentTokens },
     })

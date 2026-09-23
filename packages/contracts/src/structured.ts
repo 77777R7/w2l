@@ -39,6 +39,7 @@ export interface StructuredFieldEvidence {
 
 export type StructuredIssueCode =
   | 'adapter_unavailable'
+  | 'subject_unverified'
   | 'field_unavailable'
   | 'missing_required'
   | 'schema_invalid'

@@ -68,18 +68,32 @@ function first(scope: ParentNode, selectors: readonly string[]): { value: string
   return null
 }
 
+function deliveryLocation(doc: Document): { value: string; selector: string } | null {
+  for (const selector of ['#glow-ingress-line2', '#contextualIngressPtLabel_deliveryShortLine', '#mir-layout-DELIVERY_BLOCK-slot-PRIMARY_DELIVERY_MESSAGE_LARGE']) {
+    const raw = text(doc, selector)
+    if (raw === null || /^update\s+location$/i.test(raw)) continue
+    const normalized = clean(raw
+      .replace(/^deliver(?:ing|y)?\s+to\s+/i, '')
+      .replace(/[–—-]?\s*update\s+location\s*$/i, '')
+      .replace(/\b(Singapore)\s*(\d{6})\b/i, '$1 $2'))
+    if (normalized !== null) return { value: normalized, selector }
+  }
+  return null
+}
+
 function currencyOf(value: string): string | null {
+  if (/\bSGD\b|S\$/.test(value)) return 'SGD'
+  if (/\bCAD\b|C\$/.test(value)) return 'CAD'
+  if (/\bAUD\b|A\$/.test(value)) return 'AUD'
   if (/\bINR\b|₹/.test(value)) return 'INR'
   if (/\bEUR\b|€/.test(value)) return 'EUR'
   if (/\bGBP\b|£/.test(value)) return 'GBP'
-  if (/\bCAD\b/.test(value)) return 'CAD'
-  if (/\bAUD\b/.test(value)) return 'AUD'
   if (/\bUSD\b|\$/.test(value)) return 'USD'
   return null
 }
 
 function amountOf(value: string): string {
-  return value.replace(/\b(?:INR|USD|EUR|GBP|CAD|AUD)\b/gi, '').replace(/[₹$€£]/g, '').replace(/\s+/g, '').trim()
+  return value.replace(/\b(?:INR|USD|EUR|GBP|CAD|AUD|SGD)\b/gi, '').replace(/(?:S|C|A|US)?\$/g, '').replace(/[₹€£]/g, '').replace(/\s+/g, '').trim()
 }
 
 export function amazonAsin(url: string | undefined): string | null {
@@ -102,6 +116,7 @@ export function inferAmazonCurrency(url: string | undefined, price: string): Pro
   const value = hostname.endsWith('amazon.ca') ? 'CAD'
     : hostname.endsWith('amazon.com.au') ? 'AUD'
       : hostname.endsWith('amazon.co.uk') ? 'GBP'
+        : hostname.endsWith('amazon.sg') ? 'SGD'
         : hostname.endsWith('amazon.in') ? 'INR'
           : hostname.endsWith('amazon.com') ? 'USD'
             : explicit
@@ -239,10 +254,7 @@ export function collectAmazonProductFacts(doc: Document, url: string | undefined
     ? (/\bSold\s*by\s*Blink\b/i.test(pageText) || /SoldbyBlink/i.test(pageText.replace(/\s+/g, '')) ? domFact('Blink', 'body:Sold by') : null)
     : domFact(sellerHit.value, sellerHit.selector)
   const availabilityHit = first(doc, ['#availability span', '#availability', '#outOfStock'])
-  const deliveryHit = first(doc, ['#glow-ingress-line2', '#contextualIngressPtLabel_deliveryShortLine', '#mir-layout-DELIVERY_BLOCK-slot-PRIMARY_DELIVERY_MESSAGE_LARGE'])
-  const deliveryLocation = deliveryHit === null || /^(?:update|select|choose)\s+(?:your\s+)?location$/i.test(deliveryHit.value)
-    ? null
-    : domFact(deliveryHit.value, deliveryHit.selector)
+  const deliveryHit = deliveryLocation(doc)
   const ratingRaw = attr(doc, '#acrPopover', 'title') ?? text(doc, '#acrPopover .a-icon-alt') ?? text(doc, '[data-hook="rating-out-of-text"]')
   const reviewRaw = text(doc, '#acrCustomerReviewText') ?? text(doc, '[data-hook="total-review-count"]')
   const images: ProductFact[] = []
@@ -279,7 +291,7 @@ export function collectAmazonProductFacts(doc: Document, url: string | undefined
     subjectId: asin === null ? null : { value: asin, source: 'dom', path: 'url:/dp/{asin}' },
     prices,
     seller: effectiveSeller,
-    deliveryLocation,
+    deliveryLocation: deliveryHit === null ? null : domFact(deliveryHit.value, deliveryHit.selector),
     rating: domFact(ratingRaw?.match(/[0-5](?:\.[0-9])?/)?.[0] ?? null, '#acrPopover'),
     reviewCount: domFact(reviewRaw?.match(/[\d,]+/)?.[0]?.replaceAll(',', '') ?? null, '#acrCustomerReviewText'),
     images: subjectImages,

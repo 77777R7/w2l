@@ -146,7 +146,7 @@ export async function callTool(client: W2L, name: string, args: unknown): Promis
     return client.scrape(req.url, {
       mode: req.mode,
       allowlistedDomains: req.allowlistedDomains,
-      formats: req.formats ?? ['markdown'],
+      formats: req.formats,
       includeLinks: req.includeLinks,
       debug: req.debug ?? false,
     })

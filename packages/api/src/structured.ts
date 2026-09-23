@@ -225,6 +225,15 @@ function validationMessage(errors: ErrorObject[] | null | undefined): string {
 
 function canonicalStructured(result: FetchResult): StructuredExtractionResult {
   const document = result.document
+  if (document?.adapterValidation?.valid === false) {
+    return {
+      status: 'incomplete',
+      data: { adapter: document.adapter, pageType: document.pageType, entities: [] },
+      evidence: [],
+      issues: document.adapterValidation.issues.map(message => ({ code: 'subject_unverified', message })),
+      modelUsage: null,
+    }
+  }
   if (document === undefined || document === null || document.entities.length === 0) {
     return {
       status: 'incomplete',
@@ -324,6 +333,16 @@ export async function extractStructured(
 ): Promise<StructuredExtractionResult> {
   if (format === undefined) return canonicalStructured(result)
   const schemaSha256 = sha256Utf8(JSON.stringify(format.schema))
+  if (result.document?.adapterValidation?.valid === false) {
+    return {
+      status: 'incomplete',
+      data: null,
+      schemaSha256,
+      evidence: [],
+      issues: result.document.adapterValidation.issues.map(message => ({ code: 'subject_unverified', message })),
+      modelUsage: null,
+    }
+  }
   const evidence: StructuredFieldEvidence[] = []
   let data = fillNullableMissing(format.schema, format.schema, mapSchema(format.schema, format.schema, candidates(result), '', evidence)) ?? null
   let validate: ValidateFunction
@@ -411,10 +430,16 @@ export async function extractStructured(
   }
 }
 
-function requestedFormats(req: ScrapeRequest): readonly ScrapeFormat[] {
-  // Preserve the legacy REST/SDK body and link response. MCP explicitly
-  // requests ['markdown'], so its default remains compact.
-  return req.formats ?? ['markdown', 'links']
+function requestedFormats(req: ScrapeRequest, result?: ScrapeResponse): readonly ScrapeFormat[] {
+  if (req.formats !== undefined) return req.formats
+  // MCP marks its compact request with debug=false. Keep REST/SDK legacy
+  // defaults, while returning adapter JSON (including incomplete identity
+  // failures) on the simple MCP path.
+  if (req.debug === false) {
+    return result?.document?.adapter.id !== undefined && result.document.adapter.id !== 'generic'
+      ? ['json'] : ['markdown']
+  }
+  return ['markdown', 'links']
 }
 
 function hasFormat(formats: readonly ScrapeFormat[], name: 'markdown' | 'links' | 'json'): boolean {
@@ -442,7 +467,7 @@ export async function prepareScrapeResponse(
   modelConfig: StructuredModelConfig | null,
   overallStart: number,
 ): Promise<ScrapeResponse | CompactScrapeResponse> {
-  const formats = requestedFormats(req)
+  const formats = requestedFormats(req, result)
   const modelStart = performance.now()
   const json = hasFormat(formats, 'json')
     ? await extractStructured(result, customJsonFormat(formats), execution, modelConfig ?? structuredModelConfigFromEnv())
@@ -475,13 +500,18 @@ export async function prepareScrapeResponse(
 export function compactScrapeResponse(
   next: ScrapeResponse,
   req: ScrapeRequest,
-  formats: readonly ScrapeFormat[] = requestedFormats(req),
+  formats: readonly ScrapeFormat[] = requestedFormats(req, next),
   totalMs = next.summary.totalMs ?? next.usage.wallMs,
 ): CompactScrapeResponse {
   const includeLinks = req.includeLinks === true || hasFormat(formats, 'links')
   return {
     requestedUrl: next.requestedUrl,
     finalUrl: next.evidence.finalUrl,
+    snapshot: {
+      rawBodySha256: next.evidence.rawBodySha256,
+      artifacts: next.evidence.artifacts,
+      httpStatus: next.evidence.httpStatus,
+    },
     status: next.status,
     failureReason: next.failureReason,
     blockReason: next.blockReason,
@@ -495,7 +525,14 @@ export function compactScrapeResponse(
     ],
     ...(hasFormat(formats, 'markdown') ? { markdown: next.markdown } : {}),
     ...(includeLinks ? { links: next.links ?? [] } : {}),
-    ...(next.document === undefined ? {} : { document: next.document }),
+    ...(next.document === undefined ? {} : { document: next.document === null ? null : {
+      title: next.document.title,
+      pageType: next.document.pageType,
+      strategy: next.document.strategy,
+      confidence: next.document.confidence,
+      adapter: next.document.adapter,
+      ...(next.document.adapterValidation === undefined ? {} : { adapterValidation: next.document.adapterValidation }),
+    } }),
     ...(hasFormat(formats, 'json') && next.json !== undefined ? { json: next.json } : {}),
     truncated: next.truncated,
     truncatedAt: next.truncatedAt,

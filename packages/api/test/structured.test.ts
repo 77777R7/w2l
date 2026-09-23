@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { FetchResult, JsonFormatRequest, ProductFacts } from '@w2l/contracts'
-import { extractStructured } from '../src/structured.js'
+import type { FetchResult, JsonFormatRequest, ProductFacts, ScrapeResponse } from '@w2l/contracts'
+import { extractStructured, prepareScrapeResponse } from '../src/structured.js'
 
 const product: ProductFacts = {
   name: { value: 'Subject headphones', source: 'dom', path: '#productTitle' },
@@ -50,6 +50,37 @@ const format = (extra: Record<string, unknown> = {}): JsonFormatRequest => ({
 })
 
 describe('structured JSON extraction', () => {
+  it('defaults compact adapter responses to JSON, including unverified identities', async () => {
+    const response = {
+      ...result, channelsTried: ['http'], ladderTrace: [], summary: { attempts: [], totalMs: 10 },
+    } as unknown as ScrapeResponse
+    const good = await prepareScrapeResponse(response, { url: result.requestedUrl, debug: false }, {}, null, performance.now())
+    expect(good.formats).toEqual(['json'])
+    expect(good.json?.status).toBe('complete')
+    expect(good).not.toHaveProperty('markdown')
+    expect(good.document).not.toHaveProperty('product')
+    expect(good.document).not.toHaveProperty('entities')
+    const bad = await prepareScrapeResponse({
+      ...response,
+      document: { ...response.document!, adapterValidation: { valid: false, issues: ['subject_id_unverified'] } },
+    }, { url: result.requestedUrl, debug: false }, {}, null, performance.now())
+    expect(bad.formats).toEqual(['json'])
+    expect(bad.json?.status).toBe('incomplete')
+    expect(bad.json?.issues[0]?.code).toBe('subject_unverified')
+  })
+  it('does not publish entities or custom fields when adapter identity is unverified', async () => {
+    const unverified: FetchResult = {
+      ...result,
+      document: { ...result.document!, adapterValidation: { valid: false, issues: ['subject_id_mismatch'] } },
+    }
+    const canonical = await extractStructured(unverified)
+    expect(canonical.status).toBe('incomplete')
+    expect(canonical.data).toMatchObject({ entities: [] })
+    expect(canonical.issues).toContainEqual({ code: 'subject_unverified', message: 'subject_id_mismatch' })
+    const custom = await extractStructured(unverified, format(), {}, null)
+    expect(custom.status).toBe('incomplete')
+    expect(custom.data).toBeNull()
+  })
   it('returns the canonical adapter entity envelope for string json', async () => {
     const out = await extractStructured(result)
     expect(out.status).toBe('complete')

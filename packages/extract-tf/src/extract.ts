@@ -102,6 +102,7 @@ export class ExtractTf implements Extractor {
     const sourceFacts = amazonProduct
       ? collectAmazonProductFacts(doc.document, options.url, declaredFacts)
       : declaredFacts
+    const amazonValidation = amazonProduct ? adapterFor(doc.document, options.url, sourceFacts).validation : null
 
     cleanTree(doc.document)
     pruneTree(doc.document, { selectors: pruneSelectors })
@@ -160,7 +161,11 @@ export class ExtractTf implements Extractor {
       product = sourceFacts
       // Only now, on a tree with the neighbouring products removed, is the
       // deepest price-shaped element safe to read as THIS product's price.
-      fillPriceFromText(product, doc.document)
+      // Amazon's page often contains unit prices and neighbouring offer
+      // fragments inside the subject container. The adapter must prefer an
+      // honest null over attributing one of those generic price tokens to the
+      // main ASIN.
+      if (!amazonProduct) fillPriceFromText(product, doc.document)
       if (amazonProduct && product.price !== null && product.priceCurrency === null) product.priceCurrency = inferAmazonCurrency(options.url, product.price.value)
     }
 
@@ -189,6 +194,7 @@ export class ExtractTf implements Extractor {
       product,
       adapter: adapter.descriptor,
       entities: adapter.entities,
+      adapterValidation: amazonValidation ?? adapter.validation,
       timings: { parseMs, extractMs: Math.max(0, performance.now() - extractionStart) },
     }
 

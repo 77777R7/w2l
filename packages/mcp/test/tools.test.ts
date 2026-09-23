@@ -47,7 +47,7 @@ describe('MCP tools', () => {
       'GET http://127.0.0.1:8787/v1/crawl/task-1/errors',
       'POST http://127.0.0.1:8787/v1/crawl/task-1/cancel',
     ])
-    expect(calls[0]?.body).toEqual({ url: 'https://example.com/', mode: 'standard', formats: ['markdown'], debug: false })
+    expect(calls[0]?.body).toEqual({ url: 'https://example.com/', mode: 'standard', debug: false })
   })
 
   it('forwards custom formats and debug to REST', async () => {
@@ -58,6 +58,14 @@ describe('MCP tools', () => {
     }) as typeof fetch })
     await callTool(client, 'scrape', { url: 'https://example.com/', formats: [{ type: 'json', schema: { type: 'object' } }], debug: true })
     expect(body).toMatchObject({ formats: [{ type: 'json', schema: { type: 'object' } }], debug: true })
+  })
+
+  it('keeps the legacy links format and caller schema on the public tool schema', () => {
+    const scrape = TOOLS.find(tool => tool.name === 'scrape')
+    const batch = TOOLS.find(tool => tool.name === 'batch_scrape')
+    expect(JSON.stringify(scrape?.inputSchema)).toContain('"links"')
+    expect(JSON.stringify(scrape?.inputSchema)).toContain('"schema"')
+    expect(JSON.stringify(batch?.inputSchema)).toContain('"schema"')
   })
 
   it('dispatches URL arrays and paginated batch results through the SDK', async () => {
