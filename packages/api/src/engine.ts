@@ -114,6 +114,14 @@ export interface ApiEngineOptions {
   channelsFor?: (mode: 'standard' | 'research' | 'authed') => Channel[]
   /** Restrict a hosted public-document pilot to the HTTP rung. */
   httpOnly?: boolean
+  /** Server-owned acquisition rule; callers cannot disable it per request. */
+  channelPolicy?: (url: string) => 'ladder' | 'http_only' | 'browser_only'
+  /** Operator-created anonymous marketplace state, scoped by BrowserLocalSubject. */
+  publicPreferenceState?: string | null
+  browserAllowedHosts?: readonly string[]
+  /** Hosted single-owner resource ceiling; absent locally for compatibility. */
+  maxActiveBatches?: number
+  batchMaxWallMs?: number | null
   workerCount?: number
   perHostConcurrency?: number
   perHostMinDelayMs?: number
@@ -137,12 +145,13 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
   const conditionalHttp = new ResilientHttpSubject('standard', networkPolicy, originScheduler)
   const defaultMaxPages = options.defaultMaxPages ?? null
   const inflight = new Map<string, Promise<void>>()
+  let batchStartInProgress = false
   const activeScrapes = new Set<Promise<unknown>>()
   const crawlControllers = new Map<string, AbortController>()
   const createChannels =
     options.channelsFor ??
     ((mode: 'standard' | 'research' | 'authed') => {
-      const channels = buildChannels(mode, { headed, networkPolicy, originScheduler })
+      const channels = buildChannels(mode, { headed, networkPolicy, originScheduler, publicPreferenceState:options.publicPreferenceState, browserAllowedHosts:options.browserAllowedHosts })
       return options.httpOnly ? channels.filter(channel => channel.id === 'http') : channels
     })
   const channelsByMode = new Map<string, Channel[]>()
@@ -153,6 +162,13 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
     const channels = createChannels(mode)
     channelsByMode.set(mode, channels)
     return channels
+  }
+  const channelsForUrl = (mode: 'standard' | 'research' | 'authed', url: string): Channel[] => {
+    const channels = channelsFor(mode)
+    const policy = options.channelPolicy?.(url) ?? 'ladder'
+    const selected = policy === 'ladder' ? channels : channels.filter(channel => channel.id === (policy === 'http_only' ? 'http' : 'browser_local'))
+    if (selected.length === 0) throw new RequestError(`capture channel unavailable for ${policy}`)
+    return selected
   }
   const historyFor = (mode: string): MemoryRoutingHistory => {
     const existing = historiesByMode.get(mode)
@@ -174,6 +190,19 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
     } finally {
       await store.close()
     }
+  }
+
+  async function activeBatchCount(): Promise<number> {
+    let count = 0
+    for (const name of existsSync(taskRoot) ? readdirSync(taskRoot) : []) {
+      if (!existsSync(join(taskRoot, name, 'checkpoint.sqlite'))) continue
+      const store = SqliteTaskStore.openReadOnly(join(taskRoot, name))
+      try {
+        const task = await store.getTask(name)
+        if (task?.batch && ['pending', 'running', 'paused'].includes(task.status)) count++
+      } finally { await store.close() }
+    }
+    return count
   }
 
   async function loadCrawlPageList(taskId: string, query: CrawlPageQuery | undefined, kind: StepPageQuery['kind'], allAttempts = false): Promise<CrawlPageList<CrawlPage> | null> {
@@ -201,7 +230,7 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
 
   function launchTask(task: Task, store: SqliteTaskStore, req: { maxDepth: number | null; allowlistedDomains: readonly string[]; useCached: boolean; resume: boolean }): void {
     const mode = defaultApiMode(task.mode)
-    const runner = new LadderRunner(channelsFor(mode), { mode, ...(req.allowlistedDomains.length ? { allowlistedDomains: req.allowlistedDomains } : {}) }, historyFor(mode))
+    const runner = new LadderRunner(channelsForUrl(mode, task.seedUrl), { mode, ...(req.allowlistedDomains.length ? { allowlistedDomains: req.allowlistedDomains } : {}) }, historyFor(mode))
     const ladder = new LadderScrapeAtom(runner)
     const atom: ScrapeAtom = task.batch === undefined ? ladder : {
       async scrape(url, context) {
@@ -280,7 +309,7 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
       const overallStart = performance.now()
       const scope = createExecutionScope({...context, signal: context.signal ? AbortSignal.any([context.signal, shutdownController.signal]) : shutdownController.signal, deadlineAt: context.deadlineAt ?? Date.now() + 300_000})
       const mode = defaultApiMode(req.mode)
-      const channels = channelsFor(mode)
+      const channels = channelsForUrl(mode, req.url)
       const policy: CrawlPolicy = {
         mode,
         ...(req.allowlistedDomains !== undefined && req.allowlistedDomains.length > 0
@@ -330,6 +359,12 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
     },
 
     async startBatch(req) {
+      if (batchStartInProgress) throw new RequestError('another batch submission is in progress')
+      batchStartInProgress = true
+      try {
+      if (options.maxActiveBatches !== undefined && await activeBatchCount() >= options.maxActiveBatches) {
+        throw new RequestError('active batch limit reached')
+      }
       const canonical = req.urls.map(url => canonicalizeUrl(url))
       if (canonical.some(url => url === null) || new Set(canonical).size !== canonical.length) throw new RequestError('urls must be unique after canonicalization')
       const taskId = crypto.randomUUID()
@@ -339,13 +374,14 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
       const urls = [...req.urls]
       const task: Task = {
         id: taskId, seedUrl: urls[0]!, taskDir, mode: defaultApiMode(req.mode), status: 'pending',
-        budget: { maxPages: null, maxWallMs: null, maxCostUsd: null, maxTokens: null },
+        budget: { maxPages: null, maxWallMs: options.batchMaxWallMs ?? null, maxCostUsd: null, maxTokens: null },
         batch: { urls, formats: req.formats ?? ['markdown'], includeLinks: req.includeLinks === true },
         createdAt: now, updatedAt: now,
       }
       await store.putTask(task)
       launchTask(task, store, { maxDepth: 0, allowlistedDomains: [...new Set(urls.map(url => new URL(url).hostname))], useCached: false, resume: false })
       return { taskId }
+      } finally { batchStartInProgress = false }
     },
 
     async getBatch(taskId) {
@@ -532,6 +568,7 @@ function toCrawlPage(step: StepRecord): CrawlPage {
     blockReason: result?.blockReason ?? null,
     budgetExceeded: result?.budgetExceeded ?? null,
     evidence: result?.evidence ?? null,
+    usage: result?.usage ?? null,
     trace: result?.trace ?? [],
     audit: step.audit,
     cached: step.cached,

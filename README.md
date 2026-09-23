@@ -88,8 +88,11 @@ npm run mcp
 
 The unified local MCP covers scrape, Crawl, persistent URL-array batches, and
 Monitor/Delivery without separate worker terminals. A unified service also
-implements authenticated Streamable HTTP for a restricted public-document
-pilot; its permanent Render URL is pending deployment. See the
+implements authenticated Streamable HTTP for the reviewed public-document
+Monitor and anonymous Amazon.sg product JSON/batch flows; its permanent Render
+URL and final hosted acceptance are pending. For both flows on one Mac, run
+`npm run first-use:local` after `npm ci`; see the
+[two-flow first-use guide](docs/dual-flow-first-use.md),
 [MCP first-use walkthrough](docs/mcp-first-use.md) and
 [C2/C3 status](docs/roadmap/section-c-delivery.md). Advanced clients may
 still launch the legacy stdio adapter from this repository:

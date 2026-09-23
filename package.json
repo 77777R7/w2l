@@ -27,6 +27,7 @@
     "hosted:mcp": "tsc --build && node packages/mcp/dist/hostCli.js",
     "local:mcp": "tsc --build && node packages/mcp/dist/localHostCli.js",
     "local:mcp:install": "tsc --build && node scripts/section-c/local-service.mjs install",
+    "first-use:local": "node scripts/section-c/local-dual-flow.mjs",
     "local:mcp:status": "node scripts/section-c/local-service.mjs status",
     "local:mcp:restart": "node scripts/section-c/local-service.mjs restart",
     "local:mcp:uninstall": "node scripts/section-c/local-service.mjs uninstall",

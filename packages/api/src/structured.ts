@@ -195,6 +195,17 @@ function fillNullableMissing(root: JsonSchema, schemaInput: JsonSchema, value: J
   return undefined
 }
 
+function nullableMissingIssues(root: JsonSchema, schemaInput: JsonSchema, value: JsonValue | undefined, path = ''): StructuredExtractionIssue[] {
+  const schema = resolveRef(root, schemaInput)
+  if (schema.properties !== undefined && value !== null && typeof value === 'object' && !Array.isArray(value)) {
+    const data = value as Record<string, JsonValue>
+    return Object.entries(schema.properties).flatMap(([name, child]) => nullableMissingIssues(root, child, data[name], `${path}/${name}`))
+  }
+  return value === null && schemaTypes(schema).includes('null')
+    ? [{code:'field_unavailable',path,message:'no verified source for this nullable field on the selected page'}]
+    : []
+}
+
 function requiredMissing(root: JsonSchema, schemaInput: JsonSchema, value: JsonValue | undefined, path = ''): string[] {
   const schema = resolveRef(root, schemaInput)
   const missing: string[] = []
@@ -361,7 +372,7 @@ export async function extractStructured(
   let missing = requiredMissing(format.schema, format.schema, data)
   const deterministicValid = validate(data)
   if (missing.length === 0 && deterministicValid) {
-    return { status: 'complete', data, schemaSha256, evidence, issues: [], modelUsage: null }
+    return { status: 'complete', data, schemaSha256, evidence, issues: nullableMissingIssues(format.schema,format.schema,data), modelUsage: null }
   }
   const issues: StructuredExtractionIssue[] = []
   if (format.modelFallback !== true) {

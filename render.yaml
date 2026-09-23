@@ -5,16 +5,20 @@ services:
     plan: 1c-2g
     region: singapore
     dockerfilePath: ./Dockerfile
-    dockerCommand: node packages/mcp/dist/hostCli.js
+    dockerCommand: sh -c "node scripts/section-c/ensure-amazon-sg-state.mjs && node packages/mcp/dist/hostCli.js"
     autoDeployTrigger: off
     healthCheckPath: /healthz
     disk:
       name: w2l-control
       mountPath: /var/data
-      sizeGB: 1
+      sizeGB: 5
     envVars:
       - key: W2L_TASK_ROOT
-        value: /var/data/w2l
+        value: /var/data/w2l/tasks
+      - key: W2L_AMAZON_PUBLIC_STATE_FILE
+        value: /var/data/w2l/amazon-public-state.json
+      - key: W2L_CAPTURE_RAW_DIR
+        value: /var/data/w2l/raw-html
       - key: W2L_MCP_URL
         sync: false
       - key: WORKOS_ISSUER

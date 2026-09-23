@@ -1,19 +1,22 @@
 import { createServer, type Server as HttpServer } from 'node:http'
+import { readFileSync } from 'node:fs'
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from 'jose'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import { SUPPORTED_PROTOCOL_VERSIONS } from '@modelcontextprotocol/sdk/types.js'
 import type { ApiEngine } from '@w2l/api'
-import { FIRECRAWL_INTRO_URL, hostedNetworkPolicy, type NetworkPolicy } from '@w2l/contracts'
+import { FIRECRAWL_MONITOR_ID, hostedNetworkPolicy, type NetworkPolicy } from '@w2l/contracts'
 import { createMcpServer } from './server.js'
 import { createManagedRuntime } from './managedRuntime.js'
-
-const REMOTE_TOOLS = new Set(['preview_monitor','create_monitor','list_monitors','get_monitor','run_monitor','get_monitor_run','pause_monitor','resume_monitor','cancel_monitor_run','create_delivery_destination','list_delivery_destinations','pause_delivery_destination','resume_delivery_destination','list_deliveries','get_delivery','retry_dead_letter'])
+import { REMOTE_TOOLS, normalizeHostedToolCall } from './hostedToolPolicy.js'
+import { validateAmazonPublicState } from './amazonState.js'
+import { AMAZON_PRODUCT_SCHEMA } from './productSchema.js'
 
 export interface HostedConfig {
   mcpUrl: string
   issuer: string
   ownerSubject: string
   receiverUrl: string
+  amazonPublicState: string
   taskRoot: string
   port: number
   host?: string
@@ -25,10 +28,12 @@ export interface HostedConfig {
 }
 
 export function hostedConfigFromEnv(env: NodeJS.ProcessEnv = process.env): HostedConfig {
-  for (const key of ['W2L_MCP_URL','WORKOS_ISSUER','W2L_OWNER_SUBJECT','W2L_RECEIVER_URL','W2L_WEBHOOK_SECRET_DEMO']) if (!env[key]) throw new Error(`${key} is required for hosted MCP`)
+  for (const key of ['W2L_MCP_URL','WORKOS_ISSUER','W2L_OWNER_SUBJECT','W2L_RECEIVER_URL','W2L_WEBHOOK_SECRET_DEMO','W2L_AMAZON_PUBLIC_STATE_FILE']) if (!env[key]) throw new Error(`${key} is required for hosted MCP`)
   const port = Number(env.PORT ?? 8787)
   if (!Number.isSafeInteger(port) || port < 1 || port > 65535) throw new Error('PORT must be 1..65535')
-  return {mcpUrl:env.W2L_MCP_URL!,issuer:env.WORKOS_ISSUER!,ownerSubject:env.W2L_OWNER_SUBJECT!,receiverUrl:env.W2L_RECEIVER_URL!,taskRoot:env.W2L_TASK_ROOT ?? '/var/data/w2l',port,host:'0.0.0.0'}
+  const amazonPublicState = readFileSync(env.W2L_AMAZON_PUBLIC_STATE_FILE!, 'utf8')
+  validateAmazonPublicState(amazonPublicState)
+  return {mcpUrl:env.W2L_MCP_URL!,issuer:env.WORKOS_ISSUER!,ownerSubject:env.W2L_OWNER_SUBJECT!,receiverUrl:env.W2L_RECEIVER_URL!,amazonPublicState,taskRoot:env.W2L_TASK_ROOT ?? '/var/data/w2l',port,host:'0.0.0.0'}
 }
 
 export function createHostedService(config: HostedConfig): {server: HttpServer; close: () => Promise<void>; engine: ApiEngine} {
@@ -39,8 +44,14 @@ export function createHostedService(config: HostedConfig): {server: HttpServer; 
   if (issuer.protocol !== 'https:' || issuer.pathname !== '/' || issuer.search || issuer.hash) throw new Error('issuer must be an HTTPS origin')
   if (receiverUrl.protocol !== 'https:' || receiverUrl.pathname !== '/webhook' || receiverUrl.search || receiverUrl.hash) throw new Error('receiverUrl must be an HTTPS /webhook URL')
   if (!config.ownerSubject.trim()) throw new Error('ownerSubject is required')
+  const amazonStateSha256 = validateAmazonPublicState(config.amazonPublicState)
   const policy = config.networkPolicy ?? hostedNetworkPolicy()
-  const runtime = createManagedRuntime({taskRoot:config.taskRoot,networkPolicy:policy,defaultMaxPages:10,httpOnly:true,monitorPollMs:config.monitorPollMs,deliveryPollMs:config.deliveryPollMs})
+  const runtime = createManagedRuntime({taskRoot:config.taskRoot,networkPolicy:policy,defaultMaxPages:10,
+    publicPreferenceState:config.amazonPublicState,
+    browserAllowedHosts:['www.amazon.sg','m.media-amazon.com','images-na.ssl-images-amazon.com','images-eu.ssl-images-amazon.com'],
+    channelPolicy:url=>new URL(url).hostname === 'www.amazon.sg' ? 'browser_only' : 'http_only',
+    maxActiveBatches:1,batchMaxWallMs:5_400_000,workerCount:2,
+    monitorPollMs:config.monitorPollMs,deliveryPollMs:config.deliveryPollMs})
   const {engine,client} = runtime
   const jwks = createRemoteJWKSet(new URL('/oauth2/jwks',issuer))
   const verifyToken = config.verifyToken ?? (async (token:string) => (await jwtVerify(token,jwks,{issuer:issuer.origin,audience:config.mcpUrl})).payload)
@@ -55,7 +66,7 @@ export function createHostedService(config: HostedConfig): {server: HttpServer; 
       if (req.method === 'GET' && pathname === '/healthz') {
         const health=runtime.health()
         try {engine.listMonitors()} catch {sendJson(res,503,{ok:false});return}
-        sendJson(res,health.ok ? 200 : 503,health);return
+        sendJson(res,health.ok ? 200 : 503,{...health,amazonPublicStateSha256:amazonStateSha256});return
       }
       if (req.method === 'GET' && pathname === '/.well-known/oauth-protected-resource') {
         sendJson(res,200,{resource:config.mcpUrl,authorization_servers:[issuer.origin],bearer_methods_supported:['header'],scopes_supported:['openid']});return
@@ -88,13 +99,16 @@ export function createHostedService(config: HostedConfig): {server: HttpServer; 
       let parsedBody: unknown
       try {parsedBody = JSON.parse(Buffer.concat(chunks).toString('utf8'))}
       catch {sendJson(res,400,{error:'invalid JSON'});return}
-      const mcp = createMcpServer(client,{allowedTools:REMOTE_TOOLS,authorizeCall:(name,args) => {
-        const input = args && typeof args === 'object' && !Array.isArray(args) ? args as Record<string,unknown> : {}
-        if (name === 'preview_monitor' || name === 'create_monitor') {
-          if (input.preset !== 'firecrawl-introduction' || Object.keys(input).some(key=>!['preset','enabled'].includes(key))) throw new Error(`remote pilot only supports ${FIRECRAWL_INTRO_URL}`)
-        }
-        if (name === 'create_delivery_destination' && (input.url !== config.receiverUrl || input.secretEnv !== 'W2L_WEBHOOK_SECRET_DEMO')) throw new Error('remote pilot only supports the controlled HTTPS receiver and configured secret reference')
-      }})
+      const mcp = createMcpServer(client,{allowedTools:REMOTE_TOOLS,
+        normalizeCall:(name,args)=>{
+          const normalized=normalizeHostedToolCall(name,args,config.receiverUrl,AMAZON_PRODUCT_SCHEMA)
+          if (name === 'create_monitor') {
+            const input=normalized as Record<string,unknown>
+            const id=input.preset === 'firecrawl-introduction' ? FIRECRAWL_MONITOR_ID : input.monitorId
+            if (typeof id === 'string' && !engine.getMonitor(id) && engine.listMonitors().length >= 20) throw new Error('remote Monitor limit reached')
+          }
+          return normalized
+        }})
       const transport = new StreamableHTTPServerTransport({sessionIdGenerator:undefined,enableJsonResponse:true})
       try {await mcp.connect(transport);await transport.handleRequest(req,res,parsedBody)}
       finally {await mcp.close()}

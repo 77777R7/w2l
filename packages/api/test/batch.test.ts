@@ -13,7 +13,7 @@ describe('persistent URL-array batch', () => {
   const cleanup: Array<() => Promise<void>> = []
   afterEach(async () => { while (cleanup.length) await cleanup.pop()!() })
 
-  async function fixture() {
+  async function fixture(options: {maxActiveBatches?:number} = {}) {
     const root = await mkdtemp(join(tmpdir(), 'w2l-batch-'))
     let slow = false
     let release = () => {}
@@ -33,7 +33,7 @@ describe('persistent URL-array batch', () => {
     })
     await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
     const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
-    const engine = () => createApiEngine({ taskRoot: root, networkPolicy: { ...localNetworkPolicy(), perHostConcurrency: 1, perHostMinDelayMs: 0 }, workerCount: 2 })
+    const engine = () => createApiEngine({ taskRoot: root, networkPolicy: { ...localNetworkPolicy(), perHostConcurrency: 1, perHostMinDelayMs: 0 }, workerCount: 2, ...options })
     cleanup.push(async () => { release(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); await rm(root, { recursive: true, force: true }) })
     return { origin, root, engine, seen, setSlow: (value: boolean) => { slow = value }, setStarted: (fn: () => void) => { slowStarted = fn }, release: () => release() }
   }
@@ -56,6 +56,7 @@ describe('persistent URL-array batch', () => {
     const items = [...first.items, ...second.items]
     expect(new Set(items.map(item => item.url))).toEqual(new Set(urls))
     expect(items.every(item => item.markdown === null && item.json?.status === 'complete')).toBe(true)
+    expect(items.every(item => (item.usage?.attemptCount ?? 0) >= 1 && (item.usage?.wallMs ?? -1) >= 0)).toBe(true)
     expect(items.map(item => (item.json?.data as { title: string }).title).sort()).toEqual(['Fixture item 1', 'Fixture item 2', 'Fixture item 3'])
     expect(items.every(item => item.audit === undefined && item.trace.length === 0)).toBe(true)
     const debug = await client.getBatchItems(accepted.taskId, { limit: 1, debug: true })
@@ -109,5 +110,20 @@ describe('persistent URL-array batch', () => {
     expect(second.hasMore).toBe(false)
     expect(new Set([...first.items, ...second.items].map(item => item.url))).toEqual(new Set(urls))
     expect(first.items.every(item => item.audit === undefined && item.trace.length === 0)).toBe(true)
+  })
+
+  it('enforces a single active hosted batch across the persisted task state', async () => {
+    const f = await fixture({maxActiveBatches:1})
+    f.setSlow(true)
+    let started!: () => void
+    const secondStarted = new Promise<void>(resolve => { started = resolve })
+    f.setStarted(started)
+    const engine = f.engine()
+    cleanup.push(() => engine.close({cancelActive:true}))
+    const first = await engine.startBatch({urls:[`${f.origin}/item/1`,`${f.origin}/item/2`],mode:'standard'})
+    await secondStarted
+    await expect(engine.startBatch({urls:[`${f.origin}/item/3`],mode:'standard'})).rejects.toThrow('active batch limit reached')
+    f.release()
+    expect((await engine.getBatch(first.taskId))?.requested).toBe(2)
   })
 })

@@ -31,7 +31,7 @@ Current truth:
 - B3 managed-session APIs exist; Existing Chrome/CDP and B4 Recipe are library-level implementations without dedicated integration evidence in this baseline.
 - C1's delivery engineering slice passed: persistent worker/leases, retry/dead-letter, real HTTPS, stable event IDs, receiver deduplication and restart recovery. Long-term use by a real downstream customer is unverified.
 - Gate 4 includes Crawl/Monitor/Delivery SDKs, examples, installation docs and an agent clean-install record. Independent human acceptance is pending; Gate 5 external pilots have not started.
-- C2 Monitor/Delivery MCP and the local public-document → independent HTTPS receiver first-use flow are implemented. C3 has a unified single-instance process and authenticated Streamable HTTP implementation. Render hosting, WorkOS browser OAuth, real Codex client connection and hosted restart acceptance remain open; [walkthrough](docs/mcp-first-use.md).
+- C2 Monitor/Delivery MCP and the local public-document → independent HTTPS receiver first-use flow are implemented. A candidate dual-flow local entry now adds fixed-schema Amazon.sg product JSON and persistent batches; its final-path correctness and independent-use gates remain open. C3 has a unified single-instance process and authenticated Streamable HTTP implementation, but Render hosting, WorkOS browser OAuth, real Codex client connection and hosted restart acceptance remain open; [dual-flow guide](docs/dual-flow-first-use.md).
 - B3/B4 external validation is blocked on an authorized backend/account and a second reusable workflow; see `research/section-b-real-adoption-blockers.md`.
 - Hosted arbitrary-URL browser execution remains gated on a separate egress/security review.
 

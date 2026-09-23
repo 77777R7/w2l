@@ -70,6 +70,8 @@ export interface CrawlPage {
   blockReason: string | null
   budgetExceeded: BudgetKind | null
   evidence: Evidence | null
+  /** Per-URL latency, attempts and metering without loading the full audit. */
+  usage?: import('./result.js').ResourceUsage | null
   trace: readonly TraceEvent[]
   audit?: LadderRunAudit
   cached: boolean

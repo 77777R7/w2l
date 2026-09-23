@@ -136,6 +136,10 @@ export function buildChannels(
     headed?: boolean
     networkPolicy?: import('@w2l/contracts').NetworkPolicy
     originScheduler?: OriginScheduler
+    /** Operator-created anonymous marketplace preferences; never a user login. */
+    publicPreferenceState?: string | null
+    /** Hosted browser request hosts. Local runs leave this unset. */
+    browserAllowedHosts?: readonly string[]
   } = {},
 ): Channel[] {
   // One subject per channel for the life of the run. A fresh Chromium per
@@ -143,7 +147,7 @@ export function buildChannels(
   // the browser down at the end.
   const originScheduler = opts.originScheduler ?? new OriginScheduler(opts.networkPolicy ?? defaultNetworkPolicy())
   const http = new ResilientHttpSubject(mode, opts.networkPolicy, originScheduler)
-  const plainBrowser = new BrowserLocalSubject(mode, null, opts.headed === true, opts.networkPolicy, null, originScheduler)
+  const plainBrowser = new BrowserLocalSubject(mode, null, opts.headed === true, opts.networkPolicy, null, originScheduler, opts.publicPreferenceState ?? null, opts.browserAllowedHosts)
   const declared: IdentityBundle = identityForRoute(mode)
 
   // ----------------------------------------------------------------------

@@ -39,6 +39,9 @@ export interface ResourceUsage {
   bytesDecompressed: number
   requestCount: number
   attemptCount: number
+  /** Actual status-driven retries; not variant-selection navigations. */
+  statusRetryCount?: number
+  navigationFollowupCount?: number
   /** Token count of the emitted main content. Null if not tokenized. */
   contentTokens: number | null
   browserMs: number

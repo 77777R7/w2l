@@ -239,9 +239,10 @@ Persistent monitors outlive an MCP conversation.
 ## Remote URL MCP (C3, Implementation; Hosted Acceptance Open)
 
 The server implements Streamable HTTP `/mcp`, protected-resource metadata,
-Origin/host checks and WorkOS access-token verification. The remote pilot
-exposes only the Firecrawl public-document preset and a configured independent
-HTTPS receiver. A Render Blueprint and client instructions are provided, but
+Origin/host checks and WorkOS access-token verification. The candidate remote
+entry now exposes reviewed public-document Monitor/Delivery plus Amazon.sg
+product JSON and persistent batches with a fixed schema and anonymous
+Singapore preference. A Render Blueprint and client instructions are provided, but
 there is no deployed public MCP URL, verified WorkOS browser OAuth flow, or
 permanent hosted service yet. This transport and hosting are C3; Monitor/
 Delivery tool semantics are C2.
@@ -323,8 +324,8 @@ or successful demo is not product-market fit.
 
 ## Next Slice Order And Execution Policy
 
-1. Resolve Render workspace billing suspension and create/configure the WorkOS
-   AuthKit MCP application for the actual deployed resource URL.
+1. Verify the current Render workspace plan and billing state, then create/configure
+   the WorkOS AuthKit MCP application for the actual deployed resource URL.
 2. Deploy both persistent Render services; accept real Codex OAuth connection,
    task completion, and continued monitoring after disconnect and process
    restart as separate outcomes.

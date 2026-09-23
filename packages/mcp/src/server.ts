@@ -6,6 +6,7 @@ import { callTool, TOOLS } from './tools.js'
 export interface McpServerOptions {
   allowedTools?: ReadonlySet<string>
   authorizeCall?: (name: string, args: unknown) => void
+  normalizeCall?: (name: string, args: unknown) => unknown
 }
 
 export function createMcpServer(client: W2L, options: McpServerOptions = {}): Server {
@@ -15,7 +16,8 @@ export function createMcpServer(client: W2L, options: McpServerOptions = {}): Se
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (options.allowedTools && !options.allowedTools.has(request.params.name)) throw new Error('tool not available in this deployment')
     options.authorizeCall?.(request.params.name,request.params.arguments ?? {})
-    const result = await callTool(client, request.params.name, request.params.arguments ?? {})
+    const args = options.normalizeCall?.(request.params.name, request.params.arguments ?? {}) ?? request.params.arguments ?? {}
+    const result = await callTool(client, request.params.name, args)
     return { content: [{ type: 'text', text: JSON.stringify(result) }] }
   })
   return server

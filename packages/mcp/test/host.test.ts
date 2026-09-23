@@ -19,7 +19,8 @@ it('speaks real Streamable HTTP and enforces origin, bearer subject and scope',a
   const port=(probe.address() as AddressInfo).port
   await new Promise<void>(resolve=>probe.close(()=>resolve()))
   root=await mkdtemp(join(tmpdir(),'w2l-hosted-mcp-'))
-  const service=createHostedService({mcpUrl:`https://127.0.0.1:${port}/mcp`,issuer:'https://auth.example',ownerSubject:'user-howard',receiverUrl:'https://receiver.example/webhook',taskRoot:root,port,host:'127.0.0.1',verifyToken:async token=>({sub:token==='other' ? 'user-other' : 'user-howard',scope:token==='no-scope' ? 'profile' : 'openid profile'})})
+  const amazonPublicState=JSON.stringify({cookies:[{name:'i18n-prefs',value:'SGD',domain:'.amazon.sg',path:'/',expires:-1,httpOnly:false,secure:true,sameSite:'Lax'}],origins:[]})
+  const service=createHostedService({mcpUrl:`https://127.0.0.1:${port}/mcp`,issuer:'https://auth.example',ownerSubject:'user-howard',receiverUrl:'https://receiver.example/webhook',amazonPublicState,taskRoot:root,port,host:'127.0.0.1',verifyToken:async token=>({sub:token==='other' ? 'user-other' : 'user-howard',scope:token==='no-scope' ? 'profile' : 'openid profile'})})
   close=service.close
   if (!service.server.listening) await once(service.server,'listening')
   const url=`http://127.0.0.1:${port}`
@@ -40,10 +41,16 @@ it('speaks real Streamable HTTP and enforces origin, bearer subject and scope',a
     await client.connect(transport)
     const tools=await client.listTools()
     expect(tools.tools.map(tool=>tool.name)).toContain('create_monitor')
-    expect(tools.tools.map(tool=>tool.name)).not.toContain('scrape')
+    expect(tools.tools.map(tool=>tool.name)).toContain('scrape')
+    expect(tools.tools.map(tool=>tool.name)).toContain('batch_scrape')
+    expect(tools.tools.map(tool=>tool.name)).toContain('scrape_product')
+    expect(tools.tools.map(tool=>tool.name)).toContain('batch_products')
+    expect(tools.tools.map(tool=>tool.name)).not.toContain('crawl')
     const result=await client.callTool({name:'list_monitors',arguments:{}})
     expect(result.content).toMatchObject([{type:'text',text:'[]'}])
-    await expect(client.callTool({name:'preview_monitor',arguments:{url:'https://elsewhere.example'}})).rejects.toThrow('remote pilot only supports')
+    await expect(client.callTool({name:'preview_monitor',arguments:{url:'https://elsewhere.example'}})).rejects.toThrow('allowlist')
+    await expect(client.callTool({name:'scrape',arguments:{url:'https://127.0.0.1/dp/B000VW9PIK'}})).rejects.toThrow('Amazon.sg')
+    await expect(client.callTool({name:'batch_scrape',arguments:{urls:['https://www.amazon.com/dp/B000VW9PIK']}})).rejects.toThrow('Amazon.sg')
     await expect(client.callTool({name:'create_delivery_destination',arguments:{monitorId:'firecrawl-introduction',url:'https://elsewhere.example/webhook'}})).rejects.toThrow('remote pilot only supports')
   } finally {await client.close()}
 })

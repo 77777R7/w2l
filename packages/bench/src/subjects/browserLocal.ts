@@ -26,6 +26,7 @@ import { waitForRenderedStability } from '../browserSettle.js'
 import { OriginScheduler, type OriginPermit } from './originScheduler.js'
 import { captureRawHtml } from '../rawArtifact.js'
 import { amazonVariantFollowupUrl } from './amazonVariantFollowup.js'
+import { hostedBrowserRequestAllowed } from './browserRequestPolicy.js'
 import {
   BROWSER_FINGERPRINT,
   CHROME_MAJOR_FLOOR,
@@ -114,6 +115,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
     private readonly managedProfileDir: string | null = null,
     scheduler?: OriginScheduler,
     private readonly publicPreferenceState: string | null = null,
+    private readonly browserAllowedHosts?: readonly string[],
   ) {
     if (publicPreferenceState !== null && (mode !== 'standard' || access != null || managedProfileDir !== null)) {
       throw new Error('anonymous public preference state is only available to the standard public browser')
@@ -300,6 +302,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
         screen: BROWSER_FINGERPRINT.screen,
         deviceScaleFactor: BROWSER_FINGERPRINT.deviceScaleFactor,
         extraHTTPHeaders: identity.clientHints,
+        ...(this.browserAllowedHosts === undefined ? {} : { serviceWorkers: 'block' as const }),
         // Restore the user's full session state (cookies, localStorage,
         // sessionStorage) when they inherited a storageState blob — the
         // serialized JSON IS the Playwright shape, passed through verbatim.
@@ -353,6 +356,24 @@ export class BrowserLocalSubject implements SubjectAdapter {
       void pendingPage.then(created => { if (signal?.aborted) void created.close().catch(() => {}) }, () => {})
       page = await raceWithSignal(pendingPage, signal)
       throwIfExecutionStopped(execution)
+      let deniedResources = 0
+      if (this.browserAllowedHosts !== undefined) {
+        const allowedHosts = new Set(this.browserAllowedHosts)
+        await page.route('**/*', async route => {
+          const request = route.request()
+          let allowed = false
+          try {
+            allowed = hostedBrowserRequestAllowed(request.url(), request.resourceType(), allowedHosts)
+            if (allowed) await assertSafeUrl(request.url(), this.networkPolicy)
+          } catch { allowed = false }
+          if (!allowed) {
+            deniedResources++
+            await route.abort('blockedbyclient').catch(() => {})
+            return
+          }
+          await route.continue().catch(() => {})
+        })
+      }
 
       // Rate-limit facts are captured at actual navigation, after setup.
       let previousRequestAtMs: number | null = null
@@ -367,9 +388,12 @@ export class BrowserLocalSubject implements SubjectAdapter {
       const MAX_STATUS_RETRIES = 1
       let statusRetries = 0
       let variantFollowups = 0
+      let retryWaitMs = 0
       let attemptCount = 0
       let navigationUrl = url
-      const requestedAmazonAsin = /^\/dp\/([A-Z0-9]{10})\/?$/i.exec(new URL(url).pathname)?.[1]?.toUpperCase() ?? null
+      const requestedAmazonAsin = new URL(url).hostname === 'www.amazon.sg'
+        ? /^\/dp\/([A-Z0-9]{10})\/?$/i.exec(new URL(url).pathname)?.[1]?.toUpperCase() ?? null
+        : null
       let response: Response | null = null
       for (;;) {
         await this.scheduler.beforeRequest(new URL(navigationUrl).origin, signal, onRequestWait)
@@ -402,7 +426,11 @@ export class BrowserLocalSubject implements SubjectAdapter {
           }
           trace.push({ at: Date.now() - start, lane: 'browser_local', event: 'retry', detail: { attempt: attemptCount, status, delayMs } })
           statusRetries++
-          if (delayMs > 0) await abortableSleep(delayMs, signal)
+          if (delayMs > 0) {
+            const waitStarted = performance.now()
+            try { await abortableSleep(delayMs, signal) }
+            finally { retryWaitMs += Math.max(0, performance.now() - waitStarted) }
+          }
           continue
         }
         await raceWithSignal(waitForRenderedStability(page, { maxMs: remainingTimeout(execution, 1_500) }), signal)
@@ -433,6 +461,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
       throwIfExecutionStopped(execution)
       const status = response?.status() ?? 0
       const finalUrl = page.url()
+      if (deniedResources > 0) trace.push({ at: Date.now() - start, lane: 'browser_local', event: 'browser_resources_denied', detail: { count: deniedResources } })
       if (finalUrl !== url) {
         try {
           await assertSafeUrl(finalUrl, this.networkPolicy)
@@ -507,9 +536,12 @@ export class BrowserLocalSubject implements SubjectAdapter {
           bytesDecompressed: Buffer.byteLength(body),
           requestCount: attemptCount,
           attemptCount,
+          statusRetryCount: statusRetries,
+          navigationFollowupCount: variantFollowups,
           contentTokens: null as number | null,
           browserMs,
           externalCostUsd: null,
+          timings: {retryWaitMs,totalMs:wallMs},
         },
         trace,
       }

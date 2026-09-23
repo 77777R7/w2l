@@ -5,7 +5,7 @@ import { parseBaseUrl, parseToken } from '../src/stdio.js'
 
 describe('MCP tools', () => {
   it('exposes scrape, crawl, and persistent batch operations', () => {
-    const expected = ['scrape', 'crawl', 'get_crawl', 'get_crawl_pages', 'get_crawl_errors', 'cancel_crawl', 'batch_scrape', 'get_batch', 'get_batch_items', 'wait_batch', 'cancel_batch',
+    const expected = ['scrape_product', 'batch_products', 'scrape', 'crawl', 'get_crawl', 'get_crawl_pages', 'get_crawl_errors', 'cancel_crawl', 'batch_scrape', 'get_batch', 'get_batch_items', 'wait_batch', 'cancel_batch',
       'preview_monitor','create_monitor','list_monitors','get_monitor','run_monitor','get_monitor_run','pause_monitor','resume_monitor','cancel_monitor_run',
       'create_delivery_destination','list_delivery_destinations','pause_delivery_destination','resume_delivery_destination','list_deliveries','get_delivery','retry_dead_letter']
     expect([...TOOL_NAMES]).toEqual(expected)
@@ -60,6 +60,23 @@ describe('MCP tools', () => {
     }) as typeof fetch })
     await callTool(client, 'scrape', { url: 'https://example.com/', formats: [{ type: 'json', schema: { type: 'object' } }], debug: true })
     expect(body).toMatchObject({ formats: [{ type: 'json', schema: { type: 'object' } }], debug: true })
+  })
+
+  it('offers one-argument Amazon product tools with a fixed schema and no model', async () => {
+    const bodies:Record<string,unknown>[]=[]
+    const client=new W2L({baseUrl:'http://127.0.0.1:8787',fetch:(async (input,init)=>{
+      bodies.push(JSON.parse(String(init?.body)))
+      return json(String(input).endsWith('/v1/batches')?{taskId:'batch-1'}:{status:'success'},String(input).endsWith('/v1/batches')?202:200)
+    }) as typeof fetch})
+    await callTool(client,'scrape_product',{url:'https://www.amazon.sg/dp/B000VW9PIK?tag=ref'})
+    await callTool(client,'batch_products',{urls:['https://www.amazon.sg/dp/B000VW9PIK']})
+    expect(bodies.map(body=>body.formats)).toEqual([
+      [{type:'json',schema:expect.any(Object),modelFallback:false}],
+      [{type:'json',schema:expect.any(Object),modelFallback:false}],
+    ])
+    expect(bodies[0]?.url).toBe('https://www.amazon.sg/dp/B000VW9PIK')
+    expect(bodies[1]?.urls).toEqual(['https://www.amazon.sg/dp/B000VW9PIK'])
+    await expect(callTool(client,'scrape_product',{url:'https://127.0.0.1/dp/B000VW9PIK'})).rejects.toThrow('Amazon.sg')
   })
 
   it('keeps the legacy links format and caller schema on the public tool schema', () => {

@@ -282,7 +282,13 @@ try {
       tenPageRunMs: { values: perRoundClientMs, median: stoppedForSafety ? null : percentile(perRoundClientMs, 0.5), targetMs: 20_000, passed: rounds >= 3 && !stoppedForSafety && percentile(perRoundClientMs, 0.5) <= 20_000 },
       totalMs: { p50: percentile(attemptedAssessment.map(record => record.usage?.totalMs).filter(Number.isFinite), 0.5), p95: percentile(attemptedAssessment.map(record => record.usage?.totalMs).filter(Number.isFinite), 0.95) },
       stageTimings,
-      attempts: { total: records.reduce((sum, record) => sum + (record.usage?.attemptCount ?? 0), 0), retriedRecords: records.filter(record => (record.usage?.attemptCount ?? 0) > 1).length },
+      attempts: {
+        total: records.reduce((sum, record) => sum + (record.usage?.attemptCount ?? 0), 0),
+        statusRetries: records.reduce((sum, record) => sum + (record.usage?.statusRetryCount ?? 0), 0),
+        variantFollowups: records.reduce((sum, record) => sum + (record.usage?.navigationFollowupCount ?? 0), 0),
+        retriedRecords: records.filter(record => (record.usage?.statusRetryCount ?? 0) > 0).length,
+        unclassifiedExtraNavigationRecords: records.filter(record => (record.usage?.attemptCount ?? 0) > 1 && record.usage?.statusRetryCount === undefined).length,
+      },
       responseBytes: { p50: percentile(attemptedAssessment.map(record => record.responseBytes), 0.5), p95: percentile(attemptedAssessment.map(record => record.responseBytes), 0.95), total: attemptedAssessment.reduce((sum, record) => sum + record.responseBytes, 0) },
       checks: {
         asinExact: successful.filter(record => record.checks.asinExact).length,
