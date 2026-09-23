@@ -21,6 +21,9 @@ records the HTTPS flow and actual local `SIGKILL` recovery, along with the
 remaining hosted gates.
 [Managed loopback MCP evidence](../evidence/c2-c3-loopback-local-2026-09-23.md)
 adds the single-process local installation and clean-source recovery run.
+[Local HTTPS delivery evidence](../evidence/c2-local-https-delivery-2026-09-23.md)
+records the same-Mac receiver, signed retry, deduplication and resumed
+scheduled state. It does not close the public hosted or external-user gates.
 [The earlier stage review](stage-review-2026-09-22.md) retains its original
 baseline and records subsequent resolution separately. No new Section D is added.
 

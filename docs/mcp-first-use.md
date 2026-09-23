@@ -47,6 +47,8 @@ receiver stores receipts and idempotent projections in
 `npm run local:receiver:uninstall` and `npm run local:mcp:uninstall` to stop
 them. This loopback address is not accessible to other computers. A remote
 receiver or friend trial still needs a public HTTPS service later.
+The [live same-Mac acceptance record](evidence/c2-local-https-delivery-2026-09-23.md)
+shows the persisted event, 503 retry, idempotency and service recovery.
 
 ## Local first-use check
 
