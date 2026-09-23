@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": { "rootDir": "./src", "outDir": "./dist" },
+  "include": ["src/**/*.ts"],
+  "references": [
+    { "path": "../api" },
+    { "path": "../bench" },
+    { "path": "../contracts" },
+    { "path": "../http-core" }
+  ]
+}

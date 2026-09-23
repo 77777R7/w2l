@@ -33,6 +33,11 @@ Most crawlers report "success" when they return empty pages, challenge screens, 
 
 ## Quick Start
 
+For the no-install, single-page web preview and its deployment requirements, see
+[Public preview](docs/public-preview.md). The page is implemented in this branch;
+it does not have a permanent public URL until the Cloud Run deployment and live
+acceptance are complete.
+
 Use Node.js 22.12+ or 24+ and npm. The SDK is currently a private workspace package; build it from this checkout. For the full Monitor → result → HTTPS event → restart workflow, follow [the onboarding guide](docs/onboarding.md) and [independent developer acceptance checklist](docs/independent-developer-acceptance.md).
 
 ```bash

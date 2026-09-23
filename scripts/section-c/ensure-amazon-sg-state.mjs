@@ -5,8 +5,10 @@ import { validateAmazonPublicState } from '../../packages/mcp/dist/amazonState.j
 
 const file = process.env.W2L_AMAZON_PUBLIC_STATE_FILE
 if (!file) throw new Error('W2L_AMAZON_PUBLIC_STATE_FILE is required')
+const freshOnly = process.argv.includes('--fresh-only')
 try {
   const existing = await readFile(file, 'utf8')
+  if (freshOnly) throw new Error('public bootstrap requires a new state file; refusing to reuse an existing browser state')
   console.log(JSON.stringify({state:'reused',sha256:validateAmazonPublicState(existing)}))
   process.exit(0)
 } catch (error) {

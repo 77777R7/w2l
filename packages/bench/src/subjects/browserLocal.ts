@@ -19,7 +19,7 @@ import {
   type ComplianceSentHeader,
 } from '@w2l/http-core'
 import { chromium, type Browser, type BrowserContext, type Page, type Response } from 'playwright'
-import { assertSafeUrl, BodyTooLargeError, defaultNetworkPolicy } from '../egress.js'
+import { assertSafeUrl, BodyTooLargeError, defaultNetworkPolicy, pinnedBrowserHostRules } from '../egress.js'
 import type { SubjectAdapter } from '../subject.js'
 import { RobotsOriginCache } from '../robotsLookup.js'
 import { waitForRenderedStability } from '../browserSettle.js'
@@ -116,16 +116,23 @@ export class BrowserLocalSubject implements SubjectAdapter {
     scheduler?: OriginScheduler,
     private readonly publicPreferenceState: string | null = null,
     private readonly browserAllowedHosts?: readonly string[],
+    /** In-memory witness for an explicitly authorized evaluation. Never a persistence path. */
+    private readonly onRenderedHtml?: (html: string, sha256: string) => void,
+    robotsFailClosed = false,
   ) {
     if (publicPreferenceState !== null && (mode !== 'standard' || access != null || managedProfileDir !== null)) {
       throw new Error('anonymous public preference state is only available to the standard public browser')
     }
+    if (browserAllowedHosts !== undefined && (access != null || managedProfileDir !== null)) {
+      throw new Error('host-pinned browser requires an unmanaged direct connection')
+    }
+    if (browserAllowedHosts !== undefined) this.browserAllowedHosts = browserAllowedHosts.map(host => host.toLowerCase())
     this.chain = new ComplianceChain(crypto.randomUUID(), mode)
     this.access = normalizeAccessConfig(access)
     this.accessConfig = access ?? null
     this.networkPolicy = networkPolicy ?? defaultNetworkPolicy()
     this.scheduler = scheduler ?? new OriginScheduler(this.networkPolicy)
-    this.robotsCache = new RobotsOriginCache(this.networkPolicy)
+    this.robotsCache = new RobotsOriginCache(this.networkPolicy, undefined, robotsFailClosed)
   }
 
   /** Managed profile is a distinct lifecycle path; it is never implied by an anonymous subject. */
@@ -329,6 +336,29 @@ export class BrowserLocalSubject implements SubjectAdapter {
       })
       void pendingContext.then(created => { if (signal?.aborted && created !== this.managedContext) void created.close().catch(() => {}) }, () => {})
       context = await raceWithSignal(pendingContext, signal)
+      let deniedResources = 0
+      if (this.browserAllowedHosts !== undefined) {
+        // Context routes are installed before creating a page so the first
+        // navigation of a popup or worker cannot bypass the host policy.
+        const allowedHosts = new Set(this.browserAllowedHosts)
+        await context.route('**/*', async route => {
+          const request = route.request()
+          let allowed = false
+          try {
+            allowed = hostedBrowserRequestAllowed(request.url(), request.resourceType(), allowedHosts)
+            if (allowed) await assertSafeUrl(request.url(), this.networkPolicy)
+          } catch { allowed = false }
+          if (!allowed) {
+            deniedResources++
+            await route.abort('blockedbyclient').catch(() => {})
+            return
+          }
+          await route.continue().catch(() => {})
+        })
+        // HTTP routes do not intercept WebSocket handshakes. The public
+        // preview does not need sockets, so block them before any page runs.
+        await context.routeWebSocket('**/*', async ws => { await ws.close({ code: 1008, reason: 'network policy' }) })
+      }
       if (amazonPublicState !== null) trace.push({
         at: Date.now() - start, lane: 'browser_local', event: 'anonymous_public_preference_attached',
         detail: { host, stateSha256: sha256Utf8(amazonPublicState) },
@@ -356,24 +386,6 @@ export class BrowserLocalSubject implements SubjectAdapter {
       void pendingPage.then(created => { if (signal?.aborted) void created.close().catch(() => {}) }, () => {})
       page = await raceWithSignal(pendingPage, signal)
       throwIfExecutionStopped(execution)
-      let deniedResources = 0
-      if (this.browserAllowedHosts !== undefined) {
-        const allowedHosts = new Set(this.browserAllowedHosts)
-        await page.route('**/*', async route => {
-          const request = route.request()
-          let allowed = false
-          try {
-            allowed = hostedBrowserRequestAllowed(request.url(), request.resourceType(), allowedHosts)
-            if (allowed) await assertSafeUrl(request.url(), this.networkPolicy)
-          } catch { allowed = false }
-          if (!allowed) {
-            deniedResources++
-            await route.abort('blockedbyclient').catch(() => {})
-            return
-          }
-          await route.continue().catch(() => {})
-        })
-      }
 
       // Rate-limit facts are captured at actual navigation, after setup.
       let previousRequestAtMs: number | null = null
@@ -474,6 +486,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
         return this.denied(url, start, trace, new BodyTooLargeError(this.networkPolicy.maxDecompressedBytes))
       }
       const rawBodySha256 = sha256Utf8(body)
+      this.onRenderedHtml?.(body, rawBodySha256)
       const rawArtifacts = await captureRawHtml(body, rawBodySha256)
       const wallMs = Date.now() - start
       const browserMs = wallMs
@@ -769,7 +782,17 @@ export class BrowserLocalSubject implements SubjectAdapter {
     if (this.browserPromise === null) {
       // Startup belongs to the shared subject. Each caller has its own budget;
       // one short caller must not set the launch deadline for another monitor.
-      const pending = chromium.launch({ headless: !this.headed, timeout: 30_000 }).then(async browser => {
+      const launch = async (): Promise<Browser> => {
+        const args = this.browserAllowedHosts === undefined ? [] : [
+          // Direct connections keep resolution inside Chromium, where the
+          // validated host rules apply. A proxy would resolve hosts itself.
+          '--proxy-server=direct://',
+          `--host-resolver-rules=${await pinnedBrowserHostRules(this.browserAllowedHosts, this.networkPolicy)}`,
+        ]
+        if (this.activeExecutions === 0) throw new DOMException('Browser startup abandoned', 'AbortError')
+        return chromium.launch({ headless: !this.headed, timeout: 30_000, ...(args.length === 0 ? {} : { args }) })
+      }
+      const pending = launch().then(async browser => {
         if (this.activeExecutions === 0) {
           if (this.browserPromise === pending) this.browserPromise = null
           await browser.close().catch(() => {})
@@ -816,5 +839,6 @@ export class BrowserLocalSubject implements SubjectAdapter {
     await this.browser?.close().catch(() => {})
     this.browser = null
     this.browserPromise = null
+    await this.robotsCache.teardown()
   }
 }

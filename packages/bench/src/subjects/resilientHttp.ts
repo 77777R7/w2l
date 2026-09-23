@@ -10,8 +10,8 @@ import {
 } from '@w2l/contracts'
 import { collectLinks, extractTf, htmlToMarkdown } from '@w2l/extract-tf'
 import { resilientFetch, createExecutionScope, throwIfExecutionStopped, classifyGate, escalationForBlock, parseRetryAfterMs, sha256Utf8, type ResilientFetcher } from '@w2l/http-core'
-import { request } from 'undici'
-import { assertSafeUrl, BodyTooLargeError, defaultNetworkPolicy, readCappedBody } from '../egress.js'
+import { Agent, request } from 'undici'
+import { assertSafeUrl, BodyTooLargeError, createGuardedDispatcher, defaultNetworkPolicy, readCappedBody } from '../egress.js'
 import { prepareHttpIdentity, recordHttpIdentity } from '../httpIdentity.js'
 import { RobotsOriginCache } from '../robotsLookup.js'
 import type { SubjectAdapter } from '../subject.js'
@@ -40,17 +40,21 @@ export class ResilientHttpSubject implements SubjectAdapter {
   private readonly robotsCache: RobotsOriginCache
   private readonly networkPolicy: NetworkPolicy
   private readonly scheduler: OriginScheduler
+  private readonly dispatcher: Agent
+  private teardownPromise: Promise<void> | null = null
 
-  constructor(mode: CrawlMode = 'standard', networkPolicy?: NetworkPolicy, scheduler?: OriginScheduler) {
+  constructor(mode: CrawlMode = 'standard', networkPolicy?: NetworkPolicy, scheduler?: OriginScheduler, robotsFailClosed = false) {
     this.prepared = prepareHttpIdentity(mode)
     this.networkPolicy = networkPolicy ?? defaultNetworkPolicy()
     this.scheduler = scheduler ?? new OriginScheduler(this.networkPolicy)
-    this.robotsCache = new RobotsOriginCache(this.networkPolicy)
+    this.dispatcher = createGuardedDispatcher(this.networkPolicy)
+    this.robotsCache = new RobotsOriginCache(this.networkPolicy, this.dispatcher, robotsFailClosed)
     const headers = this.prepared.headers
     const maxBodyBytes = this.networkPolicy.maxBodyBytes
     this.fetcherFor = (initialUrl, validators, signal, onBodyRead, onRequestWait) => async (url, init) => {
       await this.scheduler.beforeRequest(new URL(url).origin, init.signal ?? signal, onRequestWait)
       const response = await request(url, {
+        dispatcher: this.dispatcher,
         method: 'GET',
         headersTimeout: init.headersTimeoutMs,
         bodyTimeout: init.bodyTimeoutMs,
@@ -486,5 +490,8 @@ export class ResilientHttpSubject implements SubjectAdapter {
     }
   }
 
-  async teardown(): Promise<void> {}
+  async teardown(): Promise<void> {
+    this.teardownPromise ??= this.dispatcher.close()
+    await this.teardownPromise
+  }
 }

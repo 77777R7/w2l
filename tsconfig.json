@@ -11,6 +11,7 @@
     { "path": "packages/runtime" },
     { "path": "packages/api" },
     { "path": "packages/sdk" },
-    { "path": "packages/mcp" }
+    { "path": "packages/mcp" },
+    { "path": "packages/public-preview" }
   ]
 }

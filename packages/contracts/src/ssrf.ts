@@ -115,6 +115,9 @@ export function evaluateUrl(url: string, policy: NetworkPolicy): PolicyDecision 
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
     return deny('unsupported_scheme', null, parsed.protocol)
   }
+  if (parsed.username || parsed.password) {
+    return deny('malformed_url', null, 'credentials in URL are not allowed')
+  }
   const literal = evaluateHostname(parsed.hostname, policy)
   if (literal !== null) return literal
   return { hostname: stripBrackets(parsed.hostname).toLowerCase() }

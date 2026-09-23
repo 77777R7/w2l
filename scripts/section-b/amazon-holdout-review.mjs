@@ -10,7 +10,9 @@ const reportFlag = process.argv.indexOf('--report')
 const reportPath = reportFlag < 0 ? '.w2l/amazon-baseline/latest.json' : process.argv[reportFlag + 1]
 if (!reportPath) throw new Error('--report requires a JSON path')
 const report = JSON.parse(await readFile(reportPath, 'utf8'))
-if (!report.source?.manifest?.includes('holdout-100') || report.records?.length !== 100) {
+const supportedHoldout = report.source?.manifest?.includes('holdout-100')
+  || report.kind === 'public-preview-amazon-new-100-holdout'
+if (!supportedHoldout || report.records?.length !== 100) {
   throw new Error('expected exactly 100 frozen holdout captures')
 }
 const outputDirFlag = process.argv.indexOf('--output-dir')

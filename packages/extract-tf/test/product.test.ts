@@ -330,6 +330,18 @@ describe('Amazon product adapter', () => {
     expect(out.product?.priceCurrency?.value).toBe('SGD')
   })
 
+  it('keeps explicit foreign dollar prefixes distinct from the Singapore storefront', () => {
+    for (const [raw, expected] of [['US$12.50', 'USD'], ['C$12.50', 'CAD'], ['A$12.50', 'AUD'], ['$12.50', 'SGD']] as const) {
+      const html = `<!doctype html><html><body><div id="dp-container">
+        <input name="ASIN" value="B012345678"><h1 id="productTitle">Subject item</h1>
+        <div id="corePrice_feature_div"><span class="a-price"><span class="a-offscreen">${raw}</span></span></div>
+      </div></body></html>`
+      const out = extractTf.extract(html, { url: 'https://www.amazon.sg/dp/B012345678' })
+      expect(out.product?.priceCurrency?.value, raw).toBe(expected)
+      expect(out.product?.prices?.[0]?.currency?.value, raw).toBe(expected)
+    }
+  })
+
   it('reads the primary offer seller from Amazon offer display and labels unit prices', () => {
     const html = `<!doctype html><html><body><div id="dp-container">
       <h1 id="productTitle">Cotton rounds</h1>

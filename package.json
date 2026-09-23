@@ -6,11 +6,14 @@
     "node": ">=20.11.0"
   },
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "apps/*"
   ],
   "scripts": {
     "typecheck": "tsc --build",
     "test": "vitest run",
+    "build:public": "tsc --build && npm run build --workspace @w2l/public-web",
+    "public:preview": "npm run build:public && node packages/public-preview/dist/cli.js",
     "bench": "tsc --build && node --import tsx packages/bench/src/cli.ts",
     "benchmark:gate": "tsc --build && node --import tsx packages/bench/src/gateCli.ts",
     "benchmark:phase3:manifest": "tsc --build && node --import tsx packages/bench/src/phase3ManifestCli.ts",
@@ -56,7 +59,7 @@
     "tsx": "^4.19.0",
     "typescript": "^5.6.0",
     "undici": "^7.4.0",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.11"
   },
   "allowScripts": {
     "better-sqlite3@12.11.1": true

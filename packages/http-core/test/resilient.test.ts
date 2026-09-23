@@ -261,6 +261,15 @@ describe('resilientFetch: transport errors', () => {
     expect(out.kind).toBe('failure')
     expect(out.failureReason).toBe('connection_error')
   })
+
+  it('maps a socket lookup policy denial wrapped by the transport to policy_denied', async () => {
+    const denied = new Error('private address')
+    denied.name = 'SsrfDeniedError'
+    const f = scripted([new Error('socket failed', { cause: denied })])
+    const out = await resilientFetch(U, f)
+    expect(out.kind).toBe('failure')
+    expect(out.failureReason).toBe('policy_denied')
+  })
 })
 
 describe('resilientFetch: defaults', () => {

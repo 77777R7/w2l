@@ -1,12 +1,13 @@
 /**
  * Origin-cached robots.txt lookup shared by the HTTP and browser arms.
  *
- * A 4xx or a non-text/plain body is "no robots.txt". A network failure is
- * also recorded as no rules, but `absent` stays false so the record never
- * pretends the publisher published an empty file.
+ * A 4xx or a non-text/plain body is "no robots.txt". A 5xx or network
+ * failure is recorded as unreachable (`absent: false`), so hosted public
+ * callers can fail closed without changing the local product's legacy policy.
  */
 
 import { type NetworkPolicy, type ExecutionContext } from '@w2l/contracts'
+import type { Dispatcher } from 'undici'
 import {
   createExecutionScope,
   raceWithSignal,
@@ -16,7 +17,7 @@ import {
   sha256Hex,
   type ComplianceRobotsDecision,
 } from '@w2l/http-core'
-import { assertSafeUrl, defaultNetworkPolicy } from './egress.js'
+import { assertSafeUrl, createGuardedDispatcher, defaultNetworkPolicy } from './egress.js'
 
 function isPlainText(contentType: string | null): boolean {
   if (contentType === null) return true
@@ -33,7 +34,20 @@ export interface CachedRobots {
 export class RobotsOriginCache {
   private readonly byOrigin = new Map<string, CachedRobots>()
   private readonly pending = new Map<string, { promise: Promise<CachedRobots | null>; controller: AbortController; users: number }>()
-  constructor(private readonly networkPolicy: NetworkPolicy = defaultNetworkPolicy()) {}
+  private readonly dispatcher: Dispatcher
+  private readonly ownsDispatcher: boolean
+  private teardownPromise: Promise<void> | null = null
+  constructor(private readonly networkPolicy: NetworkPolicy = defaultNetworkPolicy(), dispatcher?: Dispatcher, private readonly failClosedOnUnreachable = false) {
+    this.ownsDispatcher = dispatcher === undefined
+    this.dispatcher = dispatcher ?? createGuardedDispatcher(networkPolicy)
+  }
+
+  async teardown(): Promise<void> {
+    if (this.ownsDispatcher) {
+      this.teardownPromise ??= this.dispatcher.close()
+      await this.teardownPromise
+    }
+  }
 
   async lookup(url: string, userAgent: string, execution: ExecutionContext = {}): Promise<CachedRobots | null> {
     throwIfExecutionStopped(execution)
@@ -64,17 +78,26 @@ export class RobotsOriginCache {
         headers: { 'user-agent': userAgent },
         signal: scope.signal,
         redirect: 'manual',
-      })
+        // Node's fetch accepts the Undici dispatcher; the socket lookup
+        // validates the address again and pins the validated result.
+        dispatcher: this.dispatcher,
+      } as RequestInit & { dispatcher: Dispatcher })
         if (res.status >= 300 && res.status < 400) {
           await res.body?.cancel()
           const location = res.headers.get('location')
           if (location === null) throw new Error('robots redirect missing location')
+          if (hop === this.networkPolicy.maxRedirects) throw new Error('robots redirect limit exceeded')
           currentUrl = new URL(location, currentUrl).href
           continue
         }
-      if (res.status >= 400) {
+      if (res.status >= 500) {
+        await res.body?.cancel()
+        entry = { robotsUrl, robots: null, sha256: null, absent: false }
+      } else if (res.status >= 400) {
+        await res.body?.cancel()
         entry = { robotsUrl, robots: null, sha256: null, absent: true }
       } else if (!isPlainText(res.headers.get('content-type'))) {
+        await res.body?.cancel()
         entry = { robotsUrl, robots: null, sha256: null, absent: true }
       } else {
         const reader = res.body?.getReader()
@@ -99,7 +122,6 @@ export class RobotsOriginCache {
           absent: false,
         }
       }
-      if (entry.robots === null && currentUrl !== robotsUrl) throw new Error('robots redirect limit exceeded')
       break
       }
     } catch {
@@ -131,12 +153,15 @@ export class RobotsOriginCache {
 
   decision(cached: CachedRobots | null, url: string, userAgent: string): ComplianceRobotsDecision {
     if (cached === null || cached.robots === null) {
+      // RFC 9309: 4xx means unavailable and may be accessed; 5xx and network
+      // errors mean unreachable and must be treated as a complete disallow.
+      const unreachable = cached === null || !cached.absent
       return {
         robotsUrl: cached?.robotsUrl ?? null,
         robotsSha256: null,
         matchedUserAgentGroup: null,
         appliedRules: [],
-        decision: 'no_robots',
+        decision: this.failClosedOnUnreachable && unreachable ? 'disallowed' : 'no_robots',
         skippedFetch: false,
         crawlDelayMs: null,
       }
