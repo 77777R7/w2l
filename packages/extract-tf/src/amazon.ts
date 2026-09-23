@@ -5,7 +5,7 @@ const AMAZON_HOST = /(^|\.)amazon\.[a-z.]+$/i
 const ASIN_PATH = /\/(?:dp|gp\/product)\/([A-Z0-9]{10})(?:[/?]|$)/i
 
 function clean(value: string | null | undefined): string | null {
-  const out = (value ?? '').replace(/[\u200e\u200f\u202a-\u202e]/g, '').replace(/\s+/g, ' ').trim()
+  const out = (value ?? '').replace(/[\u200c-\u200f\u202a-\u202e]/g, '').replace(/\s+/g, ' ').trim()
   return out.length > 0 ? out : null
 }
 
@@ -248,7 +248,7 @@ export function collectAmazonProductFacts(doc: Document, url: string | undefined
     if (amount !== null) rawPrices = [{ amount: domFact(amountOf(amount), 'body:Billing')!, currency: domFact(currencyOf(amount), 'body:Billing'), priceType: 'subscription', seller: null }]
   }
   const store = first(doc, ['#bylineInfo', '[data-feature-name="bylineInfo"]'])
-  const brand = store === null ? null : domFact(store.value.replace(/^Visit the\s+/i, '').replace(/\s+Store$/i, ''), store.selector)
+  const brand = store === null ? null : domFact(store.value.replace(/^Brand:\s*/i, '').replace(/^Visit the\s+/i, '').replace(/\s+Store$/i, ''), store.selector)
   const sellerHit = first(doc, ['#sellerProfileTriggerId', '#merchant-info', '.tabular-buybox-text[tabular-attribute-name="Sold by"]'])
   const seller = sellerHit === null
     ? (/\bSold\s*by\s*Blink\b/i.test(pageText) || /SoldbyBlink/i.test(pageText.replace(/\s+/g, '')) ? domFact('Blink', 'body:Sold by') : null)

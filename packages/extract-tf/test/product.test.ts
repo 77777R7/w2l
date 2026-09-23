@@ -341,6 +341,15 @@ describe('Amazon product adapter', () => {
     expect(out.product?.deliveryLocation?.path).toBe('#contextualIngressPtLabel_deliveryShortLine')
   })
 
+  it('normalizes Amazon brand labels without changing the subject evidence location', () => {
+    const html = `<html><head><link rel="canonical" href="https://www.amazon.sg/dp/B012345678"></head><body>
+      <div id="dp-container"><h1 id="productTitle">Subject lotion</h1>
+      <a id="bylineInfo">Brand: eos</a></div></body></html>`
+    const out = extractTf.extract(html, { url: 'https://www.amazon.com/dp/B012345678' })
+    expect(out.product?.brand).toEqual({ value: 'eos', source: 'dom', path: '#bylineInfo' })
+    expect(out.entities[0]?.fields.brand?.normalized).toBe('eos')
+  })
+
   it('uses the /dp subject identity even when the page declares an OfferCatalog', () => {
     const html = `<!doctype html><html><head>
       <script type="application/ld+json">{"@context":"https://schema.org","@type":"OfferCatalog","name":"Related products"}</script>
