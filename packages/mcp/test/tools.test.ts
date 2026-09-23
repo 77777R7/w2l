@@ -5,7 +5,9 @@ import { parseBaseUrl, parseToken } from '../src/stdio.js'
 
 describe('MCP tools', () => {
   it('exposes scrape, crawl, and persistent batch operations', () => {
-    const expected = ['scrape', 'crawl', 'get_crawl', 'get_crawl_pages', 'get_crawl_errors', 'cancel_crawl', 'batch_scrape', 'get_batch', 'get_batch_items', 'wait_batch', 'cancel_batch']
+    const expected = ['scrape', 'crawl', 'get_crawl', 'get_crawl_pages', 'get_crawl_errors', 'cancel_crawl', 'batch_scrape', 'get_batch', 'get_batch_items', 'wait_batch', 'cancel_batch',
+      'preview_monitor','create_monitor','list_monitors','get_monitor','run_monitor','get_monitor_run','pause_monitor','resume_monitor','cancel_monitor_run',
+      'create_delivery_destination','list_delivery_destinations','pause_delivery_destination','resume_delivery_destination','list_deliveries','get_delivery','retry_dead_letter']
     expect([...TOOL_NAMES]).toEqual(expected)
     expect(TOOLS.map((t) => t.name)).toEqual(expected)
   })
@@ -116,6 +118,18 @@ describe('MCP tools', () => {
     expect(parseToken([], {})).toBeUndefined()
     expect(parseToken([], { W2L_API_TOKEN: 'secret' })).toBe('secret')
     expect(parseToken(['--token', 'cli'], {})).toBe('cli')
+  })
+
+  it('creates paused first-use Monitors and queues durable runs through REST', async () => {
+    const calls: Array<{url:string;body:Record<string,unknown>}> = []
+    const client = new W2L({baseUrl:'http://w2l.local',fetch:(async(input,init)=>{
+      calls.push({url:String(input),body:init?.body ? JSON.parse(String(init.body)) : {}})
+      return json(String(input).endsWith('/runs') ? {id:'run-1',monitorId:'firecrawl-introduction',state:'queued',triggerKey:'manual'} : {monitorId:'firecrawl-introduction',revision:1},String(input).endsWith('/runs') ? 202 : 201)
+    }) as typeof fetch})
+    await callTool(client,'create_monitor',{preset:'firecrawl-introduction'})
+    expect(calls[0]?.body).toEqual({preset:'firecrawl-introduction',enabled:false})
+    expect(await callTool(client,'run_monitor',{id:'firecrawl-introduction'})).toMatchObject({runId:'run-1',state:'queued'})
+    expect(calls[1]?.url).toMatch(/\/v1\/monitors\/firecrawl-introduction\/runs$/)
   })
 })
 

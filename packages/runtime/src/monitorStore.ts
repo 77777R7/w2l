@@ -103,7 +103,7 @@ export class MonitorStore {
     }).immediate()
   }
 
-  createOrGetRevision(revision: MonitorRevision): MonitorRevision {
+  createOrGetRevision(revision: MonitorRevision, initialEnabled = true): MonitorRevision {
     if (revision.config) revision = parseMonitorRevision(revision)
     else if (revision.url !== FIRECRAWL_INTRO_URL || revision.ruleVersion !== DOCUMENT_RULE_VERSION) throw new Error('unsupported monitor adapter')
     if (![revision.revision, revision.intervalMs, revision.staleAfterMs].every((n) => Number.isSafeInteger(n) && n > 0)) throw new Error('invalid revision or interval')
@@ -119,8 +119,8 @@ export class MonitorStore {
       if (this.db.prepare("SELECT id FROM monitor_runs WHERE monitor_id=? AND state IN ('running','waiting_retry','queued','committing')").get(revision.monitorId)) throw new Error('cannot revise active monitor')
       const now = revision.createdAt
       if (!current) {
-        this.db.prepare(`INSERT INTO monitors (id, enabled, control_epoch, revision, url, rule_version, interval_ms, stale_after_ms, created_at, updated_at, next_run_at) VALUES (?,1,1,?,?,?,?,?,?,?,?)`)
-          .run(revision.monitorId, revision.revision, revision.url, revision.ruleVersion, revision.intervalMs, revision.staleAfterMs, now, now, now)
+        this.db.prepare(`INSERT INTO monitors (id, enabled, control_epoch, revision, url, rule_version, interval_ms, stale_after_ms, created_at, updated_at, next_run_at) VALUES (?,?,1,?,?,?,?,?,?,?,?)`)
+          .run(revision.monitorId, initialEnabled ? 1 : 0, revision.revision, revision.url, revision.ruleVersion, revision.intervalMs, revision.staleAfterMs, now, now, now)
       } else {
         this.db.prepare('UPDATE monitors SET revision=?, rule_version=?, url=?, control_epoch=control_epoch+1, interval_ms=?, stale_after_ms=?, updated_at=?, next_run_at=? WHERE id=?')
           .run(revision.revision, revision.ruleVersion, revision.url, revision.intervalMs, revision.staleAfterMs, now, now, revision.monitorId)
@@ -128,6 +128,26 @@ export class MonitorStore {
       this.db.prepare(`INSERT INTO monitor_revisions (monitor_id, revision, url, rule_version, interval_ms, stale_after_ms, created_at, config_json) VALUES (?,?,?,?,?,?,?,?)`)
         .run(revision.monitorId, revision.revision, revision.url, revision.ruleVersion, revision.intervalMs, revision.staleAfterMs, now, revision.config ? JSON.stringify(revision.config) : null)
       return revision
+    }).immediate()
+  }
+
+  /** A manual MCP run is durable before the HTTP response is sent. The scheduler claims it later. */
+  enqueueRun(monitorId: string, triggerKey = `manual:${crypto.randomUUID()}`, now = Date.now()): MonitorRun {
+    if (!triggerKey.trim() || triggerKey.length > 200) throw new Error('invalid trigger key')
+    return this.db.transaction(() => {
+      const monitor = this.db.prepare('SELECT * FROM monitors WHERE id=?').get(monitorId) as MonitorRow | undefined
+      if (!monitor) throw new Error('monitor not found')
+      if (!monitor.enabled) throw new Error('monitor paused')
+      const storedKey = JSON.stringify([monitorId, triggerKey])
+      const existing = this.db.prepare('SELECT * FROM monitor_runs WHERE monitor_id=? AND trigger_key IN (?,?)').get(monitorId, storedKey, triggerKey) as RunRow | undefined
+      if (existing) return runFrom(existing)
+      const active = this.db.prepare("SELECT id FROM monitor_runs WHERE monitor_id=? AND state IN ('queued','running','waiting_retry','committing')").get(monitorId) as {id:string} | undefined
+      if (active) return this.getRun(active.id)!
+      const id = crypto.randomUUID()
+      this.db.prepare(`INSERT INTO monitor_runs (id,monitor_id,revision,trigger_key,state,epoch,fencing_token,expected_baseline_id,created_at) VALUES (?,?,?,?,'queued',?,?,?,?)`)
+        .run(id, monitorId, monitor.revision, storedKey, monitor.control_epoch, monitor.control_epoch, this.getBaselineId(monitorId), now)
+      this.db.prepare('UPDATE monitors SET next_run_at=? WHERE id=?').run(Math.min(now, monitor.next_run_at), monitorId)
+      return this.getRun(id)!
     }).immediate()
   }
 
@@ -182,7 +202,7 @@ export class MonitorStore {
   dueRun(monitorId: string, now: number): MonitorRun | null {
     const monitor = this.db.prepare('SELECT * FROM monitors WHERE id=?').get(monitorId) as MonitorRow | undefined
     if (!monitor?.enabled) return null
-    const active = this.db.prepare("SELECT * FROM monitor_runs WHERE monitor_id=? AND state IN ('running','waiting_retry')").get(monitorId) as RunRow | undefined
+    const active = this.db.prepare("SELECT * FROM monitor_runs WHERE monitor_id=? AND state IN ('queued','running','waiting_retry')").get(monitorId) as RunRow | undefined
     if (active?.state === 'running' && (active.lease_until ?? Infinity) > now) return null
     if (active?.state === 'waiting_retry' && (active.next_attempt_at ?? Infinity) > now) return null
     if (!active && monitor.next_run_at > now) return null
@@ -281,6 +301,16 @@ export class MonitorStore {
   getRun(id: string): MonitorRun | null {
     const row = this.db.prepare('SELECT * FROM monitor_runs WHERE id = ?').get(id) as RunRow | undefined
     return row ? runFrom(row) : null
+  }
+
+  runDetail(monitorId: string, runId: string): { run: MonitorRun; assessment: DocumentAssessment | null; observation: MonitorObservation | null; attempts: MonitorAttempt[] } | null {
+    const run = this.getRun(runId)
+    if (!run || run.monitorId !== monitorId) return null
+    const assessmentRow = this.db.prepare('SELECT * FROM monitor_assessments WHERE run_id=? ORDER BY rowid DESC LIMIT 1').get(runId) as {rule_version?:string; quality:DocumentAssessment['quality'];reasons_json:string;fields_json:string|null;evidence_json:string} | undefined
+    const observationRow = this.db.prepare('SELECT * FROM monitor_observations WHERE run_id=? ORDER BY rowid DESC LIMIT 1').get(runId) as {id:string;run_id:string;attempt_id:string;observed_at:number;client_wall_ms:number;markdown_sha256:string|null;transport_json:string|null;outcome_json:string|null;error:string|null} | undefined
+    const observation: MonitorObservation | null = observationRow ? { id:observationRow.id,runId:observationRow.run_id,attemptId:observationRow.attempt_id,observedAt:observationRow.observed_at,clientWallMs:observationRow.client_wall_ms,markdownSha256:observationRow.markdown_sha256,transport:observationRow.transport_json ? JSON.parse(observationRow.transport_json) : null,outcome:observationRow.outcome_json ? JSON.parse(observationRow.outcome_json) : null,error:observationRow.error } : null
+    const assessment: DocumentAssessment | null = assessmentRow ? { ruleVersion:this.getRevision(monitorId,run.revision).ruleVersion,quality:assessmentRow.quality,reasons:JSON.parse(assessmentRow.reasons_json),fields:assessmentRow.fields_json ? JSON.parse(assessmentRow.fields_json) : null,evidence:JSON.parse(assessmentRow.evidence_json) } : null
+    return {run,assessment,observation,attempts:this.attempts(runId)}
   }
 
   getBaseline(monitorId: string): MonitorSnapshot | null {

@@ -3,16 +3,16 @@
 Section C packages a validated recurring data task for adoption. It reuses the
 existing collection engine, REST/SDK contracts and stored task state.
 
-Status reviewed 2026-09-22 at source freeze
-`99894bd636ecafd254a7c7bc79d26e9a97fa9199` (parent `e28500b`), merged by
-PR #50 into `main@1c14817` and published as source prerelease
-`v0.4.0-rc.1`:
+Status updated 2026-09-23 for the C2/C3 implementation on a branch based on
+`main@8ff8863`. The earlier Gate 2–4 source freeze
+`99894bd636ecafd254a7c7bc79d26e9a97fa9199` was merged by PR #50 and
+published as source prerelease `v0.4.0-rc.1`:
 
 | Phase | Status | Boundary |
 | --- | --- | --- |
 | C1 | in_progress | Delivery engineering slice passed; real customer consumption over time unverified |
-| C2 | not_started | Monitor/Delivery MCP, guided first use, n8n and task UI remain planned; REST/SDK are reusable foundations |
-| C3 | in_progress | Install/docs/source packaging and agent clean install exist; unified process management, remote URL MCP and persistent hosting remain planned |
+| C2 | in_progress | Monitor/Delivery MCP and local HTTPS first-use flow implemented; n8n, task UI and independent human acceptance open |
+| C3 | in_progress | Unified runtime and authenticated Streamable HTTP implemented locally; Render, WorkOS/Codex login and hosted restart acceptance open |
 | C4 | not_started | External pilot, repeat-use and willingness-to-pay evidence pending |
 
 Current evidence: [Gate 2–4 acceptance](gate-2-4-acceptance.md).
@@ -181,21 +181,19 @@ cookies, passwords or CDP URLs.
 
 ## Next Priority: Monitor/Delivery MCP And First Use
 
-Current MCP is local stdio with six scrape/Crawl tools: scrape, crawl,
-get_crawl, get_crawl_pages, get_crawl_errors and cancel_crawl. It has no
-Monitor/Delivery tools and no remote HTTP transport.
+MCP now exposes Monitor preview, creation, listing, run queue/detail,
+pause/resume/cancel, plus destination configuration, paginated delivery reads,
+attempts and explicit dead-letter retry. The local stdio entry remains and a
+restricted Streamable HTTP entry uses the same REST/SDK contracts and stored
+state. Manual MCP runs return a durable `runId`; disconnecting a client does
+not cancel the queued run.
 
-The next C2 slice will expose Monitor creation, querying, run-now,
-pause/resume and active-run cancellation, plus destination configuration,
-delivery/attempt reads and dead-letter retry. It must reuse existing REST/SDK
-contracts and task states, distinguishing pause from cancellation and delivery
-retry from recrawl. Tool names and new endpoints are not implemented here.
-
-The simpler first-use flow is conversational: create a task, inspect a sample,
-obtain results and understand failure. Show extracted fields, quality decision,
-identity, freshness and evidence. Invalid samples must be explained before
-enabling an unattended schedule. Future narrow UI uses the same business
-contract; it never edits SQLite or profiles directly.
+The [local first-use flow](../mcp-first-use.md) is conversational: inspect a
+sample, create a paused task, configure a controlled HTTPS receiver, resume,
+obtain results and understand failure. It shows extracted fields, quality,
+freshness, evidence and missing reasons. Invalid samples must be explained
+before enabling an unattended schedule. A future narrow UI uses the same
+business contract; it never edits SQLite or profiles directly.
 
 ## Later Integration And UI
 
@@ -210,8 +208,8 @@ destination → sample → revision → run/history.
 | C2.1 | not_started | Versioned n8n example; duplicate-safe consumption survives workflow restart |
 | C2.2 | not_started | Custom node only after repeated friction; credentials, pagination, retry and upgrades verified |
 | C2.3 | not_started | Narrow task UI; same stored revisions as API/MCP-created tasks |
-| C2.4 | not_started as product entry | Expose existing control APIs; distinguish pause/cancel and delivery retry/recrawl |
-| C2.5 | next, not_started | Monitor/Delivery MCP and guided first use; create/query/run/control, sample/result and actionable failure explanation |
+| C2.4 | in_progress | Monitor and Delivery control exposed through MCP/SDK; UI entry open |
+| C2.5 | local engineering complete | Monitor/Delivery MCP and guided first use passed a local HTTPS receiver flow; hosted Codex acceptance open |
 
 UI/MCP must distinguish initialization, changed, cannot_verify, stale and delivery
 failure. Authorized-session waiting_user/revoked flows remain subject to B3;
@@ -222,22 +220,23 @@ a resume click is not proof of restored login or account scope.
 ## Self-Hosted Foundation And Unified Management
 
 Docs, source packaging, SDK examples and an agent clean-install smoke exist.
-Independent non-author installation is still pending. API, Monitor scheduler
-and delivery worker currently require separate processes; there is no unified
-supervisor or installed background service.
+Independent non-author installation is still pending. The new hosted entry
+starts an in-process REST API, Monitor scheduler and delivery worker together,
+with `/healthz`, signal-driven shutdown and one persisted control DB. A local
+`SIGKILL` recovery check preserves a queued run and a pending delivery across
+process restarts. An actual Render restart and operational alerting remain to
+be measured.
+Persistent monitors outlive an MCP conversation.
 
-The next management slice will provide one entry for API/scheduler/delivery
-start, readiness/status, stop and recovery, sharing the persisted control DB.
-It must preserve IDs and pending work across restart, distinguish graceful
-shutdown from user cancellation, and clean up owned browser/worker resources.
-Persistent monitors must outlive an MCP conversation.
+## Remote URL MCP (C3, Implementation; Hosted Acceptance Open)
 
-## Remote URL MCP (C3, Planned)
-
-Add an HTTPS MCP endpoint, authentication and client connection instructions,
-so the user can connect without a local repository or manually starting a
-worker. This transport and its hosting are C3; Monitor/Delivery tool semantics
-are C2. No public MCP URL, OAuth implementation or permanent hosting exists yet.
+The server implements Streamable HTTP `/mcp`, protected-resource metadata,
+Origin/host checks and WorkOS access-token verification. The remote pilot
+exposes only the Firecrawl public-document preset and a configured independent
+HTTPS receiver. A Render Blueprint and client instructions are provided, but
+there is no deployed public MCP URL, verified WorkOS browser OAuth flow, or
+permanent hosted service yet. This transport and hosting are C3; Monitor/
+Delivery tool semantics are C2.
 
 Accept separately:
 
@@ -259,12 +258,12 @@ Local tests and a temporary HTTPS receiver do not satisfy these requirements.
 
 | Unit | Status | Deliverable / acceptance |
 | --- | --- | --- |
-| C3.1 | in_progress, next | Install foundation exists; add unified process management/readiness; independent developer installs from a frozen revision and completes the flow |
+| C3.1 | in_progress | Unified process/readiness/local service-recreation check done; actual hosted restart and independent installation open |
 | C3.2 | not_started | Explicit DB upgrade/rollback plan; incompatible schema fails clearly and pre-upgrade state restores |
 | C3.3 | not_started | Consistent backup, evidence/profile retention and restore drill; baseline references and pending event IDs survive |
 | C3.4 | not_started | Operations dashboard/runbook for queue age, health, browser count, disk limits, retries and correction cost |
 | C3.5 | not_started | Persistent hosted mode; independent identity/auth/egress/quota/resource/cancellation evidence before exposure |
-| C3.6 | next, not_started | Remote HTTPS URL MCP, authentication and tested client instructions; connection/task/continued-monitoring gates separate |
+| C3.6 | implementation complete locally | Streamable HTTP and auth checks tested locally; WorkOS/Codex browser login, actual URL and three hosted gates open |
 
 Record actual sqlite_version() and sqlite_source_id() in release evidence.
 Use SQLite's backup mechanism, not a copy of a live DB without WAL. Secrets
@@ -316,14 +315,14 @@ or successful demo is not product-market fit.
 
 ## Next Slice Order And Execution Policy
 
-1. C2.5: Monitor/Delivery MCP and conversational first use, reusing REST/SDK.
-2. C3.1: unified API/scheduler/delivery-worker lifecycle; may progress alongside C2.
-3. C3.6 + C3.5 gates: authenticated remote URL MCP and persistent hosting within
-   isolation, egress and resource constraints.
-4. Independent human Gate 4 acceptance, then Gate 5 external two-week use;
+1. Resolve Render workspace billing suspension and create/configure the WorkOS
+   AuthKit MCP application for the actual deployed resource URL.
+2. Deploy both persistent Render services; accept real Codex OAuth connection,
+   task completion, and continued monitoring after disconnect and process
+   restart as separate outcomes.
+3. Independent human Gate 4 acceptance, then Gate 5 external two-week use;
    n8n/narrow UI and C4 expansion follow demonstrated friction and demand.
 
-These are priorities, not delivery-date commitments. This document update
-implements none of the next slice. Inspect → implement → focused verification
+These are priorities, not delivery-date commitments. Inspect → implement → focused verification
 → evidence → review → acceptance; commits, CI, merges, deployments, customer
 adoption and payments are distinct outcomes. B3/B4 retain their own open gates.

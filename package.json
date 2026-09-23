@@ -24,6 +24,8 @@
     "crawl": "tsc --build && node --import tsx packages/bench/src/w2lCli.ts crawl",
     "api": "tsc --build && node --import tsx packages/api/src/cli.ts",
     "mcp": "tsc --build && node --import tsx packages/mcp/src/stdio.ts",
+    "hosted:mcp": "tsc --build && node packages/mcp/dist/hostCli.js",
+    "verify:c2-first-use": "tsc --build && node --import tsx scripts/section-c/mcp-first-use-evidence.ts",
     "monitors:worker": "tsc --build && node --import tsx scripts/section-b/monitor-scheduler.ts",
     "delivery:worker": "tsc --build && node --import tsx scripts/section-b/delivery-worker.ts",
     "webhook:receiver": "tsc --build && node --import tsx examples/webhook-receiver.ts",

@@ -42,11 +42,16 @@ import {
   type DeliveryQuery,
   type WebhookDelivery,
   type DeliveryDetail,
+  type DeliveryPage,
+  type DeliveryPageQuery,
+  type MonitorPreview,
+  type MonitorRun,
+  type MonitorRunDetail,
 } from '@w2l/contracts'
 import { createExecutionScope, type CrawlPolicy } from '@w2l/http-core'
 import { CrawlOrchestrator, canonicalizeUrl, crawlReportFromStore, reportFromTaskAttempt, SqliteTaskStore, type StepPageQuery } from '@w2l/runtime'
 import { initializeFirecrawlMonitor, runFirecrawlMonitor as executeMonitor, runConfiguredMonitor } from '@w2l/runtime'
-import { MonitorStore, DeliveryStore } from '@w2l/runtime'
+import { MonitorStore, DeliveryStore, assessConfiguredDocument, assessFirecrawlIntroduction } from '@w2l/runtime'
 import { FileSessionBrokerStore, SessionBroker } from '@w2l/bench'
 import { FIRECRAWL_INTRO_URL, FIRECRAWL_MONITOR_ID, type MonitorView, type MonitorRevision } from '@w2l/contracts'
 import type { ManagedSessionRef, SessionAccessResult } from '@w2l/contracts'
@@ -71,9 +76,12 @@ export interface ApiEngine {
   cancelCrawl(taskId: string): Promise<CrawlReport | null>
   runFirecrawlMonitor(triggerKey?: string, context?: ExecutionContext): Promise<MonitorView>
   getFirecrawlMonitor(): Promise<MonitorView>
-  configureMonitor(revision: MonitorRevision): MonitorRevision
+  configureMonitor(revision: MonitorRevision, initialEnabled?: boolean): MonitorRevision
+  previewMonitor(revision: MonitorRevision, context?: ExecutionContext): Promise<MonitorPreview>
   getMonitor(id: string): MonitorView | null
+  getMonitorRun(id: string, runId: string): MonitorRunDetail | null
   listMonitors(): MonitorView[]
+  enqueueMonitorRun(id: string, triggerKey?: string): MonitorRun
   runMonitor(id: string, triggerKey?: string, context?: ExecutionContext): Promise<MonitorView>
   cancelMonitorRun(id: string, runId: string): MonitorView
   setMonitorEnabled(id: string, enabled: boolean): MonitorView
@@ -81,6 +89,7 @@ export interface ApiEngine {
   listDeliveryDestinations(monitorId?: string): DeliveryDestination[]
   setDeliveryDestinationEnabled(id: string, enabled: boolean): DeliveryDestination
   listDeliveries(query?: DeliveryQuery): WebhookDelivery[]
+  getDeliveriesPage(query?: DeliveryPageQuery): DeliveryPage
   getDelivery(id: string): DeliveryDetail | null
   retryDelivery(id: string): WebhookDelivery
   createManagedSession(input: { workspaceId: string; accountRef: string; originScope: string; expiresAt?: string | null }): Promise<ManagedSessionRef>
@@ -103,6 +112,8 @@ export interface ApiEngineOptions {
   defaultMaxPages?: number | null
   /** Test seam: override local ladder channels without changing fetch. */
   channelsFor?: (mode: 'standard' | 'research' | 'authed') => Channel[]
+  /** Restrict a hosted public-document pilot to the HTTP rung. */
+  httpOnly?: boolean
   workerCount?: number
   perHostConcurrency?: number
   perHostMinDelayMs?: number
@@ -130,7 +141,10 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
   const crawlControllers = new Map<string, AbortController>()
   const createChannels =
     options.channelsFor ??
-    ((mode: 'standard' | 'research' | 'authed') => buildChannels(mode, { headed, networkPolicy, originScheduler }))
+    ((mode: 'standard' | 'research' | 'authed') => {
+      const channels = buildChannels(mode, { headed, networkPolicy, originScheduler })
+      return options.httpOnly ? channels.filter(channel => channel.id === 'http') : channels
+    })
   const channelsByMode = new Map<string, Channel[]>()
   const historiesByMode = new Map<string, MemoryRoutingHistory>()
   const channelsFor = (mode: 'standard' | 'research' | 'authed'): Channel[] => {
@@ -407,9 +421,19 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
       initializeFirecrawlMonitor(monitorStore)
       return monitorStore.view(FIRECRAWL_MONITOR_ID, Date.now())
     },
-    configureMonitor(revision) { return monitorStore.createOrGetRevision(revision) },
+    configureMonitor(revision, initialEnabled = true) { return monitorStore.createOrGetRevision(revision, initialEnabled) },
+    async previewMonitor(revision, context = {}) {
+      // Assessment and capture are identical to a run, but no monitor or event is persisted.
+      const result = revision.config?.captureMode === 'http'
+        ? await conditionalHttp.fetch(revision.url, context.deadlineAt ?? Date.now() + 300_000, context.signal)
+        : await this.scrape({url:revision.url,debug:true}, context) as ScrapeResponse
+      const assessment = revision.config ? assessConfiguredDocument(result, revision) : assessFirecrawlIntroduction(result)
+      return {url:revision.url,finalUrl:result.evidence.finalUrl ?? null,status:result.status,assessment,sampleMarkdown:result.markdown?.slice(0, 3000) ?? null,capturedAt:Date.now()}
+    },
     getMonitor(id) { return monitorStore.hasMonitor(id) ? monitorStore.view(id, Date.now()) : null },
+    getMonitorRun(id, runId) { return monitorStore.runDetail(id, runId) },
     listMonitors() { return monitorStore.listMonitorIds().map((id) => monitorStore.view(id, Date.now())) },
+    enqueueMonitorRun(id, triggerKey) { return monitorStore.enqueueRun(id, triggerKey) },
     async runMonitor(id, triggerKey, context = {}) {
       const revision = monitorStore.getRevision(id)
       const controller = new AbortController()
@@ -447,6 +471,7 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
     listDeliveryDestinations: (id) => deliveryStore.listDestinations(id),
     setDeliveryDestinationEnabled: (id, enabled) => deliveryStore.setDestinationEnabled(id, enabled),
     listDeliveries: (query) => deliveryStore.listDeliveries(query),
+    getDeliveriesPage: (query) => deliveryStore.listDeliveriesPage(query),
     getDelivery(id) { const delivery = deliveryStore.getDelivery(id); return delivery ? {delivery, attempts: deliveryStore.attempts(id)} : null },
     retryDelivery: (id) => deliveryStore.replayDeadLetter(id),
 

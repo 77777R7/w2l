@@ -58,7 +58,7 @@ npm run mcp
 
 `npm run api` binds `127.0.0.1` and allows loopback/RFC1918 so fixture servers work. Hosted mode is explicit: `npm run api -- --hosted --token $W2L_API_TOKEN`. That binds `0.0.0.0`, requires `Authorization: Bearer`, denies private/metadata IPs, and defaults crawl `maxPages` to 100.
 
-The current MCP uses local stdio and talks to the REST server. It covers scrape, Crawl, and persistent URL-array batches (including result pagination and cancellation); Monitor/Delivery tools and a remote HTTPS MCP URL are planned in [C2/C3](docs/roadmap/section-c-delivery.md). Configure the MCP client to launch it from this repository:
+The local MCP uses stdio and talks to the REST server. It covers scrape, Crawl, persistent URL-array batches, and Monitor/Delivery. A unified service also implements authenticated Streamable HTTP for a restricted public-document pilot; its permanent Render URL is pending deployment. See the [MCP first-use walkthrough](docs/mcp-first-use.md) and [C2/C3 status](docs/roadmap/section-c-delivery.md). Configure a local MCP client to launch it from this repository:
 
 ```json
 {
@@ -139,7 +139,7 @@ See [onboarding](docs/onboarding.md) for the HTTPS receiver, authentication, wor
 
 The [Gate 2–4 acceptance record](docs/roadmap/gate-2-4-acceptance.md) links the process-crash, concurrent-claim, public HTTPS and agent clean-install evidence. Gate 2/3 engineering acceptance passed; Gate 4 awaits a non-author human, and Gate 5 external two-week/repeat-use validation has not started. `npm run package:handoff` captures review source with per-file hashes. The existing tested archive is a preserved pre-commit snapshot, not a package of subsequent roadmap edits.
 
-Next: C2 Monitor/Delivery MCP and conversational first use; C3 unified service start/status/stop/recovery and authenticated remote URL MCP. These are not implemented yet. B1/B2 and C1 remain in_progress for their broader operational/adoption gates, and persistent hosting requires separate isolation, egress and resource checks.
+C2 Monitor/Delivery MCP and its local HTTPS first-use workflow are implemented. C3 has a unified process and authenticated Streamable HTTP implementation; Render hosting, WorkOS browser login, real-client connection, and a hosted restart drill remain unverified. B1/B2 and C1 remain in_progress for their broader operational/adoption gates. See the [first-use walkthrough](docs/mcp-first-use.md).
 
 ## Benchmark
 
@@ -172,7 +172,7 @@ packages/
   bench/           Benchmark runner, scrape/crawl CLI, scoring
   api/             REST server (AGPL)
   sdk/             TypeScript client (MIT)
-  mcp/             stdio MCP server (MIT)
+  mcp/             stdio and restricted Streamable HTTP MCP server (MIT)
 
 examples/monitor-workflow.ts       Runnable Monitor + Delivery SDK workflow
 examples/webhook-receiver.ts       Durable idempotent sample receiver
@@ -181,6 +181,7 @@ ROADMAP.md                         Current Section A/B/C roadmap
 
 docs/
   onboarding.md                  Install, Crawl, Monitor, HTTPS events and recovery
+  mcp-first-use.md               Conversational Monitor/Delivery and hosted pilot setup
   independent-developer-acceptance.md  Pending human Gate 4 run sheet
   roadmap/section-a-foundation.md  Section A phases and A4 gate
   roadmap/section-b-continuous-data.md  Section B future direction
@@ -222,8 +223,10 @@ docs/
 - [x] Gate 3 durable HTTPS delivery, same-event retry, deduplication and restart recovery
 - [x] Gate 4 SDK, docs, examples and agent clean installation
 - [ ] Gate 4 independent non-author human installation and full workflow
-- [ ] C2 Monitor/Delivery MCP and simpler first-use entry; n8n and narrow task UI
-- [ ] C3 unified process management, remote URL MCP and persistent hosting
+- [x] C2 Monitor/Delivery MCP and local conversational first-use flow
+- [ ] C2 n8n and narrow task UI
+- [x] C3 unified single-instance process and authenticated Streamable HTTP implementation
+- [ ] C3 permanent Render URL, WorkOS/Codex OAuth acceptance and hosted restart drill
 - [ ] Gate 5 two external trial users, two weeks, repeat use and real downstream consumption
 - [x] Phase 3 Benchmark Gate harness: fixed W2L run, comparator evidence, and blocked-until-real-comparators decision
 - [ ] Hosted Egress Gate: browser subresource policy enforcement and DNS-to-connection binding

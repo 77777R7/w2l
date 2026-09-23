@@ -4,6 +4,8 @@ import type {
   DeliveryDestinationInput,
   DeliveryDetail,
   DeliveryQuery,
+  DeliveryPage,
+  DeliveryPageQuery,
   WebhookDelivery,
   CrawlError,
   CrawlPage,
@@ -17,6 +19,9 @@ import type {
   FetchResult,
   MonitorRevision,
   MonitorView,
+  MonitorPreview,
+  MonitorRun,
+  MonitorRunDetail,
   ScrapeRequest,
   ScrapeResponse,
 } from '@w2l/contracts'
@@ -35,7 +40,7 @@ export interface RequestOptions {
   signal?: AbortSignal
 }
 
-export type CreateMonitorRequest = Omit<MonitorRevision, 'createdAt'>
+export type CreateMonitorRequest = (Omit<MonitorRevision, 'createdAt'> & {enabled?:boolean}) | {preset:'firecrawl-introduction';enabled?:boolean}
 export type ReviseMonitorRequest = Omit<MonitorRevision, 'monitorId' | 'createdAt'>
 export interface RunMonitorRequest {
   /** Reusing a key replays the same logical run within this monitor. */
@@ -135,6 +140,10 @@ export class W2L {
     return this.post<MonitorRevision>('/v1/monitors', input, 201, request)
   }
 
+  async previewMonitor(input: CreateMonitorRequest, request: RequestOptions = {}): Promise<MonitorPreview> {
+    return this.post<MonitorPreview>('/v1/monitors/preview',input,200,request)
+  }
+
   async reviseMonitor(id: string, input: ReviseMonitorRequest, request: RequestOptions = {}): Promise<MonitorRevision> {
     return this.post<MonitorRevision>(`/v1/monitors/${encodeURIComponent(id)}/revisions`, input, 201, request)
   }
@@ -145,6 +154,15 @@ export class W2L {
 
   async getMonitor(id: string, request: RequestOptions = {}): Promise<MonitorView> {
     return this.get<MonitorView>(`/v1/monitors/${encodeURIComponent(id)}`, request)
+  }
+
+  async getMonitorRun(id: string, runId: string, request: RequestOptions = {}): Promise<MonitorRunDetail> {
+    return this.get<MonitorRunDetail>(`/v1/monitors/${encodeURIComponent(id)}/runs/${encodeURIComponent(runId)}`,request)
+  }
+
+  /** Durable run: returns after enqueue; client disconnect does not cancel it. */
+  async enqueueMonitorRun(id: string, input: RunMonitorRequest = {}, request: RequestOptions = {}): Promise<MonitorRun> {
+    return this.post<MonitorRun>(`/v1/monitors/${encodeURIComponent(id)}/runs`,input,202,request)
   }
 
   /** Waits for capture and assessment; baseline/events are included in the returned view. */
@@ -187,6 +205,16 @@ export class W2L {
     if (options.destinationId !== undefined) params.set('destinationId', options.destinationId)
     if (options.state !== undefined) params.set('state', options.state)
     return this.get<WebhookDelivery[]>(`/v1/deliveries${params.size === 0 ? '' : `?${params}`}`, request)
+  }
+
+  async getDeliveriesPage(options: DeliveryPageQuery = {}, request: RequestOptions = {}): Promise<DeliveryPage> {
+    const params = new URLSearchParams()
+    if (options.monitorId !== undefined) params.set('monitorId',options.monitorId)
+    if (options.destinationId !== undefined) params.set('destinationId',options.destinationId)
+    if (options.state !== undefined) params.set('state',options.state)
+    if (options.cursor !== undefined) params.set('cursor',options.cursor)
+    if (options.limit !== undefined) params.set('limit',String(options.limit))
+    return this.get<DeliveryPage>(`/v1/deliveries/page${params.size ? `?${params}` : ''}`,request)
   }
 
   async getDelivery(id: string, request: RequestOptions = {}): Promise<DeliveryDetail> {

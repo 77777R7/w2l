@@ -2,7 +2,7 @@ import { chmodSync, mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import Database from 'better-sqlite3'
 import { configureControlDatabase } from './sqliteSetup.js'
-import type { DeliveryAttempt, DeliveryDestination, DeliveryDestinationInput, DeliveryQuery, DeliveryState, WebhookDelivery, WebhookEventEnvelope } from '@w2l/contracts'
+import type { DeliveryAttempt, DeliveryDestination, DeliveryDestinationInput, DeliveryPage, DeliveryPageQuery, DeliveryQuery, DeliveryState, WebhookDelivery, WebhookEventEnvelope } from '@w2l/contracts'
 
 export function createDeliveryTables(db: Database.Database): void {
   db.transaction(() => {
@@ -128,6 +128,26 @@ export class DeliveryStore {
       if (value !== undefined) { clauses.push(`${column}=?`); values.push(value) }
     }
     return (this.db.prepare(`SELECT * FROM webhook_deliveries ${clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''} ORDER BY created_at,id`).all(...values) as DeliveryRow[]).map(deliveryFrom)
+  }
+  listDeliveriesPage(query: DeliveryPageQuery = {}): DeliveryPage {
+    const limit = query.limit ?? 20
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 50) throw new Error('limit must be 1..50')
+    let cursor: {createdAt:number;id:string} | null = null
+    if (query.cursor) {
+      try { cursor = JSON.parse(Buffer.from(query.cursor, 'base64url').toString('utf8')) as {createdAt:number;id:string} }
+      catch { throw new Error('invalid delivery cursor') }
+      if (!cursor || !Number.isSafeInteger(cursor.createdAt) || typeof cursor.id !== 'string' || !cursor.id) throw new Error('invalid delivery cursor')
+    }
+    const clauses: string[] = []
+    const values: Array<string | number> = []
+    for (const [column, value] of [['monitor_id', query.monitorId], ['destination_id', query.destinationId], ['state', query.state]] as const) {
+      if (value !== undefined) { clauses.push(`${column}=?`); values.push(value) }
+    }
+    if (cursor) { clauses.push('(created_at>? OR (created_at=? AND id>?))'); values.push(cursor.createdAt,cursor.createdAt,cursor.id) }
+    const rows = this.db.prepare(`SELECT * FROM webhook_deliveries ${clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''} ORDER BY created_at,id LIMIT ?`).all(...values,limit+1) as DeliveryRow[]
+    const page = rows.slice(0, limit)
+    const last = page.at(-1)
+    return { items:page.map(deliveryFrom),hasMore:rows.length>limit,nextCursor:rows.length>limit && last ? Buffer.from(JSON.stringify({createdAt:last.created_at,id:last.id})).toString('base64url') : null }
   }
   attempts(id: string): DeliveryAttempt[] {
     return (this.db.prepare('SELECT * FROM delivery_attempts WHERE delivery_id=? ORDER BY fencing_token').all(id) as AttemptRow[]).map(row => ({ id: row.id, deliveryId: row.delivery_id, fencingToken: row.fencing_token, startedAt: row.started_at, endedAt: row.ended_at, outcome: row.outcome, status: row.status, error: row.error, retryAfterAt: row.retry_after_at }))
