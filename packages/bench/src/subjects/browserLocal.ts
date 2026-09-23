@@ -25,6 +25,7 @@ import { RobotsOriginCache } from '../robotsLookup.js'
 import { waitForRenderedStability } from '../browserSettle.js'
 import { OriginScheduler, type OriginPermit } from './originScheduler.js'
 import { captureRawHtml } from '../rawArtifact.js'
+import { amazonVariantFollowupUrl } from './amazonVariantFollowup.js'
 import {
   BROWSER_FINGERPRINT,
   CHROME_MAJOR_FLOOR,
@@ -363,29 +364,34 @@ export class BrowserLocalSubject implements SubjectAdapter {
       // http engine shares (503 only, once, authoritative Retry-After). The
       // runner resets fixture state per subject, so the browser arm
       // genuinely sees flaky attempt 1 and must retry to survive it.
-      const MAX_ATTEMPTS = 2
-      let attemptCount = 1
+      const MAX_STATUS_RETRIES = 1
+      let statusRetries = 0
+      let variantFollowups = 0
+      let attemptCount = 0
+      let navigationUrl = url
+      const requestedAmazonAsin = /^\/dp\/([A-Z0-9]{10})\/?$/i.exec(new URL(url).pathname)?.[1]?.toUpperCase() ?? null
       let response: Response | null = null
       for (;;) {
-        await this.scheduler.beforeRequest(new URL(url).origin, signal, onRequestWait)
+        await this.scheduler.beforeRequest(new URL(navigationUrl).origin, signal, onRequestWait)
         previousRequestAtMs = this.lastRequestAtMsByHost.get(host) ?? null
         const navigationAt = Date.now()
         observedDelayMs = previousRequestAtMs === null ? null : navigationAt - previousRequestAtMs
-        compliant = observedDelayMs === null || observedDelayMs >= requiredDelayMs
+        compliant &&= observedDelayMs === null || observedDelayMs >= requiredDelayMs
         this.lastRequestAtMsByHost.set(host, navigationAt)
-        trace.push({ at: Date.now() - start, lane: 'browser_local', event: 'navigate', detail: { url, attempt: attemptCount } })
-        response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: remainingTimeout(execution, 20_000) })
+        attemptCount++
+        trace.push({ at: Date.now() - start, lane: 'browser_local', event: 'navigate', detail: { url: navigationUrl, attempt: attemptCount } })
+        response = await page.goto(navigationUrl, { waitUntil: 'domcontentloaded', timeout: remainingTimeout(execution, 20_000) })
         const status = response?.status() ?? 0
         if (status === 429 || status === 503) {
           const delay = parseRetryAfterMs(response?.headers()['retry-after'] ?? null)
           if (delay !== null) {
             const target = response?.url() ?? url
             const retryAt = Date.now() + delay
-            for (const origin of new Set([new URL(url).origin, new URL(target).origin])) this.scheduler.cooldown(origin, retryAt)
+            for (const origin of new Set([new URL(navigationUrl).origin, new URL(target).origin])) this.scheduler.cooldown(origin, retryAt)
             execution.onRetryAfter?.(target, retryAt)
           }
         }
-        if (isRetryableStatus(status) && attemptCount < MAX_ATTEMPTS) {
+        if (isRetryableStatus(status) && statusRetries < MAX_STATUS_RETRIES) {
           const retryAfter = response?.headers()['retry-after'] ?? null
           const delayMs = parseRetryAfterMs(retryAfter) ?? 250
           const retryAt = Date.now() + delayMs
@@ -395,13 +401,35 @@ export class BrowserLocalSubject implements SubjectAdapter {
             return { ...deferred, retryAt, evidence: { ...deferred.evidence, httpStatus: status, finalUrl: page.url() } }
           }
           trace.push({ at: Date.now() - start, lane: 'browser_local', event: 'retry', detail: { attempt: attemptCount, status, delayMs } })
-          attemptCount++
+          statusRetries++
           if (delayMs > 0) await abortableSleep(delayMs, signal)
           continue
         }
+        await raceWithSignal(waitForRenderedStability(page, { maxMs: remainingTimeout(execution, 1_500) }), signal)
+        throwIfExecutionStopped(execution)
+        if (status === 200 && variantFollowups === 0 && requestedAmazonAsin !== null) {
+          const variant = await raceWithSignal(page.evaluate((asin) => ({
+            selectedAsin: document.querySelector('input[name="ASIN"]')?.getAttribute('value') ?? null,
+            requestedVariantAvailable: Array.from(document.querySelectorAll('li[data-asin]')).some(element =>
+              element.getAttribute('data-asin')?.toUpperCase() === asin
+              && /swatchAvailable/i.test(element.getAttribute('data-csa-c-content-id') ?? '')),
+          }), requestedAmazonAsin), signal)
+          const followupUrl = amazonVariantFollowupUrl(url, page.url(), variant.selectedAsin, variant.requestedVariantAvailable)
+          if (followupUrl !== null) {
+            const followupRobots = this.robotsCache.decision(cachedRobots, followupUrl, identity.userAgent)
+            if (followupRobots.decision === 'disallowed') {
+              trace.push({ at: Date.now() - start, lane: 'browser_local', event: 'amazon_variant_followup_denied', detail: { url: followupUrl } })
+            } else {
+              await raceWithSignal(assertSafeUrl(followupUrl, this.networkPolicy), signal)
+              variantFollowups++
+              navigationUrl = followupUrl
+              trace.push({ at: Date.now() - start, lane: 'browser_local', event: 'amazon_variant_followup', detail: { selectedAsin: variant.selectedAsin, requestedAsin: requestedAmazonAsin, url: followupUrl } })
+              continue
+            }
+          }
+        }
         break
       }
-      await raceWithSignal(waitForRenderedStability(page, { maxMs: remainingTimeout(execution, 1_500) }), signal)
       throwIfExecutionStopped(execution)
       const status = response?.status() ?? 0
       const finalUrl = page.url()
@@ -453,7 +481,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
           observedDelayMs,
           requiredDelayMs,
           compliant,
-          recentSameHostCount: 1,
+          recentSameHostCount: attemptCount,
         },
         access: this.access,
       })
