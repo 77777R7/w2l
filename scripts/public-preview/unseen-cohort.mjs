@@ -52,6 +52,13 @@ async function walk(dir) {
   return files
 }
 
+function isListingDiscoveryTrace(file) {
+  // A failed (or successful) discovery trace contains *all* listing links,
+  // including products that were never selected or evaluated. Only its
+  // frozen manifest, when present, represents candidate targets to exclude.
+  return /[\\/]public-preview[\\/]unseen-100-sg[\\/][^\\/]+[\\/]discovery\.json$/i.test(file)
+}
+
 /**
  * The exclusion ledger is intentionally conservative. It scans all tracked
  * text files (including fixtures), local ignored JSON/Markdown reports, and
@@ -66,7 +73,7 @@ export async function buildExclusionLedger(root, additionalDirs = []) {
   const localDir = resolve(root, '.w2l')
   const localFiles = await stat(localDir).then(() => walk(localDir), () => [])
   const archiveFiles = (await Promise.all(additionalDirs.map(async dir => walk(resolve(dir))))).flat()
-  const files = [...new Set([...tracked, ...localFiles, ...archiveFiles])].sort()
+  const files = [...new Set([...tracked, ...localFiles, ...archiveFiles])].filter(file => !isListingDiscoveryTrace(file)).sort()
   const sources = []
   const excluded = new Set()
   for (const file of files) {
