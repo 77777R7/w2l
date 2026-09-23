@@ -139,6 +139,23 @@ export interface MonitorView {
   outbox: { eventId: string; state: 'pending' | 'acknowledged'; acknowledgedAt: number | null }[]
 }
 
+/** A bounded first-use sample. Preview never creates a run, baseline, or event. */
+export interface MonitorPreview {
+  url: string
+  finalUrl: string | null
+  status: string
+  assessment: DocumentAssessment
+  sampleMarkdown: string | null
+  capturedAt: number
+}
+
+export interface MonitorRunDetail {
+  run: MonitorRun
+  assessment: DocumentAssessment | null
+  observation: MonitorObservation | null
+  attempts: MonitorAttempt[]
+}
+
 export interface TransportRepresentation {
   bodySha256?: string
   key: string

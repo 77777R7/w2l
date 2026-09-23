@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- C2 adds Monitor sample preview, paused-by-default MCP creation, durable queued manual runs, run detail, delivery paging and dead-letter controls. A local SDK Streamable HTTP check completed the public Firecrawl document → HTTPS webhook flow with the same event ID at sender and receiver.
+- C3 adds a single-process API/scheduler/delivery-worker runtime, protected-resource metadata, WorkOS JWT validation and a restricted Streamable HTTP MCP endpoint. A two-service Render Blueprint and walkthrough are ready; permanent deployment, browser OAuth and actual hosted restart acceptance remain open.
 - Scrape requests now accept explicit Markdown, links and JSON Schema formats. Deterministic extraction runs directly on subject-bound product HTML/metadata; nullable missing fields include evidence-backed issues, and an OpenAI-compatible model fallback is explicit and disabled when unconfigured.
 - Amazon `/dp/{ASIN}` pages use a subject adapter for identity, purchase offers, seller, availability, delivery context, variants, images and specifications. Recommendation shelves are removed before output; Blink subscription pages remain products with `kind: subscription`.
 - HTTP usage includes monotonic queue, robots, cooldown, transport, retry, extract, format, model and total timings. `request_complete` is emitted after the response body resolves, while ladder `totalMs` records user-visible elapsed time separately from summed attempt time.

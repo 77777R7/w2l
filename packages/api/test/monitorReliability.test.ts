@@ -56,7 +56,9 @@ describe('Gate 2 real HTTP Monitor reliability', () => {
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
     url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/product`
     const subject = new ResilientHttpSubject('standard', localNetworkPolicy())
-    engine = createApiEngine({ taskRoot: root, monitorLeaseMs: 120, monitorAttemptTimeoutMs: 5_000,
+    // These tests check capture/cache/isolation, not lease expiry. A 120 ms
+    // lease can lapse while the CI runner schedules parallel test workers.
+    engine = createApiEngine({ taskRoot: root, monitorLeaseMs: 5_000, monitorAttemptTimeoutMs: 30_000,
       channelsFor: () => [{ id: 'http', identity: identityForRoute('standard'), fetch: async (target, _session, execution) => {
         injectedCalls++
         return subject.fetch(target, execution?.deadlineAt, execution?.signal)
@@ -95,6 +97,32 @@ describe('Gate 2 real HTTP Monitor reliability', () => {
     expect(unchanged.events).toHaveLength(4)
     const observations = query<{ transport_json: string }>('SELECT transport_json FROM monitor_observations')
     expect(JSON.parse(observations.at(-1)!.transport_json)).toMatchObject({ responseStatus: 304, reusedFrom: expect.any(String) })
+  })
+
+  it('previews without persistence, queues a manual run, and resumes it after engine restart', async () => {
+    const preview = await client.previewMonitor(config())
+    expect(preview.assessment.quality).toBe('valid')
+    expect(preview.assessment.evidence.length).toBeGreaterThan(0)
+    expect(await client.listMonitors()).toEqual([])
+    await client.createMonitor({...config(),enabled:false})
+    expect((await client.getMonitor('price')).enabled).toBe(false)
+    await client.createDeliveryDestination({id:'inbox',monitorId:'price',url:'https://receiver.example/webhook'})
+    await client.resumeMonitor('price')
+    const queued = await client.enqueueMonitorRun('price',{triggerKey:'first-use'})
+    expect(queued.state).toBe('queued')
+    expect((await client.enqueueMonitorRun('price',{triggerKey:'first-use'})).id).toBe(queued.id)
+    await engine.close()
+    engine = createApiEngine({taskRoot:root,networkPolicy:localNetworkPolicy()})
+    client = new W2L({baseUrl:'http://w2l.local',fetch:((input,init)=>createApp(engine).request(String(input),init)) as typeof fetch})
+    expect((await client.getMonitorRun('price',queued.id)).run.state).toBe('queued')
+    await engine.runMonitor('price')
+    const detail = await client.getMonitorRun('price',queued.id)
+    expect(detail.run).toMatchObject({state:'completed',quality:'valid',change:'initialized'})
+    expect(detail.assessment).toMatchObject({quality:'valid',reasons:[]})
+    expect(detail.assessment!.evidence.length).toBeGreaterThan(0)
+    const page = await client.getDeliveriesPage({monitorId:'price',limit:1})
+    expect(page.items).toHaveLength(1)
+    expect(page.items[0]?.eventId).toBe((await client.getMonitor('price')).events[0]?.id)
   })
 
   it('reassesses a cached body with the current revision instead of accepting 304 as proof of validity', async () => {

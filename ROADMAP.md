@@ -18,7 +18,7 @@ Current truth:
 - Cost per verified page is unavailable because the self-hosted comparators have no comparable invoice model.
 - Recovery comparison is unsupported for the page-only Firecrawl/Crawl4AI adapters; W2L has URL-level SQLite recovery.
 - A4 diagnostic expansion covers 20 tasks / 11 domains. Pair-level A5 quality on that slice is AI 11/11 and product 9/9 consistent after scoring calibration; run-level correct-complete is AI 22/22 and product 18/18.
-- An isolated A4/B2 Amazon correctness slice at source SHA `04ce581` passed the fixed ten-product, three-round gate: 20/20 later-round context-comparable captures at each 1/2/4 concurrency setting, signed core-field accuracy and visible-field coverage both 105/105, and zero reviewed recommendation intrusion. This local branch is not merged, released, or deployed; Amazon remains beta until 100 holdout products and 1000-page reliability are tested. [Evidence](docs/evidence/amazon-adapter-integration-2026-09-23.md).
+- The A4/B2 Amazon correctness slice at source SHA `04ce581` passed the fixed ten-product, three-round gate: 20/20 later-round context-comparable captures at each 1/2/4 concurrency setting, signed core-field accuracy and visible-field coverage both 105/105, and zero reviewed recommendation intrusion. It was merged by [PR #52](https://github.com/77777R7/w2l/pull/52) into `main@8ff8863`; Amazon remains beta until 100 holdout products and 1000-page reliability are tested. [Evidence](docs/evidence/amazon-adapter-integration-2026-09-23.md).
 - A6 scale covers 100 pages / 10 domains / two runs. Outcome consistency 100/100; normalized-hash 99/100. Labeled every-fifth-task holdout is not an independent holdout.
 - Interrupt/resume lost 0 checkpointed URLs. The killed attempt was previously left `running`; resume now marks it `interrupted`.
 - Clean-clone install completed `ai-mdn-abortcontroller` on the author machine. Second-developer install is a recorded deferred exception, not a pass.
@@ -30,7 +30,7 @@ Current truth:
 - B3 managed-session APIs exist; Existing Chrome/CDP and B4 Recipe are library-level implementations without dedicated integration evidence in this baseline.
 - C1's delivery engineering slice passed: persistent worker/leases, retry/dead-letter, real HTTPS, stable event IDs, receiver deduplication and restart recovery. Long-term use by a real downstream customer is unverified.
 - Gate 4 includes Crawl/Monitor/Delivery SDKs, examples, installation docs and an agent clean-install record. Independent human acceptance is pending; Gate 5 external pilots have not started.
-- The current MCP is local stdio for scrape/Crawl. Monitor/Delivery MCP and simpler first use are next in C2; unified process management and remote HTTPS URL MCP are next in C3. None of those new entry points is implemented.
+- C2 Monitor/Delivery MCP and the local public-document → independent HTTPS receiver first-use flow are implemented. C3 has a unified single-instance process and authenticated Streamable HTTP implementation. Render hosting, WorkOS browser OAuth, real Codex client connection and hosted restart acceptance remain open; [walkthrough](docs/mcp-first-use.md).
 - B3/B4 external validation is blocked on an authorized backend/account and a second reusable workflow; see `research/section-b-real-adoption-blockers.md`.
 - Hosted arbitrary-URL browser execution remains gated on a separate egress/security review.
 
@@ -53,8 +53,8 @@ Section B: Continuous updates and authorized access
 
 Section C: Workflow productization and delivery
   C1 Reliable downstream data delivery                   in_progress (engineering slice validated)
-  C2 MCP integrations, n8n and a narrow task UI           not_started (REST/SDK foundation exists)
-  C3 Self-hosting, remote URL MCP and optional hosting    in_progress (install foundation exists)
+  C2 MCP integrations, n8n and a narrow task UI           in_progress (MCP local flow; n8n/UI open)
+  C3 Self-hosting, remote URL MCP and optional hosting    in_progress (implementation; hosted acceptance open)
   C4 Paid validation and limited scenario expansion      not_started
 ```
 
@@ -75,7 +75,7 @@ Section C complete plan: `docs/roadmap/section-c-delivery.md`.
 | Gate 5 · Pilot readiness | Two external users, two weeks of operation, repeat use and a real downstream scenario not yet verified |
 
 Evidence and boundaries: [Gate 2–4 acceptance](docs/roadmap/gate-2-4-acceptance.md).
-Next priority: C2 Monitor/Delivery MCP and conversational first use → C3 unified service management and remote URL MCP, with hosted isolation/egress/resource gates before persistent public hosting. Connection, task completion and continued monitoring require separate acceptance. These are planned slices, not delivery-date commitments; the roadmap remains A → B → C.
+Next priority: finish C3 deployment and WorkOS/Codex browser login, then separately accept connection, task completion and continued monitoring after an actual hosted restart. C2 n8n/UI, Gate 4 independent human onboarding and Gate 5 pilots remain open. The roadmap remains A → B → C.
 
 ## Section A
 
@@ -186,11 +186,11 @@ Support a small number of repeatable, authorized workflows only after evidence s
 
 ### C2 · MCP Integrations, n8n And Narrow Task UI
 
-**Status:** not_started for the new product entry points. Next: Monitor/Delivery MCP tools and a conversational source → task → sample → result/failure flow, reusing REST/SDK and stored task state. n8n and a narrow task UI remain planned; they share the same contract.
+**Status:** in_progress. Monitor/Delivery MCP tools and the local conversational source → sample → paused task → HTTPS delivery → result/failure flow are implemented over REST/SDK and stored task state. n8n and a narrow task UI remain planned; they share the same contract.
 
 ### C3 · Self-Hosted And Optional Hosted Delivery
 
-**Status:** in_progress. Installation docs, source packaging and agent clean-install evidence exist. Unified API/scheduler/delivery-worker start/status/stop/recovery, remote HTTPS URL MCP with authentication/client setup, and persistent hosting remain unimplemented. Public hosting requires the separate Hosted Egress Gate, identity isolation, quotas, cancellation, resource limits and operational evidence.
+**Status:** in_progress. Installation docs, source packaging and agent clean-install evidence exist. A unified API/scheduler/delivery-worker process and restricted authenticated Streamable HTTP MCP are implemented and tested locally. Permanent Render deployment, WorkOS browser login, real Codex connection and hosted restart/continuity acceptance remain open. The wider public-hosting gates for arbitrary sources are still separate.
 
 ### C4 · Paid Validation And Limited Expansion
 

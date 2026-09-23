@@ -46,11 +46,39 @@ npm run scrape -- https://example.com
 npm run crawl -- https://example.com --max-pages 20
 ```
 
-Start each long-running service in its own terminal from the repository root:
+For local MCP use, one background service runs the API, Monitor scheduler,
+delivery worker and MCP endpoint. On macOS, install it as a LaunchAgent and
+connect Codex to its loopback URL:
+
+```bash
+npm run local:mcp:install
+codex mcp add w2l-local --url http://127.0.0.1:8791/mcp
+npm run local:mcp:status
+```
+
+It restarts after a process crash and at login. No Render or WorkOS account is
+needed for this local path. `npm run local:mcp:uninstall` removes the agent;
+`codex mcp remove w2l-local` removes the client entry. On other systems, run
+`npm run local:mcp` in one terminal. The state stays in `.w2l/api` by default.
+See the [MCP first-use walkthrough](docs/mcp-first-use.md) for the actual
+Monitor and HTTPS delivery flow and secret setup. Keep this checkout while
+the LaunchAgent points to it.
+
+To receive signed events on the same Mac with a fixed HTTPS loopback URL,
+run `npm run local:receiver:install`, then reinstall the MCP service with
+`W2L_LOCAL_DELIVERY_LOOPBACK=1 npm run local:mcp:install`. The option only
+permits loopback delivery and pins trust to the generated local certificate.
+The receiver and its SQLite inbox run as a separate LaunchAgent; neither
+service becomes reachable from another machine.
+
+The legacy standalone REST API remains available for SDK and Firecrawl-shim
+clients:
 
 ```bash
 npm run api
 ```
+
+To connect a standalone stdio MCP process to that API, run:
 
 ```bash
 npm run mcp
@@ -58,7 +86,13 @@ npm run mcp
 
 `npm run api` binds `127.0.0.1` and allows loopback/RFC1918 so fixture servers work. Hosted mode is explicit: `npm run api -- --hosted --token $W2L_API_TOKEN`. That binds `0.0.0.0`, requires `Authorization: Bearer`, denies private/metadata IPs, and defaults crawl `maxPages` to 100.
 
-The current MCP uses local stdio and talks to the REST server. It covers scrape, Crawl, and persistent URL-array batches (including result pagination and cancellation); Monitor/Delivery tools and a remote HTTPS MCP URL are planned in [C2/C3](docs/roadmap/section-c-delivery.md). Configure the MCP client to launch it from this repository:
+The unified local MCP covers scrape, Crawl, persistent URL-array batches, and
+Monitor/Delivery without separate worker terminals. A unified service also
+implements authenticated Streamable HTTP for a restricted public-document
+pilot; its permanent Render URL is pending deployment. See the
+[MCP first-use walkthrough](docs/mcp-first-use.md) and
+[C2/C3 status](docs/roadmap/section-c-delivery.md). Advanced clients may
+still launch the legacy stdio adapter from this repository:
 
 ```json
 {
@@ -121,7 +155,10 @@ Firecrawl v1 clients: set the base URL to `http://127.0.0.1:8787/fc` so `/v1/scr
 
 The native SDK includes Crawl pagination/cancellation, Monitor creation/revisions/runs/control, and Delivery destinations/status/retry. [The runnable example](examples/monitor-workflow.ts) uses a controlled price source, explicit `captureMode`, validated baselines, conditional HTTP requests, and persisted events. [The webhook receiver](examples/webhook-receiver.ts) stores event receipts and applies a versioned product projection transactionally.
 
-The API, Monitor scheduler and delivery worker share a persistent control database. Run the workers in separate terminals with the same `W2L_TASK_ROOT` as the API:
+The API, Monitor scheduler and delivery worker share a persistent control database.
+`npm run local:mcp:install` manages all three for local MCP users. For a
+standalone API deployment, run the workers in separate terminals with the
+same `W2L_TASK_ROOT` as the API:
 
 ```bash
 export W2L_TASK_ROOT="$PWD/.w2l/api"
@@ -139,7 +176,7 @@ See [onboarding](docs/onboarding.md) for the HTTPS receiver, authentication, wor
 
 The [Gate 2–4 acceptance record](docs/roadmap/gate-2-4-acceptance.md) links the process-crash, concurrent-claim, public HTTPS and agent clean-install evidence. Gate 2/3 engineering acceptance passed; Gate 4 awaits a non-author human, and Gate 5 external two-week/repeat-use validation has not started. `npm run package:handoff` captures review source with per-file hashes. The existing tested archive is a preserved pre-commit snapshot, not a package of subsequent roadmap edits.
 
-Next: C2 Monitor/Delivery MCP and conversational first use; C3 unified service start/status/stop/recovery and authenticated remote URL MCP. These are not implemented yet. B1/B2 and C1 remain in_progress for their broader operational/adoption gates, and persistent hosting requires separate isolation, egress and resource checks.
+C2 Monitor/Delivery MCP and its local HTTPS first-use workflow are implemented. C3 has a unified process and authenticated Streamable HTTP implementation; Render hosting, WorkOS browser login, real-client connection, and a hosted restart drill remain unverified. B1/B2 and C1 remain in_progress for their broader operational/adoption gates. See the [first-use walkthrough](docs/mcp-first-use.md) and [dated local evidence](docs/evidence/c2-c3-mcp-local-2026-09-23.md).
 
 ## Benchmark
 
@@ -172,7 +209,7 @@ packages/
   bench/           Benchmark runner, scrape/crawl CLI, scoring
   api/             REST server (AGPL)
   sdk/             TypeScript client (MIT)
-  mcp/             stdio MCP server (MIT)
+  mcp/             stdio and restricted Streamable HTTP MCP server (MIT)
 
 examples/monitor-workflow.ts       Runnable Monitor + Delivery SDK workflow
 examples/webhook-receiver.ts       Durable idempotent sample receiver
@@ -181,6 +218,7 @@ ROADMAP.md                         Current Section A/B/C roadmap
 
 docs/
   onboarding.md                  Install, Crawl, Monitor, HTTPS events and recovery
+  mcp-first-use.md               Conversational Monitor/Delivery and hosted pilot setup
   independent-developer-acceptance.md  Pending human Gate 4 run sheet
   roadmap/section-a-foundation.md  Section A phases and A4 gate
   roadmap/section-b-continuous-data.md  Section B future direction
@@ -222,8 +260,10 @@ docs/
 - [x] Gate 3 durable HTTPS delivery, same-event retry, deduplication and restart recovery
 - [x] Gate 4 SDK, docs, examples and agent clean installation
 - [ ] Gate 4 independent non-author human installation and full workflow
-- [ ] C2 Monitor/Delivery MCP and simpler first-use entry; n8n and narrow task UI
-- [ ] C3 unified process management, remote URL MCP and persistent hosting
+- [x] C2 Monitor/Delivery MCP and local conversational first-use flow
+- [ ] C2 n8n and narrow task UI
+- [x] C3 unified single-instance process and authenticated Streamable HTTP implementation
+- [ ] C3 permanent Render URL, WorkOS/Codex OAuth acceptance and hosted restart drill
 - [ ] Gate 5 two external trial users, two weeks, repeat use and real downstream consumption
 - [x] Phase 3 Benchmark Gate harness: fixed W2L run, comparator evidence, and blocked-until-real-comparators decision
 - [ ] Hosted Egress Gate: browser subresource policy enforcement and DNS-to-connection binding

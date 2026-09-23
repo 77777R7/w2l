@@ -1,0 +1,47 @@
+services:
+  - type: web
+    name: w2l-mcp-pilot
+    runtime: docker
+    plan: 1c-2g
+    region: singapore
+    dockerfilePath: ./Dockerfile
+    dockerCommand: node packages/mcp/dist/hostCli.js
+    autoDeployTrigger: off
+    healthCheckPath: /healthz
+    disk:
+      name: w2l-control
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: W2L_TASK_ROOT
+        value: /var/data/w2l
+      - key: W2L_MCP_URL
+        sync: false
+      - key: WORKOS_ISSUER
+        sync: false
+      - key: W2L_OWNER_SUBJECT
+        sync: false
+      - key: W2L_RECEIVER_URL
+        sync: false
+      - key: W2L_WEBHOOK_SECRET_DEMO
+        sync: false
+  - type: web
+    name: w2l-receiver-pilot
+    runtime: docker
+    plan: 0.5c-512mb
+    region: singapore
+    dockerfilePath: ./Dockerfile
+    dockerCommand: node --import tsx examples/webhook-receiver.ts
+    autoDeployTrigger: off
+    healthCheckPath: /health
+    disk:
+      name: w2l-receipts
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: WEBHOOK_TRUST_RENDER_PROXY
+        value: '1'
+      - key: WEBHOOK_DB
+        value: /var/data/receiver.sqlite
+      - key: WEBHOOK_SECRET
+        sync: false

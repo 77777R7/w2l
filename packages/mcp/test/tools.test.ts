@@ -5,7 +5,9 @@ import { parseBaseUrl, parseToken } from '../src/stdio.js'
 
 describe('MCP tools', () => {
   it('exposes scrape, crawl, and persistent batch operations', () => {
-    const expected = ['scrape', 'crawl', 'get_crawl', 'get_crawl_pages', 'get_crawl_errors', 'cancel_crawl', 'batch_scrape', 'get_batch', 'get_batch_items', 'wait_batch', 'cancel_batch']
+    const expected = ['scrape', 'crawl', 'get_crawl', 'get_crawl_pages', 'get_crawl_errors', 'cancel_crawl', 'batch_scrape', 'get_batch', 'get_batch_items', 'wait_batch', 'cancel_batch',
+      'preview_monitor','create_monitor','list_monitors','get_monitor','run_monitor','get_monitor_run','pause_monitor','resume_monitor','cancel_monitor_run',
+      'create_delivery_destination','list_delivery_destinations','pause_delivery_destination','resume_delivery_destination','list_deliveries','get_delivery','retry_dead_letter']
     expect([...TOOL_NAMES]).toEqual(expected)
     expect(TOOLS.map((t) => t.name)).toEqual(expected)
   })
@@ -116,6 +118,41 @@ describe('MCP tools', () => {
     expect(parseToken([], {})).toBeUndefined()
     expect(parseToken([], { W2L_API_TOKEN: 'secret' })).toBe('secret')
     expect(parseToken(['--token', 'cli'], {})).toBe('cli')
+  })
+
+  it('creates paused first-use Monitors and queues durable runs through REST', async () => {
+    const calls: Array<{url:string;body:Record<string,unknown>}> = []
+    const client = new W2L({baseUrl:'http://w2l.local',fetch:(async(input,init)=>{
+      calls.push({url:String(input),body:init?.body ? JSON.parse(String(init.body)) : {}})
+      return json(String(input).endsWith('/runs') ? {id:'run-1',monitorId:'firecrawl-introduction',state:'queued',triggerKey:'manual'} : {monitorId:'firecrawl-introduction',revision:1},String(input).endsWith('/runs') ? 202 : 201)
+    }) as typeof fetch})
+    await callTool(client,'create_monitor',{preset:'firecrawl-introduction'})
+    expect(calls[0]?.body).toEqual({preset:'firecrawl-introduction',enabled:false})
+    expect(await callTool(client,'run_monitor',{id:'firecrawl-introduction'})).toMatchObject({runId:'run-1',state:'queued'})
+    expect(calls[1]?.url).toMatch(/\/v1\/monitors\/firecrawl-introduction\/runs$/)
+  })
+
+  it('explains a dead-letter and retries the same event without exposing its payload by default', async () => {
+    const calls: string[] = []
+    const delivery = {id:'delivery-1',eventId:'event-1',state:'dead_letter',lastError:'HTTP 503',attemptCount:2,payload:{privateBody:'fixture'}}
+    const client = new W2L({baseUrl:'http://w2l.local',fetch:(async(input,init)=>{
+      calls.push(`${init?.method ?? 'GET'} ${String(input)}`)
+      return json(String(input).endsWith('/retry') ? {...delivery,state:'pending'} : {delivery,attempts:[{status:503,error:'HTTP 503'}]})
+    }) as typeof fetch})
+    const compact = await callTool(client,'get_delivery',{id:'delivery-1'}) as {delivery:Record<string,unknown>;attempts:unknown[]}
+    expect(compact.delivery).toMatchObject({eventId:'event-1',state:'dead_letter',lastError:'HTTP 503'})
+    expect(compact.delivery).not.toHaveProperty('payload')
+    expect(compact.attempts).toHaveLength(1)
+    const debug = await callTool(client,'get_delivery',{id:'delivery-1',debug:true}) as {delivery:Record<string,unknown>}
+    expect(debug.delivery).toHaveProperty('payload')
+    const retried = await callTool(client,'retry_dead_letter',{id:'delivery-1'}) as Record<string,unknown>
+    expect(retried).toMatchObject({eventId:'event-1',state:'pending'})
+    expect(retried).not.toHaveProperty('payload')
+    expect(calls).toEqual([
+      'GET http://w2l.local/v1/deliveries/delivery-1',
+      'GET http://w2l.local/v1/deliveries/delivery-1',
+      'POST http://w2l.local/v1/deliveries/delivery-1/retry',
+    ])
   })
 })
 

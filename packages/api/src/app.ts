@@ -10,6 +10,10 @@ import {
   parseScrapeRequest,
   RequestError,
   parseMonitorRevision,
+  DOCUMENT_RULE_VERSION,
+  FIRECRAWL_INTRO_URL,
+  FIRECRAWL_MONITOR_ID,
+  type MonitorRevision,
   wrapCrawlAccepted,
   wrapCrawlStatus,
   wrapScrape,
@@ -123,11 +127,28 @@ export function createApp(engine: ApiEngine, options: AppOptions = {}): Hono {
     return c.json(await engine.getFirecrawlMonitor(), 200)
   })
 
+  const revisionFrom = (body: unknown): MonitorRevision => {
+    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new RequestError('monitor request must be an object')
+    const input = body as Record<string, unknown>
+    if (input.preset === 'firecrawl-introduction') {
+      if (Object.keys(input).some(key => !['preset','enabled'].includes(key))) throw new RequestError('preset does not accept custom monitor fields')
+      return {monitorId:FIRECRAWL_MONITOR_ID,revision:1,url:FIRECRAWL_INTRO_URL,ruleVersion:DOCUMENT_RULE_VERSION,intervalMs:86_400_000,staleAfterMs:172_800_000,createdAt:Date.now()}
+    }
+    return parseMonitorRevision({...input,createdAt:Date.now()})
+  }
+
+  app.post('/v1/monitors/preview', async (c) => {
+    const revision = revisionFrom(await c.req.json())
+    return c.json(await engine.previewMonitor(revision,{signal:c.req.raw.signal}),200)
+  })
+
   app.post('/v1/monitors', async (c) => {
     const body = await c.req.json()
-    const revision = parseMonitorRevision({ ...body, createdAt: Date.now() })
+    const revision = revisionFrom(body)
+    const enabled = (body as Record<string, unknown>).enabled
+    if (enabled !== undefined && typeof enabled !== 'boolean') return c.json({error:'enabled must be boolean'},400)
     if (revision.revision !== 1) return c.json({ error: 'new monitor requires revision 1' }, 400)
-    try { return c.json(engine.configureMonitor(revision), 201) }
+    try { return c.json(engine.configureMonitor(revision, enabled !== false), 201) }
     catch { return c.json({ error: 'monitor configuration conflict' }, 409) }
   })
   app.post('/v1/monitors/:id/revisions', async (c) => {
@@ -140,6 +161,16 @@ export function createApp(engine: ApiEngine, options: AppOptions = {}): Hono {
   app.get('/v1/monitors/:id', (c) => {
     const view = engine.getMonitor(c.req.param('id'))
     return view ? c.json(view) : c.json({ error: 'monitor not found' }, 404)
+  })
+  app.get('/v1/monitors/:id/runs/:runId', (c) => {
+    const detail = engine.getMonitorRun(c.req.param('id'),c.req.param('runId'))
+    return detail ? c.json(detail) : c.json({error:'monitor run not found'},404)
+  })
+  app.post('/v1/monitors/:id/runs', async (c) => {
+    const body = await c.req.json() as {triggerKey?:unknown}
+    if (!body || typeof body !== 'object' || Array.isArray(body) || (body.triggerKey !== undefined && (typeof body.triggerKey !== 'string' || !body.triggerKey.trim() || body.triggerKey.length > 200))) return c.json({error:'invalid triggerKey'},400)
+    try { return c.json(engine.enqueueMonitorRun(c.req.param('id'),body.triggerKey as string | undefined),202) }
+    catch (error) { return c.json({error:error instanceof Error ? error.message : 'run cannot be queued'},409) }
   })
   app.post('/v1/monitors/:id/run', async (c) => {
     const body = await c.req.json() as { triggerKey?: unknown }
@@ -169,6 +200,13 @@ export function createApp(engine: ApiEngine, options: AppOptions = {}): Hono {
     const state = c.req.query('state')
     if (state && !['pending','delivering','delivered','dead_letter'].includes(state)) return c.json({error: 'invalid delivery state'}, 400)
     return c.json(engine.listDeliveries({monitorId: c.req.query('monitorId'), destinationId: c.req.query('destinationId'), state: state as import('@w2l/contracts').DeliveryState | undefined}))
+  })
+  app.get('/v1/deliveries/page', (c) => {
+    const state = c.req.query('state')
+    if (state && !['pending','delivering','delivered','dead_letter'].includes(state)) return c.json({error:'invalid delivery state'},400)
+    const limit = c.req.query('limit') === undefined ? undefined : Number(c.req.query('limit'))
+    try { return c.json(engine.getDeliveriesPage({monitorId:c.req.query('monitorId'),destinationId:c.req.query('destinationId'),state:state as import('@w2l/contracts').DeliveryState | undefined,cursor:c.req.query('cursor'),limit})) }
+    catch (error) { return c.json({error:error instanceof Error ? error.message : 'invalid delivery query'},400) }
   })
   app.get('/v1/deliveries/:id', (c) => {
     const detail = engine.getDelivery(c.req.param('id'))

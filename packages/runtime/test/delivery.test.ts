@@ -52,6 +52,21 @@ async function listen(server: Server, hostname = '127.0.0.1'): Promise<string> {
 function localPolicy() { const policy = hostedNetworkPolicy(); policy.privateAllowlist = ['127.0.0.1/32', '::1/128']; return policy }
 
 describe('durable webhook store and worker', () => {
+  it('pages delivery results without repeating rows and rejects malformed cursors', () => {
+    const store = openStore()
+    seed(store)
+    store.enqueue(envelope(2), 1_001)
+    store.enqueue(envelope(3), 1_002)
+    const first = store.listDeliveriesPage({ monitorId: 'monitor-a', limit: 2 })
+    expect(first.items).toHaveLength(2)
+    expect(first.hasMore).toBe(true)
+    expect(first.nextCursor).toBeTruthy()
+    const second = store.listDeliveriesPage({ monitorId: 'monitor-a', cursor: first.nextCursor!, limit: 2 })
+    expect(second.items).toHaveLength(1)
+    expect(second.hasMore).toBe(false)
+    expect(new Set([...first.items, ...second.items].map(item => item.id)).size).toBe(3)
+    expect(() => store.listDeliveriesPage({ cursor: 'not-a-cursor' })).toThrow('invalid delivery cursor')
+  })
   it('enforces HTTPS, immutable destinations, private egress default and secret references', async () => {
     const store = openStore()
     expect(() => store.createDestination({ id: 'sink', monitorId: 'm', url: 'http://example.com' })).toThrow('HTTPS')

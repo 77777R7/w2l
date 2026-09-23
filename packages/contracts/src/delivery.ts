@@ -65,6 +65,15 @@ export interface DeliveryQuery {
   destinationId?: string
   state?: DeliveryState
 }
+export interface DeliveryPageQuery extends DeliveryQuery {
+  cursor?: string
+  limit?: number
+}
+export interface DeliveryPage {
+  items: WebhookDelivery[]
+  nextCursor: string | null
+  hasMore: boolean
+}
 export interface DeliveryDetail {
   delivery: WebhookDelivery
   attempts: DeliveryAttempt[]
