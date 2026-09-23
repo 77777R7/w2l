@@ -25,23 +25,28 @@ public URL or WorkOS login on this local path. Keep this checkout in place
 while the LaunchAgent points at it. On a non-macOS system, run
 `npm run local:mcp` in one terminal instead.
 
-For a signed HTTPS receiver, set a secret under an ignored private local file:
+For a signed HTTPS receiver on the **same Mac**, install the separate
+LaunchAgent and explicitly allow the local delivery worker to reach its
+verified loopback certificate:
 
 ```bash
-mkdir -p .w2l
-umask 077
-printf 'W2L_WEBHOOK_SECRET_DEMO=%s\n' "$(openssl rand -hex 32)" > .w2l/local-mcp.env
-chmod 600 .w2l/local-mcp.env
-npm run local:mcp:restart
+npm run local:receiver:install
+W2L_LOCAL_DELIVERY_LOOPBACK=1 npm run local:mcp:install
+npm run local:receiver:status
+npm run local:mcp:status
 ```
 
-Put the **same generated value** in the receiver's
-`WEBHOOK_SECRET` environment. Pass only the variable **name**
-`W2L_WEBHOOK_SECRET_DEMO` to `create_delivery_destination`. Delivery still
-requires a real HTTPS endpoint; the example receiver can be exposed through
-a temporary HTTPS tunnel for testing. The local service never exposes the
-receiver or an HTTP callback itself. To inspect or stop the service, use
-`npm run local:mcp:status` or `npm run local:mcp:uninstall`.
+Installation generates a private signing secret and a local TLS certificate
+under ignored `.w2l/` files if absent; it preserves existing values on
+reinstall. The worker verifies the certificate through its explicit CA file
+and only gains egress to `127.0.0.1`/`::1` in this opt-in mode. Register a
+destination with URL `https://127.0.0.1:8788/webhook` and `secretEnv` set to
+`W2L_WEBHOOK_SECRET_DEMO`. Never pass the secret value through MCP. The
+receiver stores receipts and idempotent projections in
+`.w2l/local-receiver/receiver.sqlite`. Both services restart at login; use
+`npm run local:receiver:uninstall` and `npm run local:mcp:uninstall` to stop
+them. This loopback address is not accessible to other computers. A remote
+receiver or friend trial still needs a public HTTPS service later.
 
 ## Local first-use check
 

@@ -7,11 +7,20 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
-import { createLocalService } from '../src/localHost.js'
+import { evaluateHostname } from '@w2l/contracts'
+import { createLocalService, localConfigFromEnv } from '../src/localHost.js'
 
 let close:(()=>Promise<void>)|undefined
 let root:string|undefined
 afterEach(async()=>{await close?.();close=undefined;if(root)await rm(root,{recursive:true,force:true});root=undefined})
+
+it('only opts the local delivery worker into loopback egress explicitly',()=>{
+  expect(localConfigFromEnv({}).deliveryNetworkPolicy).toBeUndefined()
+  const policy=localConfigFromEnv({W2L_LOCAL_DELIVERY_LOOPBACK:'1'}).deliveryNetworkPolicy!
+  expect(evaluateHostname('127.0.0.1',policy)?.allowed).toBe(true)
+  expect(evaluateHostname('192.168.1.5',policy)?.allowed).toBe(false)
+  expect(evaluateHostname('169.254.169.254',policy)?.allowed).toBe(false)
+})
 
 it('serves all tools on loopback and preserves Monitor state across MCP connections',async()=>{
   const probe=createServer()

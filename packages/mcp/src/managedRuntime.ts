@@ -9,6 +9,7 @@ import { W2L } from '@w2l/sdk'
 export interface ManagedRuntimeOptions {
   taskRoot: string
   networkPolicy: NetworkPolicy
+  deliveryNetworkPolicy?: NetworkPolicy
   httpOnly?: boolean
   defaultMaxPages?: number | null
   monitorPollMs?: number
@@ -21,7 +22,7 @@ export function createManagedRuntime(options: ManagedRuntimeOptions) {
   const api = createApp(engine)
   const client = new W2L({baseUrl:'http://w2l.internal',fetch:async(input,init)=>api.fetch(new Request(input,init))})
   const deliveryStore = DeliveryStore.open(join(options.taskRoot,'section-b-control.sqlite'))
-  const worker = new DeliveryWorker(deliveryStore,{networkPolicy:hostedNetworkPolicy(),ca:process.env.W2L_DELIVERY_CA_FILE ? readFileSync(process.env.W2L_DELIVERY_CA_FILE) : undefined})
+  const worker = new DeliveryWorker(deliveryStore,{networkPolicy:options.deliveryNetworkPolicy ?? hostedNetworkPolicy(),ca:process.env.W2L_DELIVERY_CA_FILE ? readFileSync(process.env.W2L_DELIVERY_CA_FILE) : undefined})
   const controller = new AbortController()
   let monitorTick = Date.now(), deliveryTick = Date.now(), fault: string | null = null, closing: Promise<void> | null = null
   const sleep = (ms:number) => new Promise<void>(resolve=>{

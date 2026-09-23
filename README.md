@@ -64,6 +64,13 @@ See the [MCP first-use walkthrough](docs/mcp-first-use.md) for the actual
 Monitor and HTTPS delivery flow and secret setup. Keep this checkout while
 the LaunchAgent points to it.
 
+To receive signed events on the same Mac with a fixed HTTPS loopback URL,
+run `npm run local:receiver:install`, then reinstall the MCP service with
+`W2L_LOCAL_DELIVERY_LOOPBACK=1 npm run local:mcp:install`. The option only
+permits loopback delivery and pins trust to the generated local certificate.
+The receiver and its SQLite inbox run as a separate LaunchAgent; neither
+service becomes reachable from another machine.
+
 The legacy standalone REST API remains available for SDK and Firecrawl-shim
 clients:
 

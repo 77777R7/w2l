@@ -9,6 +9,8 @@ const port = Number(process.env.WEBHOOK_PORT ?? process.env.PORT ?? 8788)
 const secret = process.env.WEBHOOK_SECRET
 if (!secret) throw new Error('WEBHOOK_SECRET is required (use the same value as worker W2L_WEBHOOK_SECRET_DEMO)')
 const inbox = WebhookInbox.open(process.env.WEBHOOK_DB ?? '.w2l/receiver.sqlite')
+// Test seam: persist the first valid event, then simulate a lost ACK once.
+let failFirstAck = process.env.WEBHOOK_ACK_LOSS_ONCE === '1'
 const handler = async (req: IncomingMessage, res: ServerResponse) => {
   res.setHeader('content-type', 'application/json')
   if (req.method === 'GET' && req.url === '/health') { res.end(JSON.stringify({ ok: true })); return }
@@ -33,6 +35,11 @@ const handler = async (req: IncomingMessage, res: ServerResponse) => {
     const signature = req.headers['x-w2l-signature']
     if (!verifyWebhookSignature(secret, typeof timestamp === 'string' ? timestamp : undefined, typeof signature === 'string' ? signature : undefined, body)) { res.writeHead(401).end(); return }
     const receipt = inbox.receive(body)
+    if (failFirstAck) {
+      failFirstAck = false
+      res.writeHead(503, { 'retry-after': '1' }).end(JSON.stringify({ error: 'injected ACK loss' }))
+      return
+    }
     res.writeHead(200).end(JSON.stringify(receipt))
   } catch (error) {
     res.writeHead(400).end(JSON.stringify({ error: error instanceof Error ? error.message : String(error) }))

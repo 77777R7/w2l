@@ -2,7 +2,7 @@ import { createServer, type Server as HttpServer } from 'node:http'
 import { resolve } from 'node:path'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import { SUPPORTED_PROTOCOL_VERSIONS } from '@modelcontextprotocol/sdk/types.js'
-import { localNetworkPolicy, type NetworkPolicy } from '@w2l/contracts'
+import { hostedNetworkPolicy, localNetworkPolicy, type NetworkPolicy } from '@w2l/contracts'
 import { createManagedRuntime } from './managedRuntime.js'
 import { createMcpServer } from './server.js'
 
@@ -12,6 +12,7 @@ export interface LocalConfig {
   monitorPollMs?: number
   deliveryPollMs?: number
   networkPolicy?: NetworkPolicy
+  deliveryNetworkPolicy?: NetworkPolicy
 }
 
 export function localConfigFromEnv(env: NodeJS.ProcessEnv = process.env): LocalConfig {
@@ -21,13 +22,17 @@ export function localConfigFromEnv(env: NodeJS.ProcessEnv = process.env): LocalC
   const deliveryPollMs=Number(env.W2L_LOCAL_DELIVERY_POLL_MS ?? 500)
   if (!Number.isSafeInteger(monitorPollMs) || monitorPollMs<10 || monitorPollMs>300_000) throw new Error('W2L_LOCAL_MONITOR_POLL_MS must be 10..300000')
   if (!Number.isSafeInteger(deliveryPollMs) || deliveryPollMs<10 || deliveryPollMs>300_000) throw new Error('W2L_LOCAL_DELIVERY_POLL_MS must be 10..300000')
-  return {taskRoot:resolve(env.W2L_TASK_ROOT ?? '.w2l/api'),port,monitorPollMs,deliveryPollMs}
+  if(env.W2L_LOCAL_DELIVERY_LOOPBACK!==undefined && env.W2L_LOCAL_DELIVERY_LOOPBACK!=='1')throw new Error('W2L_LOCAL_DELIVERY_LOOPBACK must be 1 when set')
+  const deliveryNetworkPolicy=env.W2L_LOCAL_DELIVERY_LOOPBACK==='1'
+    ? {...hostedNetworkPolicy(),privateAllowlist:['127.0.0.1/32','::1/128']}
+    : undefined
+  return {taskRoot:resolve(env.W2L_TASK_ROOT ?? '.w2l/api'),port,monitorPollMs,deliveryPollMs,deliveryNetworkPolicy}
 }
 
 /** Single-user local service. It never binds a public interface or exposes REST. */
 export function createLocalService(config: LocalConfig): {server: HttpServer; close: () => Promise<void>} {
   if (!Number.isSafeInteger(config.port) || config.port < 0 || config.port > 65535) throw new Error('port must be 0..65535')
-  const runtime=createManagedRuntime({taskRoot:config.taskRoot,networkPolicy:config.networkPolicy ?? localNetworkPolicy(),monitorPollMs:config.monitorPollMs,deliveryPollMs:config.deliveryPollMs})
+  const runtime=createManagedRuntime({taskRoot:config.taskRoot,networkPolicy:config.networkPolicy ?? localNetworkPolicy(),deliveryNetworkPolicy:config.deliveryNetworkPolicy,monitorPollMs:config.monitorPollMs,deliveryPollMs:config.deliveryPollMs})
   let closing:Promise<void>|null=null
   const sendJson=(res:import('node:http').ServerResponse,status:number,body:unknown)=>{
     res.writeHead(status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}).end(JSON.stringify(body))
