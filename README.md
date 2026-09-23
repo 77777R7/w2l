@@ -104,10 +104,16 @@ W2L maps supported product fields directly from subject-bound HTML, JSON-LD, met
 Run the fixed 10-product, three-round Amazon MCP baseline with:
 
 ```bash
-npm run baseline:amazon
+node scripts/section-b/amazon-public-state.mjs
+npm run baseline:amazon -- --concurrency 1
+npm run baseline:amazon -- --concurrency 2
+# After 1 and 2 are comparable and unblocked:
+npm run baseline:amazon -- --concurrency 4
 ```
 
-Round 1 pins the observed delivery region; later unobserved or mismatched region/currency records are retained but excluded from latency conclusions. Reports are written under ignored `.w2l/amazon-baseline/`; the versioned URL manifest, schema and latest reviewed summary live in `research/`. See [the 2026-09-22 baseline summary](research/amazon-product-baseline-2026-09-22.md).
+The setup uses an anonymous Singapore public delivery preference for this benchmark only. Round 1 pins the observed context; later unobserved or mismatched region/currency records remain in the report and do not count as comparable. Reports and raw HTML stay under ignored `.w2l/amazon-baseline/`; the URL manifest and schema are versioned. The [signed ten-product result](docs/evidence/amazon-adapter-integration-2026-09-23.md) passed at limited concurrency, but Amazon remains beta pending the 100/1000 promotion gates. The [older baseline](research/amazon-product-baseline-2026-09-22.md) is historical.
+The concurrency-1 command can exit nonzero because its ten-page median exceeds 20 seconds; inspect its report for comparability and blocking before continuing to 2. The signed run had 37.93 seconds at 1, 19.92 at 2, and 12.39 at 4.
+This signed Amazon slice is currently on the local `codex/amazon-adapter-integration` branch, not the released `main` or `v0.4.0-rc.1` source.
 
 Firecrawl v1 clients: set the base URL to `http://127.0.0.1:8787/fc` so `/v1/scrape` and `/v1/crawl` hit the shim. Snapshot 2026-09-18; known diffs in [docs/firecrawl-shim.md](docs/firecrawl-shim.md). Firecrawl Search / Interact / Agent / Monitor compatibility is not implemented. W2L's native Monitor and Delivery APIs use their own contracts.
 

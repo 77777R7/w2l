@@ -1,0 +1,223 @@
+{
+  "kind": "amazon-ten-product-human-field-signoff",
+  "sourceCommit": "04ce58156e7c69e35afcc2ac3b5d15b8f207ed77",
+  "baselineStartedAt": "2026-09-23T04:31:19.613Z",
+  "baselineEndedAt": "2026-09-23T04:32:05.564Z",
+  "schemaSha256": "fdb13640d8a26c642b447ff44f5e4ecd1331dd5b87d92168def88d183c2fbc8b",
+  "manifestSha256": "0150b8e19124e9abb7d24fa892dc44747a36c63c80adf95b9ede7940a840484a",
+  "anonymousStateSha256": "46da30659105f7018e15f1b3b294630d8ac27cb47f960751f4156ad38e375b0c",
+  "reviewPacketSha256": "8b39e64e9af9ad1a3ccc971e20b32d52c28aad5dada0f11bbb4a956392045e83",
+  "reviewedCaptureCount": 30,
+  "rawBodySha256s": [
+    {
+      "round": 1,
+      "asin": "B07PBXXNCY",
+      "capturedAt": "2026-09-23T04:31:24.689Z",
+      "sha256": "5e7f21ccc2d53053f4402a2050fae6ac46b4983f81bd70a7bd8260aff2437482"
+    },
+    {
+      "round": 1,
+      "asin": "B08KT2Z93D",
+      "capturedAt": "2026-09-23T04:31:24.958Z",
+      "sha256": "cfe9f6ff4e68f9b964677466799fd2133d6d20bed18762378ac4d470718c615d"
+    },
+    {
+      "round": 1,
+      "asin": "B00F1U0YB4",
+      "capturedAt": "2026-09-23T04:31:25.495Z",
+      "sha256": "cc4d68f98a65b1d73d93e2d2071527b80d853a7c9c4c786775732d3094dc7870"
+    },
+    {
+      "round": 1,
+      "asin": "B09V7Z4TJG",
+      "capturedAt": "2026-09-23T04:31:25.687Z",
+      "sha256": "1c29960ccd69c545caf9747a96f792f324cf09039fa43ce2ffee52f555dd74f8"
+    },
+    {
+      "round": 1,
+      "asin": "B09542G9ZN",
+      "capturedAt": "2026-09-23T04:31:28.803Z",
+      "sha256": "1db14ed60c76d5cd9f1b63946ae2b44abcf9d56f1b110ba426212fdc91323448"
+    },
+    {
+      "round": 1,
+      "asin": "B09541P9WH",
+      "capturedAt": "2026-09-23T04:31:29.288Z",
+      "sha256": "69045975df2f1988a87e4f0f579e079fa7d40e5a0ae6ff2e34251459859e2886"
+    },
+    {
+      "round": 1,
+      "asin": "B0DCH8VDXF",
+      "capturedAt": "2026-09-23T04:31:29.499Z",
+      "sha256": "2219fcba50f4ed262f82daa83a280142b50aca64c9e14a66f464c46289ef3396"
+    },
+    {
+      "round": 1,
+      "asin": "B08JHCVHTY",
+      "capturedAt": "2026-09-23T04:31:30.140Z",
+      "sha256": "eb79781222fab5bcbe71ceb5d883b36666bf1b3da87248cadbd6c5a307b10565"
+    },
+    {
+      "round": 1,
+      "asin": "B0GJTFXNRX",
+      "capturedAt": "2026-09-23T04:31:32.533Z",
+      "sha256": "482832728a3ae455e34438cacf542f6394063050a8c9638cd607cbec6619b88a"
+    },
+    {
+      "round": 1,
+      "asin": "B0FQFB8FMG",
+      "capturedAt": "2026-09-23T04:31:33.046Z",
+      "sha256": "e1369e99eb2d343ffa0797fa45002bff4e4629f07826d6ae02a5eb8cd275d161"
+    },
+    {
+      "round": 2,
+      "asin": "B09V7Z4TJG",
+      "capturedAt": "2026-09-23T04:31:37.133Z",
+      "sha256": "df9a521f2fe3fb3072d284252d3da0544ecfd020cfe172af8dc7f629924a4f77"
+    },
+    {
+      "round": 2,
+      "asin": "B00F1U0YB4",
+      "capturedAt": "2026-09-23T04:31:37.432Z",
+      "sha256": "7b4cd84a221ca59a63c2124bc275c6509c81c1900a3e76260b62baa9dd795f1d"
+    },
+    {
+      "round": 2,
+      "asin": "B08KT2Z93D",
+      "capturedAt": "2026-09-23T04:31:37.739Z",
+      "sha256": "dba5324cf231fb107f8f89b5ed8bdcd868d46e211d6a237f7406f1744035d157"
+    },
+    {
+      "round": 2,
+      "asin": "B07PBXXNCY",
+      "capturedAt": "2026-09-23T04:31:38.166Z",
+      "sha256": "6a83e529500e0dedbc9e4229b8420897096a565f87776aa7d6cf71b262d2d79f"
+    },
+    {
+      "round": 2,
+      "asin": "B09541P9WH",
+      "capturedAt": "2026-09-23T04:31:41.404Z",
+      "sha256": "ea0599c316bae4b24f46a9bcfd1a21e77ee0c76b9d3432d46c116be972e21f75"
+    },
+    {
+      "round": 2,
+      "asin": "B09542G9ZN",
+      "capturedAt": "2026-09-23T04:31:41.406Z",
+      "sha256": "ab74a35b2e29759f1d0c63982933f85a2183231bfb704c69517a805207042347"
+    },
+    {
+      "round": 2,
+      "asin": "B0DCH8VDXF",
+      "capturedAt": "2026-09-23T04:31:41.617Z",
+      "sha256": "0176ed9b2931bc761171ef8face2e0dc50434de18c8c58df0007a07c7bc1bc25"
+    },
+    {
+      "round": 2,
+      "asin": "B08JHCVHTY",
+      "capturedAt": "2026-09-23T04:31:42.159Z",
+      "sha256": "04f6720b6f40b7a7c0f7ad9bf92e2e9a2eb6ed827fa0b0b868f98e5a0018525c"
+    },
+    {
+      "round": 2,
+      "asin": "B0GJTFXNRX",
+      "capturedAt": "2026-09-23T04:31:45.047Z",
+      "sha256": "acd100042fe77a60b543962ecba65065647daaf48319703af8778e7b02d51fed"
+    },
+    {
+      "round": 2,
+      "asin": "B0FQFB8FMG",
+      "capturedAt": "2026-09-23T04:31:45.451Z",
+      "sha256": "addf7c115a96e8a14171c6e1cb3c7fd0751d0a80673f294406ceb3464a998b53"
+    },
+    {
+      "round": 3,
+      "asin": "B08KT2Z93D",
+      "capturedAt": "2026-09-23T04:31:49.592Z",
+      "sha256": "e383877b590fcaec776d540820632e4d5c6e5d5bdd21b14c79aa8404fd5fe873"
+    },
+    {
+      "round": 3,
+      "asin": "B09V7Z4TJG",
+      "capturedAt": "2026-09-23T04:31:49.774Z",
+      "sha256": "2d53e5280b26c1320b797a0a527a251787a3e8eb7a69ac7729c6c3a439887937"
+    },
+    {
+      "round": 3,
+      "asin": "B07PBXXNCY",
+      "capturedAt": "2026-09-23T04:31:50.086Z",
+      "sha256": "1df4e9ed72f1cd6a0241ad0389a3717872ec2bd8ab93f8630339012f53761f6a"
+    },
+    {
+      "round": 3,
+      "asin": "B00F1U0YB4",
+      "capturedAt": "2026-09-23T04:31:50.380Z",
+      "sha256": "2fe9b2790d3526da6cf3bf68658418a2e2f911e43450dc4a5e994c8102916666"
+    },
+    {
+      "round": 3,
+      "asin": "B09542G9ZN",
+      "capturedAt": "2026-09-23T04:31:53.550Z",
+      "sha256": "6da8311afc23f96197e0428c8c784df591ab835d613f1e4f506df9e874c11fbf"
+    },
+    {
+      "round": 3,
+      "asin": "B0DCH8VDXF",
+      "capturedAt": "2026-09-23T04:31:54.059Z",
+      "sha256": "5020ffcc8b8067e8e534cc9e7512b8aa7e56ec86f49fac1e1f8881de1441a6d6"
+    },
+    {
+      "round": 3,
+      "asin": "B09541P9WH",
+      "capturedAt": "2026-09-23T04:31:54.067Z",
+      "sha256": "f7b97de6dbdf556c72e254b669457986e7c442e801ba768f6684d4bf6e98feaa"
+    },
+    {
+      "round": 3,
+      "asin": "B08JHCVHTY",
+      "capturedAt": "2026-09-23T04:31:54.264Z",
+      "sha256": "874e27cc0089d02fa5f2ba0535b916ea7adc06426bbc472d2bc040d1fbe2de62"
+    },
+    {
+      "round": 3,
+      "asin": "B0GJTFXNRX",
+      "capturedAt": "2026-09-23T04:31:56.966Z",
+      "sha256": "e6f3781578d33e5a5f49019b2ea36c3a39a36f76662091ebf10ccd4e0cec495b"
+    },
+    {
+      "round": 3,
+      "asin": "B0FQFB8FMG",
+      "capturedAt": "2026-09-23T04:31:57.593Z",
+      "sha256": "65b4a16b0976594a4dc0b32c8ac8b675299cc4ca0e90cb4d1449e8f210c24aa6"
+    }
+  ],
+  "signoff": {
+    "reviewer": "Howard",
+    "signedAt": "2026-09-23T04:38:03Z",
+    "method": "explicit user response after reviewing all 30 raw HTML captures"
+  },
+  "reviewerResponse": "已逐条核对并签核：无错误或串入",
+  "score": {
+    "scoredFields": [
+      "asin",
+      "title",
+      "price",
+      "currency",
+      "seller"
+    ],
+    "accuracy": {
+      "correct": 105,
+      "emitted": 105,
+      "rate": 1
+    },
+    "coverage": {
+      "output": 105,
+      "visibleApplicable": 105,
+      "rate": 1
+    },
+    "findings": [],
+    "passed": true
+  },
+  "recommendationLeakCount": 0,
+  "subjectAsinExactCount": 30,
+  "status": "passed"
+}

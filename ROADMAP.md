@@ -18,6 +18,7 @@ Current truth:
 - Cost per verified page is unavailable because the self-hosted comparators have no comparable invoice model.
 - Recovery comparison is unsupported for the page-only Firecrawl/Crawl4AI adapters; W2L has URL-level SQLite recovery.
 - A4 diagnostic expansion covers 20 tasks / 11 domains. Pair-level A5 quality on that slice is AI 11/11 and product 9/9 consistent after scoring calibration; run-level correct-complete is AI 22/22 and product 18/18.
+- An isolated A4/B2 Amazon correctness slice at source SHA `04ce581` passed the fixed ten-product, three-round gate: 20/20 later-round context-comparable captures at each 1/2/4 concurrency setting, signed core-field accuracy and visible-field coverage both 105/105, and zero reviewed recommendation intrusion. This local branch is not merged, released, or deployed; Amazon remains beta until 100 holdout products and 1000-page reliability are tested. [Evidence](docs/evidence/amazon-adapter-integration-2026-09-23.md).
 - A6 scale covers 100 pages / 10 domains / two runs. Outcome consistency 100/100; normalized-hash 99/100. Labeled every-fifth-task holdout is not an independent holdout.
 - Interrupt/resume lost 0 checkpointed URLs. The killed attempt was previously left `running`; resume now marks it `interrupted`.
 - Clean-clone install completed `ai-mdn-abortcontroller` on the author machine. Second-developer install is a recorded deferred exception, not a pass.
@@ -112,7 +113,7 @@ Next priority: C2 Monitor/Delivery MCP and conversational first use → C3 unifi
 
 **Goal:** prove that W2L can repeatedly deliver field-level data for real, permitted sources, not only synthetic fixtures.
 
-**Status:** diagnostic expansion accepted as evidence. Not a general field-accuracy claim.
+**Status:** diagnostic expansion accepted as evidence. A separate fixed ten-Amazon-product field gate passed with Howard's signed raw-page review on the isolated integration branch; it is not a general field-accuracy claim.
 
 **First task families:**
 
@@ -163,7 +164,7 @@ Track stable object identity, extraction-rule version, last valid result, last c
 
 Distinguish `changed`, `unchanged`, `cannot_verify`, and `stale`. Compare target fields/content after quality validation. Do not promise a percentage cost reduction before measuring it.
 
-**Status:** in_progress. Typed fields, rule/schema attribution, controlled A/B/A/B changes, conditional HTTP/cache-body validation and multi-Monitor isolation passed. Broader list completeness/deletion semantics and real-world efficiency measurements remain open.
+**Status:** in_progress. Typed fields, rule/schema attribution, controlled A/B/A/B changes, conditional HTTP/cache-body validation and multi-Monitor isolation passed. The [signed ten-Amazon-product subject/field gate](docs/evidence/amazon-adapter-integration-2026-09-23.md) adds a real-site correctness slice on an isolated branch. Broader list completeness/deletion semantics, 100-product holdout, 1000-page reliability and real-world efficiency measurements remain open.
 
 ### B3 · Authorized Session Reuse And Handoff
 

@@ -1,6 +1,6 @@
 {
   "kind": "amazon-adapter-integration-ten-product-evidence",
-  "status": "engineering_gates_passed_human_field_signoff_pending",
+  "status": "ten_product_gate_passed_human_signed",
   "generatedAt": "2026-09-23T04:35:21.025Z",
   "source": {
     "commit": "04ce58156e7c69e35afcc2ac3b5d15b8f207ed77",
@@ -78,11 +78,36 @@
     },
     "entryCount": 30,
     "humanSignoff": {
-      "reviewer": null,
-      "signedAt": null,
-      "status": "pending"
+      "reviewer": "Howard",
+      "signedAt": "2026-09-23T04:38:03Z",
+      "method": "explicit user response after reviewing all 30 raw HTML captures",
+      "status": "signed",
+      "reviewPacketSha256": "8b39e64e9af9ad1a3ccc971e20b32d52c28aad5dada0f11bbb4a956392045e83"
     },
-    "scope": "Candidate values came from independent raw HTML witnesses; reviewer must inspect raw pages and confirm visible applicability, exact values, and recommendation exclusion."
+    "scope": "Howard inspected all 30 raw-page captures and confirmed the five scored core fields, visible applicability, and zero recommendation intrusion.",
+    "signedScore": {
+      "scoredFields": [
+        "asin",
+        "title",
+        "price",
+        "currency",
+        "seller"
+      ],
+      "accuracy": {
+        "correct": 105,
+        "emitted": 105,
+        "rate": 1
+      },
+      "coverage": {
+        "output": 105,
+        "visibleApplicable": 105,
+        "rate": 1
+      },
+      "findings": [],
+      "passed": true
+    },
+    "recommendationLeakCount": 0,
+    "signoffEvidence": "amazon-field-review-signed-2026-09-23.json"
   },
   "runs": [
     {
@@ -4600,5 +4625,6 @@
         }
       ]
     }
-  ]
+  ],
+  "signedAt": "2026-09-23T04:38:03Z"
 }

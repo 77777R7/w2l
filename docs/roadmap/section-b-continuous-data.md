@@ -4,6 +4,7 @@
 
 设计原文：[Section B technical design v1](section-b-technical-design-v1.md)。
 当前事实：[Gate 2–4 验收](gate-2-4-acceptance.md)；历史发现及后续解决情况：[阶段复盘](stage-review-2026-09-22.md)。
+后续本地切片：[Amazon 十商品签核证据](../evidence/amazon-adapter-integration-2026-09-23.md)在隔离分支 `codex/amazon-adapter-integration` 上通过；它未合并或发布，100/1000 晋级与长期运行仍待完成。
 运行入口：[handoff](section-b-handoff.md)。
 下一段：[Section C 完整路线](section-c-delivery.md)。
 

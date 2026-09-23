@@ -2,7 +2,7 @@
 
 The adapter and durable batch paths were integrated on `codex/amazon-adapter-integration` from `6693bcdce53e66a471b29cdc4b9b90bd0404cab7`. The final source freeze for this run is **`04ce58156e7c69e35afcc2ac3b5d15b8f207ed77`**. The checkout was clean before all three Amazon runs and the actual batch-crash test. The original dirty checkout and unrelated `* 2.*` files were not changed.
 
-This is an engineering and candidate-field record, **not a signed ten-product field acceptance**. Amazon remains `beta adapter`; the later 100-product and 1000-page promotion gates were not run.
+The fixed ten-product engineering and field gate passed after Howard reviewed and signed all 30 raw-page captures. Amazon remains `beta adapter`; the later 100-product and 1000-page promotion gates were not run.
 
 ## Fixed context and traceability
 
@@ -35,16 +35,16 @@ On the same frozen source, type checking passed and **86 test files / 980 tests 
 
 ## Field review status
 
-The unsigned review packet binds each of the 30 concurrency-4 captures to its capture time, raw HTML SHA256, field evidence location, output, and independent raw-HTML witness. Candidate comparison for the five locked core fields (`asin`, `title`, `price`, `currency`, `seller`) found **105/105 emitted values matching witnesses** and **105/105 witness-visible values emitted**. These are separate preliminary accuracy and visible-field coverage denominators. Both figures are **machine-assisted candidates, not Howard-reviewed truth**.
+The review packet binds each of the 30 concurrency-4 captures to its capture time, raw HTML SHA256, field evidence location, output, and independent raw-HTML witness. Howard confirmed the five locked core fields (`asin`, `title`, `price`, `currency`, `seller`) and recommendation boundaries on every capture, then signed at **2026-09-23T04:38:03Z**. The [signed score and capture-hash list](amazon-field-review-signed-2026-09-23.json) record **105/105 correct emitted values** and **105/105 visible applicable values emitted**. Accuracy and visible-field coverage use separate denominators; both exceed the 98% gate.
 
-The captured pages expose a primary price/currency/seller on five products per round. For the other five, two show “See All Buying Options” without a featured subject offer, and three show a Singapore shipping restriction. Recommendation prices visible on those restricted pages were excluded from subject fields. The selected Blink Plus buy box shows USD 11.99; USD 14.99 belongs to the different Plus AI plan. Automated fixed-cohort ASIN leakage checks found none, but full recommendation exclusion still needs human review of the raw pages.
+The captured pages expose a primary price/currency/seller on five products per round. For the other five, two show “See All Buying Options” without a featured subject offer, and three show a Singapore shipping restriction. Recommendation prices visible on those restricted pages were excluded from subject fields. The selected Blink Plus buy box shows USD 11.99; USD 14.99 belongs to the different Plus AI plan. Automated fixed-cohort ASIN leakage checks and Howard's raw-page review found no cross-subject content.
 
 | Acceptance item | Current state |
 | --- | --- |
 | Ten subject ASINs | 10/10 in each round; body/canonical and title corroboration in the review packet |
-| Candidate output accuracy | 105/105, pending human truth confirmation |
-| Candidate visible-field coverage | 105/105, pending human applicability confirmation |
-| Recommendation and cross-subject exclusion | Automated checks passed; human raw-page check pending |
-| Howard review/signature | **Pending**; no signed score or ≥98% field acceptance is claimed |
+| Signed output accuracy | 105/105 (100%) |
+| Signed visible-field coverage | 105/105 (100%) |
+| Recommendation and cross-subject exclusion | Zero in automated checks and Howard's 30-page review |
+| Howard review/signature | **Passed**, 2026-09-23T04:38:03Z; [signed record](amazon-field-review-signed-2026-09-23.json) |
 
 The earlier `8a7637f` dirty-tree and adapter failure reports remain historical evidence. They are not used as this freeze's baseline. Cache is evaluated separately; these Amazon pages are not claimed to benefit from public 304 caching. No push, PR, publication, or deployment occurred in this slice.
