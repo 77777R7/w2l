@@ -18,8 +18,8 @@ const publicStatePath = '.w2l/amazon-baseline/anonymous-public-state.json'
 const publicState = await readFile(publicStatePath)
 const stateSha256 = createHash('sha256').update(publicState).digest('hex')
 const parsedState = JSON.parse(publicState.toString())
-if (!parsedState.cookies?.some(cookie => cookie.name === 'i18n-prefs' && cookie.value === manifest.expectedCurrencyPreference)) {
-  throw new Error('anonymous public state does not retain the expected currency preference')
+if (!['.amazon.com', '.amazon.sg'].every(domain => parsedState.cookies?.some(cookie => cookie.domain === domain && cookie.name === 'i18n-prefs' && cookie.value === manifest.expectedCurrencyPreference))) {
+  throw new Error('anonymous public state must retain the expected currency preference on both marketplaces')
 }
 const roundsFlag = process.argv.indexOf('--rounds')
 const rounds = roundsFlag >= 0 ? Number(process.argv[roundsFlag + 1]) : manifest.rounds
@@ -104,6 +104,7 @@ let stoppedForSafety = false
 let haltReason = null
 let observedRegion = null
 const observedCurrencyByAsin = new Map()
+const observedHostByAsin = new Map()
 const startedAt = new Date().toISOString()
 
 try {
@@ -137,14 +138,19 @@ try {
         const locationText = usableRegion(data.deliveryLocation ?? result.document?.product?.deliveryLocation?.value ?? null)
         const region = regionCountry(locationText)
         const currency = data.currency ?? null
+        const finalHost = result.finalUrl ? new URL(result.finalUrl).hostname : null
         if (round === 1) {
           if (observedRegion === null && region) observedRegion = region
-          if (asin) observedCurrencyByAsin.set(asin, currency)
+          if (asin) {
+            observedCurrencyByAsin.set(asin, currency)
+            observedHostByAsin.set(asin, finalHost)
+          }
         }
         const regionMismatch = region !== null && region !== manifest.expectedRegion
         const pinnedCurrency = asin ? observedCurrencyByAsin.get(asin) : null
         const currencyMismatch = round > 1 && pinnedCurrency !== currency
-        const comparable = round > 1 && region === manifest.expectedRegion && !currencyMismatch && result.status === 'success'
+        const hostMismatch = round > 1 && (asin ? observedHostByAsin.get(asin) : null) !== finalHost
+        const comparable = round > 1 && region === manifest.expectedRegion && !currencyMismatch && !hostMismatch && result.status === 'success'
         const otherKnownAsins = manifest.urls.map(item => item.slice(-10)).filter(item => item !== asin)
         const serializedData = JSON.stringify(data)
         const evidencePaths = new Set((result.json?.evidence ?? []).map(item => item.path))
@@ -152,8 +158,8 @@ try {
         record = {
           round, index: index + 1, asin, url, finalUrl: result.finalUrl, clientMs: performance.now() - began, responseBytes: called.bytes,
           discovery: round === 1, comparable,
-          comparisonStatus: round === 1 ? region === null ? 'region_unobserved' : regionMismatch ? 'region_mismatch' : 'region_discovery' : regionMismatch ? 'region_mismatch' : currencyMismatch ? 'currency_mismatch' : region === null ? 'region_unobserved' : result.status !== 'success' ? 'capture_failed' : 'comparable',
-          region, locationText, currency,
+          comparisonStatus: round === 1 ? region === null ? 'region_unobserved' : regionMismatch ? 'region_mismatch' : 'region_discovery' : regionMismatch ? 'region_mismatch' : hostMismatch ? 'marketplace_mismatch' : currencyMismatch ? 'currency_mismatch' : region === null ? 'region_unobserved' : result.status !== 'success' ? 'capture_failed' : 'comparable',
+          region, locationText, currency, finalHost,
           outcome: { status: result.status, lane: result.lane, failureReason: result.failureReason, blockReason: result.blockReason },
           snapshot: { capturedAt: new Date().toISOString(), rawBodySha256: result.snapshot?.rawBodySha256 ?? null, artifacts: result.snapshot?.artifacts ?? [], httpStatus: result.snapshot?.httpStatus ?? null },
           usage: result.usage,
@@ -260,13 +266,14 @@ try {
       language: manifest.language ?? null,
     },
     mcp: { server: client.getServerVersion(), tools: tools.tools.map(tool => tool.name) },
-    region: { policy: manifest.regionPolicy, expectedRegion: manifest.expectedRegion, expectedCurrencyPreference: manifest.expectedCurrencyPreference, observedRegion, observedCurrencyByAsin: Object.fromEntries(observedCurrencyByAsin) },
+    region: { policy: manifest.regionPolicy, expectedRegion: manifest.expectedRegion, expectedCurrencyPreference: manifest.expectedCurrencyPreference, observedRegion, observedCurrencyByAsin: Object.fromEntries(observedCurrencyByAsin), observedHostByAsin: Object.fromEntries(observedHostByAsin) },
     summary: {
       discoveryRecords: records.filter(record => record.discovery).length,
       discoverySuccesses: discoverySuccessful.length,
       comparableRecords: comparable.length,
       regionMismatchRecords: records.filter(record => record.comparisonStatus === 'region_mismatch').length,
       currencyMismatchRecords: records.filter(record => record.comparisonStatus === 'currency_mismatch').length,
+      marketplaceMismatchRecords: records.filter(record => record.comparisonStatus === 'marketplace_mismatch').length,
       successes: successful.length,
       blocked: records.filter(record => record.outcome?.status === 'blocked').length,
       failed: records.filter(record => record.outcome?.status === 'failed' || record.error).length,

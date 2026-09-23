@@ -30,10 +30,22 @@ try {
   await page.reload({ waitUntil: 'domcontentloaded', timeout: 25_000 })
   const location = (await page.locator('#glow-ingress-line2').innerText()).trim()
   if (!location.includes(`Singapore ${postcode}`)) throw new Error(`delivery location was not retained: ${location}`)
+  // The fixed requests start on amazon.com. Visit its public redirect choice
+  // once so both marketplaces have an anonymous Singapore/SGD preference.
+  await page.goto(manifest.urls[0], { waitUntil: 'domcontentloaded', timeout: 25_000 })
+  if (await page.locator('#redir-go-to-site').isVisible()) {
+    await Promise.all([
+      page.waitForURL(url => new URL(url).hostname === 'www.amazon.com', { timeout: 10_000 }),
+      page.locator('#redir-go-to-site').click(),
+    ])
+  }
+  if (new URL(page.url()).hostname !== 'www.amazon.com') throw new Error('Amazon.com public preference was not established')
+  const usHeaderLocation = (await page.locator('#glow-ingress-line2').innerText()).trim()
+  if (!usHeaderLocation.includes('Singapore')) throw new Error('Amazon.com did not retain Singapore delivery context')
   const state = await context.storageState()
   const cookies = state.cookies.filter(cookie => /(^|\.)amazon\.(com|sg)$/i.test(cookie.domain))
-  if (!cookies.some(cookie => cookie.name === 'i18n-prefs' && cookie.value === 'SGD')) {
-    throw new Error('public SGD currency preference was not retained')
+  if (!['.amazon.com', '.amazon.sg'].every(domain => cookies.some(cookie => cookie.domain === domain && cookie.name === 'i18n-prefs' && cookie.value === 'SGD'))) {
+    throw new Error('both public marketplaces must retain SGD currency preference')
   }
   const serialized = JSON.stringify({ cookies, origins: state.origins.filter(origin => /(^|\.)amazon\.(com|sg)$/i.test(new URL(origin.origin).hostname)) })
   await mkdir(dirname(output), { recursive: true })
