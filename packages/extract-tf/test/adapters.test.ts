@@ -37,6 +37,26 @@ describe('public site adapter registry', () => {
     expect(out.adapterValidation?.issues).toContain('subject_id_unverified')
   })
 
+  it('accepts a selected Amazon variant when canonical names its parent listing', () => {
+    const out = extractTf.extract(`<!doctype html><html><head><link rel="canonical" href="https://www.amazon.sg/Parent/dp/B000000002"></head><body>
+      <div id="dp-container"><input name="ASIN" value="B000000001"><h1 id="productTitle">Selected blue variant</h1>
+      <div id="corePrice_feature_div"><span class="a-price"><span class="a-offscreen">S$15.70</span></span></div>
+      <div id="glow-ingress-line2">Singapore 238823</div></div></body></html>`, {
+      url: 'https://www.amazon.sg/dp/B000000001',
+    })
+    expect(out.adapterValidation).toEqual({ valid: true, issues: [] })
+    expect(out.entities[0]?.id).toBe('B000000001')
+  })
+
+  it('rejects an Amazon page whose selected ASIN conflicts with its URL', () => {
+    const out = extractTf.extract(`<!doctype html><html><head><link rel="canonical" href="https://www.amazon.sg/dp/B000000001"></head><body>
+      <div id="dp-container"><input name="ASIN" value="B000000002"><h1 id="productTitle">Different selected product</h1></div></body></html>`, {
+      url: 'https://www.amazon.sg/dp/B000000001',
+    })
+    expect(out.adapterValidation?.valid).toBe(false)
+    expect(out.adapterValidation?.issues).toContain('asin_mismatch')
+  })
+
   it('extracts a Reddit post and comment parent graph from public hydration', () => {
     const html = `<!doctype html><html><head><title>Example thread</title>
       <script type="application/json">{"post":{"id":"abc123","title":"Adapter design","selftext":"Public post body","author":"alice","score":42,"num_comments":2},"comments":[{"id":"c1","parent_id":"t3_abc123","body":"First","author":"bob","score":3},{"id":"c2","parent_id":"t1_c1","body":"Reply","author":"carol","score":1}]}</script>
