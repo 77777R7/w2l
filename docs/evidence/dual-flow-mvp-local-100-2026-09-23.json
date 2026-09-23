@@ -1,0 +1,6497 @@
+{
+  "kind": "dual-flow-amazon-100-local-transport-evidence",
+  "accepted": false,
+  "humanReviewPending": true,
+  "hostedWorkosRenderVerified": false,
+  "source": {
+    "commit": "84644575c8b24eb28cb151eba415fcc82c484e78",
+    "dirty": false,
+    "node": "v26.8.1",
+    "npm": "11.19.0",
+    "manifest": "research/amazon-product-holdout-100-sg.v1.json",
+    "manifestSha256": "4764bf94aee623d6fbb762dc8cd00f2053b3eb7de8706584bb0e40ffe15257c5",
+    "schema": "research/amazon-product-schema.v1.json",
+    "schemaSha256": "fdb13640d8a26c642b447ff44f5e4ecd1331dd5b87d92168def88d183c2fbc8b",
+    "schemaFileSha256": "d1b81f1ccc8c5be4c5ba55d0604cbc899065b4fbcbe7ea0ff71551399e9b97ae",
+    "anonymousStateSha256": "a454947799452820745f4c6e1cf56f408eb6f01bb09cc720f42ec4c7ca118b97",
+    "anonymousStateFile": ".w2l/hosted/amazon-public-state.json",
+    "baselineLane": "local-hosted-streamable-http-mcp",
+    "concurrency": 2,
+    "egressLabel": "local-default-network",
+    "identity": "Chrome/Playwright anonymous",
+    "language": "en-US",
+    "workosVerified": false,
+    "renderVerified": false
+  },
+  "startedAt": "2026-09-23T12:03:19.460Z",
+  "endedAt": "2026-09-23T12:05:56.916Z",
+  "taskId": "fe655f5f-855c-4851-bba4-ea932ea44ad3",
+  "batch": {
+    "status": "completed",
+    "clientMs": 157357.03854100002,
+    "paginatedItems": 100,
+    "uniqueItems": 100,
+    "durableSteps": 100
+  },
+  "summary": {
+    "requestSuccesses": 100,
+    "structuredComplete": 100,
+    "requestedAsinMatch": 100,
+    "singaporeLocation": 100,
+    "visibleQuoteSgd": true,
+    "statusRetryCount": 0,
+    "navigationFollowupCount": 1,
+    "pageTotalMs": {
+      "p50": 3022.485249999998,
+      "p95": 3498.3614589999997,
+      "max": 5614.6990829999995
+    },
+    "externalCostUsd": null,
+    "externalCostStatus": "unknown",
+    "failure": null,
+    "rawHashesVerified": 100,
+    "requestedMatchesSelectedRaw": 100,
+    "regionSingaporeVisible": 100,
+    "postcodeVisible": 100,
+    "recommendationAsinLeakRows": [],
+    "recommendationImageLeakRows": [],
+    "priceOffersSubjectWitnessed": 142,
+    "priceOffersEmitted": 142,
+    "imagesSubjectWitnessed": 103,
+    "imagesEmitted": 103,
+    "fields": {
+      "asin": {
+        "visibleApplicable": 100,
+        "emitted": 100,
+        "matched": 100,
+        "accuracy": 1,
+        "visibleCoverage": 1,
+        "unverifiedEmitted": [],
+        "mismatch": [],
+        "missingVisible": []
+      },
+      "title": {
+        "visibleApplicable": 100,
+        "emitted": 100,
+        "matched": 100,
+        "accuracy": 1,
+        "visibleCoverage": 1,
+        "unverifiedEmitted": [],
+        "mismatch": [],
+        "missingVisible": []
+      },
+      "price": {
+        "visibleApplicable": 88,
+        "emitted": 88,
+        "matched": 88,
+        "accuracy": 1,
+        "visibleCoverage": 1,
+        "unverifiedEmitted": [],
+        "mismatch": [],
+        "missingVisible": []
+      },
+      "currency": {
+        "visibleApplicable": 88,
+        "emitted": 88,
+        "matched": 88,
+        "accuracy": 1,
+        "visibleCoverage": 1,
+        "unverifiedEmitted": [],
+        "mismatch": [],
+        "missingVisible": []
+      },
+      "seller": {
+        "visibleApplicable": 88,
+        "emitted": 88,
+        "matched": 88,
+        "accuracy": 1,
+        "visibleCoverage": 1,
+        "unverifiedEmitted": [],
+        "mismatch": [],
+        "missingVisible": []
+      }
+    },
+    "bytesDecompressed": 170467673,
+    "browserMs": 293104,
+    "knownModelCalls": 0,
+    "knownPaidBrowserVendorCalls": 0,
+    "hostInfrastructureCostUsd": null
+  },
+  "pages": [
+    {
+      "index": 1,
+      "url": "https://www.amazon.sg/dp/B0D4DHBFFH",
+      "requestedAsin": "B0D4DHBFFH",
+      "selectedAsin": "B0D4DHBFFH",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "c18a7288c76737609facfd2a54dc728b9cc35fff037778648a7215a4ec86082b",
+      "output": {
+        "asin": "B0D4DHBFFH",
+        "title": "Duracell AAA Alkaline Batteries, Pack of 10, Shelf Life, 10 Years, PC Mouse, Keyboard, Remote Control, Clock, Toys, Rabbit Battery",
+        "price": 7.23,
+        "currency": "SGD",
+        "seller": "Amazon Japan"
+      },
+      "visibleWitness": {
+        "asin": "B0D4DHBFFH",
+        "title": "Duracell AAA Alkaline Batteries, Pack of 10, Shelf Life, 10 Years, PC Mouse, Keyboard, Remote Control, Clock, Toys, Rabbit Battery",
+        "price": 7.23,
+        "currency": "SGD",
+        "seller": "Amazon Japan"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 3978.166584,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1306349,
+      "externalCostUsd": null
+    },
+    {
+      "index": 2,
+      "url": "https://www.amazon.sg/dp/B0BJL2W71K",
+      "requestedAsin": "B0BJL2W71K",
+      "selectedAsin": "B0BJL2W71K",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "b957d292303fcd1101a56572e0318093b1c0d747e8c23d7512db6ebfdea2c1fa",
+      "output": {
+        "asin": "B0BJL2W71K",
+        "title": "[FULL COLLECTION] Naturium Face and Body Care RetinaldehydeSerum",
+        "price": 28.09,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B0BJL2W71K",
+        "title": "[FULL COLLECTION] Naturium Face and Body Care RetinaldehydeSerum",
+        "price": 28.09,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 4129.136791,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1414102,
+      "externalCostUsd": null
+    },
+    {
+      "index": 3,
+      "url": "https://www.amazon.sg/dp/B0CS81Q6Z7",
+      "requestedAsin": "B0CS81Q6Z7",
+      "selectedAsin": "B0CS81Q6Z7",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "155763b03deeb1d27b4e3e2ef9e3893fdb753c8e759f2968baab3ae19c3f01dd",
+      "output": {
+        "asin": "B0CS81Q6Z7",
+        "title": "Earth Rated Dog Poop Bags Value Pack, Leak-Proof and Extra-Thick Pet Waste Bag for Big and Small Dogs, Refill Rolls, Lavender Scented, 600 Count",
+        "price": 33.41,
+        "currency": "SGD",
+        "seller": "Amazon Germany"
+      },
+      "visibleWitness": {
+        "asin": "B0CS81Q6Z7",
+        "title": "Earth Rated Dog Poop Bags Value Pack, Leak-Proof and Extra-Thick Pet Waste Bag for Big and Small Dogs, Refill Rolls, Lavender Scented, 600 Count",
+        "price": 33.41,
+        "currency": "SGD",
+        "seller": "Amazon Germany"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 2985.9686249999995,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1767753,
+      "externalCostUsd": null
+    },
+    {
+      "index": 4,
+      "url": "https://www.amazon.sg/dp/B0F354MWSL",
+      "requestedAsin": "B0F354MWSL",
+      "selectedAsin": "B0F354MWSL",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "a07eb5cc9738fb42bcbabead7fd6a2055bfbcaf37ea385b5ef95e1d1f9b91dd3",
+      "output": {
+        "asin": "B0F354MWSL",
+        "title": "Owala FreeSip Insulated Stainless Steel Water Bottle with Straw for Sports, Travel, and School BPA-Free Sports Water Bottle, 32 oz, Beach House",
+        "price": 49.14,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B0F354MWSL",
+        "title": "Owala FreeSip Insulated Stainless Steel Water Bottle with Straw for Sports, Travel, and School BPA-Free Sports Water Bottle, 32 oz, Beach House",
+        "price": 49.14,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 3335.6884169999994,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 2168277,
+      "externalCostUsd": null
+    },
+    {
+      "index": 5,
+      "url": "https://www.amazon.sg/dp/B00000JZKB",
+      "requestedAsin": "B00000JZKB",
+      "selectedAsin": "B00000JZKB",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "9a9db16e8001d73140cc5674800eb2ad59e99b0cd776b467214aa475ae721ec4",
+      "output": {
+        "asin": "B00000JZKB",
+        "title": "Texas Instruments BA II Plus - Financial Calculator",
+        "price": 47.18,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B00000JZKB",
+        "title": "Texas Instruments BA II Plus - Financial Calculator",
+        "price": 47.18,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 2986.765541999999,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1618919,
+      "externalCostUsd": null
+    },
+    {
+      "index": 6,
+      "url": "https://www.amazon.sg/dp/B098QHCNBP",
+      "requestedAsin": "B098QHCNBP",
+      "selectedAsin": "B098QHCNBP",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "1826766e7f3df58ce33911d7b6fb2156bcf47fcf97c19977ffacfdab7afd8f2d",
+      "output": {
+        "asin": "B098QHCNBP",
+        "title": "Columbus Leather Product Maintenance, Nutrition Protection, Stain Remover, Brio Leather Care Set, 1 Set, Mushock, 1セット",
+        "price": 13.63,
+        "currency": "SGD",
+        "seller": "Amazon Japan"
+      },
+      "visibleWitness": {
+        "asin": "B098QHCNBP",
+        "title": "Columbus Leather Product Maintenance, Nutrition Protection, Stain Remover, Brio Leather Care Set, 1 Set, Mushock, 1セット",
+        "price": 13.63,
+        "currency": "SGD",
+        "seller": "Amazon Japan"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 3052.809,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1453116,
+      "externalCostUsd": null
+    },
+    {
+      "index": 7,
+      "url": "https://www.amazon.sg/dp/B0H3BYDQ6X",
+      "requestedAsin": "B0H3BYDQ6X",
+      "selectedAsin": "B0H3BYDQ6X",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "8e87f0b26226a001d44a3bb206582c4b591c66538dea5a0c1c42cdf4857a1dcc",
+      "output": {
+        "asin": "B0H3BYDQ6X",
+        "title": "instax mini 13 instant camera with built-in Automatic flash, built-in selfie mirror, close up macro,modeself timer, Clay White",
+        "price": 117.92,
+        "currency": "SGD",
+        "seller": "Amazon Germany"
+      },
+      "visibleWitness": {
+        "asin": "B0H3BYDQ6X",
+        "title": "instax mini 13 instant camera with built-in Automatic flash, built-in selfie mirror, close up macro,modeself timer, Clay White",
+        "price": 117.92,
+        "currency": "SGD",
+        "seller": "Amazon Germany"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 2915.4285,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1211318,
+      "externalCostUsd": null
+    },
+    {
+      "index": 8,
+      "url": "https://www.amazon.sg/dp/B07WVSHYKJ",
+      "requestedAsin": "B07WVSHYKJ",
+      "selectedAsin": "B07WVSHYKJ",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "8cad419b9f90139255b372aadf64528e27efe6cfda16c735e0abfd74e4401867",
+      "output": {
+        "asin": "B07WVSHYKJ",
+        "title": "Naturium Retinol Complex Cream - 50ml",
+        "price": 22.45,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B07WVSHYKJ",
+        "title": "Naturium Retinol Complex Cream - 50ml",
+        "price": 22.45,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 3166.9882500000003,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1504883,
+      "externalCostUsd": null
+    },
+    {
+      "index": 9,
+      "url": "https://www.amazon.sg/dp/B000260408",
+      "requestedAsin": "B000260408",
+      "selectedAsin": "B000260408",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "1d40224536cfe49950b2ad3b5697b638922edcc9a57854dd377ea33dcff18f4c",
+      "output": {
+        "asin": "B000260408",
+        "title": "Seachem Prime Fresh and Saltwater Conditioner - Chemical Remover and Detoxifier 2 L",
+        "price": 70.19,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B000260408",
+        "title": "Seachem Prime Fresh and Saltwater Conditioner - Chemical Remover and Detoxifier 2 L",
+        "price": 70.19,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 3221.8786659999987,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1748322,
+      "externalCostUsd": null
+    },
+    {
+      "index": 10,
+      "url": "https://www.amazon.sg/dp/B0FK1FDHXP",
+      "requestedAsin": "B0FK1FDHXP",
+      "selectedAsin": "B0FK1FDHXP",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "67d5aeef1cd9ede35914f6037a524434c3008ab2aacba3ba07824148735486e6",
+      "output": {
+        "asin": "B0FK1FDHXP",
+        "title": "Owala FreeSip Stainless Steel Water Bottle 24 oz Off Road",
+        "price": 42.11,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B0FK1FDHXP",
+        "title": "Owala FreeSip Stainless Steel Water Bottle 24 oz Off Road",
+        "price": 42.11,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 3582.8153749999983,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1965137,
+      "externalCostUsd": null
+    },
+    {
+      "index": 11,
+      "url": "https://www.amazon.sg/dp/B07SDG5719",
+      "requestedAsin": "B07SDG5719",
+      "selectedAsin": "B07SDG5719",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "86f0e6d822821657d89722c52fb46ccba9bf329e2c6c5cd2a7515efd2141cc51",
+      "output": {
+        "asin": "B07SDG5719",
+        "title": "Texas Instruments TI-Nspire CX II - Color Graphing Calculator with Student Software (PC/Mac), White color",
+        "price": 197.26,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B07SDG5719",
+        "title": "Texas Instruments TI-Nspire CX II - Color Graphing Calculator with Student Software (PC/Mac), White color",
+        "price": 197.26,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 3170.4142920000013,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1693816,
+      "externalCostUsd": null
+    },
+    {
+      "index": 12,
+      "url": "https://www.amazon.sg/dp/B0042ETBEQ",
+      "requestedAsin": "B0042ETBEQ",
+      "selectedAsin": "B0042ETBEQ",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "239c7a199ace3e942583fe16686caaa91ec89db6630508eb62225b4ebb5c9636",
+      "output": {
+        "asin": "B0042ETBEQ",
+        "title": "BOSCH Rear Wiper Blade A282H/3397008634 Original Equipment Replacement- 11\" (Pack of 1)",
+        "price": 16.41,
+        "currency": "SGD",
+        "seller": "Amazon Japan"
+      },
+      "visibleWitness": {
+        "asin": "B0042ETBEQ",
+        "title": "BOSCH Rear Wiper Blade A282H/3397008634 Original Equipment Replacement- 11\" (Pack of 1)",
+        "price": 16.41,
+        "currency": "SGD",
+        "seller": "Amazon Japan"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 3147.5672080000004,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1911744,
+      "externalCostUsd": null
+    },
+    {
+      "index": 13,
+      "url": "https://www.amazon.sg/dp/B0GRHD4MGZ",
+      "requestedAsin": "B0GRHD4MGZ",
+      "selectedAsin": "B0GRHD4MGZ",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "6655d302636b4f092d7fbced36c7b31777949f268babb022a160db9c2f142337",
+      "output": {
+        "asin": "B0GRHD4MGZ",
+        "title": "FUJIFILM instax mini 13 Instant Film Camera - Lagoon Green",
+        "price": 121.75,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B0GRHD4MGZ",
+        "title": "FUJIFILM instax mini 13 Instant Film Camera - Lagoon Green",
+        "price": 121.75,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 2930.2152080000014,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1598532,
+      "externalCostUsd": null
+    },
+    {
+      "index": 14,
+      "url": "https://www.amazon.sg/dp/B0161ZC5GY",
+      "requestedAsin": "B0161ZC5GY",
+      "selectedAsin": "B0161ZC5GY",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "ec80e0a3166543668f166669c2f90e3b188c3fbceaa73e0281845f1b2bf3d0fc",
+      "output": {
+        "asin": "B0161ZC5GY",
+        "title": "Bioderma - Atoderm - Intensive Balm - Intensely Nourishing Body Cream - Soothes discomfort - for Very Dry Sensitive Skin",
+        "price": 33.69,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B0161ZC5GY",
+        "title": "Bioderma - Atoderm - Intensive Balm - Intensely Nourishing Body Cream - Soothes discomfort - for Very Dry Sensitive Skin",
+        "price": 33.69,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 2996.353124999998,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1894614,
+      "externalCostUsd": null
+    },
+    {
+      "index": 15,
+      "url": "https://www.amazon.sg/dp/B0DKNM7367",
+      "requestedAsin": "B0DKNM7367",
+      "selectedAsin": "B0DKNM7367",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "3f09ae6be3582e1ff1d33b81de4ecaac5756c4a8ffc7bbcd3823d952f9e124f8",
+      "output": {
+        "asin": "B0DKNM7367",
+        "title": "Best Pet Supplies Interactive Bunny Buddy Dog Toy with Crinkle and Squeaky Enrichment for Small and Medium Breed Puppies or Dogs, Cute and Plush - Bunny (Purple), Small",
+        "price": 14.16,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B0DKNM7367",
+        "title": "Best Pet Supplies Interactive Bunny Buddy Dog Toy with Crinkle and Squeaky Enrichment for Small and Medium Breed Puppies or Dogs, Cute and Plush - Bunny (Purple), Small",
+        "price": 14.16,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 2955.694041999999,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1903942,
+      "externalCostUsd": null
+    },
+    {
+      "index": 16,
+      "url": "https://www.amazon.sg/dp/B0GQN1X2K1",
+      "requestedAsin": "B0GQN1X2K1",
+      "selectedAsin": "B0GQN1X2K1",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "af329fb1c904c91946c726d1ea2858f041efb1381254862961f5bc95c81ae4e3",
+      "output": {
+        "asin": "B0GQN1X2K1",
+        "title": "owala FreeSip Tritan Water Bottle, Pink (Rose Quartz), 740 mL, 25 oz",
+        "price": 27.85,
+        "currency": "SGD",
+        "seller": "Amazon Japan"
+      },
+      "visibleWitness": {
+        "asin": "B0GQN1X2K1",
+        "title": "owala FreeSip Tritan Water Bottle, Pink (Rose Quartz), 740 mL, 25 oz",
+        "price": 27.85,
+        "currency": "SGD",
+        "seller": "Amazon Japan"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 2924.1672080000026,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1506825,
+      "externalCostUsd": null
+    },
+    {
+      "index": 17,
+      "url": "https://www.amazon.sg/dp/B00TS3UT42",
+      "requestedAsin": "B00TS3UT42",
+      "selectedAsin": "B00TS3UT42",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "e957282a14e9893f41b15a007cb0307a9e561e8f7906a80d87f3da3629ebe454",
+      "output": {
+        "asin": "B00TS3UT42",
+        "title": "KEY-BAK Sidekick ID Badge and Key Reel, 24 inch Kevlar Cord, Tough Polycarbonate Case, Zinc Alloy Metal Carabiner",
+        "price": 12.06,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B00TS3UT42",
+        "title": "KEY-BAK Sidekick ID Badge and Key Reel, 24 inch Kevlar Cord, Tough Polycarbonate Case, Zinc Alloy Metal Carabiner",
+        "price": 12.06,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 3245.8152499999997,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1744052,
+      "externalCostUsd": null
+    },
+    {
+      "index": 18,
+      "url": "https://www.amazon.sg/dp/B000NKCIXE",
+      "requestedAsin": "B000NKCIXE",
+      "selectedAsin": "B000NKCIXE",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "3b06a24192bb2c72fb88d044a06fd17a36241b46c3561206ac1c7d217a8766e9",
+      "output": {
+        "asin": "B000NKCIXE",
+        "title": "K&N 33-2360 High Performance Replacement Air Filter Heather Red",
+        "price": 78.75,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B000NKCIXE",
+        "title": "K&N 33-2360 High Performance Replacement Air Filter Heather Red",
+        "price": 78.75,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 3498.3614589999997,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 2763869,
+      "externalCostUsd": null
+    },
+    {
+      "index": 19,
+      "url": "https://www.amazon.sg/dp/B00EB4ADQW",
+      "requestedAsin": "B00EB4ADQW",
+      "selectedAsin": "B00EB4ADQW",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "1220e460f2d62d56ee3b289c6a8322a9b3ef98954017e35a1b1598066b243748",
+      "output": {
+        "asin": "B00EB4ADQW",
+        "title": "Fujifilm INSTAX Mini Instant Film Twin Pack, White, 20 Sheets",
+        "price": 26.75,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B00EB4ADQW",
+        "title": "Fujifilm INSTAX Mini Instant Film Twin Pack, White, 20 Sheets",
+        "price": 26.75,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 2976.7853749999995,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1675112,
+      "externalCostUsd": null
+    },
+    {
+      "index": 20,
+      "url": "https://www.amazon.sg/dp/B0DBJBHMYC",
+      "requestedAsin": "B0DBJBHMYC",
+      "selectedAsin": "B0DBJBHMYC",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "27083af9575e4ff0cb40249bd0cd590ea837c5a2e06161e863f7de07dc100457",
+      "output": {
+        "asin": "B0DBJBHMYC",
+        "title": "RAW Batana Oil for Hair Growth, Dr Sebi Organic Unrefined Batana Oil from Honduran, 100% Pure & Natural Hair Growth Oil for Thicker & Stronger Hair - 2 FL OZ - 60Ml - 1Pack",
+        "price": 19.29,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B0DBJBHMYC",
+        "title": "RAW Batana Oil for Hair Growth, Dr Sebi Organic Unrefined Batana Oil from Honduran, 100% Pure & Natural Hair Growth Oil for Thicker & Stronger Hair - 2 FL OZ - 60Ml - 1Pack",
+        "price": 19.29,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 2924.0911250000026,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1534832,
+      "externalCostUsd": null
+    },
+    {
+      "index": 21,
+      "url": "https://www.amazon.sg/dp/B071ZMGPKV",
+      "requestedAsin": "B071ZMGPKV",
+      "selectedAsin": "B071ZMGPKV",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "1eb0809fa03e12c514b6ce9906f4fdcca0ed04e6c4e112b04bd5d9c787a84832",
+      "output": {
+        "asin": "B071ZMGPKV",
+        "title": "Nature's Miracle Advanced Cat Stain and Odor Eliminator Spray, Severe Mess Enzymatic Formula, 32 fl oz",
+        "price": 28.83,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B071ZMGPKV",
+        "title": "Nature's Miracle Advanced Cat Stain and Odor Eliminator Spray, Severe Mess Enzymatic Formula, 32 fl oz",
+        "price": 28.83,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 3165.1517499999973,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1733415,
+      "externalCostUsd": null
+    },
+    {
+      "index": 22,
+      "url": "https://www.amazon.sg/dp/B0DSJR7YBY",
+      "requestedAsin": "B0DSJR7YBY",
+      "selectedAsin": "B0DSJR7YBY",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "6e0c0ec5889a114eef052873eca6fe2f9a3845eb77b819b016b8d999f558dc78",
+      "output": {
+        "asin": "B0DSJR7YBY",
+        "title": "Srixon Q-Star Ultispeed Golf Balls",
+        "price": 29.44,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B0DSJR7YBY",
+        "title": "Srixon Q-Star Ultispeed Golf Balls",
+        "price": 29.44,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 2962.3726670000033,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1708142,
+      "externalCostUsd": null
+    },
+    {
+      "index": 23,
+      "url": "https://www.amazon.sg/dp/B0711D5RNZ",
+      "requestedAsin": "B0711D5RNZ",
+      "selectedAsin": "B0711D5RNZ",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "56eecda2381e37deb78e41143d87bbca891b4b08da4eb73bbf65b2c0a22ba6dd",
+      "output": {
+        "asin": "B0711D5RNZ",
+        "title": "CASIO PRIZM FX-CG50 Color Graphing Calculator",
+        "price": 131.02,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B0711D5RNZ",
+        "title": "CASIO PRIZM FX-CG50 Color Graphing Calculator",
+        "price": 131.02,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 2943.988749999997,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1815764,
+      "externalCostUsd": null
+    },
+    {
+      "index": 24,
+      "url": "https://www.amazon.sg/dp/B0D41ZWR68",
+      "requestedAsin": "B0D41ZWR68",
+      "selectedAsin": "B0D41ZWR68",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "a08168b3a0586590da86896c40a835064d07e5cc6210bdfb3c28bd6a447e7980",
+      "output": {
+        "asin": "B0D41ZWR68",
+        "title": "ETENWOLF Tire Pressure Gauge for Cars 0-75 PSI, Air Pressure Gauge with Large Glow Dial, Calibrated to ANSI B40.1 Grade A(±1%), Tire Gauge for Tire Pressure Car Accessories",
+        "price": 26.64,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B0D41ZWR68",
+        "title": "ETENWOLF Tire Pressure Gauge for Cars 0-75 PSI, Air Pressure Gauge with Large Glow Dial, Calibrated to ANSI B40.1 Grade A(±1%), Tire Gauge for Tire Pressure Car Accessories",
+        "price": 26.64,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 3151.475292000003,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1905148,
+      "externalCostUsd": null
+    },
+    {
+      "index": 25,
+      "url": "https://www.amazon.sg/dp/B0DJ8NB84Z",
+      "requestedAsin": "B0DJ8NB84Z",
+      "selectedAsin": "B0DJ8NB84Z",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "1d61f5644660d0510759fb80dc47ad7d9743fd08e6bc67f8575520383244e365",
+      "output": {
+        "asin": "B0DJ8NB84Z",
+        "title": "Duracell AA Alkaline Batteries, Pack of 20, Shelf Life: 10 Years, Disaster Preparedness Storage",
+        "price": null,
+        "currency": null,
+        "seller": null
+      },
+      "visibleWitness": {
+        "asin": "B0DJ8NB84Z",
+        "title": "Duracell AA Alkaline Batteries, Pack of 20, Shelf Life: 10 Years, Disaster Preparedness Storage",
+        "price": null,
+        "currency": null,
+        "seller": null
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": false,
+          "emitted": false,
+          "match": null
+        },
+        "currency": {
+          "visible": false,
+          "emitted": false,
+          "match": null
+        },
+        "seller": {
+          "visible": false,
+          "emitted": false,
+          "match": null
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [
+        {
+          "code": "field_unavailable",
+          "path": "/price",
+          "message": "no verified source for this nullable field on the selected page"
+        },
+        {
+          "code": "field_unavailable",
+          "path": "/currency",
+          "message": "no verified source for this nullable field on the selected page"
+        },
+        {
+          "code": "field_unavailable",
+          "path": "/seller",
+          "message": "no verified source for this nullable field on the selected page"
+        },
+        {
+          "code": "field_unavailable",
+          "path": "/availability",
+          "message": "no verified source for this nullable field on the selected page"
+        }
+      ],
+      "wallMs": 2972.6507920000004,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1435484,
+      "externalCostUsd": null
+    },
+    {
+      "index": 26,
+      "url": "https://www.amazon.sg/dp/B093VT9YWL",
+      "requestedAsin": "B093VT9YWL",
+      "selectedAsin": "B093VT9YWL",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "a4a6468b20c14b6ed103ef83539b41168100e5af941a138826c8cb2affc7acee",
+      "output": {
+        "asin": "B093VT9YWL",
+        "title": "Colorescience Total Protection Face Shield Flex SPF 50, Zinc Oxide Formula, Fair, 1.8 fl. oz (Pack of 1)",
+        "price": 60.66,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B093VT9YWL",
+        "title": "Colorescience Total Protection Face Shield Flex SPF 50, Zinc Oxide Formula, Fair, 1.8 fl. oz (Pack of 1)",
+        "price": 60.66,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 3060.7478330000013,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1818401,
+      "externalCostUsd": null
+    },
+    {
+      "index": 27,
+      "url": "https://www.amazon.sg/dp/B0B7J16VGK",
+      "requestedAsin": "B0B7J16VGK",
+      "selectedAsin": "B0B7J16VGK",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "da158a70eae7ffac92226a04b5f62d520a790e26a2d343695b7cf964da55f8fd",
+      "output": {
+        "asin": "B0B7J16VGK",
+        "title": "PETLIBRO 8 Packs Replacement Filters for Dockstream Cat Water Fountain PLWF005, 4 Months Set of Replacement Filters for Ultra Quiet Pet Water Fountain",
+        "price": 32.28,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B0B7J16VGK",
+        "title": "PETLIBRO 8 Packs Replacement Filters for Dockstream Cat Water Fountain PLWF005, 4 Months Set of Replacement Filters for Ultra Quiet Pet Water Fountain",
+        "price": 32.28,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 3122.455332999998,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1729287,
+      "externalCostUsd": null
+    },
+    {
+      "index": 28,
+      "url": "https://www.amazon.sg/dp/B0B1W12C2D",
+      "requestedAsin": "B0B1W12C2D",
+      "selectedAsin": "B0B1W12C2D",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "b8e70ae82ea766919e6b0c2b76ef6ed6544e6cb5a4d96fa03c73586217b735c8",
+      "output": {
+        "asin": "B0B1W12C2D",
+        "title": "Owala Bottle Boot Black 24oz",
+        "price": 15.18,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B0B1W12C2D",
+        "title": "Owala Bottle Boot Black 24oz",
+        "price": 15.18,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 3319.0687499999985,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 2083842,
+      "externalCostUsd": null
+    },
+    {
+      "index": 29,
+      "url": "https://www.amazon.sg/dp/B01DJBH2S4",
+      "requestedAsin": "B01DJBH2S4",
+      "selectedAsin": "B01DJBH2S4",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "f620530c82ea33aa7442619bd12f2007f22be883b7c29bb45b018fd789ae12f6",
+      "output": {
+        "asin": "B01DJBH2S4",
+        "title": "Parker 1953170 Jotter Ballpoint Pen, Stainless Steel with Chrome Trim, Medium Point Blue Ink, Gift Box",
+        "price": 14.74,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B01DJBH2S4",
+        "title": "Parker 1953170 Jotter Ballpoint Pen, Stainless Steel with Chrome Trim, Medium Point Blue Ink, Gift Box",
+        "price": 14.74,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 3447.487457999996,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 2022217,
+      "externalCostUsd": null
+    },
+    {
+      "index": 30,
+      "url": "https://www.amazon.sg/dp/B0CTCLGQZL",
+      "requestedAsin": "B0CTCLGQZL",
+      "selectedAsin": "B0CTCLGQZL",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "5d1310b94b683848bc4bd3312ca49c6d623be2560a03b9ace0e97b1199be04ae",
+      "output": {
+        "asin": "B0CTCLGQZL",
+        "title": "PIAA HX710 Headlamp/Fog Lamp Halogen Bulb H11 4200K Celest White Series, 12 V, 55 W (Brightness Feeling: 115W Equivalent), Vehicle Inspection Compatible, Pack of 2",
+        "price": 27.87,
+        "currency": "SGD",
+        "seller": "Amazon Japan"
+      },
+      "visibleWitness": {
+        "asin": "B0CTCLGQZL",
+        "title": "PIAA HX710 Headlamp/Fog Lamp Halogen Bulb H11 4200K Celest White Series, 12 V, 55 W (Brightness Feeling: 115W Equivalent), Vehicle Inspection Compatible, Pack of 2",
+        "price": 27.87,
+        "currency": "SGD",
+        "seller": "Amazon Japan"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 2948.681499999999,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1453104,
+      "externalCostUsd": null
+    },
+    {
+      "index": 31,
+      "url": "https://www.amazon.sg/dp/B0C48B3RGL",
+      "requestedAsin": "B0C48B3RGL",
+      "selectedAsin": "B0C48B3RGL",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "b39635a852e4c1b91ab1726d65bf241ba42fe26e6ba5afbaa504db2638ae1e66",
+      "output": {
+        "asin": "B0C48B3RGL",
+        "title": "WD_BLACK 1TB SN850P NVMe M.2 SSD Officially Licensed Storage Expansion for PS5 Consoles, up to 7,300MB/s, with heatsink - WDBBYV0010BNC-WRSN",
+        "price": null,
+        "currency": null,
+        "seller": null
+      },
+      "visibleWitness": {
+        "asin": "B0C48B3RGL",
+        "title": "WD_BLACK 1TB SN850P NVMe M.2 SSD Officially Licensed Storage Expansion for PS5 Consoles, up to 7,300MB/s, with heatsink - WDBBYV0010BNC-WRSN",
+        "price": null,
+        "currency": null,
+        "seller": null
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": false,
+          "emitted": false,
+          "match": null
+        },
+        "currency": {
+          "visible": false,
+          "emitted": false,
+          "match": null
+        },
+        "seller": {
+          "visible": false,
+          "emitted": false,
+          "match": null
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [
+        {
+          "code": "field_unavailable",
+          "path": "/price",
+          "message": "no verified source for this nullable field on the selected page"
+        },
+        {
+          "code": "field_unavailable",
+          "path": "/currency",
+          "message": "no verified source for this nullable field on the selected page"
+        },
+        {
+          "code": "field_unavailable",
+          "path": "/seller",
+          "message": "no verified source for this nullable field on the selected page"
+        },
+        {
+          "code": "field_unavailable",
+          "path": "/availability",
+          "message": "no verified source for this nullable field on the selected page"
+        }
+      ],
+      "wallMs": 2931.6458330000023,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1578835,
+      "externalCostUsd": null
+    },
+    {
+      "index": 32,
+      "url": "https://www.amazon.sg/dp/B07FD24RTR",
+      "requestedAsin": "B07FD24RTR",
+      "selectedAsin": "B07FD24RTR",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "2b48b2dc6d58d83b9fcc4d8248e7d622ecbcbcafaaf4c1df59dba25f9fb85427",
+      "output": {
+        "asin": "B07FD24RTR",
+        "title": "Aveeno Stress Relief Body Wash with Soothing Oat, Gently Cleanses and Moisturizes with Lavender Scent, Chamomile & Ylang-Ylang Essential Oils, Dye-Free & Soap-Free Calming Body Wash, 33 fl. oz",
+        "price": null,
+        "currency": null,
+        "seller": null
+      },
+      "visibleWitness": {
+        "asin": "B07FD24RTR",
+        "title": "Aveeno Stress Relief Body Wash with Soothing Oat, Gently Cleanses and Moisturizes with Lavender Scent, Chamomile & Ylang-Ylang Essential Oils, Dye-Free & Soap-Free Calming Body Wash, 33 fl. oz",
+        "price": null,
+        "currency": null,
+        "seller": null
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": false,
+          "emitted": false,
+          "match": null
+        },
+        "currency": {
+          "visible": false,
+          "emitted": false,
+          "match": null
+        },
+        "seller": {
+          "visible": false,
+          "emitted": false,
+          "match": null
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [
+        {
+          "code": "field_unavailable",
+          "path": "/price",
+          "message": "no verified source for this nullable field on the selected page"
+        },
+        {
+          "code": "field_unavailable",
+          "path": "/currency",
+          "message": "no verified source for this nullable field on the selected page"
+        },
+        {
+          "code": "field_unavailable",
+          "path": "/seller",
+          "message": "no verified source for this nullable field on the selected page"
+        },
+        {
+          "code": "field_unavailable",
+          "path": "/availability",
+          "message": "no verified source for this nullable field on the selected page"
+        }
+      ],
+      "wallMs": 3010.832083000001,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1480710,
+      "externalCostUsd": null
+    },
+    {
+      "index": 33,
+      "url": "https://www.amazon.sg/dp/B07RJ28SK9",
+      "requestedAsin": "B07RJ28SK9",
+      "selectedAsin": "B07RJ28SK9",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "eac6fb3df7468cfc8689872d91df1c42c71bc29734cb2477a0a25e1fdd338080",
+      "output": {
+        "asin": "B07RJ28SK9",
+        "title": "Dog Poop Bag Biodegradable 540 Count Dog Waste Bags with Dispenser Scented",
+        "price": 30.68,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B07RJ28SK9",
+        "title": "Dog Poop Bag Biodegradable 540 Count Dog Waste Bags with Dispenser Scented",
+        "price": 30.68,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 2902.5125419999968,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1599821,
+      "externalCostUsd": null
+    },
+    {
+      "index": 34,
+      "url": "https://www.amazon.sg/dp/B085DTY4VS",
+      "requestedAsin": "B085DTY4VS",
+      "selectedAsin": "B085DTY4VS",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "4f7d6bdf0521fdc3ba6ed5383b36ea823a814fb9ee64485cafe259f50b9e753c",
+      "output": {
+        "asin": "B085DTY4VS",
+        "title": "Owala FreeSip Tritan Water Bottle with Locking Push-Button Lid, 25-Ounce, White (Shy Marshmallow)",
+        "price": 24.24,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B085DTY4VS",
+        "title": "Owala FreeSip Tritan Water Bottle with Locking Push-Button Lid, 25-Ounce, White (Shy Marshmallow)",
+        "price": 24.24,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 3035.8449580000015,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 2103451,
+      "externalCostUsd": null
+    },
+    {
+      "index": 35,
+      "url": "https://www.amazon.sg/dp/B0H25J9JSC",
+      "requestedAsin": "B0H25J9JSC",
+      "selectedAsin": "B0H25J9JSC",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "d80e1be6176f0d84ce063c85a235c38519d128980135b1de32e08d1fe4f0e1d8",
+      "output": {
+        "asin": "B0H25J9JSC",
+        "title": "Plus Deco Lush DC-0230-SR-2P 46-882 Heart Case Set, Sanrio Characters Design, My Melody Chromi",
+        "price": 12.3,
+        "currency": "SGD",
+        "seller": "Amazon Japan"
+      },
+      "visibleWitness": {
+        "asin": "B0H25J9JSC",
+        "title": "Plus Deco Lush DC-0230-SR-2P 46-882 Heart Case Set, Sanrio Characters Design, My Melody Chromi",
+        "price": 12.3,
+        "currency": "SGD",
+        "seller": "Amazon Japan"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 2873.2145419999943,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1386073,
+      "externalCostUsd": null
+    },
+    {
+      "index": 36,
+      "url": "https://www.amazon.sg/dp/B07Y5TKMZ4",
+      "requestedAsin": "B07Y5TKMZ4",
+      "selectedAsin": "B07Y5TKMZ4",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "5a2eae5078143324d594087fa053f1ee99638e81ae19b25149397554f34be6fa",
+      "output": {
+        "asin": "B07Y5TKMZ4",
+        "title": "SUNER POWER 20W 12V Solar Battery Trickle Charger & Maintainer PRO, Built-in Intelligent MPPT Controller, Waterproof 12 Volt 20 Watt Solar Panel Charging Kits for Car Marine RV Trailer Boat Automotive",
+        "price": 130.09,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B07Y5TKMZ4",
+        "title": "SUNER POWER 20W 12V Solar Battery Trickle Charger & Maintainer PRO, Built-in Intelligent MPPT Controller, Waterproof 12 Volt 20 Watt Solar Panel Charging Kits for Car Marine RV Trailer Boat Automotive",
+        "price": 130.09,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 2892.0157089999993,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1577412,
+      "externalCostUsd": null
+    },
+    {
+      "index": 37,
+      "url": "https://www.amazon.sg/dp/B0DTJSYC9M",
+      "requestedAsin": "B0DTJSYC9M",
+      "selectedAsin": "B0DTJSYC9M",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "6fef94b53efec1a6c94e948e804f52a69d50e9ab883b37dd1daa3ff53ab2185d",
+      "output": {
+        "asin": "B0DTJSYC9M",
+        "title": "SUPFINE Magnetic for iPhone 12 Mini Case & iPhone 13 Mini Case (Compatible with MagSafe) (Military Grade Drop Protection) Slim Translucent Matte Shockproof Phone Cover,Black",
+        "price": 15.07,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B0DTJSYC9M",
+        "title": "SUPFINE Magnetic for iPhone 12 Mini Case & iPhone 13 Mini Case (Compatible with MagSafe) (Military Grade Drop Protection) Slim Translucent Matte Shockproof Phone Cover,Black",
+        "price": 15.07,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 3019.1065000000017,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 2173126,
+      "externalCostUsd": null
+    },
+    {
+      "index": 38,
+      "url": "https://www.amazon.sg/dp/B07GB41NF9",
+      "requestedAsin": "B07GB41NF9",
+      "selectedAsin": "B07GB41NF9",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "ae978e58fd2119889e1b82b80e7468e95129babdfa91292dce7b699b1b314ef1",
+      "output": {
+        "asin": "B07GB41NF9",
+        "title": "Native Deodorant Contains Naturally Derived Ingredients, 72 Hour Odor Control, Deodorant for Women and Men, Aluminum Free, Eucalyptus & Mint 2.65oz",
+        "price": 23.45,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B07GB41NF9",
+        "title": "Native Deodorant Contains Naturally Derived Ingredients, 72 Hour Odor Control, Deodorant for Women and Men, Aluminum Free, Eucalyptus & Mint 2.65oz",
+        "price": 23.45,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 3028.332166,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1857387,
+      "externalCostUsd": null
+    },
+    {
+      "index": 39,
+      "url": "https://www.amazon.sg/dp/B00CB0LU0G",
+      "requestedAsin": "B00CB0LU0G",
+      "selectedAsin": "B00CB0LU0G",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "efb29554144d984d65483011f787c112fe40e664d9d19a42a20dc46378e56b26",
+      "output": {
+        "asin": "B00CB0LU0G",
+        "title": "PET KING Oratene Veterinarian Antiseptic Oral Gel, 1.0 oz.",
+        "price": 22.96,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B00CB0LU0G",
+        "title": "PET KING Oratene Veterinarian Antiseptic Oral Gel, 1.0 oz.",
+        "price": 22.96,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 2891.5232500000056,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1585153,
+      "externalCostUsd": null
+    },
+    {
+      "index": 40,
+      "url": "https://www.amazon.sg/dp/B000VW9PIK",
+      "requestedAsin": "B000VW9PIK",
+      "selectedAsin": "B000VW9PIK",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "58ea2fef81e1c0c406f25225f6a178f9addd11641af4ddaa257e7ed83e5e85d5",
+      "output": {
+        "asin": "B000VW9PIK",
+        "title": "Versa Gripps PRO Authentic. The Best Training Accessory in the World. MADE IN THE USA",
+        "price": 84.39,
+        "currency": "SGD",
+        "seller": "Amazon Japan"
+      },
+      "visibleWitness": {
+        "asin": "B000VW9PIK",
+        "title": "Versa Gripps PRO Authentic. The Best Training Accessory in the World. MADE IN THE USA",
+        "price": 84.39,
+        "currency": "SGD",
+        "seller": "Amazon Japan"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 5614.6990829999995,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 1,
+      "bytesDecompressed": 1750706,
+      "externalCostUsd": null
+    },
+    {
+      "index": 41,
+      "url": "https://www.amazon.sg/dp/B09KT8P9XT",
+      "requestedAsin": "B09KT8P9XT",
+      "selectedAsin": "B09KT8P9XT",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "05fda109d73aa6b6105236666e32af61cd29e2edd8ccabde0bc1dbf4a41ab8d1",
+      "output": {
+        "asin": "B09KT8P9XT",
+        "title": "Camelbak Eddy+ Kid's Water Bottle, 0.4L, Jungle Animals",
+        "price": 19.83,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B09KT8P9XT",
+        "title": "Camelbak Eddy+ Kid's Water Bottle, 0.4L, Jungle Animals",
+        "price": 19.83,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 3022.485249999998,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1871928,
+      "externalCostUsd": null
+    },
+    {
+      "index": 42,
+      "url": "https://www.amazon.sg/dp/B000NI69YA",
+      "requestedAsin": "B000NI69YA",
+      "selectedAsin": "B000NI69YA",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "3dc1c801c2b85aaa4f9bda11bcd95386f45a60446fe7ea987258031b45c50911",
+      "output": {
+        "asin": "B000NI69YA",
+        "title": "Fluke 116 HVAC Multimeter, Standard",
+        "price": 290.67,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B000NI69YA",
+        "title": "Fluke 116 HVAC Multimeter, Standard",
+        "price": 290.67,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 2956.2059579999986,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1701937,
+      "externalCostUsd": null
+    },
+    {
+      "index": 43,
+      "url": "https://www.amazon.sg/dp/B07NY23WBG",
+      "requestedAsin": "B07NY23WBG",
+      "selectedAsin": "B07NY23WBG",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "f2d417644fddcb70daa8b5a3a191100a7e3d48e9eada31c410413b313e4b4771",
+      "output": {
+        "asin": "B07NY23WBG",
+        "title": "SanDisk High Endurance 128GB microSDXC card with Adapter for dash cams and security cameras, Black - SDSQQNR-128G-GN6IA",
+        "price": null,
+        "currency": null,
+        "seller": null
+      },
+      "visibleWitness": {
+        "asin": "B07NY23WBG",
+        "title": "SanDisk High Endurance 128GB microSDXC card with Adapter for dash cams and security cameras, Black - SDSQQNR-128G-GN6IA",
+        "price": null,
+        "currency": null,
+        "seller": null
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": false,
+          "emitted": false,
+          "match": null
+        },
+        "currency": {
+          "visible": false,
+          "emitted": false,
+          "match": null
+        },
+        "seller": {
+          "visible": false,
+          "emitted": false,
+          "match": null
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [
+        {
+          "code": "field_unavailable",
+          "path": "/price",
+          "message": "no verified source for this nullable field on the selected page"
+        },
+        {
+          "code": "field_unavailable",
+          "path": "/currency",
+          "message": "no verified source for this nullable field on the selected page"
+        },
+        {
+          "code": "field_unavailable",
+          "path": "/seller",
+          "message": "no verified source for this nullable field on the selected page"
+        },
+        {
+          "code": "field_unavailable",
+          "path": "/availability",
+          "message": "no verified source for this nullable field on the selected page"
+        }
+      ],
+      "wallMs": 2968.8019170000043,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1624483,
+      "externalCostUsd": null
+    },
+    {
+      "index": 44,
+      "url": "https://www.amazon.sg/dp/B0C5JWKLZG",
+      "requestedAsin": "B0C5JWKLZG",
+      "selectedAsin": "B0C5JWKLZG",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "4ea242e07c8a98707ce884e766e812b873422613aa9bfef526e92f37d0401b3b",
+      "output": {
+        "asin": "B0C5JWKLZG",
+        "title": "Gold Bond Age Renew Retinol Overnight Body & Face Lotion, With Retinol & Peptide Complex, 13 oz.",
+        "price": 27.43,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B0C5JWKLZG",
+        "title": "Gold Bond Age Renew Retinol Overnight Body & Face Lotion, With Retinol & Peptide Complex, 13 oz.",
+        "price": 27.43,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 2881.889624999996,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1677742,
+      "externalCostUsd": null
+    },
+    {
+      "index": 45,
+      "url": "https://www.amazon.sg/dp/B0B1ZY53JZ",
+      "requestedAsin": "B0B1ZY53JZ",
+      "selectedAsin": "B0B1ZY53JZ",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "0a2ddcdda2ce810822e909781bfaac816453bd6fb38411927bc9a169922014d3",
+      "output": {
+        "asin": "B0B1ZY53JZ",
+        "title": "Comfort Expression Waterproof Orthopedic Dog Bed Foam Dog Couch Dog Beds for Large Dogs Durable Dog Sofa The Comfy Pet Bed Removable Washable Cover Non-Slip Bottom Portable Large Dog Beds",
+        "price": 79.97,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B0B1ZY53JZ",
+        "title": "Comfort Expression Waterproof Orthopedic Dog Bed Foam Dog Couch Dog Beds for Large Dogs Durable Dog Sofa The Comfy Pet Bed Removable Washable Cover Non-Slip Bottom Portable Large Dog Beds",
+        "price": 79.97,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 3061.0102910000132,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 2192042,
+      "externalCostUsd": null
+    },
+    {
+      "index": 46,
+      "url": "https://www.amazon.sg/dp/B0CBCPFSSV",
+      "requestedAsin": "B0CBCPFSSV",
+      "selectedAsin": "B0CBCPFSSV",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "1ab6c7a04e61df0fd5a7878a8f1e2763262c5910f02ef00e387d7d3cbf7b7897",
+      "output": {
+        "asin": "B0CBCPFSSV",
+        "title": "Owala FreeSip Insulated Stainless Steel Water Bottle with Straw, BPA-Free Sports Water Bottle, Great for Travel, 24 Oz, Black Panther",
+        "price": 49.14,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B0CBCPFSSV",
+        "title": "Owala FreeSip Insulated Stainless Steel Water Bottle with Straw, BPA-Free Sports Water Bottle, Great for Travel, 24 Oz, Black Panther",
+        "price": 49.14,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 3175.9836249999935,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 2122254,
+      "externalCostUsd": null
+    },
+    {
+      "index": 47,
+      "url": "https://www.amazon.sg/dp/B0G41L9ZHY",
+      "requestedAsin": "B0G41L9ZHY",
+      "selectedAsin": "B0G41L9ZHY",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "a9b7f2cbd23d09063f61ec4e10799e9216ae85defdff947cfcc448c9eb002ead",
+      "output": {
+        "asin": "B0G41L9ZHY",
+        "title": "Moleskine Daily Calendar 2026-2027 - 18-Month Calendar with Soft Cover and Elastic Closure, Colour Black, Large Format 13 x 21 cm",
+        "price": 32.68,
+        "currency": "SGD",
+        "seller": "Amazon Japan"
+      },
+      "visibleWitness": {
+        "asin": "B0G41L9ZHY",
+        "title": "Moleskine Daily Calendar 2026-2027 - 18-Month Calendar with Soft Cover and Elastic Closure, Colour Black, Large Format 13 x 21 cm",
+        "price": 32.68,
+        "currency": "SGD",
+        "seller": "Amazon Japan"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 2971.1624999999913,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1620979,
+      "externalCostUsd": null
+    },
+    {
+      "index": 48,
+      "url": "https://www.amazon.sg/dp/B0CH53CB6W",
+      "requestedAsin": "B0CH53CB6W",
+      "selectedAsin": "B0CH53CB6W",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "9e4abde75efa507aa3bacc4df23190ec772b79a16e6e611f3b856300eb8b0ee6",
+      "output": {
+        "asin": "B0CH53CB6W",
+        "title": "2 PCS Car Window Breaker, 2-in-1 Window Breaker Seatbelt Cutter, Glass Breaker Car Safety Hammers, Auto Car Escape Tool, Emergency Glass Hammer, Window Punch Breaker Tool",
+        "price": 22.35,
+        "currency": "SGD",
+        "seller": "Amazon Germany"
+      },
+      "visibleWitness": {
+        "asin": "B0CH53CB6W",
+        "title": "2 PCS Car Window Breaker, 2-in-1 Window Breaker Seatbelt Cutter, Glass Breaker Car Safety Hammers, Auto Car Escape Tool, Emergency Glass Hammer, Window Punch Breaker Tool",
+        "price": 22.35,
+        "currency": "SGD",
+        "seller": "Amazon Germany"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 2839.5635420000035,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1505164,
+      "externalCostUsd": null
+    },
+    {
+      "index": 49,
+      "url": "https://www.amazon.sg/dp/B0080R95XI",
+      "requestedAsin": "B0080R95XI",
+      "selectedAsin": "B0080R95XI",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "075fd841c591f89e160742b03dcc69abf3fbf741d0e9773ff08c06acb0343baa",
+      "output": {
+        "asin": "B0080R95XI",
+        "title": "Ceptics UK Travel Plug Adapter (Type G) - 3 Pack [Grounded & Universal]",
+        "price": 23.3,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B0080R95XI",
+        "title": "Ceptics UK Travel Plug Adapter (Type G) - 3 Pack [Grounded & Universal]",
+        "price": 23.3,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 2953.1536669999914,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1595095,
+      "externalCostUsd": null
+    },
+    {
+      "index": 50,
+      "url": "https://www.amazon.sg/dp/B08CQ9T6KN",
+      "requestedAsin": "B08CQ9T6KN",
+      "selectedAsin": "B08CQ9T6KN",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "8477574ae0ad0b268f7e9e92e1c572ee00a6c757d64f67562db6a9b0cfb17b20",
+      "output": {
+        "asin": "B08CQ9T6KN",
+        "title": "CeraVe SA Cleanser | Salicylic Acid Cleanser with Hyaluronic Acid, Niacinamide & Ceramides| BHA Exfoliant for Face | Fragrance Free Non-Comedogenic | 16 Ounce",
+        "price": 26.27,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B08CQ9T6KN",
+        "title": "CeraVe SA Cleanser | Salicylic Acid Cleanser with Hyaluronic Acid, Niacinamide & Ceramides| BHA Exfoliant for Face | Fragrance Free Non-Comedogenic | 16 Ounce",
+        "price": 26.27,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 3330.9111669999984,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1822246,
+      "externalCostUsd": null
+    },
+    {
+      "index": 51,
+      "url": "https://www.amazon.sg/dp/B002CZJXJK",
+      "requestedAsin": "B002CZJXJK",
+      "selectedAsin": "B002CZJXJK",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "d75c8c8468eedb4098826b9407558290d2cc3dff77d7a8bd5e9dce5000603cb7",
+      "output": {
+        "asin": "B002CZJXJK",
+        "title": "Veterinary Formula Solutions Ultra Oatmeal Moisturizing Shampoo for Dogs, 17 oz. – Moisture-Rich Nourishing Shampoo – Leaves Coat Clean, Soft, Silky, Shiny – Long-Lasting Fragrance (FG01210)",
+        "price": 15,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B002CZJXJK",
+        "title": "Veterinary Formula Solutions Ultra Oatmeal Moisturizing Shampoo for Dogs, 17 oz. – Moisture-Rich Nourishing Shampoo – Leaves Coat Clean, Soft, Silky, Shiny – Long-Lasting Fragrance (FG01210)",
+        "price": 15,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 2884.888082999998,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1685873,
+      "externalCostUsd": null
+    },
+    {
+      "index": 52,
+      "url": "https://www.amazon.sg/dp/B001GFLSJA",
+      "requestedAsin": "B001GFLSJA",
+      "selectedAsin": "B001GFLSJA",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "62d95798573a7f62b6078242a5ae9607dda779fb39c28366a3f755206a183e3d",
+      "output": {
+        "asin": "B001GFLSJA",
+        "title": "Speedo Unisex-Adult Swim Goggles Mirrored Vanquisher 2.0",
+        "price": 28.88,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B001GFLSJA",
+        "title": "Speedo Unisex-Adult Swim Goggles Mirrored Vanquisher 2.0",
+        "price": 28.88,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 3726.5033750000002,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1902744,
+      "externalCostUsd": null
+    },
+    {
+      "index": 53,
+      "url": "https://www.amazon.sg/dp/B0HCCTWW99",
+      "requestedAsin": "B0HCCTWW99",
+      "selectedAsin": "B0HCCTWW99",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "2de0f205545e0ed6e50b96159d4395590a6bd67a4ffac3d390351c23b4f0becb",
+      "output": {
+        "asin": "B0HCCTWW99",
+        "title": "Sanrio 921211 Ring Calendar, M, 2027, Snoopy, Tabletop Type",
+        "price": 11.33,
+        "currency": "SGD",
+        "seller": "Amazon Japan"
+      },
+      "visibleWitness": {
+        "asin": "B0HCCTWW99",
+        "title": "Sanrio 921211 Ring Calendar, M, 2027, Snoopy, Tabletop Type",
+        "price": 11.33,
+        "currency": "SGD",
+        "seller": "Amazon Japan"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 3329.593166999999,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1532126,
+      "externalCostUsd": null
+    },
+    {
+      "index": 54,
+      "url": "https://www.amazon.sg/dp/B00BJLUWP2",
+      "requestedAsin": "B00BJLUWP2",
+      "selectedAsin": "B00BJLUWP2",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "c9ce349989cbec976187b117a4c1e559898e9cb817472c7409294bfe83a27cac",
+      "output": {
+        "asin": "B00BJLUWP2",
+        "title": "Bosch A310S Flat Wiper Blade Aero Twin",
+        "price": 42.89,
+        "currency": "SGD",
+        "seller": "Amazon Japan"
+      },
+      "visibleWitness": {
+        "asin": "B00BJLUWP2",
+        "title": "Bosch A310S Flat Wiper Blade Aero Twin",
+        "price": 42.89,
+        "currency": "SGD",
+        "seller": "Amazon Japan"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 3013.2914170000004,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1724896,
+      "externalCostUsd": null
+    },
+    {
+      "index": 55,
+      "url": "https://www.amazon.sg/dp/B0F3QD86TL",
+      "requestedAsin": "B0F3QD86TL",
+      "selectedAsin": "B0F3QD86TL",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "eb4a2f0acc2dd09261a1dc0d81ba9c35d179903ff854379f4f888870574dff1d",
+      "output": {
+        "asin": "B0F3QD86TL",
+        "title": "AirFly Pro 2 Deluxe – Bluetooth Adapter for Airplane, Pair 2 AirPods or Wireless Headphones – 3.5mm AUX Bluetooth Transmitter/Receiver for Cars, Boats, Treadmills, TVs – Airplane Travel Essentials",
+        "price": 83.41,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B0F3QD86TL",
+        "title": "AirFly Pro 2 Deluxe – Bluetooth Adapter for Airplane, Pair 2 AirPods or Wireless Headphones – 3.5mm AUX Bluetooth Transmitter/Receiver for Cars, Boats, Treadmills, TVs – Airplane Travel Essentials",
+        "price": 83.41,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 2945.3871660000004,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1802844,
+      "externalCostUsd": null
+    },
+    {
+      "index": 56,
+      "url": "https://www.amazon.sg/dp/B07RK4HST7",
+      "requestedAsin": "B07RK4HST7",
+      "selectedAsin": "B07RK4HST7",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "d3d2dc7dc46987b6820fecec9376129b6ce6b20dc9df8b949fa869c0f02062ec",
+      "output": {
+        "asin": "B07RK4HST7",
+        "title": "CeraVe Daily Moisturizing Lotion for Dry Skin | Body Lotion & Facial Moisturizer with Hyaluronic Acid and Ceramides | Fragrance Free | 19 Ounce",
+        "price": null,
+        "currency": null,
+        "seller": null
+      },
+      "visibleWitness": {
+        "asin": "B07RK4HST7",
+        "title": "CeraVe Daily Moisturizing Lotion for Dry Skin | Body Lotion & Facial Moisturizer with Hyaluronic Acid and Ceramides | Fragrance Free | 19 Ounce",
+        "price": null,
+        "currency": null,
+        "seller": null
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": false,
+          "emitted": false,
+          "match": null
+        },
+        "currency": {
+          "visible": false,
+          "emitted": false,
+          "match": null
+        },
+        "seller": {
+          "visible": false,
+          "emitted": false,
+          "match": null
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [
+        {
+          "code": "field_unavailable",
+          "path": "/price",
+          "message": "no verified source for this nullable field on the selected page"
+        },
+        {
+          "code": "field_unavailable",
+          "path": "/currency",
+          "message": "no verified source for this nullable field on the selected page"
+        },
+        {
+          "code": "field_unavailable",
+          "path": "/seller",
+          "message": "no verified source for this nullable field on the selected page"
+        },
+        {
+          "code": "field_unavailable",
+          "path": "/availability",
+          "message": "no verified source for this nullable field on the selected page"
+        }
+      ],
+      "wallMs": 3306.5329159999965,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1866730,
+      "externalCostUsd": null
+    },
+    {
+      "index": 57,
+      "url": "https://www.amazon.sg/dp/B001A5KST2",
+      "requestedAsin": "B001A5KST2",
+      "selectedAsin": "B001A5KST2",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "54b43dd8334383ad1ad1935004e2b907543a94c30aff0ddb3bb6ff465d748151",
+      "output": {
+        "asin": "B001A5KST2",
+        "title": "Puppia Soft Dog Harness No Choke Over-The-Head Triple Layered Breathable Mesh Adjustable Chest Belt and Quick-Release Buckle, Yellow, Medium",
+        "price": 23.59,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B001A5KST2",
+        "title": "Puppia Soft Dog Harness No Choke Over-The-Head Triple Layered Breathable Mesh Adjustable Chest Belt and Quick-Release Buckle, Yellow, Medium",
+        "price": 23.59,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 3465.1049579999963,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1998846,
+      "externalCostUsd": null
+    },
+    {
+      "index": 58,
+      "url": "https://www.amazon.sg/dp/B0GHSBX655",
+      "requestedAsin": "B0GHSBX655",
+      "selectedAsin": "B0GHSBX655",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "2e587f56314c54b3d35663ac94a1fefabaf75e16f3e6b16331624ba930da2423",
+      "output": {
+        "asin": "B0GHSBX655",
+        "title": "Google Fitbit Air - Activity Tracker without Display with Fitness Tracking, Heart Rate Monitor and Sleep Analysis - Personalised AI-based Coaching - Up to 7 Days Battery Life - Lavender",
+        "price": 147.24,
+        "currency": "SGD",
+        "seller": "Amazon Germany"
+      },
+      "visibleWitness": {
+        "asin": "B0GHSBX655",
+        "title": "Google Fitbit Air - Activity Tracker without Display with Fitness Tracking, Heart Rate Monitor and Sleep Analysis - Personalised AI-based Coaching - Up to 7 Days Battery Life - Lavender",
+        "price": 147.24,
+        "currency": "SGD",
+        "seller": "Amazon Germany"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [
+        {
+          "code": "field_unavailable",
+          "path": "/availability",
+          "message": "no verified source for this nullable field on the selected page"
+        }
+      ],
+      "wallMs": 2910.7295000000013,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1561254,
+      "externalCostUsd": null
+    },
+    {
+      "index": 59,
+      "url": "https://www.amazon.sg/dp/B000E23RSQ",
+      "requestedAsin": "B000E23RSQ",
+      "selectedAsin": "B000E23RSQ",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "48ec13741cd47aca97cd15d03e94f58cb42444fe3ac603ad66a190269fcd8dc6",
+      "output": {
+        "asin": "B000E23RSQ",
+        "title": "Prismacolor Premier Colored Pencils | Art Supplies for Drawing, Sketching, Adult Coloring | Soft Core Color Pencils, 72 Pack",
+        "price": 73.32,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B000E23RSQ",
+        "title": "Prismacolor Premier Colored Pencils | Art Supplies for Drawing, Sketching, Adult Coloring | Soft Core Color Pencils, 72 Pack",
+        "price": 73.32,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 3325.524292000002,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1996023,
+      "externalCostUsd": null
+    },
+    {
+      "index": 60,
+      "url": "https://www.amazon.sg/dp/B00Y2SBLIQ",
+      "requestedAsin": "B00Y2SBLIQ",
+      "selectedAsin": "B00Y2SBLIQ",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "29ab2f185c123c8c8a7e338d09cd47fb701fd90f94bb101b77daf439fa77dad8",
+      "output": {
+        "asin": "B00Y2SBLIQ",
+        "title": "California Scents Spillproof Can Air Freshener Eco-Friendly Odor Neutralizer for Home, Car, & Much More, Coronado Cherry, 1.5 Ounce (Pack of 12)",
+        "price": 33.89,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B00Y2SBLIQ",
+        "title": "California Scents Spillproof Can Air Freshener Eco-Friendly Odor Neutralizer for Home, Car, & Much More, Coronado Cherry, 1.5 Ounce (Pack of 12)",
+        "price": 33.89,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 3242.2520829999994,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1669252,
+      "externalCostUsd": null
+    },
+    {
+      "index": 61,
+      "url": "https://www.amazon.sg/dp/B08C5JH5K5",
+      "requestedAsin": "B08C5JH5K5",
+      "selectedAsin": "B08C5JH5K5",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "cb9eddace05ca8edb4320b0ef9a9169ccd24e643227c625bd5b7a303d1a8ec02",
+      "output": {
+        "asin": "B08C5JH5K5",
+        "title": "Canon PFI-300 Y Original Yellow Standard Yield Ink Cartridge | Works with PRO-300 | 4196C003AA",
+        "price": 27.87,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B08C5JH5K5",
+        "title": "Canon PFI-300 Y Original Yellow Standard Yield Ink Cartridge | Works with PRO-300 | 4196C003AA",
+        "price": 27.87,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 2916.8420419999893,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1410117,
+      "externalCostUsd": null
+    },
+    {
+      "index": 62,
+      "url": "https://www.amazon.sg/dp/B0973GJNCC",
+      "requestedAsin": "B0973GJNCC",
+      "selectedAsin": "B0973GJNCC",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "427737ccb37e8c30e57af451e22c69f2a51aff976299fbd25e7529940b48144c",
+      "output": {
+        "asin": "B0973GJNCC",
+        "title": "Native Deodorant 3 Pack Sensitive - Natural Deodorant for Women and Men - Baking Soda Free - Naturally Derived Ingredients - Cotton & Lily (Sensitive)",
+        "price": 23.9,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B0973GJNCC",
+        "title": "Native Deodorant 3 Pack Sensitive - Natural Deodorant for Women and Men - Baking Soda Free - Naturally Derived Ingredients - Cotton & Lily (Sensitive)",
+        "price": 23.9,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 3099.0617499999935,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1757923,
+      "externalCostUsd": null
+    },
+    {
+      "index": 63,
+      "url": "https://www.amazon.sg/dp/B0CBSLP78C",
+      "requestedAsin": "B0CBSLP78C",
+      "selectedAsin": "B0CBSLP78C",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "40fa1ee368766c479d22feeb2cfd89f154678b79fe0ab640aa6343a29a024c8c",
+      "output": {
+        "asin": "B0CBSLP78C",
+        "title": "FuzzYard Life Step in Dog Harness | Size XL | Stylish Premium Cotton Design in Slate Grey Perfect for Everyday Walks",
+        "price": 51.63,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B0CBSLP78C",
+        "title": "FuzzYard Life Step in Dog Harness | Size XL | Stylish Premium Cotton Design in Slate Grey Perfect for Everyday Walks",
+        "price": 51.63,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 2947.382832999996,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1539244,
+      "externalCostUsd": null
+    },
+    {
+      "index": 64,
+      "url": "https://www.amazon.sg/dp/B0F2WMS7CC",
+      "requestedAsin": "B0F2WMS7CC",
+      "selectedAsin": "B0F2WMS7CC",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "b15c8bdcf84bc47a0bd799df3d516940e47d31f5a4e57507b8acd96df846edb0",
+      "output": {
+        "asin": "B0F2WMS7CC",
+        "title": "Owala Disney Princess FreeSip Insulated Stainless Steel Water Bottle with Straw for Sports and Travel, BPA-Free Sports Water Bottle, 24 oz, Cinderella",
+        "price": 49.14,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B0F2WMS7CC",
+        "title": "Owala Disney Princess FreeSip Insulated Stainless Steel Water Bottle with Straw for Sports and Travel, BPA-Free Sports Water Bottle, 24 oz, Cinderella",
+        "price": 49.14,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 3076.462750000006,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 2027540,
+      "externalCostUsd": null
+    },
+    {
+      "index": 65,
+      "url": "https://www.amazon.sg/dp/B0C7LWB87X",
+      "requestedAsin": "B0C7LWB87X",
+      "selectedAsin": "B0C7LWB87X",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "ffc1f033992e0bb37a43074889af3838aea58bb62811815887962be64dbb99f9",
+      "output": {
+        "asin": "B0C7LWB87X",
+        "title": "Sanrio 789704 Cinnamoroll Gel Ink Ballpoint Pen, EnerGel",
+        "price": 8.65,
+        "currency": "SGD",
+        "seller": "Amazon Japan"
+      },
+      "visibleWitness": {
+        "asin": "B0C7LWB87X",
+        "title": "Sanrio 789704 Cinnamoroll Gel Ink Ballpoint Pen, EnerGel",
+        "price": 8.65,
+        "currency": "SGD",
+        "seller": "Amazon Japan"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 3084.147333000001,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1620440,
+      "externalCostUsd": null
+    },
+    {
+      "index": 66,
+      "url": "https://www.amazon.sg/dp/B0C1HP8N5D",
+      "requestedAsin": "B0C1HP8N5D",
+      "selectedAsin": "B0C1HP8N5D",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "7b600cf7dd5d55e9b6abff83383907f9400f6d6737ec9e6d59c328c4d902a319",
+      "output": {
+        "asin": "B0C1HP8N5D",
+        "title": "iOttie Easy One Touch 6 Universal Car Mount Dashboard & Windshield Suction Cup Phone Holder for iPhone Samsung, Google, All Smartphones",
+        "price": 37.84,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B0C1HP8N5D",
+        "title": "iOttie Easy One Touch 6 Universal Car Mount Dashboard & Windshield Suction Cup Phone Holder for iPhone Samsung, Google, All Smartphones",
+        "price": 37.84,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 3088.6647499999963,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1784344,
+      "externalCostUsd": null
+    },
+    {
+      "index": 67,
+      "url": "https://www.amazon.sg/dp/B0CL9R9BQD",
+      "requestedAsin": "B0CL9R9BQD",
+      "selectedAsin": "B0CL9R9BQD",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "21ba7501fc82583698826ba06a542c142793c370c2cd8f477cfc2d6d5b4aebb4",
+      "output": {
+        "asin": "B0CL9R9BQD",
+        "title": "Sport Silicone Band Compatible with Apple Watch Bands 40mm 38mm 41mm 44mm 45mm 42mm 49mm Women Men,Soft Wristband Waterproof Replacement Sport Strap for iWatch Bands Series 9 8 7 6 5 4 3 2 1 SE Ultra",
+        "price": 16.15,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B0CL9R9BQD",
+        "title": "Sport Silicone Band Compatible with Apple Watch Bands 40mm 38mm 41mm 44mm 45mm 42mm 49mm Women Men,Soft Wristband Waterproof Replacement Sport Strap for iWatch Bands Series 9 8 7 6 5 4 3 2 1 SE Ultra",
+        "price": 16.15,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 3304.8693749999948,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1996681,
+      "externalCostUsd": null
+    },
+    {
+      "index": 68,
+      "url": "https://www.amazon.sg/dp/B07RJ18VMF",
+      "requestedAsin": "B07RJ18VMF",
+      "selectedAsin": "B07RJ18VMF",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "0dc597ee2357979be4870d3b3750b375966e5829b0bb3dde37840fc967b3b525",
+      "output": {
+        "asin": "B07RJ18VMF",
+        "title": "CeraVe Foaming Facial Cleanser | Daily Face Wash for Oily Skin | Hyaluronic Acid + Ceramides + Niacinamide| Fragrance Free | Non Drying Oil Control Face Wash | 19 Fluid Ounce",
+        "price": 26.4,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B07RJ18VMF",
+        "title": "CeraVe Foaming Facial Cleanser | Daily Face Wash for Oily Skin | Hyaluronic Acid + Ceramides + Niacinamide| Fragrance Free | Non Drying Oil Control Face Wash | 19 Fluid Ounce",
+        "price": 26.4,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 3062.470333999998,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1867861,
+      "externalCostUsd": null
+    },
+    {
+      "index": 69,
+      "url": "https://www.amazon.sg/dp/B01H4B9S8W",
+      "requestedAsin": "B01H4B9S8W",
+      "selectedAsin": "B01H4B9S8W",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "b4806fd3f57dd4998ff48d04eab97998d4739ccbb930afdce31b7f11225c9a43",
+      "output": {
+        "asin": "B01H4B9S8W",
+        "title": "Arm & Hammer Nubbies T-Bone Dental Dog Chew Toys, Peanut Butter Flavor - Durable Nylon Chewing Toys for Dogs, Done Bone Toy, Teeth Cleaning Bones for Chewers Help Remove Plaque and Tartar",
+        "price": 13.66,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B01H4B9S8W",
+        "title": "Arm & Hammer Nubbies T-Bone Dental Dog Chew Toys, Peanut Butter Flavor - Durable Nylon Chewing Toys for Dogs, Done Bone Toy, Teeth Cleaning Bones for Chewers Help Remove Plaque and Tartar",
+        "price": 13.66,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 3181.730125000002,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1731870,
+      "externalCostUsd": null
+    },
+    {
+      "index": 70,
+      "url": "https://www.amazon.sg/dp/B0H68Z1X64",
+      "requestedAsin": "B0H68Z1X64",
+      "selectedAsin": "B0H68Z1X64",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "66e3b2a014574b2a1f22accbd665eaeee4e87d7ca6f50a97a1066d9ea982cc40",
+      "output": {
+        "asin": "B0H68Z1X64",
+        "title": "Owala FreeSip Insulated Stainless Steel Water Bottle with Straw for Sports, Travel, and School BPA-Free Sports Water Bottle, 16 oz, Pretty Polite",
+        "price": 39.31,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B0H68Z1X64",
+        "title": "Owala FreeSip Insulated Stainless Steel Water Bottle with Straw for Sports, Travel, and School BPA-Free Sports Water Bottle, 16 oz, Pretty Polite",
+        "price": 39.31,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 2854.944334,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1410617,
+      "externalCostUsd": null
+    },
+    {
+      "index": 71,
+      "url": "https://www.amazon.sg/dp/B001BKHHGS",
+      "requestedAsin": "B001BKHHGS",
+      "selectedAsin": "B001BKHHGS",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "7b7aa41e21ce3beb5b7ba19ecf179d75414a4afe0d352727fb2b31fa54a8018f",
+      "output": {
+        "asin": "B001BKHHGS",
+        "title": "Scotch 8 Precision Scissors Great for Everyday Use (1448)",
+        "price": null,
+        "currency": null,
+        "seller": null
+      },
+      "visibleWitness": {
+        "asin": "B001BKHHGS",
+        "title": "Scotch 8 Precision Scissors Great for Everyday Use (1448)",
+        "price": null,
+        "currency": null,
+        "seller": null
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": false,
+          "emitted": false,
+          "match": null
+        },
+        "currency": {
+          "visible": false,
+          "emitted": false,
+          "match": null
+        },
+        "seller": {
+          "visible": false,
+          "emitted": false,
+          "match": null
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [
+        {
+          "code": "field_unavailable",
+          "path": "/price",
+          "message": "no verified source for this nullable field on the selected page"
+        },
+        {
+          "code": "field_unavailable",
+          "path": "/currency",
+          "message": "no verified source for this nullable field on the selected page"
+        },
+        {
+          "code": "field_unavailable",
+          "path": "/seller",
+          "message": "no verified source for this nullable field on the selected page"
+        },
+        {
+          "code": "field_unavailable",
+          "path": "/availability",
+          "message": "no verified source for this nullable field on the selected page"
+        }
+      ],
+      "wallMs": 3289.576375000004,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1641669,
+      "externalCostUsd": null
+    },
+    {
+      "index": 72,
+      "url": "https://www.amazon.sg/dp/B083KPS7QD",
+      "requestedAsin": "B083KPS7QD",
+      "selectedAsin": "B083KPS7QD",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "a0964ceaa0e7aa536974ea265dbdbbba12160d82873b812fa24b7d987c098031",
+      "output": {
+        "asin": "B083KPS7QD",
+        "title": "The Rag Company - The Gauntlet Microfiber Drying Towel - 20in x 30in - Grey",
+        "price": 40.66,
+        "currency": "SGD",
+        "seller": "Amazon Japan"
+      },
+      "visibleWitness": {
+        "asin": "B083KPS7QD",
+        "title": "The Rag Company - The Gauntlet Microfiber Drying Towel - 20in x 30in - Grey",
+        "price": 40.66,
+        "currency": "SGD",
+        "seller": "Amazon Japan"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 2948.540208000006,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1573777,
+      "externalCostUsd": null
+    },
+    {
+      "index": 73,
+      "url": "https://www.amazon.sg/dp/B0CK778YL5",
+      "requestedAsin": "B0CK778YL5",
+      "selectedAsin": "B0CK778YL5",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "3e99b7610dd51300c06ea8a7c089dc6e9f8e9b8acc625d362ecf2c7263f56a27",
+      "output": {
+        "asin": "B0CK778YL5",
+        "title": "Crucial X9 Portable SSD 1TB",
+        "price": null,
+        "currency": null,
+        "seller": null
+      },
+      "visibleWitness": {
+        "asin": "B0CK778YL5",
+        "title": "Crucial X9 Portable SSD 1TB",
+        "price": null,
+        "currency": null,
+        "seller": null
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": false,
+          "emitted": false,
+          "match": null
+        },
+        "currency": {
+          "visible": false,
+          "emitted": false,
+          "match": null
+        },
+        "seller": {
+          "visible": false,
+          "emitted": false,
+          "match": null
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [
+        {
+          "code": "field_unavailable",
+          "path": "/price",
+          "message": "no verified source for this nullable field on the selected page"
+        },
+        {
+          "code": "field_unavailable",
+          "path": "/currency",
+          "message": "no verified source for this nullable field on the selected page"
+        },
+        {
+          "code": "field_unavailable",
+          "path": "/seller",
+          "message": "no verified source for this nullable field on the selected page"
+        },
+        {
+          "code": "field_unavailable",
+          "path": "/availability",
+          "message": "no verified source for this nullable field on the selected page"
+        }
+      ],
+      "wallMs": 2915.843166999999,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1329557,
+      "externalCostUsd": null
+    },
+    {
+      "index": 74,
+      "url": "https://www.amazon.sg/dp/B00TTD9BRC",
+      "requestedAsin": "B00TTD9BRC",
+      "selectedAsin": "B00TTD9BRC",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "0631dc76005f5ab128f39fbc71dae1043f6134dd10293326bdd8540465b245eb",
+      "output": {
+        "asin": "B00TTD9BRC",
+        "title": "CeraVe Moisturizing Cream for Normal to Dry Skin | 19 Ounce | Fragrance Free | Packaging May Vary",
+        "price": null,
+        "currency": null,
+        "seller": null
+      },
+      "visibleWitness": {
+        "asin": "B00TTD9BRC",
+        "title": "CeraVe Moisturizing Cream for Normal to Dry Skin | 19 Ounce | Fragrance Free | Packaging May Vary",
+        "price": null,
+        "currency": null,
+        "seller": null
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": false,
+          "emitted": false,
+          "match": null
+        },
+        "currency": {
+          "visible": false,
+          "emitted": false,
+          "match": null
+        },
+        "seller": {
+          "visible": false,
+          "emitted": false,
+          "match": null
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [
+        {
+          "code": "field_unavailable",
+          "path": "/price",
+          "message": "no verified source for this nullable field on the selected page"
+        },
+        {
+          "code": "field_unavailable",
+          "path": "/currency",
+          "message": "no verified source for this nullable field on the selected page"
+        },
+        {
+          "code": "field_unavailable",
+          "path": "/seller",
+          "message": "no verified source for this nullable field on the selected page"
+        },
+        {
+          "code": "field_unavailable",
+          "path": "/availability",
+          "message": "no verified source for this nullable field on the selected page"
+        }
+      ],
+      "wallMs": 3142.4999160000007,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1809818,
+      "externalCostUsd": null
+    },
+    {
+      "index": 75,
+      "url": "https://www.amazon.sg/dp/B089WHH95Z",
+      "requestedAsin": "B089WHH95Z",
+      "selectedAsin": "B089WHH95Z",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "3fda565e6bdcfef9f8adfc7672bd418673f639d8836378d3d532773f6f0aa7ce",
+      "output": {
+        "asin": "B089WHH95Z",
+        "title": "Royal Canin Veterinary Pill Assist CAT | 1 x 45g | Supplementary Feed for Cats | Malleable Tasty Croquettes for Easier Drug Administration",
+        "price": 35.05,
+        "currency": "SGD",
+        "seller": "Amazon Germany"
+      },
+      "visibleWitness": {
+        "asin": "B089WHH95Z",
+        "title": "Royal Canin Veterinary Pill Assist CAT | 1 x 45g | Supplementary Feed for Cats | Malleable Tasty Croquettes for Easier Drug Administration",
+        "price": 35.05,
+        "currency": "SGD",
+        "seller": "Amazon Germany"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 2905.6409999999887,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1320123,
+      "externalCostUsd": null
+    },
+    {
+      "index": 76,
+      "url": "https://www.amazon.sg/dp/B00B1OSU4W",
+      "requestedAsin": "B00B1OSU4W",
+      "selectedAsin": "B00B1OSU4W",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "c58630ad6fd54e6c99a59ccd27ba02e59b468b7845ea0ab88cd8e455d7015bd5",
+      "output": {
+        "asin": "B00B1OSU4W",
+        "title": "Sawyer Products PointOne Squeeze Water Filter System",
+        "price": 43.67,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B00B1OSU4W",
+        "title": "Sawyer Products PointOne Squeeze Water Filter System",
+        "price": 43.67,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 3235.8392500000045,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1840578,
+      "externalCostUsd": null
+    },
+    {
+      "index": 77,
+      "url": "https://www.amazon.sg/dp/B073XR4X72",
+      "requestedAsin": "B073XR4X72",
+      "selectedAsin": "B073XR4X72",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "55a1eeed7739ad0d250a12116961f678c7863e321559c8496bd94b89042ca8d4",
+      "output": {
+        "asin": "B073XR4X72",
+        "title": "Command Picture and Frame Hanging Strips, Large, White, 14-Pairs (17206-ES), PH206-14NA",
+        "price": 15.16,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B073XR4X72",
+        "title": "Command Picture and Frame Hanging Strips, Large, White, 14-Pairs (17206-ES), PH206-14NA",
+        "price": 15.16,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 3186.6634170000034,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1717397,
+      "externalCostUsd": null
+    },
+    {
+      "index": 78,
+      "url": "https://www.amazon.sg/dp/B0FDWQRBVB",
+      "requestedAsin": "B0FDWQRBVB",
+      "selectedAsin": "B0FDWQRBVB",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "e842ea753e51f9254decaca0dee0673f4dbdba914d435da23b55b60dbce77c78",
+      "output": {
+        "asin": "B0FDWQRBVB",
+        "title": "Lamicall Cordless Tyre Inflator Air Compressor",
+        "price": 83.76,
+        "currency": "SGD",
+        "seller": "Amazon Germany"
+      },
+      "visibleWitness": {
+        "asin": "B0FDWQRBVB",
+        "title": "Lamicall Cordless Tyre Inflator Air Compressor",
+        "price": 83.76,
+        "currency": "SGD",
+        "seller": "Amazon Germany"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 2878.165374999997,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1624367,
+      "externalCostUsd": null
+    },
+    {
+      "index": 79,
+      "url": "https://www.amazon.sg/dp/B08D6NCQ1Z",
+      "requestedAsin": "B08D6NCQ1Z",
+      "selectedAsin": "B08D6NCQ1Z",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "3811574fde21a89b52885efe4fdedeed35a4012e81772a406f0896290da2d02d",
+      "output": {
+        "asin": "B08D6NCQ1Z",
+        "title": "UGREEN 2 Pack USB C to USB C Charger Cable, Type C 100W PD Fast Charging Cord Compatible with iPhone 15 Pro Max, MacBook Pro, iPad Pro, Dell, Matebook, Chromebook, Pixel, Samsung S23 S22, Switch, 2M",
+        "price": 20.57,
+        "currency": "SGD",
+        "seller": "Amazon Japan"
+      },
+      "visibleWitness": {
+        "asin": "B08D6NCQ1Z",
+        "title": "UGREEN 2 Pack USB C to USB C Charger Cable, Type C 100W PD Fast Charging Cord Compatible with iPhone 15 Pro Max, MacBook Pro, iPad Pro, Dell, Matebook, Chromebook, Pixel, Samsung S23 S22, Switch, 2M",
+        "price": 20.57,
+        "currency": "SGD",
+        "seller": "Amazon Japan"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 3243.6348750000034,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 2059484,
+      "externalCostUsd": null
+    },
+    {
+      "index": 80,
+      "url": "https://www.amazon.sg/dp/B002EQASKA",
+      "requestedAsin": "B002EQASKA",
+      "selectedAsin": "B002EQASKA",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "fca2f01da78bd1c7ea4706a3b3c1a9edba19daaccb6ec4d7aa03891c559bb40b",
+      "output": {
+        "asin": "B002EQASKA",
+        "title": "KAI KE0101 Nail Clippers Type001 M Curved Blade Made in Japan",
+        "price": null,
+        "currency": null,
+        "seller": null
+      },
+      "visibleWitness": {
+        "asin": "B002EQASKA",
+        "title": "KAI KE0101 Nail Clippers Type001 M Curved Blade Made in Japan",
+        "price": null,
+        "currency": null,
+        "seller": null
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": false,
+          "emitted": false,
+          "match": null
+        },
+        "currency": {
+          "visible": false,
+          "emitted": false,
+          "match": null
+        },
+        "seller": {
+          "visible": false,
+          "emitted": false,
+          "match": null
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [
+        {
+          "code": "field_unavailable",
+          "path": "/price",
+          "message": "no verified source for this nullable field on the selected page"
+        },
+        {
+          "code": "field_unavailable",
+          "path": "/currency",
+          "message": "no verified source for this nullable field on the selected page"
+        },
+        {
+          "code": "field_unavailable",
+          "path": "/seller",
+          "message": "no verified source for this nullable field on the selected page"
+        },
+        {
+          "code": "field_unavailable",
+          "path": "/availability",
+          "message": "no verified source for this nullable field on the selected page"
+        }
+      ],
+      "wallMs": 2932.5760829999927,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1509988,
+      "externalCostUsd": null
+    },
+    {
+      "index": 81,
+      "url": "https://www.amazon.sg/dp/B000QAEQXQ",
+      "requestedAsin": "B000QAEQXQ",
+      "selectedAsin": "B000QAEQXQ",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "5ef09a2b5fd69bcea9ef8c219c47fd06f1db6c590062fd8d3f07bc32413c33a5",
+      "output": {
+        "asin": "B000QAEQXQ",
+        "title": "Proden PlaqueOff Dental Care for Dogs and Cats, 180gm",
+        "price": 74.44,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B000QAEQXQ",
+        "title": "Proden PlaqueOff Dental Care for Dogs and Cats, 180gm",
+        "price": 74.44,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 3373.346207999988,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1746512,
+      "externalCostUsd": null
+    },
+    {
+      "index": 82,
+      "url": "https://www.amazon.sg/dp/B0DHT52Z98",
+      "requestedAsin": "B0DHT52Z98",
+      "selectedAsin": "B0DHT52Z98",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "a8e73570882ed4ee12621b36c18ecfad98cca8b3916d44f030ba32b37d3b61a2",
+      "output": {
+        "asin": "B0DHT52Z98",
+        "title": "キャロウェイ(Callaway) ゴルフボール SUPERSOFT 25 1ダース(12個入り) 2ピース構造",
+        "price": 27.74,
+        "currency": "SGD",
+        "seller": "Amazon Japan"
+      },
+      "visibleWitness": {
+        "asin": "B0DHT52Z98",
+        "title": "キャロウェイ(Callaway) ゴルフボール SUPERSOFT 25 1ダース(12個入り) 2ピース構造",
+        "price": 27.74,
+        "currency": "SGD",
+        "seller": "Amazon Japan"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 3194.997583999997,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1705388,
+      "externalCostUsd": null
+    },
+    {
+      "index": 83,
+      "url": "https://www.amazon.sg/dp/B0001EMLZW",
+      "requestedAsin": "B0001EMLZW",
+      "selectedAsin": "B0001EMLZW",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "a011a2dd72b4463d75fb7f857ad7d6753479655b2e4f730f784ed05a9a7dd679",
+      "output": {
+        "asin": "B0001EMLZW",
+        "title": "Texas Instruments BA II Plus - Professional Financial Calculator",
+        "price": 72.84,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B0001EMLZW",
+        "title": "Texas Instruments BA II Plus - Professional Financial Calculator",
+        "price": 72.84,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 2938.2206250000163,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1347356,
+      "externalCostUsd": null
+    },
+    {
+      "index": 84,
+      "url": "https://www.amazon.sg/dp/B0FWRPZFHN",
+      "requestedAsin": "B0FWRPZFHN",
+      "selectedAsin": "B0FWRPZFHN",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "dab5b90965cf3fb10348b63a48e3ec24d6a5929eecf0412a2436193167799e67",
+      "output": {
+        "asin": "B0FWRPZFHN",
+        "title": "Electric Air Pump, Portable Mini Compressor with Pressure Gauge",
+        "price": 34.85,
+        "currency": "SGD",
+        "seller": "Amazon Germany"
+      },
+      "visibleWitness": {
+        "asin": "B0FWRPZFHN",
+        "title": "Electric Air Pump, Portable Mini Compressor with Pressure Gauge",
+        "price": 34.85,
+        "currency": "SGD",
+        "seller": "Amazon Germany"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 2953.286208999998,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1436110,
+      "externalCostUsd": null
+    },
+    {
+      "index": 85,
+      "url": "https://www.amazon.sg/dp/B0H74PY2DB",
+      "requestedAsin": "B0H74PY2DB",
+      "selectedAsin": "B0H74PY2DB",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "d9d107b526d0ea85c229547e30cd75ebd488d5bc98bd8b68e313940445a38f14",
+      "output": {
+        "asin": "B0H74PY2DB",
+        "title": "PopSockets Low-Pro Grip for MagSafe, Thin Profile- Black",
+        "price": 51.07,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B0H74PY2DB",
+        "title": "PopSockets Low-Pro Grip for MagSafe, Thin Profile- Black",
+        "price": 51.07,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [
+        {
+          "code": "field_unavailable",
+          "path": "/availability",
+          "message": "no verified source for this nullable field on the selected page"
+        }
+      ],
+      "wallMs": 2931.0472080000036,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1695830,
+      "externalCostUsd": null
+    },
+    {
+      "index": 86,
+      "url": "https://www.amazon.sg/dp/B07VWSN95S",
+      "requestedAsin": "B07VWSN95S",
+      "selectedAsin": "B07VWSN95S",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "3bee1f9b2155d6e4aa95fa7399640ad03f3867fd9b35af79bdf43d450eec8ec5",
+      "output": {
+        "asin": "B07VWSN95S",
+        "title": "Cerave Cerave Resurfacing Retinol Serum For Post Acne Marks 30ml",
+        "price": null,
+        "currency": null,
+        "seller": null
+      },
+      "visibleWitness": {
+        "asin": "B07VWSN95S",
+        "title": "Cerave Cerave Resurfacing Retinol Serum For Post Acne Marks 30ml",
+        "price": null,
+        "currency": null,
+        "seller": null
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": false,
+          "emitted": false,
+          "match": null
+        },
+        "currency": {
+          "visible": false,
+          "emitted": false,
+          "match": null
+        },
+        "seller": {
+          "visible": false,
+          "emitted": false,
+          "match": null
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [
+        {
+          "code": "field_unavailable",
+          "path": "/price",
+          "message": "no verified source for this nullable field on the selected page"
+        },
+        {
+          "code": "field_unavailable",
+          "path": "/currency",
+          "message": "no verified source for this nullable field on the selected page"
+        },
+        {
+          "code": "field_unavailable",
+          "path": "/seller",
+          "message": "no verified source for this nullable field on the selected page"
+        },
+        {
+          "code": "field_unavailable",
+          "path": "/availability",
+          "message": "no verified source for this nullable field on the selected page"
+        }
+      ],
+      "wallMs": 3124.449457999988,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1651285,
+      "externalCostUsd": null
+    },
+    {
+      "index": 87,
+      "url": "https://www.amazon.sg/dp/B08D664BQ5",
+      "requestedAsin": "B08D664BQ5",
+      "selectedAsin": "B08D664BQ5",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "96da057c79239ce9d66fe208a61dde5d798093961f7eac91a2e505e135af2a61",
+      "output": {
+        "asin": "B08D664BQ5",
+        "title": "Arm & Hammer Odor Busterz Balls Air Freshener and Odor Eliminator, 10-Piece - Deodorizer, Carpet Fresh, Odor Remover, Pet Fresh",
+        "price": 23.84,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B08D664BQ5",
+        "title": "Arm & Hammer Odor Busterz Balls Air Freshener and Odor Eliminator, 10-Piece - Deodorizer, Carpet Fresh, Odor Remover, Pet Fresh",
+        "price": 23.84,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 2938.1011250000156,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1674595,
+      "externalCostUsd": null
+    },
+    {
+      "index": 88,
+      "url": "https://www.amazon.sg/dp/B0C59BYVTQ",
+      "requestedAsin": "B0C59BYVTQ",
+      "selectedAsin": "B0C59BYVTQ",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "d22543709461a38172e0627d4ae512bad7350deb986f63b5ed6cc747778f11c3",
+      "output": {
+        "asin": "B0C59BYVTQ",
+        "title": "Owala FreeSip Insulated Stainless Steel Water Bottle with Straw for Sports and Travel, BPA-Free, 24oz, Dreamy Field",
+        "price": 43.01,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B0C59BYVTQ",
+        "title": "Owala FreeSip Insulated Stainless Steel Water Bottle with Straw for Sports and Travel, BPA-Free, 24oz, Dreamy Field",
+        "price": 43.01,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 3250.375625000015,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 2049635,
+      "externalCostUsd": null
+    },
+    {
+      "index": 89,
+      "url": "https://www.amazon.sg/dp/B0007OECKI",
+      "requestedAsin": "B0007OECKI",
+      "selectedAsin": "B0007OECKI",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "b9f07f6c57c6a74ce43815e5ed6da8a61d7cdabd4ae6db3a8f4251d73fb857ad",
+      "output": {
+        "asin": "B0007OECKI",
+        "title": "Faber Castell 110036 Polychromos Colored Pencils, 36 Colors, Can",
+        "price": 77.6,
+        "currency": "SGD",
+        "seller": "Amazon Japan"
+      },
+      "visibleWitness": {
+        "asin": "B0007OECKI",
+        "title": "Faber Castell 110036 Polychromos Colored Pencils, 36 Colors, Can",
+        "price": 77.6,
+        "currency": "SGD",
+        "seller": "Amazon Japan"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 3145.398917000013,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1849666,
+      "externalCostUsd": null
+    },
+    {
+      "index": 90,
+      "url": "https://www.amazon.sg/dp/B098KD1JQF",
+      "requestedAsin": "B098KD1JQF",
+      "selectedAsin": "B098KD1JQF",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "78b8b6aab3b5370728fd649bfa4fe22f152bd20999a261e913ca3e9126fa163b",
+      "output": {
+        "asin": "B098KD1JQF",
+        "title": "The Rag Company - The Liquid8r - Absorbent 70/30 Blend Microfiber Drying Towel for Cars, Trucks, and SUVs, Safe for Detailing + Scratch Free, Twist Loop Weave, 1100gsm, 20in x 24in, Aqua Blue/Grey",
+        "price": 31.41,
+        "currency": "SGD",
+        "seller": "Amazon Japan"
+      },
+      "visibleWitness": {
+        "asin": "B098KD1JQF",
+        "title": "The Rag Company - The Liquid8r - Absorbent 70/30 Blend Microfiber Drying Towel for Cars, Trucks, and SUVs, Safe for Detailing + Scratch Free, Twist Loop Weave, 1100gsm, 20in x 24in, Aqua Blue/Grey",
+        "price": 31.41,
+        "currency": "SGD",
+        "seller": "Amazon Japan"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 3031.0136250000214,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1766955,
+      "externalCostUsd": null
+    },
+    {
+      "index": 91,
+      "url": "https://www.amazon.sg/dp/B0D4DR33P7",
+      "requestedAsin": "B0D4DR33P7",
+      "selectedAsin": "B0D4DR33P7",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "ccb10f0023339985124563bea3c02f209c660a0d8b283133898af312c9432a55",
+      "output": {
+        "asin": "B0D4DR33P7",
+        "title": "Duracell AA Alkaline Batteries, 10 Pack, Shelf Life, 10 Years, PC Mouse, Keyboard, Remote Control, Clock, Toys, Rabbit Battery",
+        "price": 9.27,
+        "currency": "SGD",
+        "seller": "Amazon Japan"
+      },
+      "visibleWitness": {
+        "asin": "B0D4DR33P7",
+        "title": "Duracell AA Alkaline Batteries, 10 Pack, Shelf Life, 10 Years, PC Mouse, Keyboard, Remote Control, Clock, Toys, Rabbit Battery",
+        "price": 9.27,
+        "currency": "SGD",
+        "seller": "Amazon Japan"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 2958.3659169999883,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1249864,
+      "externalCostUsd": null
+    },
+    {
+      "index": 92,
+      "url": "https://www.amazon.sg/dp/B0009RFB76",
+      "requestedAsin": "B0009RFB76",
+      "selectedAsin": "B0009RFB76",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "95cf694d53c8140c2ff65b9cecfa8ae21c970ed3d3b492d1a2bb93be2134e107",
+      "output": {
+        "asin": "B0009RFB76",
+        "title": "RoC Retinol Correxion Line Smoothing Anti-Aging Retinol Eye Cream for Dark Circles and Puffy Eyes, 0.5 Ounce (Packaging May Vary)",
+        "price": 28.59,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B0009RFB76",
+        "title": "RoC Retinol Correxion Line Smoothing Anti-Aging Retinol Eye Cream for Dark Circles and Puffy Eyes, 0.5 Ounce (Packaging May Vary)",
+        "price": 28.59,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 2934.426625000022,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1688790,
+      "externalCostUsd": null
+    },
+    {
+      "index": 93,
+      "url": "https://www.amazon.sg/dp/B00GZQYK4K",
+      "requestedAsin": "B00GZQYK4K",
+      "selectedAsin": "B00GZQYK4K",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "39b5af510e8a6e09db3945ed31c4d9f0679e6c07ca17d6a78f05899123c53bbb",
+      "output": {
+        "asin": "B00GZQYK4K",
+        "title": "Wahl 100% Natural Pet No-Rinse Waterless Shampoo Lavender #820014",
+        "price": null,
+        "currency": null,
+        "seller": null
+      },
+      "visibleWitness": {
+        "asin": "B00GZQYK4K",
+        "title": "Wahl 100% Natural Pet No-Rinse Waterless Shampoo Lavender #820014",
+        "price": null,
+        "currency": null,
+        "seller": null
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": false,
+          "emitted": false,
+          "match": null
+        },
+        "currency": {
+          "visible": false,
+          "emitted": false,
+          "match": null
+        },
+        "seller": {
+          "visible": false,
+          "emitted": false,
+          "match": null
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [
+        {
+          "code": "field_unavailable",
+          "path": "/price",
+          "message": "no verified source for this nullable field on the selected page"
+        },
+        {
+          "code": "field_unavailable",
+          "path": "/currency",
+          "message": "no verified source for this nullable field on the selected page"
+        },
+        {
+          "code": "field_unavailable",
+          "path": "/seller",
+          "message": "no verified source for this nullable field on the selected page"
+        },
+        {
+          "code": "field_unavailable",
+          "path": "/availability",
+          "message": "no verified source for this nullable field on the selected page"
+        }
+      ],
+      "wallMs": 3097.431500000006,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1693692,
+      "externalCostUsd": null
+    },
+    {
+      "index": 94,
+      "url": "https://www.amazon.sg/dp/B0C3W7P8VS",
+      "requestedAsin": "B0C3W7P8VS",
+      "selectedAsin": "B0C3W7P8VS",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "6eb1927456f087f5c97b98d769f73c1621bbf10c93921d7f9c7c9e0cd1c4433e",
+      "output": {
+        "asin": "B0C3W7P8VS",
+        "title": "Speedo Unisex Kids Biofuse 2.0 Goggles (pack of 1)",
+        "price": 25.09,
+        "currency": "SGD",
+        "seller": "Amazon Germany"
+      },
+      "visibleWitness": {
+        "asin": "B0C3W7P8VS",
+        "title": "Speedo Unisex Kids Biofuse 2.0 Goggles (pack of 1)",
+        "price": 25.09,
+        "currency": "SGD",
+        "seller": "Amazon Germany"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 2901.3257079999894,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1512814,
+      "externalCostUsd": null
+    },
+    {
+      "index": 95,
+      "url": "https://www.amazon.sg/dp/B0FYWXQ1SZ",
+      "requestedAsin": "B0FYWXQ1SZ",
+      "selectedAsin": "B0FYWXQ1SZ",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "4105135b4e1cde68518402869a8ce26522017fd2862d466d19f76611bd1c7aac",
+      "output": {
+        "asin": "B0FYWXQ1SZ",
+        "title": "Kitera PILOT Multi-Function Pen Doctor Grip 4+1 4 Colors 0.7 + Sharp 0.5mm Marvel Iron Man K-DGT-IRO",
+        "price": 15.65,
+        "currency": "SGD",
+        "seller": "Amazon Japan"
+      },
+      "visibleWitness": {
+        "asin": "B0FYWXQ1SZ",
+        "title": "Kitera PILOT Multi-Function Pen Doctor Grip 4+1 4 Colors 0.7 + Sharp 0.5mm Marvel Iron Man K-DGT-IRO",
+        "price": 15.65,
+        "currency": "SGD",
+        "seller": "Amazon Japan"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [
+        {
+          "code": "field_unavailable",
+          "path": "/rating",
+          "message": "no verified source for this nullable field on the selected page"
+        },
+        {
+          "code": "field_unavailable",
+          "path": "/reviewCount",
+          "message": "no verified source for this nullable field on the selected page"
+        }
+      ],
+      "wallMs": 2899.884374999994,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1376601,
+      "externalCostUsd": null
+    },
+    {
+      "index": 96,
+      "url": "https://www.amazon.sg/dp/B07451ZLW2",
+      "requestedAsin": "B07451ZLW2",
+      "selectedAsin": "B07451ZLW2",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "e6e657218e15768ac2b54c067a8b829b438531efed0d7efce0365d28c58f37f1",
+      "output": {
+        "asin": "B07451ZLW2",
+        "title": "Griffin Leather Conditioner Restorer & Polish – 4 Oz – Deep Conditioning Balm for Boots, Shoes, Bags & Furniture – Better Leather Care with Natural Ingredients for Softening & Protection",
+        "price": 24.69,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B07451ZLW2",
+        "title": "Griffin Leather Conditioner Restorer & Polish – 4 Oz – Deep Conditioning Balm for Boots, Shoes, Bags & Furniture – Better Leather Care with Natural Ingredients for Softening & Protection",
+        "price": 24.69,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 2845.034249999997,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1071260,
+      "externalCostUsd": null
+    },
+    {
+      "index": 97,
+      "url": "https://www.amazon.sg/dp/B0F99D67FQ",
+      "requestedAsin": "B0F99D67FQ",
+      "selectedAsin": "B0F99D67FQ",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "6555fc340dbf33073d9db02a047b973b10cec3db6af2e28c570d1e72b6cb658c",
+      "output": {
+        "asin": "B0F99D67FQ",
+        "title": "DJI Mic 3 - Wireless Mic | 28-Hour Battery Life | Up To 4TX + 8RX Collaboration | Dual File & 32-bit Internal Recording (Mic 3 Transmitter)",
+        "price": 118.17,
+        "currency": "SGD",
+        "seller": "Amazon Germany"
+      },
+      "visibleWitness": {
+        "asin": "B0F99D67FQ",
+        "title": "DJI Mic 3 - Wireless Mic | 28-Hour Battery Life | Up To 4TX + 8RX Collaboration | Dual File & 32-bit Internal Recording (Mic 3 Transmitter)",
+        "price": 118.17,
+        "currency": "SGD",
+        "seller": "Amazon Germany"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 3046.1935419999936,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1802629,
+      "externalCostUsd": null
+    },
+    {
+      "index": 98,
+      "url": "https://www.amazon.sg/dp/B08CQDF382",
+      "requestedAsin": "B08CQDF382",
+      "selectedAsin": "B08CQDF382",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "e25dab4e2f1df2f14d35fe1e54f5104caab0c6221b86956df0c6dfa4eb9a8318",
+      "output": {
+        "asin": "B08CQDF382",
+        "title": "CeraVe Hydrating Cream-to-Foam Cleanser | Hydrating Makeup Remover and Face Wash With Hyaluronic Acid | Fragrance Free Non-Comedogenic | 19 Fluid Ounce",
+        "price": 24.9,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "visibleWitness": {
+        "asin": "B08CQDF382",
+        "title": "CeraVe Hydrating Cream-to-Foam Cleanser | Hydrating Makeup Remover and Face Wash With Hyaluronic Acid | Fragrance Free Non-Comedogenic | 19 Fluid Ounce",
+        "price": 24.9,
+        "currency": "SGD",
+        "seller": "Amazon US"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 3224.024959000002,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1901923,
+      "externalCostUsd": null
+    },
+    {
+      "index": 99,
+      "url": "https://www.amazon.sg/dp/B0BGXW1KSF",
+      "requestedAsin": "B0BGXW1KSF",
+      "selectedAsin": "B0BGXW1KSF",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "71be02399846011bb21840789249d528f47c82db6f89e5f0d8bc9833104adbcb",
+      "output": {
+        "asin": "B0BGXW1KSF",
+        "title": "Dog Poop Bag 1140 Counts 57 Rolls, Unscented Doggy Poop Bags, Leak-Proof Dog Bags for Poop, Dog Waste Bags with Dispenser (13 x 9 Inches)",
+        "price": null,
+        "currency": null,
+        "seller": null
+      },
+      "visibleWitness": {
+        "asin": "B0BGXW1KSF",
+        "title": "Dog Poop Bag 1140 Counts 57 Rolls, Unscented Doggy Poop Bags, Leak-Proof Dog Bags for Poop, Dog Waste Bags with Dispenser (13 x 9 Inches)",
+        "price": null,
+        "currency": null,
+        "seller": null
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": false,
+          "emitted": false,
+          "match": null
+        },
+        "currency": {
+          "visible": false,
+          "emitted": false,
+          "match": null
+        },
+        "seller": {
+          "visible": false,
+          "emitted": false,
+          "match": null
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [
+        {
+          "code": "field_unavailable",
+          "path": "/price",
+          "message": "no verified source for this nullable field on the selected page"
+        },
+        {
+          "code": "field_unavailable",
+          "path": "/currency",
+          "message": "no verified source for this nullable field on the selected page"
+        },
+        {
+          "code": "field_unavailable",
+          "path": "/seller",
+          "message": "no verified source for this nullable field on the selected page"
+        },
+        {
+          "code": "field_unavailable",
+          "path": "/availability",
+          "message": "no verified source for this nullable field on the selected page"
+        }
+      ],
+      "wallMs": 2882.374792000017,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1481545,
+      "externalCostUsd": null
+    },
+    {
+      "index": 100,
+      "url": "https://www.amazon.sg/dp/B0GQN2VM88",
+      "requestedAsin": "B0GQN2VM88",
+      "selectedAsin": "B0GQN2VM88",
+      "captureStatus": "success",
+      "structuredStatus": "complete",
+      "failureReason": null,
+      "blockReason": null,
+      "deliveryLocation": "Singapore 238823",
+      "rawBodySha256": "cd8ac4e76d9c47f415351070c0f6098f5ff1765a8c69fcd0786ee29b6efc1a42",
+      "output": {
+        "asin": "B0GQN2VM88",
+        "title": "owala FreeSip Water Bottle Coastal Mist 710ml FreeSip 24oz",
+        "price": 48.27,
+        "currency": "SGD",
+        "seller": "Amazon Japan"
+      },
+      "visibleWitness": {
+        "asin": "B0GQN2VM88",
+        "title": "owala FreeSip Water Bottle Coastal Mist 710ml FreeSip 24oz",
+        "price": 48.27,
+        "currency": "SGD",
+        "seller": "Amazon Japan"
+      },
+      "checks": {
+        "asin": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "title": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "price": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "currency": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        },
+        "seller": {
+          "visible": true,
+          "emitted": true,
+          "match": true
+        }
+      },
+      "recommendationAsinLeaks": [],
+      "recommendationImageLeaks": [],
+      "issues": [],
+      "wallMs": 2934.1308750000026,
+      "statusRetryCount": 0,
+      "navigationFollowupCount": 0,
+      "bytesDecompressed": 1534378,
+      "externalCostUsd": null
+    }
+  ]
+}

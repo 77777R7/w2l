@@ -247,6 +247,12 @@ there is no deployed public MCP URL, verified WorkOS browser OAuth flow, or
 permanent hosted service yet. This transport and hosting are C3; Monitor/
 Delivery tool semantics are C2.
 
+The [dual-flow local transport diagnostic](../evidence/dual-flow-mvp-local-100-2026-09-23.md)
+captured 100/100 frozen Amazon subjects on clean code and repeated the public
+document → HTTPS delivery → restart workflow locally. Human raw-page signoff,
+hosted identity/egress/cost measurements and the pre-registered 1000-page
+reliability gate remain open; this evidence does not promote C3 to hosted.
+
 Accept separately:
 
 1. Connection: authenticated client can connect and discover tools.

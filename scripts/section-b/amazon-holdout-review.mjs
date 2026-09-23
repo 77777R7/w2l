@@ -13,7 +13,11 @@ const report = JSON.parse(await readFile(reportPath, 'utf8'))
 if (!report.source?.manifest?.includes('holdout-100') || report.records?.length !== 100) {
   throw new Error('expected exactly 100 frozen holdout captures')
 }
-const outputRoot = report.source.manifest.includes('-sg.') ? '.w2l/amazon-holdout-sg' : '.w2l/amazon-holdout'
+const outputDirFlag = process.argv.indexOf('--output-dir')
+const outputRoot = outputDirFlag < 0
+  ? report.source.manifest.includes('-sg.') ? '.w2l/amazon-holdout-sg' : '.w2l/amazon-holdout'
+  : process.argv[outputDirFlag + 1]
+if (!outputRoot) throw new Error('--output-dir requires a path')
 const fields = ['asin', 'title', 'price', 'currency', 'seller']
 function clean(value) {
   return typeof value === 'string' ? value.replace(/[\u200c-\u200f\u202a-\u202e]/g, '').replace(/\s+/g, ' ').trim() || null : value ?? null
