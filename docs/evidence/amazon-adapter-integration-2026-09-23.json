@@ -1,0 +1,4604 @@
+{
+  "kind": "amazon-adapter-integration-ten-product-evidence",
+  "status": "engineering_gates_passed_human_field_signoff_pending",
+  "generatedAt": "2026-09-23T04:35:21.025Z",
+  "source": {
+    "commit": "04ce58156e7c69e35afcc2ac3b5d15b8f207ed77",
+    "dirty": false,
+    "node": "v26.8.1",
+    "npm": "11.19.0",
+    "manifest": "research/amazon-product-baseline.v1.json",
+    "manifestSha256": "0150b8e19124e9abb7d24fa892dc44747a36c63c80adf95b9ede7940a840484a",
+    "schema": "research/amazon-product-schema.v1.json",
+    "schemaSha256": "fdb13640d8a26c642b447ff44f5e4ecd1331dd5b87d92168def88d183c2fbc8b",
+    "anonymousStateSha256": "46da30659105f7018e15f1b3b294630d8ac27cb47f960751f4156ad38e375b0c",
+    "anonymousStateFile": ".w2l/amazon-baseline/anonymous-public-state.json",
+    "baselineLane": "browser_local_only",
+    "concurrency": 1,
+    "egressLabel": "local-default-network",
+    "identity": "Chrome/Playwright anonymous",
+    "language": "en-US"
+  },
+  "review": {
+    "sourceCaptureSha": "04ce58156e7c69e35afcc2ac3b5d15b8f207ed77",
+    "scoredFields": [
+      "asin",
+      "title",
+      "price",
+      "currency",
+      "seller"
+    ],
+    "candidateAssessment": {
+      "method": "raw HTML witnesses independent of adapter output; automated draft only, not Howard signoff",
+      "scoredFields": [
+        "asin",
+        "title",
+        "price",
+        "currency",
+        "seller"
+      ],
+      "accuracy": {
+        "correct": 105,
+        "emitted": 105,
+        "rate": 1
+      },
+      "coverage": {
+        "output": 105,
+        "visibleApplicable": 105,
+        "rate": 1
+      },
+      "counts": {
+        "asin": {
+          "visible": 30,
+          "output": 30,
+          "correct": 30
+        },
+        "title": {
+          "visible": 30,
+          "output": 30,
+          "correct": 30
+        },
+        "price": {
+          "visible": 15,
+          "output": 15,
+          "correct": 15
+        },
+        "currency": {
+          "visible": 15,
+          "output": 15,
+          "correct": 15
+        },
+        "seller": {
+          "visible": 15,
+          "output": 15,
+          "correct": 15
+        }
+      },
+      "mismatches": []
+    },
+    "entryCount": 30,
+    "humanSignoff": {
+      "reviewer": null,
+      "signedAt": null,
+      "status": "pending"
+    },
+    "scope": "Candidate values came from independent raw HTML witnesses; reviewer must inspect raw pages and confirm visible applicability, exact values, and recommendation exclusion."
+  },
+  "runs": [
+    {
+      "concurrency": 1,
+      "sourceReportName": "2026-09-23T04-29-46-661Z.json",
+      "sourceReportSha256": "28a328fbb89f2333396ae395027d4187b63694293f9e12c6ca36a89d11fa676a",
+      "startedAt": "2026-09-23T04:27:42.164Z",
+      "endedAt": "2026-09-23T04:29:46.661Z",
+      "summary": {
+        "discoveryRecords": 10,
+        "discoverySuccesses": 10,
+        "comparableRecords": 20,
+        "regionMismatchRecords": 0,
+        "currencyMismatchRecords": 0,
+        "marketplaceMismatchRecords": 0,
+        "successes": 20,
+        "blocked": 0,
+        "failed": 0,
+        "notAttempted": 0,
+        "clientMs": {
+          "p50": 3695.391499999998,
+          "p95": 4370.745374999999,
+          "total": 75579.938999
+        },
+        "tenPageRunMs": {
+          "values": [
+            40725.966208,
+            37654.344000000005,
+            37927.19825
+          ],
+          "median": 37927.19825,
+          "targetMs": 20000,
+          "passed": false
+        },
+        "totalMs": {
+          "p50": 3691.6712909999915,
+          "p95": 4367.948958000008
+        },
+        "stageTimings": {
+          "queueMs": {
+            "p50": 0.007291000001714565,
+            "p95": 0.008207999999285676,
+            "total": 0.16070700000273064
+          },
+          "robotsMs": {
+            "p50": null,
+            "p95": null,
+            "total": 0
+          },
+          "retryWaitMs": {
+            "p50": null,
+            "p95": null,
+            "total": 0
+          },
+          "requestMs": {
+            "p50": null,
+            "p95": null,
+            "total": 0
+          },
+          "bodyReadMs": {
+            "p50": null,
+            "p95": null,
+            "total": 0
+          },
+          "parseMs": {
+            "p50": null,
+            "p95": null,
+            "total": 0
+          },
+          "extractMs": {
+            "p50": null,
+            "p95": null,
+            "total": 0
+          },
+          "serializeMs": {
+            "p50": 0.007583999991766177,
+            "p95": 0.008916999999200925,
+            "total": 0.15508500002761139
+          },
+          "totalMs": {
+            "p50": 3691.6712909999915,
+            "p95": 4367.948958000008,
+            "total": 75504.23933500003
+          }
+        },
+        "attempts": {
+          "total": 30,
+          "retriedRecords": 0
+        },
+        "responseBytes": {
+          "p50": 3303,
+          "p95": 4335,
+          "total": 67837
+        },
+        "checks": {
+          "asinExact": 20,
+          "titlePresent": 20,
+          "priceCurrencyConsistent": 20,
+          "recommendationLeakFree": 20,
+          "evidenceBacked": 20,
+          "coverage": {
+            "asin": 20,
+            "title": 20,
+            "price": 10,
+            "currency": 10,
+            "seller": 10
+          },
+          "denominator": 20
+        }
+      },
+      "responseSize": {
+        "url": "https://www.amazon.com/dp/B08KT2Z93D",
+        "actualCompactBytes": 76528,
+        "sameCaptureCompactBytes": 76528,
+        "debugBytes": 196899,
+        "ratio": 0.3886662705244821,
+        "nestedBodyAbsent": true,
+        "passed": true
+      },
+      "acceptance": {
+        "automatedPassed": false,
+        "promotionEligible": false,
+        "reason": "promotion also requires reviewed field labels; this runner does not self-certify manual 98% accuracy"
+      },
+      "records": [
+        {
+          "round": 1,
+          "index": 1,
+          "asin": "B08KT2Z93D",
+          "requestedUrl": "https://www.amazon.com/dp/B08KT2Z93D",
+          "finalUrl": "https://www.amazon.sg/dp/B08KT2Z93D?ref_=mr_direct_us_sg_sg&showmri=undefined&th=1",
+          "capturedAt": "2026-09-23T04:27:47.756Z",
+          "rawBodySha256": "f58aa9c68b2efcc03330b4a2a40d0068c030aed84b201a2719a0de69ffe6ed98",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "region_discovery",
+          "region": "Singapore",
+          "locationText": "Singapore 238823",
+          "currency": null,
+          "clientMs": 5047.578541999999,
+          "totalMs": 5030.7955,
+          "attemptCount": 1,
+          "responseBytes": 3717,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B08KT2Z93D",
+            "title": "eos Shea Better Body Lotion- Vanilla Cashmere, 24-Hour Moisture, 16 fl oz",
+            "price": null,
+            "currency": null,
+            "seller": null,
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 1,
+          "index": 2,
+          "asin": "B09V7Z4TJG",
+          "requestedUrl": "https://www.amazon.com/dp/B09V7Z4TJG",
+          "finalUrl": "https://www.amazon.sg/dp/B09V7Z4TJG?ref_=mr_direct_us_sg_sg&showmri=undefined&th=1",
+          "capturedAt": "2026-09-23T04:27:51.718Z",
+          "rawBodySha256": "769cd7f0a09c01a474fdaba4a4209ff9cd203ea2d8f1c38cf51e8b1640089b48",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "region_discovery",
+          "region": "Singapore",
+          "locationText": "Singapore 238823",
+          "currency": null,
+          "clientMs": 3961.635208999999,
+          "totalMs": 3957.987875,
+          "attemptCount": 1,
+          "responseBytes": 3282,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B09V7Z4TJG",
+            "title": "Medicube Zero Pore Pad 2.0 | 70 sheets | AHA+BHA pore + acne care | Gentle exfoliating & peeling | No sulfates & parabens",
+            "price": null,
+            "currency": null,
+            "seller": null,
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 1,
+          "index": 3,
+          "asin": "B07PBXXNCY",
+          "requestedUrl": "https://www.amazon.com/dp/B07PBXXNCY",
+          "finalUrl": "https://www.amazon.sg/dp/B07PBXXNCY?ref_=mr_direct_us_sg_sg&showmri=undefined&th=1",
+          "capturedAt": "2026-09-23T04:27:55.900Z",
+          "rawBodySha256": "981dca42284a850681c961ebee4bd9bd3f0e48401fdda29bd64752afe2d62c42",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "region_discovery",
+          "region": "Singapore",
+          "locationText": "Singapore 238823",
+          "currency": "SGD",
+          "clientMs": 4182.545708,
+          "totalMs": 4179.111667000001,
+          "attemptCount": 1,
+          "responseBytes": 4042,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B07PBXXNCY",
+            "title": "Clean Skin Club Clean Towels XL®, 100% USDA Biobased Face Towel, Disposable Face Towelette, Eczema Association Accepted, Makeup Remover Dry Wipes, Ultra Soft, 50 Count",
+            "price": 32.73,
+            "currency": "SGD",
+            "seller": "Amazon US",
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 1,
+          "index": 4,
+          "asin": "B00F1U0YB4",
+          "requestedUrl": "https://www.amazon.com/dp/B00F1U0YB4",
+          "finalUrl": "https://www.amazon.sg/dp/B00F1U0YB4?ref_=mr_direct_us_sg_sg&showmri=undefined&th=1",
+          "capturedAt": "2026-09-23T04:27:59.867Z",
+          "rawBodySha256": "67e802956b05d6505910c11938b599e454668eb28bd5e94e226d98432e5bf447",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "region_discovery",
+          "region": "Singapore",
+          "locationText": "Singapore 238823",
+          "currency": "SGD",
+          "clientMs": 3966.4434589999983,
+          "totalMs": 3963.1806670000005,
+          "attemptCount": 1,
+          "responseBytes": 4355,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B00F1U0YB4",
+            "title": "Mrs. Meyer's Liquid Hand Soap Refill, Cruelty Free and Biodegradable Hand Wash Formula Made with Essential Oils, Lemon Verbena Scent, 33 oz",
+            "price": 19.24,
+            "currency": "SGD",
+            "seller": "Amazon US",
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 1,
+          "index": 5,
+          "asin": "B09542G9ZN",
+          "requestedUrl": "https://www.amazon.com/dp/B09542G9ZN",
+          "finalUrl": "https://www.amazon.com/dp/B09542G9ZN?th=1",
+          "capturedAt": "2026-09-23T04:28:04.280Z",
+          "rawBodySha256": "078ab560e7ee4bf2cd0f5d78463a85f25bdda66b961e015d712f9a34eeda5f56",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "region_discovery",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": "SGD",
+          "clientMs": 4413.753416,
+          "totalMs": 4410.424459000002,
+          "attemptCount": 1,
+          "responseBytes": 3878,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B09542G9ZN",
+            "title": "Amazon Essentials 100% Cotton Rounds, 100 Count (Previously Amazon Basics)",
+            "price": 3.77,
+            "currency": "SGD",
+            "seller": "Amazon.com",
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 1,
+          "index": 6,
+          "asin": "B09541P9WH",
+          "requestedUrl": "https://www.amazon.com/dp/B09541P9WH",
+          "finalUrl": "https://www.amazon.com/dp/B09541P9WH",
+          "capturedAt": "2026-09-23T04:28:08.270Z",
+          "rawBodySha256": "14db7cc62ec3df7a2b86cddda04aeef32bc5bd2e8ca63d44f55402103dc278b5",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "region_discovery",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": "SGD",
+          "clientMs": 3989.2118749999972,
+          "totalMs": 3985.730292,
+          "attemptCount": 1,
+          "responseBytes": 3813,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B09541P9WH",
+            "title": "Amazon Essentials Cotton Swabs, 500 Count (Previously Amazon Basics)",
+            "price": 3.4,
+            "currency": "SGD",
+            "seller": "Amazon.com",
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 1,
+          "index": 7,
+          "asin": "B08JHCVHTY",
+          "requestedUrl": "https://www.amazon.com/dp/B08JHCVHTY",
+          "finalUrl": "https://www.amazon.com/dp/B08JHCVHTY",
+          "capturedAt": "2026-09-23T04:28:12.554Z",
+          "rawBodySha256": "654287cc5da1507efc79db58d36af2da4933a0e9b0aa06b51aa06133c1f43532",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "region_discovery",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": "USD",
+          "clientMs": 4284.450832999999,
+          "totalMs": 4281.285832999998,
+          "attemptCount": 1,
+          "responseBytes": 2418,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B08JHCVHTY",
+            "title": "blink plus subscription plan",
+            "price": 11.99,
+            "currency": "USD",
+            "seller": "Blink",
+            "kind": "subscription"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 1,
+          "index": 8,
+          "asin": "B0DCH8VDXF",
+          "requestedUrl": "https://www.amazon.com/dp/B0DCH8VDXF",
+          "finalUrl": "https://www.amazon.com/dp/B0DCH8VDXF?th=1",
+          "capturedAt": "2026-09-23T04:28:15.775Z",
+          "rawBodySha256": "2816349beb1408d6f8f860b4660aa38a58f904720ac9fb2421eef9452f21c8fc",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "region_discovery",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": null,
+          "clientMs": 3221.0792500000025,
+          "totalMs": 3217.644124999999,
+          "attemptCount": 1,
+          "responseBytes": 2751,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B0DCH8VDXF",
+            "title": "Apple EarPods Headphones with USB-C Plug, Wired Ear Buds with Built-in Remote to Control Music, Phone Calls, and Volume",
+            "price": null,
+            "currency": null,
+            "seller": null,
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 1,
+          "index": 9,
+          "asin": "B0GJTFXNRX",
+          "requestedUrl": "https://www.amazon.com/dp/B0GJTFXNRX",
+          "finalUrl": "https://www.amazon.com/dp/B0GJTFXNRX",
+          "capturedAt": "2026-09-23T04:28:19.520Z",
+          "rawBodySha256": "c2fd9719ef075daca5715de6ede4d33576e5d7cc0da25221927db654c29967e0",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "region_discovery",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": null,
+          "clientMs": 3745.0445000000036,
+          "totalMs": 3741.829540999999,
+          "attemptCount": 1,
+          "responseBytes": 2907,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B0GJTFXNRX",
+            "title": "Apple AirTag (2nd Generation): Tracker for Keychain, Wallet, and More; Locator with Sound; Simple One-Tap Setup with iPhone or iPad; Key Finder with up to 1.5X Precision Finding Range",
+            "price": null,
+            "currency": null,
+            "seller": null,
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 1,
+          "index": 10,
+          "asin": "B0FQFB8FMG",
+          "requestedUrl": "https://www.amazon.com/dp/B0FQFB8FMG",
+          "finalUrl": "https://www.amazon.com/dp/B0FQFB8FMG",
+          "capturedAt": "2026-09-23T04:28:23.433Z",
+          "rawBodySha256": "983fb14c20162c6348d256bc317674c597da4bb455cbcd28e6930f3f979c2eb5",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "region_discovery",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": null,
+          "clientMs": 3913.173791000001,
+          "totalMs": 3909.9376669999983,
+          "attemptCount": 1,
+          "responseBytes": 2707,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B0FQFB8FMG",
+            "title": "Apple AirPods Pro 3 Wireless Earbuds with Active Noise Cancellation",
+            "price": null,
+            "currency": null,
+            "seller": null,
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 2,
+          "index": 1,
+          "asin": "B08KT2Z93D",
+          "requestedUrl": "https://www.amazon.com/dp/B08KT2Z93D",
+          "finalUrl": "https://www.amazon.sg/dp/B08KT2Z93D?ref_=mr_direct_us_sg_sg&showmri=undefined&th=1",
+          "capturedAt": "2026-09-23T04:28:27.562Z",
+          "rawBodySha256": "e3c3ac5b6b90ad1f027ec375b095c511d7d170539b35ac1318140a563696c7d8",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore 238823",
+          "currency": null,
+          "clientMs": 4111.857250000001,
+          "totalMs": 4108.945249999997,
+          "attemptCount": 1,
+          "responseBytes": 3738,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B08KT2Z93D",
+            "title": "eos Shea Better Body Lotion- Vanilla Cashmere, 24-Hour Moisture, 16 fl oz",
+            "price": null,
+            "currency": null,
+            "seller": null,
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 2,
+          "index": 2,
+          "asin": "B09V7Z4TJG",
+          "requestedUrl": "https://www.amazon.com/dp/B09V7Z4TJG",
+          "finalUrl": "https://www.amazon.sg/dp/B09V7Z4TJG?ref_=mr_direct_us_sg_sg&showmri=undefined&th=1",
+          "capturedAt": "2026-09-23T04:28:31.520Z",
+          "rawBodySha256": "1a66420c1c941825b2fa39f8a9c016edf6dc4891b2e573ed9af62e9fb2c79fd9",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore 238823",
+          "currency": null,
+          "clientMs": 3958.662415999999,
+          "totalMs": 3955.741374999998,
+          "attemptCount": 1,
+          "responseBytes": 3300,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B09V7Z4TJG",
+            "title": "Medicube Zero Pore Pad 2.0 | 70 sheets | AHA+BHA pore + acne care | Gentle exfoliating & peeling | No sulfates & parabens",
+            "price": null,
+            "currency": null,
+            "seller": null,
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 2,
+          "index": 3,
+          "asin": "B07PBXXNCY",
+          "requestedUrl": "https://www.amazon.com/dp/B07PBXXNCY",
+          "finalUrl": "https://www.amazon.sg/dp/B07PBXXNCY?ref_=mr_direct_us_sg_sg&showmri=undefined&th=1",
+          "capturedAt": "2026-09-23T04:28:35.089Z",
+          "rawBodySha256": "abac4c7aa665b21ea89ef7736c487f1eea60ab3b62b15149c5ed2a50834197b3",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore 238823",
+          "currency": "SGD",
+          "clientMs": 3568.484375,
+          "totalMs": 3564.8804170000003,
+          "attemptCount": 1,
+          "responseBytes": 4045,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B07PBXXNCY",
+            "title": "Clean Skin Club Clean Towels XL®, 100% USDA Biobased Face Towel, Disposable Face Towelette, Eczema Association Accepted, Makeup Remover Dry Wipes, Ultra Soft, 50 Count",
+            "price": 32.73,
+            "currency": "SGD",
+            "seller": "Amazon US",
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 2,
+          "index": 4,
+          "asin": "B00F1U0YB4",
+          "requestedUrl": "https://www.amazon.com/dp/B00F1U0YB4",
+          "finalUrl": "https://www.amazon.sg/dp/B00F1U0YB4?ref_=mr_direct_us_sg_sg&showmri",
+          "capturedAt": "2026-09-23T04:28:38.443Z",
+          "rawBodySha256": "edeb3228e3d96016343eeffea9a0149f5e9d35b1013f23dfb8ef97ec33a929ed",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore 238823",
+          "currency": "SGD",
+          "clientMs": 3354.5396669999973,
+          "totalMs": 3351.127959000005,
+          "attemptCount": 1,
+          "responseBytes": 4338,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B00F1U0YB4",
+            "title": "Mrs. Meyer's Liquid Hand Soap Refill, Cruelty Free and Biodegradable Hand Wash Formula Made with Essential Oils, Lemon Verbena Scent, 33 oz",
+            "price": 19.24,
+            "currency": "SGD",
+            "seller": "Amazon US",
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 2,
+          "index": 5,
+          "asin": "B09542G9ZN",
+          "requestedUrl": "https://www.amazon.com/dp/B09542G9ZN",
+          "finalUrl": "https://www.amazon.com/dp/B09542G9ZN",
+          "capturedAt": "2026-09-23T04:28:42.514Z",
+          "rawBodySha256": "099a47345fdb989e57a35141a3582c75653177c101137f57e283755dcfd64ab2",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": "SGD",
+          "clientMs": 4070.9297920000026,
+          "totalMs": 4068.0419170000023,
+          "attemptCount": 1,
+          "responseBytes": 3876,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B09542G9ZN",
+            "title": "Amazon Essentials 100% Cotton Rounds, 100 Count (Previously Amazon Basics)",
+            "price": 3.77,
+            "currency": "SGD",
+            "seller": "Amazon.com",
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 2,
+          "index": 6,
+          "asin": "B09541P9WH",
+          "requestedUrl": "https://www.amazon.com/dp/B09541P9WH",
+          "finalUrl": "https://www.amazon.com/dp/B09541P9WH",
+          "capturedAt": "2026-09-23T04:28:46.239Z",
+          "rawBodySha256": "57226c034e90b6f12bd05bda7938b7bc456ecef7759c3a93f3cd73f6dfea6172",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": "SGD",
+          "clientMs": 3725.1376249999958,
+          "totalMs": 3720.8949580000044,
+          "attemptCount": 1,
+          "responseBytes": 3834,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B09541P9WH",
+            "title": "Amazon Essentials Cotton Swabs, 500 Count (Previously Amazon Basics)",
+            "price": 3.4,
+            "currency": "SGD",
+            "seller": "Amazon.com",
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 2,
+          "index": 7,
+          "asin": "B08JHCVHTY",
+          "requestedUrl": "https://www.amazon.com/dp/B08JHCVHTY",
+          "finalUrl": "https://www.amazon.com/dp/B08JHCVHTY",
+          "capturedAt": "2026-09-23T04:28:50.613Z",
+          "rawBodySha256": "6b36cfdb065ae553a9d85ada106850a0262b05ed0d07295497a35acc2e1c8cfc",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": "USD",
+          "clientMs": 4373.189582999999,
+          "totalMs": 4369.135500000004,
+          "attemptCount": 1,
+          "responseBytes": 2418,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B08JHCVHTY",
+            "title": "blink plus subscription plan",
+            "price": 11.99,
+            "currency": "USD",
+            "seller": "Blink",
+            "kind": "subscription"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 2,
+          "index": 8,
+          "asin": "B0DCH8VDXF",
+          "requestedUrl": "https://www.amazon.com/dp/B0DCH8VDXF",
+          "finalUrl": "https://www.amazon.com/dp/B0DCH8VDXF?th=1",
+          "capturedAt": "2026-09-23T04:28:54.084Z",
+          "rawBodySha256": "76e1b40a8629e93c10c268fc782310ea9eddc39c31e51740a7385d6c8f43397a",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": null,
+          "clientMs": 3471.2082910000026,
+          "totalMs": 3468.4695409999986,
+          "attemptCount": 1,
+          "responseBytes": 2754,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B0DCH8VDXF",
+            "title": "Apple EarPods Headphones with USB-C Plug, Wired Ear Buds with Built-in Remote to Control Music, Phone Calls, and Volume",
+            "price": null,
+            "currency": null,
+            "seller": null,
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 2,
+          "index": 9,
+          "asin": "B0GJTFXNRX",
+          "requestedUrl": "https://www.amazon.com/dp/B0GJTFXNRX",
+          "finalUrl": "https://www.amazon.com/dp/B0GJTFXNRX",
+          "capturedAt": "2026-09-23T04:28:57.592Z",
+          "rawBodySha256": "5c6a8c7e0c2742402a9821ccf5e0798ac2be223940ed09d760606e145adc3b0e",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": null,
+          "clientMs": 3508.7085840000072,
+          "totalMs": 3505.9210840000014,
+          "attemptCount": 1,
+          "responseBytes": 2910,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B0GJTFXNRX",
+            "title": "Apple AirTag (2nd Generation): Tracker for Keychain, Wallet, and More; Locator with Sound; Simple One-Tap Setup with iPhone or iPad; Key Finder with up to 1.5X Precision Finding Range",
+            "price": null,
+            "currency": null,
+            "seller": null,
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 2,
+          "index": 10,
+          "asin": "B0FQFB8FMG",
+          "requestedUrl": "https://www.amazon.com/dp/B0FQFB8FMG",
+          "finalUrl": "https://www.amazon.com/dp/B0FQFB8FMG",
+          "capturedAt": "2026-09-23T04:29:01.103Z",
+          "rawBodySha256": "d0d4700401acdf1e7aad67e5ea0ba7a64de856087d0e313b679292c3268871ab",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": null,
+          "clientMs": 3510.8732089999976,
+          "totalMs": 3508.1984590000066,
+          "attemptCount": 1,
+          "responseBytes": 2707,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B0FQFB8FMG",
+            "title": "Apple AirPods Pro 3 Wireless Earbuds with Active Noise Cancellation",
+            "price": null,
+            "currency": null,
+            "seller": null,
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 3,
+          "index": 1,
+          "asin": "B08KT2Z93D",
+          "requestedUrl": "https://www.amazon.com/dp/B08KT2Z93D",
+          "finalUrl": "https://www.amazon.sg/dp/B08KT2Z93D?ref_=mr_direct_us_sg_sg&showmri=undefined&th=1",
+          "capturedAt": "2026-09-23T04:29:05.223Z",
+          "rawBodySha256": "73b6fe521e02555313b92d5cb35aef679da0a5e8adeba82e7850b76cd4a983cc",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore 238823",
+          "currency": null,
+          "clientMs": 4104.378542000006,
+          "totalMs": 4101.520541999998,
+          "attemptCount": 1,
+          "responseBytes": 3738,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B08KT2Z93D",
+            "title": "eos Shea Better Body Lotion- Vanilla Cashmere, 24-Hour Moisture, 16 fl oz",
+            "price": null,
+            "currency": null,
+            "seller": null,
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 3,
+          "index": 2,
+          "asin": "B09V7Z4TJG",
+          "requestedUrl": "https://www.amazon.com/dp/B09V7Z4TJG",
+          "finalUrl": "https://www.amazon.sg/dp/B09V7Z4TJG?ref_=mr_direct_us_sg_sg&showmri=undefined&th=1",
+          "capturedAt": "2026-09-23T04:29:09.019Z",
+          "rawBodySha256": "37dcbfb92769b4d136135c2226dd87642a5823755bb721cd1bcc98b5a9b875aa",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore 238823",
+          "currency": null,
+          "clientMs": 3796.0098750000034,
+          "totalMs": 3780.1529169999994,
+          "attemptCount": 1,
+          "responseBytes": 3303,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B09V7Z4TJG",
+            "title": "Medicube Zero Pore Pad 2.0 | 70 sheets | AHA+BHA pore + acne care | Gentle exfoliating & peeling | No sulfates & parabens",
+            "price": null,
+            "currency": null,
+            "seller": null,
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 3,
+          "index": 3,
+          "asin": "B07PBXXNCY",
+          "requestedUrl": "https://www.amazon.com/dp/B07PBXXNCY",
+          "finalUrl": "https://www.amazon.sg/dp/B07PBXXNCY?ref_=mr_direct_us_sg_sg&showmri=undefined&th=1",
+          "capturedAt": "2026-09-23T04:29:12.715Z",
+          "rawBodySha256": "2191bf9fe049184a0fe9353beb7e1d843d78102884b09f617030e12256e7772d",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore 238823",
+          "currency": "SGD",
+          "clientMs": 3695.391499999998,
+          "totalMs": 3691.6712909999915,
+          "attemptCount": 1,
+          "responseBytes": 4045,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B07PBXXNCY",
+            "title": "Clean Skin Club Clean Towels XL®, 100% USDA Biobased Face Towel, Disposable Face Towelette, Eczema Association Accepted, Makeup Remover Dry Wipes, Ultra Soft, 50 Count",
+            "price": 32.73,
+            "currency": "SGD",
+            "seller": "Amazon US",
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 3,
+          "index": 4,
+          "asin": "B00F1U0YB4",
+          "requestedUrl": "https://www.amazon.com/dp/B00F1U0YB4",
+          "finalUrl": "https://www.amazon.sg/dp/B00F1U0YB4?ref_=mr_direct_us_sg_sg&showmri=undefined&th=1",
+          "capturedAt": "2026-09-23T04:29:16.766Z",
+          "rawBodySha256": "1c3513822c52e4d4db084c506e724495a08cd7d3210b4fc3ad65480df5d3f0ad",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore 238823",
+          "currency": "SGD",
+          "clientMs": 4050.9472499999974,
+          "totalMs": 4046.330833,
+          "attemptCount": 1,
+          "responseBytes": 4335,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B00F1U0YB4",
+            "title": "Mrs. Meyer's Liquid Hand Soap Refill, Cruelty Free and Biodegradable Hand Wash Formula Made with Essential Oils, Lemon Verbena Scent, 33 oz",
+            "price": 19.24,
+            "currency": "SGD",
+            "seller": "Amazon US",
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 3,
+          "index": 5,
+          "asin": "B09542G9ZN",
+          "requestedUrl": "https://www.amazon.com/dp/B09542G9ZN",
+          "finalUrl": "https://www.amazon.com/dp/B09542G9ZN",
+          "capturedAt": "2026-09-23T04:29:20.397Z",
+          "rawBodySha256": "19c16ff21d7bfad8af800afa9bb223116caa6e826011528176c3bc001ded575f",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": "SGD",
+          "clientMs": 3631.8949999999895,
+          "totalMs": 3629.1974590000027,
+          "attemptCount": 1,
+          "responseBytes": 3876,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B09542G9ZN",
+            "title": "Amazon Essentials 100% Cotton Rounds, 100 Count (Previously Amazon Basics)",
+            "price": 3.77,
+            "currency": "SGD",
+            "seller": "Amazon.com",
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 3,
+          "index": 6,
+          "asin": "B09541P9WH",
+          "requestedUrl": "https://www.amazon.com/dp/B09541P9WH",
+          "finalUrl": "https://www.amazon.com/dp/B09541P9WH?th=1",
+          "capturedAt": "2026-09-23T04:29:24.768Z",
+          "rawBodySha256": "a2dc1005a2ae2d30b80f66ed7ca270359062403d0250fef427a41670ede86de7",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": "SGD",
+          "clientMs": 4370.745374999999,
+          "totalMs": 4367.948958000008,
+          "attemptCount": 1,
+          "responseBytes": 3833,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B09541P9WH",
+            "title": "Amazon Essentials Cotton Swabs, 500 Count (Previously Amazon Basics)",
+            "price": 3.4,
+            "currency": "SGD",
+            "seller": "Amazon.com",
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 3,
+          "index": 7,
+          "asin": "B08JHCVHTY",
+          "requestedUrl": "https://www.amazon.com/dp/B08JHCVHTY",
+          "finalUrl": "https://www.amazon.com/dp/B08JHCVHTY",
+          "capturedAt": "2026-09-23T04:29:28.257Z",
+          "rawBodySha256": "6a74e33d602d7f7bd9809ac7f600a7ae90a02834a30996dbb2526dc524fb6d7e",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": "USD",
+          "clientMs": 3488.5487500000017,
+          "totalMs": 3485.7339580000116,
+          "attemptCount": 1,
+          "responseBytes": 2421,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B08JHCVHTY",
+            "title": "blink plus subscription plan",
+            "price": 11.99,
+            "currency": "USD",
+            "seller": "Blink",
+            "kind": "subscription"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 3,
+          "index": 8,
+          "asin": "B0DCH8VDXF",
+          "requestedUrl": "https://www.amazon.com/dp/B0DCH8VDXF",
+          "finalUrl": "https://www.amazon.com/dp/B0DCH8VDXF",
+          "capturedAt": "2026-09-23T04:29:31.976Z",
+          "rawBodySha256": "1b37c0d3253de2a6f4c0a87048e8712c5a264988b42a2586541599d644567d54",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": null,
+          "clientMs": 3718.867916000003,
+          "totalMs": 3716.1776669999963,
+          "attemptCount": 1,
+          "responseBytes": 2749,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B0DCH8VDXF",
+            "title": "Apple EarPods Headphones with USB-C Plug, Wired Ear Buds with Built-in Remote to Control Music, Phone Calls, and Volume",
+            "price": null,
+            "currency": null,
+            "seller": null,
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 3,
+          "index": 9,
+          "asin": "B0GJTFXNRX",
+          "requestedUrl": "https://www.amazon.com/dp/B0GJTFXNRX",
+          "finalUrl": "https://www.amazon.com/dp/B0GJTFXNRX",
+          "capturedAt": "2026-09-23T04:29:35.563Z",
+          "rawBodySha256": "b0d305963d727a276c3e91fda6bfe0a2e1cf8a5d121002d136a94f00a53429b8",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": null,
+          "clientMs": 3586.803832999998,
+          "totalMs": 3584.1078750000015,
+          "attemptCount": 1,
+          "responseBytes": 2910,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B0GJTFXNRX",
+            "title": "Apple AirTag (2nd Generation): Tracker for Keychain, Wallet, and More; Locator with Sound; Simple One-Tap Setup with iPhone or iPad; Key Finder with up to 1.5X Precision Finding Range",
+            "price": null,
+            "currency": null,
+            "seller": null,
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 3,
+          "index": 10,
+          "asin": "B0FQFB8FMG",
+          "requestedUrl": "https://www.amazon.com/dp/B0FQFB8FMG",
+          "finalUrl": "https://www.amazon.com/dp/B0FQFB8FMG",
+          "capturedAt": "2026-09-23T04:29:39.045Z",
+          "rawBodySha256": "71e76dc1832e887c9f6efdaf08bd0f4bbbd19ea80aa0ee8f3cd52b23027e5c43",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": null,
+          "clientMs": 3482.7601660000073,
+          "totalMs": 3480.0413750000007,
+          "attemptCount": 1,
+          "responseBytes": 2707,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B0FQFB8FMG",
+            "title": "Apple AirPods Pro 3 Wireless Earbuds with Active Noise Cancellation",
+            "price": null,
+            "currency": null,
+            "seller": null,
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "concurrency": 2,
+      "sourceReportName": "2026-09-23T04-31-07-664Z.json",
+      "sourceReportSha256": "2f38b935cc4e98ee8ddc9f2b6d904336d1aa9e9206386b8c29b17443cb2ca7c1",
+      "startedAt": "2026-09-23T04:29:58.370Z",
+      "endedAt": "2026-09-23T04:31:07.664Z",
+      "summary": {
+        "discoveryRecords": 10,
+        "discoverySuccesses": 10,
+        "comparableRecords": 20,
+        "regionMismatchRecords": 0,
+        "currencyMismatchRecords": 0,
+        "marketplaceMismatchRecords": 0,
+        "successes": 20,
+        "blocked": 0,
+        "failed": 0,
+        "notAttempted": 0,
+        "clientMs": {
+          "p50": 4124.578291999998,
+          "p95": 4407.344250000002,
+          "total": 80586.390086
+        },
+        "tenPageRunMs": {
+          "values": [
+            19924.074125,
+            21409.672333000002,
+            19676.954832999996
+          ],
+          "median": 19924.074125,
+          "targetMs": 20000,
+          "passed": true
+        },
+        "totalMs": {
+          "p50": 4119.785707999999,
+          "p95": 4404.317292
+        },
+        "stageTimings": {
+          "queueMs": {
+            "p50": 0.0031249999956344254,
+            "p95": 295.6187910000008,
+            "total": 1311.5093749999942
+          },
+          "robotsMs": {
+            "p50": null,
+            "p95": null,
+            "total": 0
+          },
+          "retryWaitMs": {
+            "p50": null,
+            "p95": null,
+            "total": 0
+          },
+          "requestMs": {
+            "p50": null,
+            "p95": null,
+            "total": 0
+          },
+          "bodyReadMs": {
+            "p50": null,
+            "p95": null,
+            "total": 0
+          },
+          "parseMs": {
+            "p50": null,
+            "p95": null,
+            "total": 0
+          },
+          "extractMs": {
+            "p50": null,
+            "p95": null,
+            "total": 0
+          },
+          "serializeMs": {
+            "p50": 0.006916999998793472,
+            "p95": 0.008499999999912689,
+            "total": 0.11708299999008887
+          },
+          "totalMs": {
+            "p50": 4119.785707999999,
+            "p95": 4404.317292,
+            "total": 80496.17179300002
+          }
+        },
+        "attempts": {
+          "total": 30,
+          "retriedRecords": 0
+        },
+        "responseBytes": {
+          "p50": 3298,
+          "p95": 4328,
+          "total": 67802
+        },
+        "checks": {
+          "asinExact": 20,
+          "titlePresent": 20,
+          "priceCurrencyConsistent": 20,
+          "recommendationLeakFree": 20,
+          "evidenceBacked": 20,
+          "coverage": {
+            "asin": 20,
+            "title": 20,
+            "price": 10,
+            "currency": 10,
+            "seller": 10
+          },
+          "denominator": 20
+        }
+      },
+      "responseSize": {
+        "url": "https://www.amazon.com/dp/B08KT2Z93D",
+        "actualCompactBytes": 76542,
+        "sameCaptureCompactBytes": 76543,
+        "debugBytes": 197009,
+        "ratio": 0.38852539731687386,
+        "nestedBodyAbsent": true,
+        "passed": true
+      },
+      "acceptance": {
+        "automatedPassed": true,
+        "promotionEligible": false,
+        "reason": "promotion also requires reviewed field labels; this runner does not self-certify manual 98% accuracy"
+      },
+      "records": [
+        {
+          "round": 1,
+          "index": 2,
+          "asin": "B09V7Z4TJG",
+          "requestedUrl": "https://www.amazon.com/dp/B09V7Z4TJG",
+          "finalUrl": "https://www.amazon.sg/dp/B09V7Z4TJG?ref_=mr_direct_us_sg_sg&showmri=undefined&th=1",
+          "capturedAt": "2026-09-23T04:30:03.358Z",
+          "rawBodySha256": "37187780447fa98588e1d11b75b7f175be47c9771c51cd11b4ca5ff6afa561d4",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "region_discovery",
+          "region": "Singapore",
+          "locationText": "Singapore 238823",
+          "currency": null,
+          "clientMs": 4558.439542,
+          "totalMs": 4539.751083,
+          "attemptCount": 1,
+          "responseBytes": 3280,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B09V7Z4TJG",
+            "title": "Medicube Zero Pore Pad 2.0 | 70 sheets | AHA+BHA pore + acne care | Gentle exfoliating & peeling | No sulfates & parabens",
+            "price": null,
+            "currency": null,
+            "seller": null,
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 1,
+          "index": 1,
+          "asin": "B08KT2Z93D",
+          "requestedUrl": "https://www.amazon.com/dp/B08KT2Z93D",
+          "finalUrl": "https://www.amazon.sg/dp/B08KT2Z93D?ref_=mr_direct_us_sg_sg&showmri=undefined&th=1",
+          "capturedAt": "2026-09-23T04:30:04.043Z",
+          "rawBodySha256": "22495213e76a4e217552e30d5d20ef27f3193659ab30856a3204910991520a94",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "region_discovery",
+          "region": "Singapore",
+          "locationText": "Singapore 238823",
+          "currency": null,
+          "clientMs": 5243.340709,
+          "totalMs": 5229.30575,
+          "attemptCount": 1,
+          "responseBytes": 3714,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B08KT2Z93D",
+            "title": "eos Shea Better Body Lotion- Vanilla Cashmere, 24-Hour Moisture, 16 fl oz",
+            "price": null,
+            "currency": null,
+            "seller": null,
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 1,
+          "index": 3,
+          "asin": "B07PBXXNCY",
+          "requestedUrl": "https://www.amazon.com/dp/B07PBXXNCY",
+          "finalUrl": "https://www.amazon.sg/dp/B07PBXXNCY?ref_=mr_direct_us_sg_sg&showmri=undefined&th=1",
+          "capturedAt": "2026-09-23T04:30:07.240Z",
+          "rawBodySha256": "ec38580222d242838a72e2faa86795ebf8e97b0681a741977b6dd3c4c7ad8441",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "region_discovery",
+          "region": "Singapore",
+          "locationText": "Singapore 238823",
+          "currency": "SGD",
+          "clientMs": 3882.005874999999,
+          "totalMs": 3878.2090419999995,
+          "attemptCount": 1,
+          "responseBytes": 4045,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B07PBXXNCY",
+            "title": "Clean Skin Club Clean Towels XL®, 100% USDA Biobased Face Towel, Disposable Face Towelette, Eczema Association Accepted, Makeup Remover Dry Wipes, Ultra Soft, 50 Count",
+            "price": 32.73,
+            "currency": "SGD",
+            "seller": "Amazon US",
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 1,
+          "index": 4,
+          "asin": "B00F1U0YB4",
+          "requestedUrl": "https://www.amazon.com/dp/B00F1U0YB4",
+          "finalUrl": "https://www.amazon.sg/dp/B00F1U0YB4?ref_=mr_direct_us_sg_sg&showmri=undefined&th=1",
+          "capturedAt": "2026-09-23T04:30:07.764Z",
+          "rawBodySha256": "7f21e6a2b3f247d268acf45ba5ad0e7a107348c4d496cae25be01a8c7859a1ab",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "region_discovery",
+          "region": "Singapore",
+          "locationText": "Singapore 238823",
+          "currency": "SGD",
+          "clientMs": 3721.0339159999994,
+          "totalMs": 3716.7662499999997,
+          "attemptCount": 1,
+          "responseBytes": 4350,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B00F1U0YB4",
+            "title": "Mrs. Meyer's Liquid Hand Soap Refill, Cruelty Free and Biodegradable Hand Wash Formula Made with Essential Oils, Lemon Verbena Scent, 33 oz",
+            "price": 19.24,
+            "currency": "SGD",
+            "seller": "Amazon US",
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 1,
+          "index": 5,
+          "asin": "B09542G9ZN",
+          "requestedUrl": "https://www.amazon.com/dp/B09542G9ZN",
+          "finalUrl": "https://www.amazon.com/dp/B09542G9ZN",
+          "capturedAt": "2026-09-23T04:30:11.159Z",
+          "rawBodySha256": "a54d2765482578c4ed486c9a594561925861ee20d9d2aaaf596d0a4af91e4756",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "region_discovery",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": "SGD",
+          "clientMs": 3918.8344589999997,
+          "totalMs": 3914.90575,
+          "attemptCount": 1,
+          "responseBytes": 3853,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B09542G9ZN",
+            "title": "Amazon Essentials 100% Cotton Rounds, 100 Count (Previously Amazon Basics)",
+            "price": 3.77,
+            "currency": "SGD",
+            "seller": "Amazon.com",
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 1,
+          "index": 6,
+          "asin": "B09541P9WH",
+          "requestedUrl": "https://www.amazon.com/dp/B09541P9WH",
+          "finalUrl": "https://www.amazon.com/dp/B09541P9WH",
+          "capturedAt": "2026-09-23T04:30:11.532Z",
+          "rawBodySha256": "9352995131256bec58fc2a9d239fade98338d9746a4021571b15bb5ae6b2f77b",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "region_discovery",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": "SGD",
+          "clientMs": 3768.0247500000005,
+          "totalMs": 3764.699292000001,
+          "attemptCount": 1,
+          "responseBytes": 3830,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B09541P9WH",
+            "title": "Amazon Essentials Cotton Swabs, 500 Count (Previously Amazon Basics)",
+            "price": 3.4,
+            "currency": "SGD",
+            "seller": "Amazon.com",
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 1,
+          "index": 7,
+          "asin": "B08JHCVHTY",
+          "requestedUrl": "https://www.amazon.com/dp/B08JHCVHTY",
+          "finalUrl": "https://www.amazon.com/dp/B08JHCVHTY",
+          "capturedAt": "2026-09-23T04:30:14.789Z",
+          "rawBodySha256": "91da4e28731b02b686a98f4b095bafe57457902f62c6f86f702bd30ff6c63cb5",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "region_discovery",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": "USD",
+          "clientMs": 3630.2417909999986,
+          "totalMs": 3626.9001249999983,
+          "attemptCount": 1,
+          "responseBytes": 2421,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B08JHCVHTY",
+            "title": "blink plus subscription plan",
+            "price": 11.99,
+            "currency": "USD",
+            "seller": "Blink",
+            "kind": "subscription"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 1,
+          "index": 8,
+          "asin": "B0DCH8VDXF",
+          "requestedUrl": "https://www.amazon.com/dp/B0DCH8VDXF",
+          "finalUrl": "https://www.amazon.com/dp/B0DCH8VDXF?th=1",
+          "capturedAt": "2026-09-23T04:30:14.989Z",
+          "rawBodySha256": "14de337fad2bbcf2b231f69d0622a389ef529dda27d1d3a30d9f912cfc0b5a76",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "region_discovery",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": null,
+          "clientMs": 3457.004165999999,
+          "totalMs": 3452.6499999999996,
+          "attemptCount": 1,
+          "responseBytes": 2754,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B0DCH8VDXF",
+            "title": "Apple EarPods Headphones with USB-C Plug, Wired Ear Buds with Built-in Remote to Control Music, Phone Calls, and Volume",
+            "price": null,
+            "currency": null,
+            "seller": null,
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 1,
+          "index": 9,
+          "asin": "B0GJTFXNRX",
+          "requestedUrl": "https://www.amazon.com/dp/B0GJTFXNRX",
+          "finalUrl": "https://www.amazon.com/dp/B0GJTFXNRX",
+          "capturedAt": "2026-09-23T04:30:18.321Z",
+          "rawBodySha256": "56dda200378b55b4f57858959d5d0c0c294a4473256bc8ecb3b6e91157de33ac",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "region_discovery",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": null,
+          "clientMs": 3531.3118749999994,
+          "totalMs": 3528.036666,
+          "attemptCount": 1,
+          "responseBytes": 2889,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B0GJTFXNRX",
+            "title": "Apple AirTag (2nd Generation): Tracker for Keychain, Wallet, and More; Locator with Sound; Simple One-Tap Setup with iPhone or iPad; Key Finder with up to 1.5X Precision Finding Range",
+            "price": null,
+            "currency": null,
+            "seller": null,
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 1,
+          "index": 10,
+          "asin": "B0FQFB8FMG",
+          "requestedUrl": "https://www.amazon.com/dp/B0FQFB8FMG",
+          "finalUrl": "https://www.amazon.com/dp/B0FQFB8FMG",
+          "capturedAt": "2026-09-23T04:30:18.723Z",
+          "rawBodySha256": "6a84b587dad16b7ca5b01487cd11c31d0d1786cc4a9bb0f87aba0d350cc514f6",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "region_discovery",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": null,
+          "clientMs": 3734.1100420000002,
+          "totalMs": 3731.081624999999,
+          "attemptCount": 1,
+          "responseBytes": 2702,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B0FQFB8FMG",
+            "title": "Apple AirPods Pro 3 Wireless Earbuds with Active Noise Cancellation",
+            "price": null,
+            "currency": null,
+            "seller": null,
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 2,
+          "index": 2,
+          "asin": "B09V7Z4TJG",
+          "requestedUrl": "https://www.amazon.com/dp/B09V7Z4TJG",
+          "finalUrl": "https://www.amazon.sg/dp/B09V7Z4TJG?ref_=mr_direct_us_sg_sg&showmri=undefined&th=1",
+          "capturedAt": "2026-09-23T04:30:23.039Z",
+          "rawBodySha256": "d5c1130e729778ba08b3fab26bed430b53f3202b1c98bb80f62bfec0c1aad822",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore 238823",
+          "currency": null,
+          "clientMs": 4299.578000000001,
+          "totalMs": 4296.253958000001,
+          "attemptCount": 1,
+          "responseBytes": 3298,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B09V7Z4TJG",
+            "title": "Medicube Zero Pore Pad 2.0 | 70 sheets | AHA+BHA pore + acne care | Gentle exfoliating & peeling | No sulfates & parabens",
+            "price": null,
+            "currency": null,
+            "seller": null,
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 2,
+          "index": 1,
+          "asin": "B08KT2Z93D",
+          "requestedUrl": "https://www.amazon.com/dp/B08KT2Z93D",
+          "finalUrl": "https://www.amazon.sg/dp/B08KT2Z93D?ref_=mr_direct_us_sg_sg&showmri=undefined&th=1",
+          "capturedAt": "2026-09-23T04:30:23.044Z",
+          "rawBodySha256": "5a9c9ee696967ce9e0ecd9296e77881596d7d422e52d53ee9b84cd674e07c215",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore 238823",
+          "currency": null,
+          "clientMs": 4304.313083999998,
+          "totalMs": 4301.437334000002,
+          "attemptCount": 1,
+          "responseBytes": 3739,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B08KT2Z93D",
+            "title": "eos Shea Better Body Lotion- Vanilla Cashmere, 24-Hour Moisture, 16 fl oz",
+            "price": null,
+            "currency": null,
+            "seller": null,
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 2,
+          "index": 3,
+          "asin": "B07PBXXNCY",
+          "requestedUrl": "https://www.amazon.com/dp/B07PBXXNCY",
+          "finalUrl": "https://www.amazon.sg/dp/B07PBXXNCY?ref_=mr_direct_us_sg_sg&showmri=undefined&th=1",
+          "capturedAt": "2026-09-23T04:30:27.164Z",
+          "rawBodySha256": "c23a7b922eecad0f37062016a45370fab60e338ed8cd6b6069d9ad0f2acc1cde",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore 238823",
+          "currency": "SGD",
+          "clientMs": 4124.967790999999,
+          "totalMs": 4119.785707999999,
+          "attemptCount": 1,
+          "responseBytes": 4042,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B07PBXXNCY",
+            "title": "Clean Skin Club Clean Towels XL®, 100% USDA Biobased Face Towel, Disposable Face Towelette, Eczema Association Accepted, Makeup Remover Dry Wipes, Ultra Soft, 50 Count",
+            "price": 32.73,
+            "currency": "SGD",
+            "seller": "Amazon US",
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 2,
+          "index": 4,
+          "asin": "B00F1U0YB4",
+          "requestedUrl": "https://www.amazon.com/dp/B00F1U0YB4",
+          "finalUrl": "https://www.amazon.sg/dp/B00F1U0YB4?ref_=mr_direct_us_sg_sg&showmri=undefined&th=1",
+          "capturedAt": "2026-09-23T04:30:27.451Z",
+          "rawBodySha256": "9a6b5aa77dcf189e9dd5ca0420fa613a336db15b8a5ae1c40eed40f8f7db2815",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore 238823",
+          "currency": "SGD",
+          "clientMs": 4407.344250000002,
+          "totalMs": 4404.317292,
+          "attemptCount": 1,
+          "responseBytes": 4328,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B00F1U0YB4",
+            "title": "Mrs. Meyer's Liquid Hand Soap Refill, Cruelty Free and Biodegradable Hand Wash Formula Made with Essential Oils, Lemon Verbena Scent, 33 oz",
+            "price": 19.24,
+            "currency": "SGD",
+            "seller": "Amazon US",
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 2,
+          "index": 5,
+          "asin": "B09542G9ZN",
+          "requestedUrl": "https://www.amazon.com/dp/B09542G9ZN",
+          "finalUrl": "https://www.amazon.com/dp/B09542G9ZN?th=1",
+          "capturedAt": "2026-09-23T04:30:31.186Z",
+          "rawBodySha256": "7c4c24a572d61105997a36b4edad37be8ba693c9f8191d9f4b05c473a7173cc1",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": "SGD",
+          "clientMs": 4022.3224169999994,
+          "totalMs": 4019.5434580000037,
+          "attemptCount": 1,
+          "responseBytes": 3880,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B09542G9ZN",
+            "title": "Amazon Essentials 100% Cotton Rounds, 100 Count (Previously Amazon Basics)",
+            "price": 3.77,
+            "currency": "SGD",
+            "seller": "Amazon.com",
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 2,
+          "index": 6,
+          "asin": "B09541P9WH",
+          "requestedUrl": "https://www.amazon.com/dp/B09541P9WH",
+          "finalUrl": "https://www.amazon.com/dp/B09541P9WH?th=1",
+          "capturedAt": "2026-09-23T04:30:31.674Z",
+          "rawBodySha256": "f66f178cc241533e938ee2c710b185b7b57d42d96fcaa48b1b1aa7cf349804a8",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": "SGD",
+          "clientMs": 4223.358500000002,
+          "totalMs": 4218.871750000002,
+          "attemptCount": 1,
+          "responseBytes": 3835,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B09541P9WH",
+            "title": "Amazon Essentials Cotton Swabs, 500 Count (Previously Amazon Basics)",
+            "price": 3.4,
+            "currency": "SGD",
+            "seller": "Amazon.com",
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 2,
+          "index": 8,
+          "asin": "B0DCH8VDXF",
+          "requestedUrl": "https://www.amazon.com/dp/B0DCH8VDXF",
+          "finalUrl": "https://www.amazon.com/dp/B0DCH8VDXF?th=1",
+          "capturedAt": "2026-09-23T04:30:35.148Z",
+          "rawBodySha256": "27149892ddcb449969241e1ca37558d2650a2d6ce764ddd613bb163e41782c72",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": null,
+          "clientMs": 3474.181417,
+          "totalMs": 3471.353083000002,
+          "attemptCount": 1,
+          "responseBytes": 2752,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B0DCH8VDXF",
+            "title": "Apple EarPods Headphones with USB-C Plug, Wired Ear Buds with Built-in Remote to Control Music, Phone Calls, and Volume",
+            "price": null,
+            "currency": null,
+            "seller": null,
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 2,
+          "index": 7,
+          "asin": "B08JHCVHTY",
+          "requestedUrl": "https://www.amazon.com/dp/B08JHCVHTY",
+          "finalUrl": "https://www.amazon.com/dp/B08JHCVHTY",
+          "capturedAt": "2026-09-23T04:30:36.341Z",
+          "rawBodySha256": "e5f4d53cbf96c71c03d4970c472b67186c22e063ae41f10f7613a9a45e71fd8d",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": "USD",
+          "clientMs": 5154.375416999996,
+          "totalMs": 5151.653332999995,
+          "attemptCount": 1,
+          "responseBytes": 2417,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B08JHCVHTY",
+            "title": "blink plus subscription plan",
+            "price": 11.99,
+            "currency": "USD",
+            "seller": "Blink",
+            "kind": "subscription"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 2,
+          "index": 9,
+          "asin": "B0GJTFXNRX",
+          "requestedUrl": "https://www.amazon.com/dp/B0GJTFXNRX",
+          "finalUrl": "https://www.amazon.com/dp/B0GJTFXNRX",
+          "capturedAt": "2026-09-23T04:30:38.954Z",
+          "rawBodySha256": "fd19707dcb7e8b9ace405fd95e02df629d00e099a40f07929b2441caa77b26f7",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": null,
+          "clientMs": 3805.6882079999996,
+          "totalMs": 3802.774959000002,
+          "attemptCount": 1,
+          "responseBytes": 2908,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B0GJTFXNRX",
+            "title": "Apple AirTag (2nd Generation): Tracker for Keychain, Wallet, and More; Locator with Sound; Simple One-Tap Setup with iPhone or iPad; Key Finder with up to 1.5X Precision Finding Range",
+            "price": null,
+            "currency": null,
+            "seller": null,
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 2,
+          "index": 10,
+          "asin": "B0FQFB8FMG",
+          "requestedUrl": "https://www.amazon.com/dp/B0FQFB8FMG",
+          "finalUrl": "https://www.amazon.com/dp/B0FQFB8FMG",
+          "capturedAt": "2026-09-23T04:30:40.149Z",
+          "rawBodySha256": "d84aa593fcc826572aefa46456fad7c25191f66f33f159abde751e539ed2b886",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": null,
+          "clientMs": 3808.0048749999987,
+          "totalMs": 3805.230625000004,
+          "attemptCount": 1,
+          "responseBytes": 2703,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B0FQFB8FMG",
+            "title": "Apple AirPods Pro 3 Wireless Earbuds with Active Noise Cancellation",
+            "price": null,
+            "currency": null,
+            "seller": null,
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 3,
+          "index": 2,
+          "asin": "B09V7Z4TJG",
+          "requestedUrl": "https://www.amazon.com/dp/B09V7Z4TJG",
+          "finalUrl": "https://www.amazon.sg/dp/B09V7Z4TJG?ref_=mr_direct_us_sg_sg&showmri=undefined&th=1",
+          "capturedAt": "2026-09-23T04:30:44.292Z",
+          "rawBodySha256": "b18fd4c025749d52ed815f32c2fcc809ef9cb6c8af491431a1966802efe0e668",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore 238823",
+          "currency": null,
+          "clientMs": 4124.578291999998,
+          "totalMs": 4121.462459000002,
+          "attemptCount": 1,
+          "responseBytes": 3297,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B09V7Z4TJG",
+            "title": "Medicube Zero Pore Pad 2.0 | 70 sheets | AHA+BHA pore + acne care | Gentle exfoliating & peeling | No sulfates & parabens",
+            "price": null,
+            "currency": null,
+            "seller": null,
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 3,
+          "index": 1,
+          "asin": "B08KT2Z93D",
+          "requestedUrl": "https://www.amazon.com/dp/B08KT2Z93D",
+          "finalUrl": "https://www.amazon.sg/dp/B08KT2Z93D?ref_=mr_direct_us_sg_sg&showmri=undefined&th=1",
+          "capturedAt": "2026-09-23T04:30:44.524Z",
+          "rawBodySha256": "a0ba1bed3b0effa07659fd4a85af90b7cc10e99db37f60c7f3fa55f5a24fcc72",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore 238823",
+          "currency": null,
+          "clientMs": 4357.122458999998,
+          "totalMs": 4354.109541000005,
+          "attemptCount": 1,
+          "responseBytes": 3740,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B08KT2Z93D",
+            "title": "eos Shea Better Body Lotion- Vanilla Cashmere, 24-Hour Moisture, 16 fl oz",
+            "price": null,
+            "currency": null,
+            "seller": null,
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 3,
+          "index": 4,
+          "asin": "B00F1U0YB4",
+          "requestedUrl": "https://www.amazon.com/dp/B00F1U0YB4",
+          "finalUrl": "https://www.amazon.sg/dp/B00F1U0YB4?ref_=mr_direct_us_sg_sg&showmri=undefined&th=1",
+          "capturedAt": "2026-09-23T04:30:48.650Z",
+          "rawBodySha256": "f0a9c516a8abdbf1721773591bc51a5676e05e050161b5e11af0bea0d8daaaab",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore 238823",
+          "currency": "SGD",
+          "clientMs": 4125.762000000002,
+          "totalMs": 4122.672500000001,
+          "attemptCount": 1,
+          "responseBytes": 4345,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B00F1U0YB4",
+            "title": "Mrs. Meyer's Liquid Hand Soap Refill, Cruelty Free and Biodegradable Hand Wash Formula Made with Essential Oils, Lemon Verbena Scent, 33 oz",
+            "price": 19.24,
+            "currency": "SGD",
+            "seller": "Amazon US",
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 3,
+          "index": 3,
+          "asin": "B07PBXXNCY",
+          "requestedUrl": "https://www.amazon.com/dp/B07PBXXNCY",
+          "finalUrl": "https://www.amazon.sg/dp/B07PBXXNCY?ref_=mr_direct_us_sg_sg&showmri=undefined&th=1",
+          "capturedAt": "2026-09-23T04:30:48.654Z",
+          "rawBodySha256": "45ac6b6b7d1e29c3f8de8926619d4b854d8974c64359d92f3d3fb97aef1dfecf",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore 238823",
+          "currency": "SGD",
+          "clientMs": 4362.724792000001,
+          "totalMs": 4360.140916999997,
+          "attemptCount": 1,
+          "responseBytes": 4043,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B07PBXXNCY",
+            "title": "Clean Skin Club Clean Towels XL®, 100% USDA Biobased Face Towel, Disposable Face Towelette, Eczema Association Accepted, Makeup Remover Dry Wipes, Ultra Soft, 50 Count",
+            "price": 32.73,
+            "currency": "SGD",
+            "seller": "Amazon US",
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 3,
+          "index": 5,
+          "asin": "B09542G9ZN",
+          "requestedUrl": "https://www.amazon.com/dp/B09542G9ZN",
+          "finalUrl": "https://www.amazon.com/dp/B09542G9ZN",
+          "capturedAt": "2026-09-23T04:30:52.304Z",
+          "rawBodySha256": "0bd18a75a428c264e1ddd02825951eb96dec080db7fb6858df3f8e075b49dad3",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": "SGD",
+          "clientMs": 3654.248625,
+          "totalMs": 3649.378582999998,
+          "attemptCount": 1,
+          "responseBytes": 3874,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B09542G9ZN",
+            "title": "Amazon Essentials 100% Cotton Rounds, 100 Count (Previously Amazon Basics)",
+            "price": 3.77,
+            "currency": "SGD",
+            "seller": "Amazon.com",
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 3,
+          "index": 6,
+          "asin": "B09541P9WH",
+          "requestedUrl": "https://www.amazon.com/dp/B09541P9WH",
+          "finalUrl": "https://www.amazon.com/dp/B09541P9WH?th=1",
+          "capturedAt": "2026-09-23T04:30:53.011Z",
+          "rawBodySha256": "dd0beb1b027d22acf7af0df738d51c0a0c5a36fa4e961564dd8d7dd0e753e367",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": "SGD",
+          "clientMs": 4356.969458,
+          "totalMs": 4354.367625000006,
+          "attemptCount": 1,
+          "responseBytes": 3834,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B09541P9WH",
+            "title": "Amazon Essentials Cotton Swabs, 500 Count (Previously Amazon Basics)",
+            "price": 3.4,
+            "currency": "SGD",
+            "seller": "Amazon.com",
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 3,
+          "index": 7,
+          "asin": "B08JHCVHTY",
+          "requestedUrl": "https://www.amazon.com/dp/B08JHCVHTY",
+          "finalUrl": "https://www.amazon.com/dp/B08JHCVHTY",
+          "capturedAt": "2026-09-23T04:30:55.940Z",
+          "rawBodySha256": "549b7b1aefba681fed96cb6698bb73666971f8856c3d80473b0e2d4e9dea1a2a",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": "USD",
+          "clientMs": 3635.5591669999994,
+          "totalMs": 3632.753708999997,
+          "attemptCount": 1,
+          "responseBytes": 2418,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B08JHCVHTY",
+            "title": "blink plus subscription plan",
+            "price": 11.99,
+            "currency": "USD",
+            "seller": "Blink",
+            "kind": "subscription"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 3,
+          "index": 8,
+          "asin": "B0DCH8VDXF",
+          "requestedUrl": "https://www.amazon.com/dp/B0DCH8VDXF",
+          "finalUrl": "https://www.amazon.com/dp/B0DCH8VDXF",
+          "capturedAt": "2026-09-23T04:30:56.226Z",
+          "rawBodySha256": "a668991540ac20453d2420a4cdc4283cf4c7fdc5c8a74d071b1320375f836a52",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": null,
+          "clientMs": 3214.177875000001,
+          "totalMs": 3184.7539169999945,
+          "attemptCount": 1,
+          "responseBytes": 2749,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B0DCH8VDXF",
+            "title": "Apple EarPods Headphones with USB-C Plug, Wired Ear Buds with Built-in Remote to Control Music, Phone Calls, and Volume",
+            "price": null,
+            "currency": null,
+            "seller": null,
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 3,
+          "index": 9,
+          "asin": "B0GJTFXNRX",
+          "requestedUrl": "https://www.amazon.com/dp/B0GJTFXNRX",
+          "finalUrl": "https://www.amazon.com/dp/B0GJTFXNRX?th=1",
+          "capturedAt": "2026-09-23T04:30:59.453Z",
+          "rawBodySha256": "64835aab4b141b8630fa2d27e69422ee195d1097573236956ae244860dee0667",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": null,
+          "clientMs": 3513.019250000005,
+          "totalMs": 3509.836292,
+          "attemptCount": 1,
+          "responseBytes": 2895,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B0GJTFXNRX",
+            "title": "Apple AirTag (2nd Generation): Tracker for Keychain, Wallet, and More; Locator with Sound; Simple One-Tap Setup with iPhone or iPad; Key Finder with up to 1.5X Precision Finding Range",
+            "price": null,
+            "currency": null,
+            "seller": null,
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 3,
+          "index": 10,
+          "asin": "B0FQFB8FMG",
+          "requestedUrl": "https://www.amazon.com/dp/B0FQFB8FMG",
+          "finalUrl": "https://www.amazon.com/dp/B0FQFB8FMG",
+          "capturedAt": "2026-09-23T04:30:59.844Z",
+          "rawBodySha256": "5dbda3beaf5adc8aa0e43c9e7ebd725d5fcd7acae0b9b284ffbb203c8bfdd544",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": null,
+          "clientMs": 3618.0942090000026,
+          "totalMs": 3615.474750000001,
+          "attemptCount": 1,
+          "responseBytes": 2705,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B0FQFB8FMG",
+            "title": "Apple AirPods Pro 3 Wireless Earbuds with Active Noise Cancellation",
+            "price": null,
+            "currency": null,
+            "seller": null,
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "concurrency": 4,
+      "sourceReportName": "2026-09-23T04-32-05-564Z.json",
+      "sourceReportSha256": "d051925a6718183f690ecb5289d59dd9b0f4c7f67920da1d0b96084d79465e59",
+      "startedAt": "2026-09-23T04:31:19.613Z",
+      "endedAt": "2026-09-23T04:32:05.564Z",
+      "summary": {
+        "discoveryRecords": 10,
+        "discoverySuccesses": 10,
+        "comparableRecords": 20,
+        "regionMismatchRecords": 0,
+        "currencyMismatchRecords": 0,
+        "marketplaceMismatchRecords": 0,
+        "successes": 20,
+        "blocked": 0,
+        "failed": 0,
+        "notAttempted": 0,
+        "clientMs": {
+          "p50": 4121.427499999998,
+          "p95": 4909.325249999998,
+          "total": 83017.79800399997
+        },
+        "tenPageRunMs": {
+          "values": [
+            13004.511916000001,
+            12385.013416,
+            12122.573374999996
+          ],
+          "median": 12385.013416,
+          "targetMs": 20000,
+          "passed": true
+        },
+        "totalMs": {
+          "p50": 4119.098167,
+          "p95": 4905.7227920000005
+        },
+        "stageTimings": {
+          "queueMs": {
+            "p50": 0.012458999999580556,
+            "p95": 800.6518340000002,
+            "total": 4137.668542999996
+          },
+          "robotsMs": {
+            "p50": null,
+            "p95": null,
+            "total": 0
+          },
+          "retryWaitMs": {
+            "p50": null,
+            "p95": null,
+            "total": 0
+          },
+          "requestMs": {
+            "p50": null,
+            "p95": null,
+            "total": 0
+          },
+          "bodyReadMs": {
+            "p50": null,
+            "p95": null,
+            "total": 0
+          },
+          "parseMs": {
+            "p50": null,
+            "p95": null,
+            "total": 0
+          },
+          "extractMs": {
+            "p50": null,
+            "p95": null,
+            "total": 0
+          },
+          "serializeMs": {
+            "p50": 0.0030830000032437965,
+            "p95": 0.01304099999833852,
+            "total": 0.1095400000049267
+          },
+          "totalMs": {
+            "p50": 4119.098167,
+            "p95": 4905.7227920000005,
+            "total": 82951.61071000001
+          }
+        },
+        "attempts": {
+          "total": 30,
+          "retriedRecords": 0
+        },
+        "responseBytes": {
+          "p50": 3303,
+          "p95": 4345,
+          "total": 67792
+        },
+        "checks": {
+          "asinExact": 20,
+          "titlePresent": 20,
+          "priceCurrencyConsistent": 20,
+          "recommendationLeakFree": 20,
+          "evidenceBacked": 20,
+          "coverage": {
+            "asin": 20,
+            "title": 20,
+            "price": 10,
+            "currency": 10,
+            "seller": 10
+          },
+          "denominator": 20
+        }
+      },
+      "responseSize": {
+        "url": "https://www.amazon.com/dp/B08KT2Z93D",
+        "actualCompactBytes": 76541,
+        "sameCaptureCompactBytes": 76526,
+        "debugBytes": 196898,
+        "ratio": 0.38865808692825726,
+        "nestedBodyAbsent": true,
+        "passed": true
+      },
+      "acceptance": {
+        "automatedPassed": true,
+        "promotionEligible": false,
+        "reason": "promotion also requires reviewed field labels; this runner does not self-certify manual 98% accuracy"
+      },
+      "records": [
+        {
+          "round": 1,
+          "index": 3,
+          "asin": "B07PBXXNCY",
+          "requestedUrl": "https://www.amazon.com/dp/B07PBXXNCY",
+          "finalUrl": "https://www.amazon.sg/dp/B07PBXXNCY?ref_=mr_direct_us_sg_sg&showmri=undefined&th=1",
+          "capturedAt": "2026-09-23T04:31:24.689Z",
+          "rawBodySha256": "5e7f21ccc2d53053f4402a2050fae6ac46b4983f81bd70a7bd8260aff2437482",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "region_discovery",
+          "region": "Singapore",
+          "locationText": "Singapore 238823",
+          "currency": "SGD",
+          "clientMs": 4646.262,
+          "totalMs": 4625.358542,
+          "attemptCount": 1,
+          "responseBytes": 4021,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B07PBXXNCY",
+            "title": "Clean Skin Club Clean Towels XL®, 100% USDA Biobased Face Towel, Disposable Face Towelette, Eczema Association Accepted, Makeup Remover Dry Wipes, Ultra Soft, 50 Count",
+            "price": 32.73,
+            "currency": "SGD",
+            "seller": "Amazon US",
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 1,
+          "index": 1,
+          "asin": "B08KT2Z93D",
+          "requestedUrl": "https://www.amazon.com/dp/B08KT2Z93D",
+          "finalUrl": "https://www.amazon.sg/dp/B08KT2Z93D?ref_=mr_direct_us_sg_sg&showmri=undefined&th=1",
+          "capturedAt": "2026-09-23T04:31:24.958Z",
+          "rawBodySha256": "cfe9f6ff4e68f9b964677466799fd2133d6d20bed18762378ac4d470718c615d",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "region_discovery",
+          "region": "Singapore",
+          "locationText": "Singapore 238823",
+          "currency": null,
+          "clientMs": 4916.058292,
+          "totalMs": 4901.2859579999995,
+          "attemptCount": 1,
+          "responseBytes": 3739,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B08KT2Z93D",
+            "title": "eos Shea Better Body Lotion- Vanilla Cashmere, 24-Hour Moisture, 16 fl oz",
+            "price": null,
+            "currency": null,
+            "seller": null,
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 1,
+          "index": 4,
+          "asin": "B00F1U0YB4",
+          "requestedUrl": "https://www.amazon.com/dp/B00F1U0YB4",
+          "finalUrl": "https://www.amazon.sg/dp/B00F1U0YB4?ref_=mr_direct_us_sg_sg&showmri=undefined&th=1",
+          "capturedAt": "2026-09-23T04:31:25.495Z",
+          "rawBodySha256": "cc4d68f98a65b1d73d93e2d2071527b80d853a7c9c4c786775732d3094dc7870",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "region_discovery",
+          "region": "Singapore",
+          "locationText": "Singapore 238823",
+          "currency": "SGD",
+          "clientMs": 5452.8127079999995,
+          "totalMs": 5435.4638749999995,
+          "attemptCount": 1,
+          "responseBytes": 4342,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B00F1U0YB4",
+            "title": "Mrs. Meyer's Liquid Hand Soap Refill, Cruelty Free and Biodegradable Hand Wash Formula Made with Essential Oils, Lemon Verbena Scent, 33 oz",
+            "price": 19.24,
+            "currency": "SGD",
+            "seller": "Amazon US",
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 1,
+          "index": 2,
+          "asin": "B09V7Z4TJG",
+          "requestedUrl": "https://www.amazon.com/dp/B09V7Z4TJG",
+          "finalUrl": "https://www.amazon.sg/dp/B09V7Z4TJG?ref_=mr_direct_us_sg_sg&showmri=undefined&th=1",
+          "capturedAt": "2026-09-23T04:31:25.687Z",
+          "rawBodySha256": "1c29960ccd69c545caf9747a96f792f324cf09039fa43ce2ffee52f555dd74f8",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "region_discovery",
+          "region": "Singapore",
+          "locationText": "Singapore 238823",
+          "currency": null,
+          "clientMs": 5644.644916,
+          "totalMs": 5627.71425,
+          "attemptCount": 1,
+          "responseBytes": 3276,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B09V7Z4TJG",
+            "title": "Medicube Zero Pore Pad 2.0 | 70 sheets | AHA+BHA pore + acne care | Gentle exfoliating & peeling | No sulfates & parabens",
+            "price": null,
+            "currency": null,
+            "seller": null,
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 1,
+          "index": 5,
+          "asin": "B09542G9ZN",
+          "requestedUrl": "https://www.amazon.com/dp/B09542G9ZN",
+          "finalUrl": "https://www.amazon.com/dp/B09542G9ZN",
+          "capturedAt": "2026-09-23T04:31:28.803Z",
+          "rawBodySha256": "1db14ed60c76d5cd9f1b63946ae2b44abcf9d56f1b110ba426212fdc91323448",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "region_discovery",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": "SGD",
+          "clientMs": 4114.561708999999,
+          "totalMs": 4109.8922919999995,
+          "attemptCount": 1,
+          "responseBytes": 3876,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B09542G9ZN",
+            "title": "Amazon Essentials 100% Cotton Rounds, 100 Count (Previously Amazon Basics)",
+            "price": 3.77,
+            "currency": "SGD",
+            "seller": "Amazon.com",
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 1,
+          "index": 6,
+          "asin": "B09541P9WH",
+          "requestedUrl": "https://www.amazon.com/dp/B09541P9WH",
+          "finalUrl": "https://www.amazon.com/dp/B09541P9WH?th=1",
+          "capturedAt": "2026-09-23T04:31:29.288Z",
+          "rawBodySha256": "69045975df2f1988a87e4f0f579e079fa7d40e5a0ae6ff2e34251459859e2886",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "region_discovery",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": "SGD",
+          "clientMs": 4329.860292,
+          "totalMs": 4325.2602910000005,
+          "attemptCount": 1,
+          "responseBytes": 3836,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B09541P9WH",
+            "title": "Amazon Essentials Cotton Swabs, 500 Count (Previously Amazon Basics)",
+            "price": 3.4,
+            "currency": "SGD",
+            "seller": "Amazon.com",
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 1,
+          "index": 8,
+          "asin": "B0DCH8VDXF",
+          "requestedUrl": "https://www.amazon.com/dp/B0DCH8VDXF",
+          "finalUrl": "https://www.amazon.com/dp/B0DCH8VDXF",
+          "capturedAt": "2026-09-23T04:31:29.499Z",
+          "rawBodySha256": "2219fcba50f4ed262f82daa83a280142b50aca64c9e14a66f464c46289ef3396",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "region_discovery",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": null,
+          "clientMs": 3811.447709,
+          "totalMs": 3805.4003330000005,
+          "attemptCount": 1,
+          "responseBytes": 2746,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B0DCH8VDXF",
+            "title": "Apple EarPods Headphones with USB-C Plug, Wired Ear Buds with Built-in Remote to Control Music, Phone Calls, and Volume",
+            "price": null,
+            "currency": null,
+            "seller": null,
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 1,
+          "index": 7,
+          "asin": "B08JHCVHTY",
+          "requestedUrl": "https://www.amazon.com/dp/B08JHCVHTY",
+          "finalUrl": "https://www.amazon.com/dp/B08JHCVHTY",
+          "capturedAt": "2026-09-23T04:31:30.140Z",
+          "rawBodySha256": "eb79781222fab5bcbe71ceb5d883b36666bf1b3da87248cadbd6c5a307b10565",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "region_discovery",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": "USD",
+          "clientMs": 4645.096208,
+          "totalMs": 4641.752125,
+          "attemptCount": 1,
+          "responseBytes": 2400,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B08JHCVHTY",
+            "title": "blink plus subscription plan",
+            "price": 11.99,
+            "currency": "USD",
+            "seller": "Blink",
+            "kind": "subscription"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 1,
+          "index": 9,
+          "asin": "B0GJTFXNRX",
+          "requestedUrl": "https://www.amazon.com/dp/B0GJTFXNRX",
+          "finalUrl": "https://www.amazon.com/dp/B0GJTFXNRX",
+          "capturedAt": "2026-09-23T04:31:32.533Z",
+          "rawBodySha256": "482832728a3ae455e34438cacf542f6394063050a8c9638cd607cbec6619b88a",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "region_discovery",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": null,
+          "clientMs": 3730.198958000001,
+          "totalMs": 3725.7525000000005,
+          "attemptCount": 1,
+          "responseBytes": 2910,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B0GJTFXNRX",
+            "title": "Apple AirTag (2nd Generation): Tracker for Keychain, Wallet, and More; Locator with Sound; Simple One-Tap Setup with iPhone or iPad; Key Finder with up to 1.5X Precision Finding Range",
+            "price": null,
+            "currency": null,
+            "seller": null,
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 1,
+          "index": 10,
+          "asin": "B0FQFB8FMG",
+          "requestedUrl": "https://www.amazon.com/dp/B0FQFB8FMG",
+          "finalUrl": "https://www.amazon.com/dp/B0FQFB8FMG",
+          "capturedAt": "2026-09-23T04:31:33.046Z",
+          "rawBodySha256": "e1369e99eb2d343ffa0797fa45002bff4e4629f07826d6ae02a5eb8cd275d161",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "region_discovery",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": null,
+          "clientMs": 3758.2035410000008,
+          "totalMs": 3755.1016660000005,
+          "attemptCount": 1,
+          "responseBytes": 2707,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B0FQFB8FMG",
+            "title": "Apple AirPods Pro 3 Wireless Earbuds with Active Noise Cancellation",
+            "price": null,
+            "currency": null,
+            "seller": null,
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 2,
+          "index": 2,
+          "asin": "B09V7Z4TJG",
+          "requestedUrl": "https://www.amazon.com/dp/B09V7Z4TJG",
+          "finalUrl": "https://www.amazon.sg/dp/B09V7Z4TJG?ref_=mr_direct_us_sg_sg&showmri=undefined&th=1",
+          "capturedAt": "2026-09-23T04:31:37.133Z",
+          "rawBodySha256": "df9a521f2fe3fb3072d284252d3da0544ecfd020cfe172af8dc7f629924a4f77",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore 238823",
+          "currency": null,
+          "clientMs": 4066.340958999999,
+          "totalMs": 4064.1477090000008,
+          "attemptCount": 1,
+          "responseBytes": 3303,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B09V7Z4TJG",
+            "title": "Medicube Zero Pore Pad 2.0 | 70 sheets | AHA+BHA pore + acne care | Gentle exfoliating & peeling | No sulfates & parabens",
+            "price": null,
+            "currency": null,
+            "seller": null,
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 2,
+          "index": 4,
+          "asin": "B00F1U0YB4",
+          "requestedUrl": "https://www.amazon.com/dp/B00F1U0YB4",
+          "finalUrl": "https://www.amazon.sg/dp/B00F1U0YB4?ref_=mr_direct_us_sg_sg&showmri=undefined&th=1",
+          "capturedAt": "2026-09-23T04:31:37.432Z",
+          "rawBodySha256": "7b4cd84a221ca59a63c2124bc275c6509c81c1900a3e76260b62baa9dd795f1d",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore 238823",
+          "currency": "SGD",
+          "clientMs": 4366.236166999999,
+          "totalMs": 4363.453625000002,
+          "attemptCount": 1,
+          "responseBytes": 4345,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B00F1U0YB4",
+            "title": "Mrs. Meyer's Liquid Hand Soap Refill, Cruelty Free and Biodegradable Hand Wash Formula Made with Essential Oils, Lemon Verbena Scent, 33 oz",
+            "price": 19.24,
+            "currency": "SGD",
+            "seller": "Amazon US",
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 2,
+          "index": 1,
+          "asin": "B08KT2Z93D",
+          "requestedUrl": "https://www.amazon.com/dp/B08KT2Z93D",
+          "finalUrl": "https://www.amazon.sg/dp/B08KT2Z93D?ref_=mr_direct_us_sg_sg&showmri=undefined&th=1",
+          "capturedAt": "2026-09-23T04:31:37.739Z",
+          "rawBodySha256": "dba5324cf231fb107f8f89b5ed8bdcd868d46e211d6a237f7406f1744035d157",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore 238823",
+          "currency": null,
+          "clientMs": 4672.834874999999,
+          "totalMs": 4670.280624999999,
+          "attemptCount": 1,
+          "responseBytes": 3736,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B08KT2Z93D",
+            "title": "eos Shea Better Body Lotion- Vanilla Cashmere, 24-Hour Moisture, 16 fl oz",
+            "price": null,
+            "currency": null,
+            "seller": null,
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 2,
+          "index": 3,
+          "asin": "B07PBXXNCY",
+          "requestedUrl": "https://www.amazon.com/dp/B07PBXXNCY",
+          "finalUrl": "https://www.amazon.sg/dp/B07PBXXNCY?ref_=mr_direct_us_sg_sg&showmri=undefined&th=1",
+          "capturedAt": "2026-09-23T04:31:38.166Z",
+          "rawBodySha256": "6a83e529500e0dedbc9e4229b8420897096a565f87776aa7d6cf71b262d2d79f",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore 238823",
+          "currency": "SGD",
+          "clientMs": 5099.636333999999,
+          "totalMs": 5097.148374999999,
+          "attemptCount": 1,
+          "responseBytes": 4040,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B07PBXXNCY",
+            "title": "Clean Skin Club Clean Towels XL®, 100% USDA Biobased Face Towel, Disposable Face Towelette, Eczema Association Accepted, Makeup Remover Dry Wipes, Ultra Soft, 50 Count",
+            "price": 32.73,
+            "currency": "SGD",
+            "seller": "Amazon US",
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 2,
+          "index": 6,
+          "asin": "B09541P9WH",
+          "requestedUrl": "https://www.amazon.com/dp/B09541P9WH",
+          "finalUrl": "https://www.amazon.com/dp/B09541P9WH?th=1",
+          "capturedAt": "2026-09-23T04:31:41.404Z",
+          "rawBodySha256": "ea0599c316bae4b24f46a9bcfd1a21e77ee0c76b9d3432d46c116be972e21f75",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": "SGD",
+          "clientMs": 3971.1066249999967,
+          "totalMs": 3965.5883749999994,
+          "attemptCount": 1,
+          "responseBytes": 3839,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B09541P9WH",
+            "title": "Amazon Essentials Cotton Swabs, 500 Count (Previously Amazon Basics)",
+            "price": 3.4,
+            "currency": "SGD",
+            "seller": "Amazon.com",
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 2,
+          "index": 5,
+          "asin": "B09542G9ZN",
+          "requestedUrl": "https://www.amazon.com/dp/B09542G9ZN",
+          "finalUrl": "https://www.amazon.com/dp/B09542G9ZN?th=1",
+          "capturedAt": "2026-09-23T04:31:41.406Z",
+          "rawBodySha256": "ab74a35b2e29759f1d0c63982933f85a2183231bfb704c69517a805207042347",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": "SGD",
+          "clientMs": 4273.775833,
+          "totalMs": 4270.755541999999,
+          "attemptCount": 1,
+          "responseBytes": 3879,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B09542G9ZN",
+            "title": "Amazon Essentials 100% Cotton Rounds, 100 Count (Previously Amazon Basics)",
+            "price": 3.77,
+            "currency": "SGD",
+            "seller": "Amazon.com",
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 2,
+          "index": 8,
+          "asin": "B0DCH8VDXF",
+          "requestedUrl": "https://www.amazon.com/dp/B0DCH8VDXF",
+          "finalUrl": "https://www.amazon.com/dp/B0DCH8VDXF",
+          "capturedAt": "2026-09-23T04:31:41.617Z",
+          "rawBodySha256": "0176ed9b2931bc761171ef8face2e0dc50434de18c8c58df0007a07c7bc1bc25",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": null,
+          "clientMs": 3450.9736250000024,
+          "totalMs": 3448.2437500000015,
+          "attemptCount": 1,
+          "responseBytes": 2751,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B0DCH8VDXF",
+            "title": "Apple EarPods Headphones with USB-C Plug, Wired Ear Buds with Built-in Remote to Control Music, Phone Calls, and Volume",
+            "price": null,
+            "currency": null,
+            "seller": null,
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 2,
+          "index": 7,
+          "asin": "B08JHCVHTY",
+          "requestedUrl": "https://www.amazon.com/dp/B08JHCVHTY",
+          "finalUrl": "https://www.amazon.com/dp/B08JHCVHTY",
+          "capturedAt": "2026-09-23T04:31:42.159Z",
+          "rawBodySha256": "04f6720b6f40b7a7c0f7ad9bf92e2e9a2eb6ed827fa0b0b868f98e5a0018525c",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": "USD",
+          "clientMs": 4420.0297500000015,
+          "totalMs": 4417.291542000003,
+          "attemptCount": 1,
+          "responseBytes": 2417,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B08JHCVHTY",
+            "title": "blink plus subscription plan",
+            "price": 11.99,
+            "currency": "USD",
+            "seller": "Blink",
+            "kind": "subscription"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 2,
+          "index": 9,
+          "asin": "B0GJTFXNRX",
+          "requestedUrl": "https://www.amazon.com/dp/B0GJTFXNRX",
+          "finalUrl": "https://www.amazon.com/dp/B0GJTFXNRX?th=1",
+          "capturedAt": "2026-09-23T04:31:45.047Z",
+          "rawBodySha256": "acd100042fe77a60b543962ecba65065647daaf48319703af8778e7b02d51fed",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": null,
+          "clientMs": 3643.5136669999993,
+          "totalMs": 3639.8810410000006,
+          "attemptCount": 1,
+          "responseBytes": 2915,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B0GJTFXNRX",
+            "title": "Apple AirTag (2nd Generation): Tracker for Keychain, Wallet, and More; Locator with Sound; Simple One-Tap Setup with iPhone or iPad; Key Finder with up to 1.5X Precision Finding Range",
+            "price": null,
+            "currency": null,
+            "seller": null,
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 2,
+          "index": 10,
+          "asin": "B0FQFB8FMG",
+          "requestedUrl": "https://www.amazon.com/dp/B0FQFB8FMG",
+          "finalUrl": "https://www.amazon.com/dp/B0FQFB8FMG",
+          "capturedAt": "2026-09-23T04:31:45.451Z",
+          "rawBodySha256": "addf7c115a96e8a14171c6e1cb3c7fd0751d0a80673f294406ceb3464a998b53",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": null,
+          "clientMs": 4044.600459000001,
+          "totalMs": 4040.310125,
+          "attemptCount": 1,
+          "responseBytes": 2685,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B0FQFB8FMG",
+            "title": "Apple AirPods Pro 3 Wireless Earbuds with Active Noise Cancellation",
+            "price": null,
+            "currency": null,
+            "seller": null,
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 3,
+          "index": 1,
+          "asin": "B08KT2Z93D",
+          "requestedUrl": "https://www.amazon.com/dp/B08KT2Z93D",
+          "finalUrl": "https://www.amazon.sg/dp/B08KT2Z93D?ref_=mr_direct_us_sg_sg&showmri=undefined&th=1",
+          "capturedAt": "2026-09-23T04:31:49.592Z",
+          "rawBodySha256": "e383877b590fcaec776d540820632e4d5c6e5d5bdd21b14c79aa8404fd5fe873",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore 238823",
+          "currency": null,
+          "clientMs": 4121.427499999998,
+          "totalMs": 4119.098167,
+          "attemptCount": 1,
+          "responseBytes": 3721,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B08KT2Z93D",
+            "title": "eos Shea Better Body Lotion- Vanilla Cashmere, 24-Hour Moisture, 16 fl oz",
+            "price": null,
+            "currency": null,
+            "seller": null,
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 3,
+          "index": 2,
+          "asin": "B09V7Z4TJG",
+          "requestedUrl": "https://www.amazon.com/dp/B09V7Z4TJG",
+          "finalUrl": "https://www.amazon.sg/dp/B09V7Z4TJG?ref_=mr_direct_us_sg_sg&showmri",
+          "capturedAt": "2026-09-23T04:31:49.774Z",
+          "rawBodySha256": "2d53e5280b26c1320b797a0a527a251787a3e8eb7a69ac7729c6c3a439887937",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore 238823",
+          "currency": null,
+          "clientMs": 4304.032459000002,
+          "totalMs": 4300.515833999998,
+          "attemptCount": 1,
+          "responseBytes": 3283,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B09V7Z4TJG",
+            "title": "Medicube Zero Pore Pad 2.0 | 70 sheets | AHA+BHA pore + acne care | Gentle exfoliating & peeling | No sulfates & parabens",
+            "price": null,
+            "currency": null,
+            "seller": null,
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 3,
+          "index": 3,
+          "asin": "B07PBXXNCY",
+          "requestedUrl": "https://www.amazon.com/dp/B07PBXXNCY",
+          "finalUrl": "https://www.amazon.sg/dp/B07PBXXNCY?ref_=mr_direct_us_sg_sg&showmri=undefined&th=1",
+          "capturedAt": "2026-09-23T04:31:50.086Z",
+          "rawBodySha256": "1df4e9ed72f1cd6a0241ad0389a3717872ec2bd8ab93f8630339012f53761f6a",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore 238823",
+          "currency": "SGD",
+          "clientMs": 4615.472666999998,
+          "totalMs": 4613.087040999999,
+          "attemptCount": 1,
+          "responseBytes": 4041,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B07PBXXNCY",
+            "title": "Clean Skin Club Clean Towels XL®, 100% USDA Biobased Face Towel, Disposable Face Towelette, Eczema Association Accepted, Makeup Remover Dry Wipes, Ultra Soft, 50 Count",
+            "price": 32.73,
+            "currency": "SGD",
+            "seller": "Amazon US",
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 3,
+          "index": 4,
+          "asin": "B00F1U0YB4",
+          "requestedUrl": "https://www.amazon.com/dp/B00F1U0YB4",
+          "finalUrl": "https://www.amazon.sg/dp/B00F1U0YB4?ref_=mr_direct_us_sg_sg&showmri=undefined&th=1",
+          "capturedAt": "2026-09-23T04:31:50.380Z",
+          "rawBodySha256": "2fe9b2790d3526da6cf3bf68658418a2e2f911e43450dc4a5e994c8102916666",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore 238823",
+          "currency": "SGD",
+          "clientMs": 4909.325249999998,
+          "totalMs": 4905.7227920000005,
+          "attemptCount": 1,
+          "responseBytes": 4348,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B00F1U0YB4",
+            "title": "Mrs. Meyer's Liquid Hand Soap Refill, Cruelty Free and Biodegradable Hand Wash Formula Made with Essential Oils, Lemon Verbena Scent, 33 oz",
+            "price": 19.24,
+            "currency": "SGD",
+            "seller": "Amazon US",
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 3,
+          "index": 5,
+          "asin": "B09542G9ZN",
+          "requestedUrl": "https://www.amazon.com/dp/B09542G9ZN",
+          "finalUrl": "https://www.amazon.com/dp/B09542G9ZN?th=1",
+          "capturedAt": "2026-09-23T04:31:53.550Z",
+          "rawBodySha256": "6da8311afc23f96197e0428c8c784df591ab835d613f1e4f506df9e874c11fbf",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": "SGD",
+          "clientMs": 3958.5618339999965,
+          "totalMs": 3955.617000000002,
+          "attemptCount": 1,
+          "responseBytes": 3879,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B09542G9ZN",
+            "title": "Amazon Essentials 100% Cotton Rounds, 100 Count (Previously Amazon Basics)",
+            "price": 3.77,
+            "currency": "SGD",
+            "seller": "Amazon.com",
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 3,
+          "index": 8,
+          "asin": "B0DCH8VDXF",
+          "requestedUrl": "https://www.amazon.com/dp/B0DCH8VDXF",
+          "finalUrl": "https://www.amazon.com/dp/B0DCH8VDXF",
+          "capturedAt": "2026-09-23T04:31:54.059Z",
+          "rawBodySha256": "5020ffcc8b8067e8e534cc9e7512b8aa7e56ec86f49fac1e1f8881de1441a6d6",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": null,
+          "clientMs": 3679.274915999995,
+          "totalMs": 3673.1955000000016,
+          "attemptCount": 1,
+          "responseBytes": 2747,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B0DCH8VDXF",
+            "title": "Apple EarPods Headphones with USB-C Plug, Wired Ear Buds with Built-in Remote to Control Music, Phone Calls, and Volume",
+            "price": null,
+            "currency": null,
+            "seller": null,
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 3,
+          "index": 6,
+          "asin": "B09541P9WH",
+          "requestedUrl": "https://www.amazon.com/dp/B09541P9WH",
+          "finalUrl": "https://www.amazon.com/dp/B09541P9WH",
+          "capturedAt": "2026-09-23T04:31:54.067Z",
+          "rawBodySha256": "f7b97de6dbdf556c72e254b669457986e7c442e801ba768f6684d4bf6e98feaa",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": "SGD",
+          "clientMs": 4292.654959000003,
+          "totalMs": 4289.883042000001,
+          "attemptCount": 1,
+          "responseBytes": 3828,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B09541P9WH",
+            "title": "Amazon Essentials Cotton Swabs, 500 Count (Previously Amazon Basics)",
+            "price": 3.4,
+            "currency": "SGD",
+            "seller": "Amazon.com",
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 3,
+          "index": 7,
+          "asin": "B08JHCVHTY",
+          "requestedUrl": "https://www.amazon.com/dp/B08JHCVHTY",
+          "finalUrl": "https://www.amazon.com/dp/B08JHCVHTY",
+          "capturedAt": "2026-09-23T04:31:54.264Z",
+          "rawBodySha256": "874e27cc0089d02fa5f2ba0535b916ea7adc06426bbc472d2bc040d1fbe2de62",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": "USD",
+          "clientMs": 4178.7075,
+          "totalMs": 4174.478250000004,
+          "attemptCount": 1,
+          "responseBytes": 2416,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B08JHCVHTY",
+            "title": "blink plus subscription plan",
+            "price": 11.99,
+            "currency": "USD",
+            "seller": "Blink",
+            "kind": "subscription"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 3,
+          "index": 9,
+          "asin": "B0GJTFXNRX",
+          "requestedUrl": "https://www.amazon.com/dp/B0GJTFXNRX",
+          "finalUrl": "https://www.amazon.com/dp/B0GJTFXNRX",
+          "capturedAt": "2026-09-23T04:31:56.966Z",
+          "rawBodySha256": "e6f3781578d33e5a5f49019b2ea36c3a39a36f76662091ebf10ccd4e0cec495b",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": null,
+          "clientMs": 3415.6175000000003,
+          "totalMs": 3412.9387080000015,
+          "attemptCount": 1,
+          "responseBytes": 2911,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B0GJTFXNRX",
+            "title": "Apple AirTag (2nd Generation): Tracker for Keychain, Wallet, and More; Locator with Sound; Simple One-Tap Setup with iPhone or iPad; Key Finder with up to 1.5X Precision Finding Range",
+            "price": null,
+            "currency": null,
+            "seller": null,
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        },
+        {
+          "round": 3,
+          "index": 10,
+          "asin": "B0FQFB8FMG",
+          "requestedUrl": "https://www.amazon.com/dp/B0FQFB8FMG",
+          "finalUrl": "https://www.amazon.com/dp/B0FQFB8FMG",
+          "capturedAt": "2026-09-23T04:31:57.593Z",
+          "rawBodySha256": "65b4a16b0976594a4dc0b32c8ac8b675299cc4ca0e90cb4d1449e8f210c24aa6",
+          "httpStatus": 200,
+          "outcome": {
+            "status": "success",
+            "lane": "browser_local",
+            "failureReason": null,
+            "blockReason": null
+          },
+          "comparisonStatus": "comparable",
+          "region": "Singapore",
+          "locationText": "Singapore",
+          "currency": null,
+          "clientMs": 3533.6751249999943,
+          "totalMs": 3529.9736670000057,
+          "attemptCount": 1,
+          "responseBytes": 2708,
+          "jsonStatus": "complete",
+          "fields": {
+            "asin": "B0FQFB8FMG",
+            "title": "Apple AirPods Pro 3 Wireless Earbuds with Active Noise Cancellation",
+            "price": null,
+            "currency": null,
+            "seller": null,
+            "kind": "physical"
+          },
+          "checks": {
+            "asinExact": true,
+            "titlePresent": true,
+            "priceCurrencyConsistent": true,
+            "recommendationAsinLeaks": [],
+            "evidenceBackedFields": {
+              "asin": true,
+              "title": true,
+              "price": true,
+              "currency": true,
+              "seller": true
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

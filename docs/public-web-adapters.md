@@ -41,6 +41,8 @@ Concurrency 4 is attempted only after 1 and 2 show comparable regions/currencies
 
 The [earlier dirty-tree run](../research/amazon-product-baseline-2026-09-23.md) is historical failure evidence, not the integrated branch's baseline. The ten-product field gate requires separate visible-field coverage and accuracy of at least 98%, all target ASINs correct, no recommendation leakage, and Howard's review signature. Amazon remains beta even if ten products pass; 100 unseen products and 1000-page reliability are later promotion gates.
 
+The [frozen integration run](evidence/amazon-adapter-integration-2026-09-23.md) has comparable three-round 10-product results and meets the speed/compact-response engineering gates at limited concurrency. Its raw-HTML field comparison is an unsigned candidate; the human field gate remains open.
+
 The 10 and 100 runs assess subject identity and field accuracy. The 1000 run assesses throughput, rate limits, cancellation, retry and recovery. A large run cannot compensate for wrong subject boundaries or recommendation leakage.
 
 ## Next adapters
