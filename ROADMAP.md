@@ -76,7 +76,7 @@ Section C complete plan: `docs/roadmap/section-c-delivery.md`.
 | Gate 5 · Pilot readiness | Two external users, two weeks of operation, repeat use and a real downstream scenario not yet verified |
 
 Evidence and boundaries: [Gate 2–4 acceptance](docs/roadmap/gate-2-4-acceptance.md).
-Next priority: finish C3 deployment and WorkOS/Codex browser login, then separately accept connection, task completion and continued monitoring after an actual hosted restart. C2 n8n/UI, Gate 4 independent human onboarding and Gate 5 pilots remain open. The roadmap remains A → B → C.
+Next priority: the [dual-flow MVP gates](docs/roadmap/dual-flow-mvp-gates.md) lock public-document Monitor/Delivery and Amazon.sg product JSON/batches as simultaneous first-release promises. The 100-product subject gate, pre-registered 1000-page reliability gate, one authenticated HTTPS MCP URL for both flows, hosted isolation/egress/resource checks, and non-author independent completion precede broader external trial or another RC. Connection, task completion, event delivery, and continued monitoring need separate acceptance. C2 n8n/UI and Gate 5 adoption remain open; the roadmap remains A → B → C.
 
 ## Section A
 
