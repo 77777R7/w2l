@@ -36,7 +36,9 @@ function commit(store: MonitorStore, run: MonitorRun, id: string, now: number, v
 describe('Monitor execution and commit protocol', () => {
   it.each(['{', '{}'])('ignores malformed transport cache %s and completes an unconditional capture', async body => {
     const dbPath = path()
-    const store = openStore(dbPath, { leaseMs: 100, attemptTimeoutMs: 1_000 })
+    // This case tests malformed-cache recovery, not timing. Keep its lease
+    // above busy-runner scheduling jitter; lease expiry is tested separately.
+    const store = openStore(dbPath, { leaseMs: 5_000, attemptTimeoutMs: 30_000 })
     const config = revision(undefined, undefined, true)
     await runConfiguredMonitor(store, config, async () => outcome(), 'initial')
     const db = new Database(dbPath); cleanups.push(() => db.close())

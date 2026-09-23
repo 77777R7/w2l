@@ -56,7 +56,9 @@ describe('Gate 2 real HTTP Monitor reliability', () => {
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
     url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/product`
     const subject = new ResilientHttpSubject('standard', localNetworkPolicy())
-    engine = createApiEngine({ taskRoot: root, monitorLeaseMs: 120, monitorAttemptTimeoutMs: 5_000,
+    // These tests check capture/cache/isolation, not lease expiry. A 120 ms
+    // lease can lapse while the CI runner schedules parallel test workers.
+    engine = createApiEngine({ taskRoot: root, monitorLeaseMs: 5_000, monitorAttemptTimeoutMs: 30_000,
       channelsFor: () => [{ id: 'http', identity: identityForRoute('standard'), fetch: async (target, _session, execution) => {
         injectedCalls++
         return subject.fetch(target, execution?.deadlineAt, execution?.signal)
