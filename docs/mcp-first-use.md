@@ -5,24 +5,63 @@ webhook receiver controlled by the operator. It does not create an Amazon
 price alert. The Monitor, delivery, and receiver keep their state in SQLite;
 the MCP connection can close after each request.
 
+## Use locally now
+
+From this checkout on Howard's Mac, install the single managed service and
+register its loopback MCP URL:
+
+```bash
+npm ci
+npm run local:mcp:install
+codex mcp add w2l-local --url http://127.0.0.1:8791/mcp
+npm run local:mcp:status
+```
+
+Open a **new** Codex task so it loads the MCP configuration, then ask it to
+call `preview_monitor` with the `firecrawl-introduction` preset. The service
+starts at login, restarts on a crash and keeps the SQLite task state under
+`.w2l/api`. It listens only on `127.0.0.1`; REST is internal and there is no
+public URL or WorkOS login on this local path. Keep this checkout in place
+while the LaunchAgent points at it. On a non-macOS system, run
+`npm run local:mcp` in one terminal instead.
+
+For a signed HTTPS receiver, set a secret under an ignored private local file:
+
+```bash
+mkdir -p .w2l
+umask 077
+printf 'W2L_WEBHOOK_SECRET_DEMO=%s\n' "$(openssl rand -hex 32)" > .w2l/local-mcp.env
+chmod 600 .w2l/local-mcp.env
+npm run local:mcp:restart
+```
+
+Put the **same generated value** in the receiver's
+`WEBHOOK_SECRET` environment. Pass only the variable **name**
+`W2L_WEBHOOK_SECRET_DEMO` to `create_delivery_destination`. Delivery still
+requires a real HTTPS endpoint; the example receiver can be exposed through
+a temporary HTTPS tunnel for testing. The local service never exposes the
+receiver or an HTTP callback itself. To inspect or stop the service, use
+`npm run local:mcp:status` or `npm run local:mcp:uninstall`.
+
 ## Local first-use check
 
 Install from a checkout and run the end-to-end check:
 
 ```bash
 npm ci
-npm run verify:c2-first-use
+npm run verify:c2-first-use-local
 ```
 
-The check starts the unified service and an independent receiver, gives the
+The check starts the local unified service and an independent receiver, gives the
 receiver a temporary public HTTPS tunnel, and connects with an actual MCP
 Streamable HTTP SDK client. It previews the source, creates a paused Monitor,
 configures delivery, resumes it, checks the initial event, then uses actual
 `SIGKILL` process crashes with a pending delivery and a queued Monitor run.
 After each restart it reconnects, finishes the work, and checks the same
 `eventId` at both ends.
-The local test token verifier is **only a test seam**; this command does not
-validate WorkOS or a deployed Codex login. Detailed, potentially sensitive
+This loopback check does not validate WorkOS or a deployed Codex login.
+`npm run verify:c2-first-use` remains the authenticated-host test seam.
+Detailed, potentially sensitive
 evidence stays under ignored `.w2l/c2-first-use-*/evidence.json`.
 
 For a conversational client, use these MCP calls in order:

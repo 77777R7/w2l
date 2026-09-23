@@ -12,7 +12,7 @@ published as source prerelease `v0.4.0-rc.1`:
 | --- | --- | --- |
 | C1 | in_progress | Delivery engineering slice passed; real customer consumption over time unverified |
 | C2 | in_progress | Monitor/Delivery MCP and local HTTPS first-use flow implemented; n8n, task UI and independent human acceptance open |
-| C3 | in_progress | Unified runtime and authenticated Streamable HTTP implemented locally; Render, WorkOS/Codex login and hosted restart acceptance open |
+| C3 | in_progress | Unified loopback MCP managed on macOS and authenticated hosted Streamable HTTP implemented; Render, WorkOS/Codex login and hosted restart acceptance open |
 | C4 | not_started | External pilot, repeat-use and willingness-to-pay evidence pending |
 
 Current evidence: [Gate 2–4 acceptance](gate-2-4-acceptance.md).

@@ -46,11 +46,32 @@ npm run scrape -- https://example.com
 npm run crawl -- https://example.com --max-pages 20
 ```
 
-Start each long-running service in its own terminal from the repository root:
+For local MCP use, one background service runs the API, Monitor scheduler,
+delivery worker and MCP endpoint. On macOS, install it as a LaunchAgent and
+connect Codex to its loopback URL:
+
+```bash
+npm run local:mcp:install
+codex mcp add w2l-local --url http://127.0.0.1:8791/mcp
+npm run local:mcp:status
+```
+
+It restarts after a process crash and at login. No Render or WorkOS account is
+needed for this local path. `npm run local:mcp:uninstall` removes the agent;
+`codex mcp remove w2l-local` removes the client entry. On other systems, run
+`npm run local:mcp` in one terminal. The state stays in `.w2l/api` by default.
+See the [MCP first-use walkthrough](docs/mcp-first-use.md) for the actual
+Monitor and HTTPS delivery flow and secret setup. Keep this checkout while
+the LaunchAgent points to it.
+
+The legacy standalone REST API remains available for SDK and Firecrawl-shim
+clients:
 
 ```bash
 npm run api
 ```
+
+To connect a standalone stdio MCP process to that API, run:
 
 ```bash
 npm run mcp
@@ -58,7 +79,13 @@ npm run mcp
 
 `npm run api` binds `127.0.0.1` and allows loopback/RFC1918 so fixture servers work. Hosted mode is explicit: `npm run api -- --hosted --token $W2L_API_TOKEN`. That binds `0.0.0.0`, requires `Authorization: Bearer`, denies private/metadata IPs, and defaults crawl `maxPages` to 100.
 
-The local MCP uses stdio and talks to the REST server. It covers scrape, Crawl, persistent URL-array batches, and Monitor/Delivery. A unified service also implements authenticated Streamable HTTP for a restricted public-document pilot; its permanent Render URL is pending deployment. See the [MCP first-use walkthrough](docs/mcp-first-use.md) and [C2/C3 status](docs/roadmap/section-c-delivery.md). Configure a local MCP client to launch it from this repository:
+The unified local MCP covers scrape, Crawl, persistent URL-array batches, and
+Monitor/Delivery without separate worker terminals. A unified service also
+implements authenticated Streamable HTTP for a restricted public-document
+pilot; its permanent Render URL is pending deployment. See the
+[MCP first-use walkthrough](docs/mcp-first-use.md) and
+[C2/C3 status](docs/roadmap/section-c-delivery.md). Advanced clients may
+still launch the legacy stdio adapter from this repository:
 
 ```json
 {
@@ -121,7 +148,10 @@ Firecrawl v1 clients: set the base URL to `http://127.0.0.1:8787/fc` so `/v1/scr
 
 The native SDK includes Crawl pagination/cancellation, Monitor creation/revisions/runs/control, and Delivery destinations/status/retry. [The runnable example](examples/monitor-workflow.ts) uses a controlled price source, explicit `captureMode`, validated baselines, conditional HTTP requests, and persisted events. [The webhook receiver](examples/webhook-receiver.ts) stores event receipts and applies a versioned product projection transactionally.
 
-The API, Monitor scheduler and delivery worker share a persistent control database. Run the workers in separate terminals with the same `W2L_TASK_ROOT` as the API:
+The API, Monitor scheduler and delivery worker share a persistent control database.
+`npm run local:mcp:install` manages all three for local MCP users. For a
+standalone API deployment, run the workers in separate terminals with the
+same `W2L_TASK_ROOT` as the API:
 
 ```bash
 export W2L_TASK_ROOT="$PWD/.w2l/api"

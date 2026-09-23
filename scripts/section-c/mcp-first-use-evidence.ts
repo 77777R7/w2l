@@ -11,6 +11,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 
 const root=resolve(process.env.W2L_C2_EVIDENCE_ROOT ?? `.w2l/c2-first-use-${Date.now()}`)
+const localMode=process.env.W2L_C2_TRANSPORT==='local'
 await mkdir(root,{recursive:true})
 const secret=randomBytes(32).toString('hex')
 const oldSecret=process.env.W2L_WEBHOOK_SECRET_DEMO
@@ -37,9 +38,11 @@ const port=(probe.address() as AddressInfo).port;await new Promise<void>(resolve
 let service:ChildProcess|undefined
 let client:Client|undefined
 async function connect(receiverUrl:string,pollMs:number):Promise<void> {
-  service=spawnLogged(process.execPath,['--import','tsx','scripts/section-c/host-process.ts'],{...process.env,W2L_C2_ROOT:root,W2L_C2_RECEIVER_URL:receiverUrl,W2L_C2_PORT:String(port),W2L_C2_POLL_MS:String(pollMs)})
-  await waitFor(()=>logs.get(service!)?.includes('"host":"ready"') ? true : null,15_000)
-  const transport=new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/mcp`),{requestInit:{headers:{authorization:'Bearer local-test-token'}}})
+  service=localMode
+    ? spawnLogged(process.execPath,['packages/mcp/dist/localHostCli.js'],{...process.env,W2L_TASK_ROOT:root,W2L_LOCAL_MCP_PORT:String(port),W2L_LOCAL_MONITOR_POLL_MS:String(pollMs)})
+    : spawnLogged(process.execPath,['--import','tsx','scripts/section-c/host-process.ts'],{...process.env,W2L_C2_ROOT:root,W2L_C2_RECEIVER_URL:receiverUrl,W2L_C2_PORT:String(port),W2L_C2_POLL_MS:String(pollMs)})
+  await waitFor(()=>logs.get(service!)?.includes(localMode?'"service":"w2l-local-mcp"':'"host":"ready"') ? true : null,15_000)
+  const transport=new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${port}/mcp`),localMode?undefined:{requestInit:{headers:{authorization:'Bearer local-test-token'}}})
   client=new Client({name:'w2l-first-use-evidence',version:'1.0.0'})
   await client.connect(transport)
 }
@@ -103,7 +106,7 @@ try {
   assert.equal(view.latestEvent.id,delivered.eventId)
   await call('pause_monitor',{id:'firecrawl-introduction'})
   assert.equal((await call<{enabled:boolean}>('get_monitor',{id:'firecrawl-introduction'})).enabled,false)
-  const evidence={generatedAt:new Date().toISOString(),passed:true,source:'https://docs.firecrawl.dev/introduction',receiver:receiverUrl,receiverLifetime:'temporary HTTPS tunnel',auth:'local test verifier; production WorkOS OAuth remains untested',mcpTransport:'Streamable HTTP via SDK client',processCrash:'SIGKILL with pending delivery, then SIGKILL with queued Monitor run',sampleQuality:sample.assessment.quality,eventId:delivered.eventId,deliveryId:delivered.id,receiverReceipts:receiverStatus.receipts.length,runIdAfterRestart:recovered.id,runChangeAfterRestart:recovered.change,paused:true}
+  const evidence={generatedAt:new Date().toISOString(),passed:true,source:'https://docs.firecrawl.dev/introduction',receiver:receiverUrl,receiverLifetime:'temporary HTTPS tunnel',auth:localMode?'loopback-only local service; no WorkOS':'local test verifier; production WorkOS OAuth remains untested',mcpTransport:'Streamable HTTP via SDK client',processCrash:'SIGKILL with pending delivery, then SIGKILL with queued Monitor run',sampleQuality:sample.assessment.quality,eventId:delivered.eventId,deliveryId:delivered.id,receiverReceipts:receiverStatus.receipts.length,runIdAfterRestart:recovered.id,runChangeAfterRestart:recovered.change,paused:true}
   await writeFile(join(root,'evidence.json'),JSON.stringify(evidence,null,2)+'\n')
   console.log(JSON.stringify({passed:true,root,eventId:delivered.eventId,runId:recovered.id}))
 } finally {

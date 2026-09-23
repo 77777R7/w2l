@@ -1,14 +1,11 @@
 import { createServer, type Server as HttpServer } from 'node:http'
-import { join } from 'node:path'
-import { readFileSync } from 'node:fs'
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from 'jose'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import { SUPPORTED_PROTOCOL_VERSIONS } from '@modelcontextprotocol/sdk/types.js'
-import { createApp, createApiEngine, type ApiEngine } from '@w2l/api'
+import type { ApiEngine } from '@w2l/api'
 import { FIRECRAWL_INTRO_URL, hostedNetworkPolicy, type NetworkPolicy } from '@w2l/contracts'
-import { DeliveryStore, DeliveryWorker } from '@w2l/runtime'
-import { W2L } from '@w2l/sdk'
 import { createMcpServer } from './server.js'
+import { createManagedRuntime } from './managedRuntime.js'
 
 const REMOTE_TOOLS = new Set(['preview_monitor','create_monitor','list_monitors','get_monitor','run_monitor','get_monitor_run','pause_monitor','resume_monitor','cancel_monitor_run','create_delivery_destination','list_delivery_destinations','pause_delivery_destination','resume_delivery_destination','list_deliveries','get_delivery','retry_dead_letter'])
 
@@ -43,16 +40,11 @@ export function createHostedService(config: HostedConfig): {server: HttpServer; 
   if (receiverUrl.protocol !== 'https:' || receiverUrl.pathname !== '/webhook' || receiverUrl.search || receiverUrl.hash) throw new Error('receiverUrl must be an HTTPS /webhook URL')
   if (!config.ownerSubject.trim()) throw new Error('ownerSubject is required')
   const policy = config.networkPolicy ?? hostedNetworkPolicy()
-  const engine = createApiEngine({taskRoot:config.taskRoot,networkPolicy:policy,defaultMaxPages:10,httpOnly:true})
-  const api = createApp(engine)
-  // REST stays in-process. The public Node server below has no /v1 route.
-  const client = new W2L({baseUrl:'http://w2l.internal',fetch:async(input,init)=>api.fetch(new Request(input,init))})
-  const deliveryStore = DeliveryStore.open(join(config.taskRoot,'section-b-control.sqlite'))
-  const worker = new DeliveryWorker(deliveryStore,{networkPolicy:hostedNetworkPolicy(),ca:process.env.W2L_DELIVERY_CA_FILE ? readFileSync(process.env.W2L_DELIVERY_CA_FILE) : undefined})
+  const runtime = createManagedRuntime({taskRoot:config.taskRoot,networkPolicy:policy,defaultMaxPages:10,httpOnly:true,monitorPollMs:config.monitorPollMs,deliveryPollMs:config.deliveryPollMs})
+  const {engine,client} = runtime
   const jwks = createRemoteJWKSet(new URL('/oauth2/jwks',issuer))
   const verifyToken = config.verifyToken ?? (async (token:string) => (await jwtVerify(token,jwks,{issuer:issuer.origin,audience:config.mcpUrl})).payload)
-  const controller = new AbortController()
-  let monitorTick = Date.now(), deliveryTick = Date.now(), fault: string | null = null, closing: Promise<void> | null = null
+  let closing: Promise<void> | null = null
   const metadataUrl = `${mcpUrl.origin}/.well-known/oauth-protected-resource`
   const sendJson = (res: import('node:http').ServerResponse,status:number,body:unknown,headers:Record<string,string>={}) => {
     res.writeHead(status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store',...headers}).end(JSON.stringify(body))
@@ -61,13 +53,9 @@ export function createHostedService(config: HostedConfig): {server: HttpServer; 
     try {
       const pathname = new URL(req.url ?? '/',mcpUrl.origin).pathname
       if (req.method === 'GET' && pathname === '/healthz') {
-        // A legitimate capture can run for several minutes. The monitor loop
-        // is alive until its bounded execution deadline or a caught fault.
-        const monitorAlive=Date.now()-monitorTick < 360_000
-        const deliveryAlive=Date.now()-deliveryTick < 30_000
-        const healthy = !fault && monitorAlive && deliveryAlive
+        const health=runtime.health()
         try {engine.listMonitors()} catch {sendJson(res,503,{ok:false});return}
-        sendJson(res,healthy ? 200 : 503,{ok:healthy,monitorLoop:monitorAlive,deliveryLoop:deliveryAlive});return
+        sendJson(res,health.ok ? 200 : 503,health);return
       }
       if (req.method === 'GET' && pathname === '/.well-known/oauth-protected-resource') {
         sendJson(res,200,{resource:config.mcpUrl,authorization_servers:[issuer.origin],bearer_methods_supported:['header'],scopes_supported:['openid']});return
@@ -116,38 +104,12 @@ export function createHostedService(config: HostedConfig): {server: HttpServer; 
     }
   })
   server.requestTimeout = 120_000
-  const sleep = (ms:number) => new Promise<void>(resolve=>{let timer:ReturnType<typeof setTimeout>;const done=()=>{clearTimeout(timer);controller.signal.removeEventListener('abort',done);resolve()};timer=setTimeout(done,ms);controller.signal.addEventListener('abort',done,{once:true})})
-  const monitorLoop = (async () => {
-    while (!controller.signal.aborted) {
-      monitorTick=Date.now()
-      const due=engine.listMonitors().filter(view=>view.enabled && (view.nextRunAt<=Date.now() || view.runs.some(run=>run.state==='running' && (run.leaseUntil ?? Infinity)<=Date.now())))
-      let index=0
-      await Promise.all(Array.from({length:Math.min(4,due.length)},async()=>{
-        while (index<due.length && !controller.signal.aborted) {
-          const view=due[index++]!
-          try {await engine.runMonitor(view.revision.monitorId,undefined,{signal:controller.signal})}
-          catch (error) {console.error(JSON.stringify({component:'monitor',id:view.revision.monitorId,error:String(error)}))}
-        }
-      }))
-      await sleep(config.monitorPollMs ?? 1000)
-    }
-  })().catch(error=>{fault=String(error);console.error(error)})
-  const deliveryLoop = (async () => {
-    while (!controller.signal.aborted) {
-      deliveryTick=Date.now()
-      const didWork=await worker.processOne(controller.signal)
-      if (!didWork) await sleep(config.deliveryPollMs ?? 500)
-    }
-  })().catch(error=>{fault=String(error);console.error(error)})
   server.listen(config.port,config.host ?? '127.0.0.1')
   return {server,engine,close:()=>{
     if (closing) return closing
-    controller.abort(new DOMException('service shutdown','ShutdownError'))
     closing=(async()=>{
       await new Promise<void>(resolve=>server.close(()=>resolve()))
-      await Promise.all([monitorLoop,deliveryLoop])
-      await engine.close({cancelActive:true})
-      deliveryStore.close()
+      await runtime.close()
     })()
     return closing
   }}
