@@ -13,6 +13,8 @@ npm run first-use:local
 
 第二条命令会检查类型、安装 Chromium、建立仅限 Amazon.sg 的匿名 Singapore 238823／SGD 偏好、启动本机 HTTPS 接收器与统一 MCP 服务，并在可用时登记 `w2l-local`。它不会登录 Amazon，也不会把偏好文件提交到 Git。打开一个**新的** Codex 任务，确认 `w2l-local` 已连接；若自动登记未成功，执行：
 
+若另一份 checkout 已安装同名 `w2l-local` 服务，命令会在修改服务前拒绝覆盖。先在拥有该服务的 checkout 合流新版本，或由你决定何时停止旧服务；当前隔离分支不会擅自切换正在使用的入口。
+
 ```bash
 codex mcp add w2l-local --url http://127.0.0.1:8791/mcp
 ```

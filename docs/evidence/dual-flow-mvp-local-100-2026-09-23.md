@@ -55,6 +55,12 @@ run recovered the same state; the Monitor was paused afterward. That receiver
 URL was a short-lived tunnel and is no longer a product endpoint. The full
 local log is `.w2l/c2-first-use-1790165369977/evidence.json`.
 
+The one-command installer was not used to replace Howard's currently running
+`w2l-local`: its existing LaunchAgent belongs to another checkout. The new
+installer's ownership preflight refused that replacement before any mutation.
+The transport tests above used isolated services; a non-author installation
+of the one-command entry is still unverified.
+
 `npm run typecheck` and the full 91-file/999-test suite passed on the candidate;
 the Render Blueprint validated with two services. No PR, push, merge, Render
 deployment, WorkOS authentication, hosted restart, 1000-page run, or external
