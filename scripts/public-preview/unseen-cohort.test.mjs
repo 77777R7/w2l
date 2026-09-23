@@ -11,6 +11,7 @@ test('listing-only discovery accepts Amazon.sg category sources, never detail-pa
   assert.equal(isListingUrl('https://www.amazon.sg/dp/B000000001'), false)
   assert.equal(isListingUrl('https://evil.example/gp/bestsellers/electronics'), false)
   assert.equal(asinFromProductUrl('https://www.amazon.sg/dp/B000000001?ref=abc'), 'B000000001')
+  assert.equal(asinFromProductUrl('https://www.amazon.sg/Example-Product/dp/B000000002/ref=zg_bs'), 'B000000002')
   assert.equal(asinFromProductUrl('https://www.amazon.com/dp/B000000001'), null)
   assert.deepEqual([...asinsInText('background B000000001')], ['B000000001'])
 })

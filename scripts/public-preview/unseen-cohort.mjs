@@ -16,7 +16,9 @@ export function asinFromProductUrl(link) {
   try {
     const url = new URL(link)
     if (url.protocol !== 'https:' || !/(^|\.)amazon\.sg$/i.test(url.hostname)) return null
-    return url.pathname.match(/^\/(?:dp|gp\/product)\/([A-Z0-9]{10})(?:\/|$)/i)?.[1]?.toUpperCase() ?? null
+    // Bestseller cards commonly use /Product-Name/dp/ASIN/ref=... rather
+    // than a path beginning directly with /dp/ASIN.
+    return url.pathname.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})(?:\/|$)/i)?.[1]?.toUpperCase() ?? null
   } catch { return null }
 }
 
