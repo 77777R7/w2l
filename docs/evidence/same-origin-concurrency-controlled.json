@@ -1,0 +1,74 @@
+{
+  "kind": "controlled-same-origin-batch",
+  "at": "2026-09-22T18:56:37.140Z",
+  "sourceCommit": "8a7637f4ae11862d120406761d0df0836e01f64c",
+  "workingTreeDirty": true,
+  "node": "v26.8.1",
+  "count": 6,
+  "originLatencyMs": 1000,
+  "minDelayMs": 250,
+  "arms": [
+    {
+      "concurrency": 1,
+      "healthy": true,
+      "clientTotalMs": 6568.234167,
+      "requested": 6,
+      "completed": 6,
+      "remaining": 0,
+      "statuses": [
+        "success",
+        "success",
+        "success",
+        "success",
+        "success",
+        "success"
+      ],
+      "peakActive": 1,
+      "minStartGapMs": 1007.0875419999998,
+      "maxStartGapMs": 1015.525875,
+      "retryCount": 0
+    },
+    {
+      "concurrency": 2,
+      "healthy": true,
+      "clientTotalMs": 3535.324166999999,
+      "requested": 6,
+      "completed": 6,
+      "remaining": 0,
+      "statuses": [
+        "success",
+        "success",
+        "success",
+        "success",
+        "success",
+        "success"
+      ],
+      "peakActive": 2,
+      "minStartGapMs": 252.11741699999948,
+      "maxStartGapMs": 755.8126250000005,
+      "retryCount": 0
+    },
+    {
+      "concurrency": 4,
+      "healthy": true,
+      "clientTotalMs": 2528.0465000000004,
+      "requested": 6,
+      "completed": 6,
+      "remaining": 0,
+      "statuses": [
+        "success",
+        "success",
+        "success",
+        "success",
+        "success",
+        "success"
+      ],
+      "peakActive": 4,
+      "minStartGapMs": 250.39424999999937,
+      "maxStartGapMs": 255.1045410000006,
+      "retryCount": 0
+    }
+  ],
+  "conclusion": "All controlled arms healthy; this is not an Amazon throughput claim.",
+  "minStartGapThresholdMs": 249
+}

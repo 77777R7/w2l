@@ -18,6 +18,8 @@ import { classifyBlocks, type ClassifyOptions } from './classify.js'
 import { selectMain } from './main.js'
 import { collectDeclaredProductFacts, fillPriceFromText, selectProduct } from './product.js'
 import { pageSignalsFor, routePage, selectList, selectTable } from './route.js'
+import { collectAmazonProductFacts, inferAmazonCurrency, isAmazonProductPage, selectAmazonProduct } from './amazon.js'
+import { adapterFor } from './adapters.js'
 
 const DEFAULT_CLASSIFY: ClassifyOptions = {
   minTextLength: 25,
@@ -79,7 +81,10 @@ function confidenceOf(
 export class ExtractTf implements Extractor {
   extract(html: string, options: ExtractorOptions = {}): ExtractorOutput {
     const { favorPrecision = false, favorRecall = false, pruneSelectors } = options
+    const parseStart = performance.now()
     const doc = parse(html)
+    const parseMs = Math.max(0, performance.now() - parseStart)
+    const extractionStart = performance.now()
 
     // Semantic page-type signals must be collected BEFORE cleaning: they live
     // in <script type="application/ld+json">, <meta>, and itemprop attributes,
@@ -87,16 +92,22 @@ export class ExtractTf implements Extractor {
     // article.post elements whose only content is a <form> (quick-reply),
     // which would otherwise suppress forum routing.
     const signals = pageSignalsFor(doc.document)
+    const preliminaryAdapter = adapterFor(doc.document, options.url)
 
     // Declared product facts share those carriers, so they are read from the
     // raw tree too. The visible-price fallback runs much later, after
     // recommendation pruning — see below.
     const declaredFacts = collectDeclaredProductFacts(doc.document)
+    const amazonProduct = isAmazonProductPage(doc.document, options.url)
+    const sourceFacts = amazonProduct
+      ? collectAmazonProductFacts(doc.document, options.url, declaredFacts)
+      : declaredFacts
+    const amazonValidation = amazonProduct ? adapterFor(doc.document, options.url, sourceFacts).validation : null
 
     cleanTree(doc.document)
     pruneTree(doc.document, { selectors: pruneSelectors })
 
-    const decision = routePage(doc.document, signals)
+    const decision = amazonProduct ? { type: 'product' as const, strategy: 'product' as const } : routePage(doc.document, signals)
 
     // Recommendation carousels are cut only on product pages. On a listing
     // page the priced cards ARE the content, and pruning them would delete
@@ -130,7 +141,7 @@ export class ExtractTf implements Extractor {
         break
       case 'product': {
         const blocks = classifyBlocks(doc.document, classifyOptions)
-        main = selectProduct(doc.document, blocks)
+        main = (amazonProduct ? selectAmazonProduct(doc.document) : null) ?? selectProduct(doc.document, blocks)
         if (main === null) {
           // No defensible product region. The page is still a product page;
           // the article cascade is just what produced the HTML.
@@ -147,15 +158,21 @@ export class ExtractTf implements Extractor {
 
     let product: ProductFacts | null = null
     if (decision.type === 'product') {
-      product = declaredFacts
+      product = sourceFacts
       // Only now, on a tree with the neighbouring products removed, is the
       // deepest price-shaped element safe to read as THIS product's price.
-      fillPriceFromText(product, doc.document)
+      // Amazon's page often contains unit prices and neighbouring offer
+      // fragments inside the subject container. The adapter must prefer an
+      // honest null over attributing one of those generic price tokens to the
+      // main ASIN.
+      if (!amazonProduct) fillPriceFromText(product, doc.document)
+      if (amazonProduct && product.price !== null && product.priceCurrency === null) product.priceCurrency = inferAmazonCurrency(options.url, product.price.value)
     }
 
     const blocks = classifyBlocks(doc.document, classifyOptions)
     const mainLength = main ? textOf(main).length : 0
 
+    const adapter = amazonProduct ? adapterFor(doc.document, options.url, product) : preliminaryAdapter
     const output: ExtractorOutput = {
       title: pickTitle(doc.document, main),
       mainHtml: main ? outerHtml(main) : '',
@@ -175,6 +192,10 @@ export class ExtractTf implements Extractor {
       pageType: decision.type,
       strategy,
       product,
+      adapter: adapter.descriptor,
+      entities: adapter.entities,
+      adapterValidation: amazonValidation ?? adapter.validation,
+      timings: { parseMs, extractMs: Math.max(0, performance.now() - extractionStart) },
     }
 
     doc.close()

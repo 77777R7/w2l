@@ -3,7 +3,7 @@
  * One crawl is CrawlOrchestrator. No second fetcher.
  */
 
-import { existsSync, mkdirSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   buildChannels,
@@ -12,6 +12,7 @@ import {
   LadderScrapeAtom,
   MemoryRoutingHistory,
   ResilientHttpSubject,
+  OriginScheduler,
   type Channel,
 } from '@w2l/bench'
 import {
@@ -23,14 +24,19 @@ import {
   type CrawlPageList,
   type CrawlReport,
   type CrawlStartRequest,
+  type BatchStartRequest,
+  type BatchStatusResponse,
+  RequestError,
   type FetchResult,
   type NetworkPolicy,
   type ScrapeRequest,
   type StepRecord,
   type Task,
-  type LadderRunAudit,
   type CrawlPageQuery,
   type ExecutionContext,
+  type CompactScrapeResponse,
+  type ScrapeResponse,
+  type ScrapeAtom,
   type DeliveryDestinationInput,
   type DeliveryDestination,
   type DeliveryQuery,
@@ -38,12 +44,13 @@ import {
   type DeliveryDetail,
 } from '@w2l/contracts'
 import { createExecutionScope, type CrawlPolicy } from '@w2l/http-core'
-import { CrawlOrchestrator, crawlReportFromStore, SqliteTaskStore, type StepPageQuery } from '@w2l/runtime'
+import { CrawlOrchestrator, canonicalizeUrl, crawlReportFromStore, reportFromTaskAttempt, SqliteTaskStore, type StepPageQuery } from '@w2l/runtime'
 import { initializeFirecrawlMonitor, runFirecrawlMonitor as executeMonitor, runConfiguredMonitor } from '@w2l/runtime'
 import { MonitorStore, DeliveryStore } from '@w2l/runtime'
 import { FileSessionBrokerStore, SessionBroker } from '@w2l/bench'
 import { FIRECRAWL_INTRO_URL, FIRECRAWL_MONITOR_ID, type MonitorView, type MonitorRevision } from '@w2l/contracts'
 import type { ManagedSessionRef, SessionAccessResult } from '@w2l/contracts'
+import { extractStructured, prepareScrapeResponse, structuredModelConfigFromEnv } from './structured.js'
 
 export interface CrawlWithSteps {
   report: CrawlReport
@@ -51,8 +58,12 @@ export interface CrawlWithSteps {
 }
 
 export interface ApiEngine {
-  scrape(req: ScrapeRequest, context?: ExecutionContext): Promise<FetchResult & LadderRunAudit>
+  scrape(req: ScrapeRequest, context?: ExecutionContext): Promise<ScrapeResponse | CompactScrapeResponse>
   startCrawl(req: CrawlStartRequest): Promise<CrawlAccepted>
+  startBatch(req: BatchStartRequest): Promise<CrawlAccepted>
+  getBatch(taskId: string): Promise<BatchStatusResponse | null>
+  getBatchItems(taskId: string, query?: CrawlPageQuery): Promise<CrawlPageList<CrawlPage> | null>
+  cancelBatch(taskId: string): Promise<BatchStatusResponse | null>
   getCrawl(taskId: string): Promise<CrawlReport | null>
   getCrawlWithSteps(taskId: string): Promise<CrawlWithSteps | null>
   getCrawlPages(taskId: string, query?: CrawlPageQuery): Promise<CrawlPageList<CrawlPage> | null>
@@ -106,15 +117,20 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
   const monitorControllers = new Map<string, Set<AbortController>>()
   const sessionBroker = new SessionBroker(new FileSessionBrokerStore(join(taskRoot, 'b3-sessions.json')))
   const headed = options.headed === true
-  const networkPolicy = options.networkPolicy ?? localNetworkPolicy()
-  const conditionalHttp = new ResilientHttpSubject('standard', networkPolicy)
+  const networkPolicy: NetworkPolicy = {
+    ...(options.networkPolicy ?? localNetworkPolicy()),
+    ...(options.perHostConcurrency === undefined ? {} : { perHostConcurrency: options.perHostConcurrency }),
+    ...(options.perHostMinDelayMs === undefined ? {} : { perHostMinDelayMs: options.perHostMinDelayMs }),
+  }
+  const originScheduler = new OriginScheduler(networkPolicy)
+  const conditionalHttp = new ResilientHttpSubject('standard', networkPolicy, originScheduler)
   const defaultMaxPages = options.defaultMaxPages ?? null
   const inflight = new Map<string, Promise<void>>()
   const activeScrapes = new Set<Promise<unknown>>()
   const crawlControllers = new Map<string, AbortController>()
   const createChannels =
     options.channelsFor ??
-    ((mode: 'standard' | 'research' | 'authed') => buildChannels(mode, { headed, networkPolicy }))
+    ((mode: 'standard' | 'research' | 'authed') => buildChannels(mode, { headed, networkPolicy, originScheduler }))
   const channelsByMode = new Map<string, Channel[]>()
   const historiesByMode = new Map<string, MemoryRoutingHistory>()
   const channelsFor = (mode: 'standard' | 'research' | 'authed'): Channel[] => {
@@ -146,14 +162,15 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
     }
   }
 
-  async function loadCrawlPageList(taskId: string, query: CrawlPageQuery | undefined, kind: StepPageQuery['kind']): Promise<CrawlPageList<CrawlPage> | null> {
+  async function loadCrawlPageList(taskId: string, query: CrawlPageQuery | undefined, kind: StepPageQuery['kind'], allAttempts = false): Promise<CrawlPageList<CrawlPage> | null> {
     if (!existsSync(join(taskRoot, taskId))) return null
     const store = SqliteTaskStore.openReadOnly(join(taskRoot, taskId))
     try {
-      const report = await crawlReportFromStore(store, taskId)
-      if (report === null) return null
+      const report = allAttempts ? null : await crawlReportFromStore(store, taskId)
+      if (!allAttempts && report === null) return null
+      if (allAttempts && await store.getTask(taskId) === null) return null
       const page = await store.listStepsPage(taskId, {
-        attemptId: query?.attemptId ?? (report.attemptId.length > 0 ? report.attemptId : undefined),
+        attemptId: query?.attemptId ?? (!allAttempts && report !== null && report.attemptId.length > 0 ? report.attemptId : undefined),
         cursor: query?.cursor,
         limit: query?.limit ?? 50,
         kind,
@@ -168,8 +185,85 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
     }
   }
 
+  function launchTask(task: Task, store: SqliteTaskStore, req: { maxDepth: number | null; allowlistedDomains: readonly string[]; useCached: boolean; resume: boolean }): void {
+    const mode = defaultApiMode(task.mode)
+    const runner = new LadderRunner(channelsFor(mode), { mode, ...(req.allowlistedDomains.length ? { allowlistedDomains: req.allowlistedDomains } : {}) }, historyFor(mode))
+    const ladder = new LadderScrapeAtom(runner)
+    const atom: ScrapeAtom = task.batch === undefined ? ladder : {
+      async scrape(url, context) {
+        const outcome = await ladder.scrape(url, context)
+        const formats = task.batch!.formats
+        const wants = (name: 'markdown' | 'links' | 'json') => formats.some(format => typeof format === 'string' ? format === name : name === 'json')
+        const custom = formats.find(format => typeof format === 'object')
+        const json = wants('json') ? await extractStructured(outcome.result, custom, context ?? {}, structuredModelConfigFromEnv()) : undefined
+        const audit = outcome.audit === undefined ? undefined : {
+          ...outcome.audit,
+          summary: {
+            ...outcome.audit.summary,
+            attempts: outcome.audit.summary.attempts.map(attempt => ({
+              ...attempt,
+              result: { ...attempt.result, markdown: null, links: [] },
+            })),
+          },
+        }
+        return { ...outcome, ...(audit === undefined ? {} : { audit }), result: {
+          ...outcome.result,
+          markdown: wants('markdown') ? outcome.result.markdown : null,
+          links: wants('links') || task.batch!.includeLinks ? outcome.result.links : [],
+          ...(json === undefined ? {} : { json }),
+        } }
+      },
+      close: () => ladder.close(),
+    }
+    const controller = new AbortController()
+    crawlControllers.set(task.id, controller)
+    const orchestrator = new CrawlOrchestrator({
+      store, atom,
+      workerCount: options.workerCount,
+      perHostConcurrency: Math.min(4, networkPolicy.perHostConcurrency),
+      perHostMinDelayMs: networkPolicy.perHostMinDelayMs,
+      crawlDelayMsByHost: options.crawlDelayMsByHost,
+      shutdownSignal: shutdownController.signal,
+      signal: controller.signal,
+    })
+    const job = orchestrator.run({
+      seedUrl: task.seedUrl,
+      ...(task.batch ? { seedUrls: task.batch.urls } : {}),
+      taskDir: task.taskDir,
+      mode,
+      budget: task.budget,
+      maxDepth: req.maxDepth,
+      allowlistedDomains: req.allowlistedDomains,
+      resumeFrom: req.resume ? task.id : null,
+      useCached: req.useCached,
+      taskId: task.id,
+    }).then(async () => {
+      inflight.delete(task.id); crawlControllers.delete(task.id)
+      await store.close()
+    }).catch(async () => {
+      inflight.delete(task.id); crawlControllers.delete(task.id)
+      await markCrawlFailed(store, task.id)
+      await store.close()
+    })
+    inflight.set(task.id, job)
+  }
+
+  // A running batch has a durable URL list and per-URL checkpoints. Reopen it
+  // after a process crash; completed steps are skipped by restoreFrontier.
+  for (const name of existsSync(taskRoot) ? readdirSync(taskRoot) : []) {
+    const taskDir = join(taskRoot, name)
+    if (!existsSync(join(taskDir, 'checkpoint.sqlite'))) continue
+    const store = SqliteTaskStore.open(taskDir)
+    void store.getTask(name).then(task => {
+      if (task?.batch && ['pending', 'running', 'paused'].includes(task.status)) {
+        launchTask(task, store, { maxDepth: 0, allowlistedDomains: [...new Set(task.batch.urls.map(url => new URL(url).hostname))], useCached: false, resume: true })
+      } else void store.close()
+    }).catch(() => { void store.close() })
+  }
+
   return {
     async scrape(req, context = {}) {
+      const overallStart = performance.now()
       const scope = createExecutionScope({...context, signal: context.signal ? AbortSignal.any([context.signal, shutdownController.signal]) : shutdownController.signal, deadlineAt: context.deadlineAt ?? Date.now() + 300_000})
       const mode = defaultApiMode(req.mode)
       const channels = channelsFor(mode)
@@ -182,12 +276,13 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
       const runner = new LadderRunner(channels, policy, historyFor(mode))
       const operation = (async () => {
         const run = await runner.run(req.url, undefined, scope)
-        return {
+        const full: ScrapeResponse = {
           ...run.result,
           channelsTried: run.channelsTried,
           ladderTrace: run.ladderTrace,
           summary: run.summary,
         }
+        return prepareScrapeResponse(full, req, scope, null, overallStart)
       })()
       activeScrapes.add(operation)
       try { return await operation } finally { activeScrapes.delete(operation); scope.dispose() }
@@ -216,55 +311,57 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
         updatedAt: now,
       }
       await store.putTask(task)
-
-      const channels = channelsFor(mode)
-      const policy: CrawlPolicy = {
-        mode,
-        ...(req.allowlistedDomains !== undefined && req.allowlistedDomains.length > 0
-          ? { allowlistedDomains: req.allowlistedDomains }
-          : {}),
-      }
-      const runner = new LadderRunner(channels, policy, historyFor(mode))
-      const atom = new LadderScrapeAtom(runner)
-      const orchestrator = new CrawlOrchestrator({
-        store,
-        atom,
-        workerCount: options.workerCount,
-        perHostConcurrency: options.perHostConcurrency,
-        perHostMinDelayMs: options.perHostMinDelayMs,
-        crawlDelayMsByHost: options.crawlDelayMsByHost,
-        shutdownSignal: shutdownController.signal,
-        signal: (() => {
-          const controller = new AbortController()
-          crawlControllers.set(taskId, controller)
-          return controller.signal
-        })(),
-      })
-      const job = orchestrator
-        .run({
-          seedUrl: req.url,
-          taskDir,
-          mode,
-          budget: task.budget,
-          maxDepth: req.maxDepth === undefined ? null : req.maxDepth,
-          allowlistedDomains: req.allowlistedDomains ?? [],
-          resumeFrom: null,
-          useCached: req.useCached === true,
-          taskId,
-        })
-        .then(async () => {
-          inflight.delete(taskId)
-          crawlControllers.delete(taskId)
-           await store.close()
-        })
-        .catch(async () => {
-          inflight.delete(taskId)
-          crawlControllers.delete(taskId)
-          await markCrawlFailed(store, taskId)
-           await store.close()
-        })
-      inflight.set(taskId, job)
+      launchTask(task, store, { maxDepth: req.maxDepth ?? null, allowlistedDomains: req.allowlistedDomains ?? [], useCached: req.useCached === true, resume: false })
       return { taskId }
+    },
+
+    async startBatch(req) {
+      const canonical = req.urls.map(url => canonicalizeUrl(url))
+      if (canonical.some(url => url === null) || new Set(canonical).size !== canonical.length) throw new RequestError('urls must be unique after canonicalization')
+      const taskId = crypto.randomUUID()
+      const taskDir = join(taskRoot, taskId)
+      const store = SqliteTaskStore.open(taskDir)
+      const now = new Date().toISOString()
+      const urls = [...req.urls]
+      const task: Task = {
+        id: taskId, seedUrl: urls[0]!, taskDir, mode: defaultApiMode(req.mode), status: 'pending',
+        budget: { maxPages: null, maxWallMs: null, maxCostUsd: null, maxTokens: null },
+        batch: { urls, formats: req.formats ?? ['markdown'], includeLinks: req.includeLinks === true },
+        createdAt: now, updatedAt: now,
+      }
+      await store.putTask(task)
+      launchTask(task, store, { maxDepth: 0, allowlistedDomains: [...new Set(urls.map(url => new URL(url).hostname))], useCached: false, resume: false })
+      return { taskId }
+    },
+
+    async getBatch(taskId) {
+      if (!existsSync(join(taskRoot, taskId, 'checkpoint.sqlite'))) return null
+      const store = SqliteTaskStore.openReadOnly(join(taskRoot, taskId))
+      try {
+        const task = await store.getTask(taskId)
+        if (!task?.batch) return null
+        const attempts = await store.listAttempts(taskId)
+        const latest = attempts.at(-1)
+        const report = latest
+          ? reportFromTaskAttempt(task, latest, 0)
+          : await crawlReportFromStore(store, taskId)
+        if (!report) return null
+        const completed = await store.countCompletedSteps(taskId)
+        return { ...report, requested: task.batch.urls.length, completed, remaining: Math.max(0, task.batch.urls.length - completed) }
+      } finally { await store.close() }
+    },
+
+    async getBatchItems(taskId, query) {
+      if (await this.getBatch(taskId) === null) return null
+      const page = await loadCrawlPageList(taskId, { ...query, limit: Math.min(50, query?.limit ?? 10) }, 'all', true)
+      if (page === null || query?.debug === true) return page
+      return { ...page, items: page.items.map(({ audit: _audit, ...item }) => ({ ...item, trace: [] })) }
+    },
+
+    async cancelBatch(taskId) {
+      if (await this.getBatch(taskId) === null) return null
+      await this.cancelCrawl(taskId)
+      return this.getBatch(taskId)
     },
 
     async getCrawl(taskId) {
@@ -324,7 +421,7 @@ export function createApiEngine(options: ApiEngineOptions = {}): ApiEngine {
           const result = await conditionalHttp.fetch(revision.url, capture.deadlineAt, capture.signal, capture, capture.onRetryAfter)
           return {result, links: result.links ?? []}
         }
-        const result = await this.scrape({url: revision.url}, capture)
+        const result = await this.scrape({url: revision.url, debug: true}, capture) as ScrapeResponse
         return {result, links: result.links ?? [], audit: {channelsTried: result.channelsTried, ladderTrace: result.ladderTrace, summary: result.summary}}
       }, triggerKey, {...context, signal})
       activeScrapes.add(operation)
@@ -405,6 +502,7 @@ function toCrawlPage(step: StepRecord): CrawlPage {
     status: step.status,
     lane: step.lane,
     markdown: result?.markdown ?? null,
+    ...(result?.json === undefined ? {} : { json: result.json }),
     failureReason: result?.failureReason ?? null,
     blockReason: result?.blockReason ?? null,
     budgetExceeded: result?.budgetExceeded ?? null,

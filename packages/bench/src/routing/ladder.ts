@@ -195,18 +195,22 @@ export class LadderRunner {
   }
 
   private async runWithinBudget(url: string, session: SessionSnapshot | null | undefined, execution: ExecutionContext): Promise<LadderRunResult> {
+    const startedAt = performance.now()
     throwIfExecutionStopped(execution)
     const decision = evaluateGovernance(url, this.policy)
     const channelsTried: string[] = []
     const ladderTrace: LadderRunResult['ladderTrace'][number][] = []
     const attempts: { channel: string; result: FetchResult }[] = []
-    const finish = (result: FetchResult, handoffRequested: boolean): LadderRunResult => ({
-      result,
-      channelsTried,
-      handoffRequested,
-      ladderTrace,
-      summary: summarize(channelsTried, attempts),
-    })
+    const finish = (result: FetchResult, handoffRequested: boolean): LadderRunResult => {
+      const summary = summarize(channelsTried, attempts)
+      return {
+        result,
+        channelsTried,
+        handoffRequested,
+        ladderTrace,
+        summary: { ...summary, totalMs: Math.max(0, performance.now() - startedAt) },
+      }
+    }
 
     // Sessions exist for authed mode ONLY. standard/research never load or
     // use login state — a session in a public run is a leak of the user's

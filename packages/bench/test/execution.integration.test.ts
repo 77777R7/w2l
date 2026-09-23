@@ -47,6 +47,7 @@ describe('execution budget over real HTTP', () => {
     controller.abort()
     const out = await task
     expect(out.failureReason).toBe('timeout')
+    expect(out.usage.timings?.totalMs).toBeGreaterThanOrEqual(out.usage.timings?.robotsMs ?? 0)
     await expect.poll(() => closed).toBe(true)
     expect(pageHits).toBe(0)
   })
@@ -62,6 +63,7 @@ describe('execution budget over real HTTP', () => {
     const start = Date.now()
     const out = await new ResilientHttpSubject().fetch(`${origin}/stream`, start + 150)
     expect(out.failureReason).toBe('timeout')
+    expect(out.usage.timings?.totalMs).toBeGreaterThanOrEqual(100)
     expect(Date.now() - start).toBeLessThan(1_000)
     await expect.poll(() => closed).toBe(true)
   })
@@ -78,7 +80,34 @@ describe('execution budget over real HTTP', () => {
     expect(out.retryAt).toBeGreaterThanOrEqual(start + 120_000)
     expect(out.trace.some(event => event.event === 'retry_deferred')).toBe(true)
     expect(hits).toBe(1)
+    expect(out.usage.timings?.retryWaitMs).toBe(0)
+    expect(out.usage.timings?.totalMs).toBe(out.usage.wallMs)
     expect(Date.now() - start).toBeLessThan(500)
+  })
+
+  it('records body delay, successful retry wait, 429 no-retry, and a complete timing total', async () => {
+    let retryHits = 0
+    const origin = await server((req, res) => {
+      if (robots(req, res)) return
+      if (req.url === '/body-delay') return void setTimeout(() => res.writeHead(200, { 'content-type': 'text/html' }).end(article), 80)
+      if (req.url === '/retry') {
+        retryHits++
+        if (retryHits === 1) return void res.writeHead(503, { 'retry-after': '0.08' }).end('busy')
+        return void res.writeHead(200, { 'content-type': 'text/html' }).end(article)
+      }
+      res.writeHead(429, { 'retry-after': '2' }).end('limited')
+    })
+    const delayed = await new ResilientHttpSubject().fetch(`${origin}/body-delay`, Date.now() + 2_000)
+    expect(delayed.status).toBe('success')
+    expect(delayed.usage.timings?.transportMs).toBeGreaterThanOrEqual(70)
+    expect(delayed.usage.timings?.totalMs).toBe(delayed.usage.wallMs)
+    const retried = await new ResilientHttpSubject().fetch(`${origin}/retry`, Date.now() + 2_000)
+    expect(retried.status).toBe('success')
+    expect(retried.usage.attemptCount).toBe(2)
+    expect(retried.usage.timings?.retryWaitMs).toBeGreaterThanOrEqual(70)
+    const limited = await new ResilientHttpSubject().fetch(`${origin}/limited`, Date.now() + 2_000)
+    expect(limited.usage.attemptCount).toBe(1)
+    expect(limited.usage.timings?.retryWaitMs).toBe(0)
   })
 
   it('serializes same-origin retry/cooldown while another origin proceeds and a waiter can cancel', async () => {
@@ -123,7 +152,10 @@ describe('execution budget over real HTTP', () => {
     const controller = new AbortController()
     const task = subject.fetch(`${origin}/two`, undefined, controller.signal)
     setTimeout(() => controller.abort(), 40)
-    expect((await task).failureReason).toBe('timeout')
+    const cancelled = await task
+    expect(cancelled.failureReason).toBe('timeout')
+    expect(cancelled.usage.timings?.cooldownWaitMs).toBeGreaterThanOrEqual(20)
+    expect(cancelled.usage.timings?.cooldownWaitMs).toBeLessThan(1_000)
     expect(hits).toBe(1)
   })
 

@@ -2,6 +2,7 @@ export { createApp } from './app.js'
 export type { AppOptions } from './app.js'
 export { createApiEngine } from './engine.js'
 export type { ApiEngine, ApiEngineOptions, CrawlWithSteps } from './engine.js'
+export { compactScrapeResponse, extractStructured } from './structured.js'
 export { parseListen, parsePort } from './listen.js'
 export type { ApiMode, ListenConfig } from './listen.js'
 export {

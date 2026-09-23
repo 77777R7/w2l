@@ -244,6 +244,13 @@ export function classifyGate(res: GateResponse): GateVerdict | null {
     return { reason: 'cloudflare_challenge', signals: ['cf_interstitial_text'] }
   }
 
+  // Amazon's 200 verification page uses a plain image/form rather than a
+  // third-party widget. The form action is decisive even if surrounding text
+  // happens to look contentful to a generic extractor.
+  if (/<form\b[^>]*action=["'][^"']*\/errors_page\/validatecaptcha(?:[?"'])/i.test(head)) {
+    return { reason: 'captcha', signals: ['amazon_validate_captcha_form'] }
+  }
+
   if (contentful) return null
 
   // --- interactive captcha widget ----------------------------------------

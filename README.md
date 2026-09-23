@@ -58,7 +58,7 @@ npm run mcp
 
 `npm run api` binds `127.0.0.1` and allows loopback/RFC1918 so fixture servers work. Hosted mode is explicit: `npm run api -- --hosted --token $W2L_API_TOKEN`. That binds `0.0.0.0`, requires `Authorization: Bearer`, denies private/metadata IPs, and defaults crawl `maxPages` to 100.
 
-The current MCP uses local stdio and talks to the REST server. Its six tools cover scrape and Crawl (including result pagination and cancellation); Monitor/Delivery tools and a remote HTTPS MCP URL are planned in [C2/C3](docs/roadmap/section-c-delivery.md). Configure the MCP client to launch it from this repository:
+The current MCP uses local stdio and talks to the REST server. It covers scrape, Crawl, and persistent URL-array batches (including result pagination and cancellation); Monitor/Delivery tools and a remote HTTPS MCP URL are planned in [C2/C3](docs/roadmap/section-c-delivery.md). Configure the MCP client to launch it from this repository:
 
 ```json
 {
@@ -71,6 +71,49 @@ The current MCP uses local stdio and talks to the REST server. Its six tools cov
   }
 }
 ```
+
+MCP `scrape` is compact by default: it returns the selected content, document/product metadata, aggregate usage and errors without repeating the body under `summary.attempts`. Pass `debug: true` when you need the full route, trace and per-attempt audit. REST and SDK calls that omit `formats` and `debug` keep the legacy full Markdown response.
+
+For many known URLs, use `batch_scrape` in MCP, then `get_batch`, `get_batch_items`, or `wait_batch`. REST and SDK support the same durable task, paginated items, and completion events; see [batch scraping](docs/batch-scrape.md). The per-origin concurrency ceiling is configurable up to four, with a shared Retry-After cooldown and minimum request interval. The controlled [1/2/4 comparison](docs/evidence/same-origin-concurrency-controlled.json) is local fixture evidence, not an Amazon speed claim.
+
+Request deterministic structured data with a JSON Schema alongside, or instead of, Markdown:
+
+```ts
+const product = await w2l.scrape('https://www.amazon.com/dp/B08KT2Z93D', {
+  debug: false,
+  formats: [{
+    type: 'json',
+    schema: {
+      type: 'object',
+      properties: {
+        asin: { type: 'string' },
+        title: { type: 'string' },
+        price: { type: ['number', 'null'] },
+        currency: { type: ['string', 'null'] },
+        seller: { type: ['string', 'null'] }
+      },
+      required: ['asin', 'title', 'price', 'currency', 'seller'],
+      additionalProperties: false
+    }
+  }]
+})
+```
+
+W2L maps supported product fields directly from subject-bound HTML, JSON-LD, metadata and DOM evidence. A missing nullable field is `null` with a `field_unavailable` issue. Model fallback is opt-in with `modelFallback: true`; configure an OpenAI-compatible endpoint through `W2L_EXTRACT_BASE_URL`, `W2L_EXTRACT_MODEL` and optional `W2L_EXTRACT_API_KEY`. Without those variables, page content is never sent to a model and the JSON result reports `model_unavailable`.
+
+Run the fixed 10-product, three-round Amazon MCP baseline with:
+
+```bash
+node scripts/section-b/amazon-public-state.mjs
+npm run baseline:amazon -- --concurrency 1
+npm run baseline:amazon -- --concurrency 2
+# After 1 and 2 are comparable and unblocked:
+npm run baseline:amazon -- --concurrency 4
+```
+
+The setup uses an anonymous Singapore public delivery preference for this benchmark only. Round 1 pins the observed context; later unobserved or mismatched region/currency records remain in the report and do not count as comparable. Reports and raw HTML stay under ignored `.w2l/amazon-baseline/`; the URL manifest and schema are versioned. The [signed ten-product result](docs/evidence/amazon-adapter-integration-2026-09-23.md) passed at limited concurrency, but Amazon remains beta pending the 100/1000 promotion gates. The [older baseline](research/amazon-product-baseline-2026-09-22.md) is historical.
+The concurrency-1 command can exit nonzero because its ten-page median exceeds 20 seconds; inspect its report for comparability and blocking before continuing to 2. The signed run had 37.93 seconds at 1, 19.92 at 2, and 12.39 at 4.
+This signed Amazon slice is currently on the local `codex/amazon-adapter-integration` branch, not the released `main` or `v0.4.0-rc.1` source.
 
 Firecrawl v1 clients: set the base URL to `http://127.0.0.1:8787/fc` so `/v1/scrape` and `/v1/crawl` hit the shim. Snapshot 2026-09-18; known diffs in [docs/firecrawl-shim.md](docs/firecrawl-shim.md). Firecrawl Search / Interact / Agent / Monitor compatibility is not implemented. W2L's native Monitor and Delivery APIs use their own contracts.
 
@@ -161,6 +204,7 @@ docs/
 - [x] `w2l crawl` + SQLite checkpoint resume
 - [x] REST API + TypeScript SDK (`POST /v1/scrape`, `POST /v1/crawl`, `GET /v1/crawl/:id`, paginated crawl pages/errors, cancel)
 - [x] MCP server (`scrape`, `crawl`, `get_crawl`, paginated pages/errors, and cancel over REST)
+- [x] Compact MCP scrape responses, direct structured JSON/JSON Schema extraction, and Amazon subject adapter/baseline
 - [x] Firecrawl `/scrape` `/crawl` migration shim (snapshot 2026-09-18; not a compatibility layer)
 - [x] Task-level ladder accounting, preserved per-channel attempts, and honest unknown cost/evidence fields
 - [x] Bounded multi-page workers, shared host scheduling, conditional browser settling, and runtime resource reuse

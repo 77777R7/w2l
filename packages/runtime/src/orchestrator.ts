@@ -27,6 +27,7 @@ import {
 import { abortableSleep, createExecutionScope, raceWithSignal, throwIfExecutionStopped } from '@w2l/http-core'
 import { reportFromTaskAttempt } from './crawlReport.js'
 import { Frontier } from './frontier.js'
+import { canonicalizeUrl } from './canonicalize.js'
 import type { TaskStore } from './taskStore.js'
 
 export interface CrawlClock {
@@ -213,7 +214,7 @@ export class CrawlOrchestrator {
             if (spec.budget.maxWallMs !== null && this.clock.now() - startedAtMs >= spec.budget.maxWallMs) markTimeBudget()
             throwIfExecutionStopped(scope)
             const hash = result.evidence.rawBodySha256
-            if (hash !== null && CONTENTFUL_STATUS.has(result.status)) {
+            if (task?.batch === undefined && hash !== null && CONTENTFUL_STATUS.has(result.status)) {
               const prior = seenHash.get(hash)
               if (prior !== undefined && prior !== item.canonicalUrl) { result = duplicateResult(item.url, result, prior); links = [] }
               else seenHash.set(hash, item.canonicalUrl)
@@ -367,6 +368,17 @@ export class CrawlOrchestrator {
   }
 
   private async restoreFrontier(frontier: Frontier, task: Task, spec: CrawlSpec): Promise<void> {
+    if (task.batch !== undefined) {
+      const completed = new Set((await this.store.listSteps(task.id))
+        .filter(step => step.result !== null)
+        .map(step => step.canonicalUrl))
+      for (const url of task.batch.urls) {
+        const canonical = canonicalizeUrl(url)
+        if (canonical !== null && completed.has(canonical)) frontier.markVisited(canonical)
+        else frontier.seed(url)
+      }
+      return
+    }
     if (spec.resumeFrom === null) {
       frontier.seed(task.seedUrl)
       return

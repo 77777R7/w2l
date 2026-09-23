@@ -2,9 +2,13 @@
 
 Section A turns a URL or permitted task into data that can be checked, explained, repeated, and recovered.
 
-## Current Focus: A→B handoff calibration
+## Current status · 2026-09-23
 
-Section A is a scoped developer alpha. Do not treat PR #39 `accepted_with_unknown_external_usd` as an unconditional A6 pass. Do not start B2–B4. A B1 prototype may be designed only after this handoff list is honest:
+Section A remains a scoped developer alpha. The [isolated Amazon A4/B2 ten-product slice](../evidence/amazon-adapter-integration-2026-09-23.md) passed with signed core-field review and limited-concurrency speed evidence at source SHA `04ce581`; it has not been merged or released. It does not close A4 across sources, the independent developer install, or the later Amazon 100/1000 gates. B1/B2 are now in progress, while B3/B4 remain bounded prototypes.
+
+## Historical A→B handoff calibration
+
+The original handoff did not treat PR #39 `accepted_with_unknown_external_usd` as an unconditional A6 pass and deferred B2–B4 until the following list was made honest:
 
 - pair-level repeat scoring
 - field-level quality subset, separate from scale nonempty checks
@@ -41,6 +45,6 @@ The field-level A5 manifest lives at `research/phase4_real_tasks.json` (20 tasks
 
 An absent assertion is not a pass. An unobserved cost is not zero. A missing artifact is not evidence that an artifact should exist.
 
-## A4 Exit Gate
+## Original A4 Exit Criteria
 
 Do not move to A5 until two task families have repeatable runs, holdout pages, field-level assertions, and a useful failure taxonomy. Do not move to A6 until common fixes are measured and the same task can be repeated without agent intervention.

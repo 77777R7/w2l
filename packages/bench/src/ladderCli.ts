@@ -34,6 +34,8 @@ import { LadderRunner, type Channel, type HumanHandoff } from './routing/ladder.
 import type { AccessConfigInput, CrawlPolicy } from '@w2l/http-core'
 import { ResilientHttpSubject } from './subjects/resilientHttp.js'
 import { BrowserLocalSubject } from './subjects/browserLocal.js'
+import { OriginScheduler } from './subjects/originScheduler.js'
+import { defaultNetworkPolicy } from './egress.js'
 import { connectVendor } from './vendors/connect.js'
 import { browserbaseOps } from './vendors/browserbase.js'
 import { steelOps } from './vendors/steel.js'
@@ -133,13 +135,15 @@ export function buildChannels(
     /** Opt-in headed Chromium on the browser arm only. Default remains headless. */
     headed?: boolean
     networkPolicy?: import('@w2l/contracts').NetworkPolicy
+    originScheduler?: OriginScheduler
   } = {},
 ): Channel[] {
   // One subject per channel for the life of the run. A fresh Chromium per
   // fetch would be both slow and leaky; the channel's close() is what tears
   // the browser down at the end.
-  const http = new ResilientHttpSubject(mode, opts.networkPolicy)
-  const plainBrowser = new BrowserLocalSubject(mode, null, opts.headed === true, opts.networkPolicy)
+  const originScheduler = opts.originScheduler ?? new OriginScheduler(opts.networkPolicy ?? defaultNetworkPolicy())
+  const http = new ResilientHttpSubject(mode, opts.networkPolicy, originScheduler)
+  const plainBrowser = new BrowserLocalSubject(mode, null, opts.headed === true, opts.networkPolicy, null, originScheduler)
   const declared: IdentityBundle = identityForRoute(mode)
 
   // ----------------------------------------------------------------------
@@ -166,7 +170,7 @@ export function buildChannels(
       }
       if (session.cookies !== undefined) access.session!.cookies = session.cookies
       if (session.storageState !== undefined) access.session!.storageState = session.storageState
-      subject = new BrowserLocalSubject('authed', access, opts.headed === true, opts.networkPolicy)
+      subject = new BrowserLocalSubject('authed', access, opts.headed === true, opts.networkPolicy, null, originScheduler)
       authedSubjects.set(session.domain, subject)
     }
     return subject

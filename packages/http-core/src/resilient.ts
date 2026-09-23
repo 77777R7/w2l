@@ -242,7 +242,19 @@ export async function resilientFetch(
         }
       }
 
-      trace.push({ at, event: 'request_complete', detail: { status: response.status } })
+      let bodyPromise: Promise<string> | null = null
+      const responseBody = (): Promise<string> => {
+        bodyPromise ??= (async () => {
+          const bodyScope = createExecutionScope(cfg)
+          try {
+            throwIfExecutionStopped(bodyScope)
+            const body = await raceWithSignal(response.bodyText(), bodyScope.signal)
+            trace.push({ at: Date.now() - start, event: 'request_complete', detail: { status: response.status } })
+            return body
+          } finally { bodyScope.dispose() }
+        })()
+        return bodyPromise
+      }
       if (response.status === 429 || response.status === 503) {
         const delay = parseRetryAfterMs(response.headers.get('retry-after'), now())
         if (delay !== null) cfg.onRetryAfter?.(current, now() + delay)
@@ -250,6 +262,7 @@ export async function resilientFetch(
 
       // Redirect handling.
       if (response.status >= 300 && response.status < 400 && response.status !== 304) {
+        await responseBody()
         const location = response.headers.get('location')
         if (!location) {
           return {
@@ -321,6 +334,7 @@ export async function resilientFetch(
       // The retry shows up in trace/requestCount/attemptCount, NOT in the
       // redirect chain — the chain records redirects, not re-visits.
       if (isRetryableStatus(response.status) && retriesLeft > 0) {
+        await responseBody()
         retriesLeft--
         const parsed = parseRetryAfterMs(response.headers.get('retry-after'), now())
         const backoff = cfg.retryBackoffBaseMs * 2 ** retryIndex
@@ -333,12 +347,16 @@ export async function resilientFetch(
           return { kind: 'failure', status: response.status, failureReason: 'timeout', retryAt, finalUrl: current, ...emptyOutcomeFields(chain, requestCount, attemptCount, trace), headers: response.headers }
         }
         retryIndex++
-        trace.push({
+        const retryEvent: ResilientOutcome['trace'][number] = {
           at,
           event: 'retry',
-          detail: { attempt: attemptCount, status: response.status, delayMs },
-        })
-        if (delayMs > 0) await wait(delayMs)
+          detail: { attempt: attemptCount, status: response.status, delayMs, waitedMs: 0 },
+        }
+        trace.push(retryEvent)
+        if (delayMs > 0) {
+          const waitStart = performance.now()
+          try { await wait(delayMs) } finally { retryEvent.detail!.waitedMs = Math.max(0, performance.now() - waitStart) }
+        }
         break
       }
 
@@ -352,10 +370,7 @@ export async function resilientFetch(
         requestCount,
         attemptCount,
         headers: response.headers,
-        bodyText: async () => {
-          const bodyScope = createExecutionScope(cfg)
-          try { throwIfExecutionStopped(bodyScope); return await raceWithSignal(response.bodyText(), bodyScope.signal) } finally { bodyScope.dispose() }
-        },
+        bodyText: responseBody,
         trace,
       }
     }

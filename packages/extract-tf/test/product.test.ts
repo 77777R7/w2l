@@ -307,3 +307,168 @@ describe('price shape', () => {
     expect(ms).toBeLessThan(200)
   })
 })
+
+describe('Amazon product adapter', () => {
+  it('does not promote an unbound unit price to the subject offer', () => {
+    const html = `<!doctype html><html><body><div id="dp-container">
+      <h1 id="productTitle">Subject lotion</h1><p id="feature-bullets">A complete subject description.</p>
+      <div class="unit-price">$1.21 / fl oz</div>
+    </div></body></html>`
+    const out = extractTf.extract(html, { url: 'https://www.amazon.com/dp/B012345678' })
+    expect(out.product?.price).toBeNull()
+    expect(out.entities[0]?.fields.price).toBeUndefined()
+  })
+
+  it('normalizes Singapore dollar symbols and marketplace inference', () => {
+    const html = `<!doctype html><html><body><div id="dp-container">
+      <h1 id="productTitle">Subject wipes</h1>
+      <div id="corePrice_feature_div"><span class="a-price"><span class="a-offscreen">S$32.73</span></span></div>
+      <p id="feature-bullets">A complete subject description.</p>
+    </div></body></html>`
+    const out = extractTf.extract(html, { url: 'https://www.amazon.sg/dp/B012345678' })
+    expect(out.product?.price?.value).toBe('32.73')
+    expect(out.product?.priceCurrency?.value).toBe('SGD')
+  })
+
+  it('reads the primary offer seller from Amazon offer display and labels unit prices', () => {
+    const html = `<!doctype html><html><body><div id="dp-container">
+      <h1 id="productTitle">Cotton rounds</h1>
+      <div id="corePrice_feature_div">
+        <span class="a-price apex-pricetopay-value"><span class="a-offscreen">S$3.77</span></span>
+        <span class="a-price apex-priceperunit-value"><span class="a-offscreen">S$0.04</span></span>
+      </div>
+      <div id="merchantInfoFeature_feature_div"><span class="offer-display-feature-text-message">Amazon.com</span></div>
+      <section class="related-products"><span class="offer-display-feature-text-message">Other Shop</span></section>
+    </div></body></html>`
+    const out = extractTf.extract(html, { url: 'https://www.amazon.com/dp/B012345678' })
+    expect(out.product?.seller?.value).toBe('Amazon.com')
+    expect(out.product?.seller?.path).toBe('#merchantInfoFeature_feature_div .offer-display-feature-text-message')
+    expect(out.product?.prices?.map(price => price.priceType)).toEqual(['current', 'unit'])
+  })
+
+  it('skips the Amazon location placeholder and normalizes the visible Singapore postal code', () => {
+    const html = `<html><body><span id="glow-ingress-line2">Update location</span>
+      <span id="contextualIngressPtLabel_deliveryShortLine">Delivering to Singapore 170000 – Update location</span>
+      <div id="dp-container"><h1 id="productTitle">Subject wipes</h1>
+      <div id="corePrice_feature_div"><span class="a-price"><span class="a-offscreen">S$32.73</span></span></div></div>
+    </body></html>`
+    const out = extractTf.extract(html, { url: 'https://www.amazon.com/dp/B012345678' })
+    expect(out.product?.deliveryLocation?.value).toBe('Singapore 170000')
+    expect(out.product?.deliveryLocation?.path).toBe('#contextualIngressPtLabel_deliveryShortLine')
+  })
+
+  it('normalizes Amazon brand labels without changing the subject evidence location', () => {
+    const html = `<html><head><link rel="canonical" href="https://www.amazon.sg/dp/B012345678"></head><body>
+      <div id="dp-container"><h1 id="productTitle">Subject lotion</h1>
+      <a id="bylineInfo">Brand: eos</a></div></body></html>`
+    const out = extractTf.extract(html, { url: 'https://www.amazon.com/dp/B012345678' })
+    expect(out.product?.brand).toEqual({ value: 'eos', source: 'dom', path: '#bylineInfo' })
+    expect(out.entities[0]?.fields.brand?.normalized).toBe('eos')
+  })
+
+  it('uses the /dp subject identity even when the page declares an OfferCatalog', () => {
+    const html = `<!doctype html><html><head>
+      <script type="application/ld+json">{"@context":"https://schema.org","@type":"OfferCatalog","name":"Related products"}</script>
+    </head><body>
+      <span id="glow-ingress-line2">India</span>
+      <div id="dp-container">
+        <h1 id="productTitle">Subject headphones</h1>
+        <a id="bylineInfo">Visit the SoundCo Store</a>
+        <div id="corePrice_feature_div"><span class="a-price"><span class="a-offscreen">INR 1,299.00</span></span></div>
+        <a id="sellerProfileTriggerId">SoundCo Direct</a>
+        <div id="availability"><span>In Stock</span></div>
+        <span id="acrPopover" title="4.7 out of 5 stars"></span><span id="acrCustomerReviewText">2,345 ratings</span>
+        <img id="landingImage" src="https://images.example/subject.jpg">
+        <div id="feature-bullets"><p>Subject-only features and description.</p></div>
+        <table id="productDetails_techSpec_section_1"><tr><th>Model</th><td>SC-10</td></tr></table>
+        <section class="related-products"><h2>Related products</h2><a href="/dp/REC0000001">Other headphones</a><span class="a-price">$12.57</span><img src="https://images.example/recommended.jpg"></section>
+      </div>
+    </body></html>`
+    const out = extractTf.extract(html, { url: 'https://www.amazon.com/dp/B012345678' })
+    expect(out.pageType).toBe('product')
+    expect(out.strategy).toBe('product')
+    expect(out.product?.subjectId?.value).toBe('B012345678')
+    expect(out.product?.name?.value).toBe('Subject headphones')
+    expect(out.product?.price?.value).toBe('1,299.00')
+    expect(out.product?.priceCurrency?.value).toBe('INR')
+    expect(out.product?.seller?.value).toBe('SoundCo Direct')
+    expect(out.product?.deliveryLocation?.value).toBe('India')
+    expect(out.product?.rating?.value).toBe('4.7')
+    expect(out.product?.reviewCount?.value).toBe('2345')
+    expect(out.product?.specifications?.Model?.value).toBe('SC-10')
+    expect(out.mainHtml).not.toContain('12.57')
+    expect(out.mainHtml).not.toContain('recommended.jpg')
+  })
+
+  it('marks an Amazon subscription offer without treating it as a physical item', () => {
+    const html = `<!doctype html><html><body><div id="dp-container">
+      <h1 id="productTitle">Blink Plus subscription plan</h1>
+      <p>Billing: Monthly</p><div id="subscriptionPrice">$11.99</div>
+      <p id="feature-bullets">Cloud video storage subscription plan for supported devices.</p>
+    </div></body></html>`
+    const out = extractTf.extract(html, { url: 'https://www.amazon.com/dp/B08JHCVHTY' })
+    expect(out.pageType).toBe('product')
+    expect(out.product?.kind).toBe('subscription')
+    expect(out.product?.prices?.[0]?.priceType).toBe('subscription')
+  })
+
+  it('binds a Blink subscription price to the selected buy box instead of another plan', () => {
+    const html = `<!doctype html><html><head><title>Blink plus plan</title></head><body>
+      <div data-cy="twister-plus-label-text">Plan: Blink plus</div>
+      <div>Blink plus ai $14.99/month</div>
+      <div>Billing: Monthly</div>
+      <div data-cy="subs-buy-box-container"><span>$11.99/month</span></div>
+      <div data-cy="sold-by-value">Blink</div>
+    </body></html>`
+    const out = extractTf.extract(html, { url: 'https://www.amazon.com/dp/B08JHCVHTY' })
+    expect(out.product?.kind).toBe('subscription')
+    expect(out.product?.price?.value).toBe('11.99')
+    expect(out.product?.price?.path).toBe('[data-cy="subs-buy-box-container"], #subs-buy-box-container')
+
+    const noSelectedOffer = extractTf.extract(html.replace('<div data-cy="subs-buy-box-container"><span>$11.99/month</span></div>', ''),
+      { url: 'https://www.amazon.com/dp/B08JHCVHTY' })
+    expect(noSelectedOffer.product?.price).toBeNull()
+  })
+
+  it('binds JSON-LD to the URL ASIN and ignores a recommended Product record', () => {
+    const html = `<!doctype html><html><head>
+      <script type="application/ld+json">{"@graph":[
+        {"@type":"Product","sku":"REC0000001","name":"Recommended item","image":"https://images.example/recommended.jpg","offers":{"price":"12.57","priceCurrency":"USD"}},
+        {"@type":"Product","sku":"B012345678","name":"Subject from JSON-LD","brand":{"name":"Subject Brand"},"image":"https://images.example/subject.jpg","offers":{"price":"1299.00","priceCurrency":"INR","seller":{"name":"Subject Seller"},"availability":"https://schema.org/InStock"}}
+      ]}</script>
+    </head><body><div id="dp-container"><h1 id="productTitle">Subject headphones</h1><p id="feature-bullets">The main product description has enough content to identify this item.</p></div></body></html>`
+    const out = extractTf.extract(html, { url: 'https://www.amazon.com/dp/B012345678' })
+    expect(out.product?.price?.value).toBe('1299.00')
+    expect(out.product?.price?.source).toBe('jsonld')
+    expect(out.product?.seller?.value).toBe('Subject Seller')
+    expect(out.product?.images?.map(image => image.value)).toEqual(['https://images.example/subject.jpg'])
+    expect(JSON.stringify(out.product)).not.toContain('REC0000001')
+    expect(JSON.stringify(out.product)).not.toContain('12.57')
+    expect(JSON.stringify(out.product)).not.toContain('recommended.jpg')
+  })
+
+  it('returns null price with an explicit shipping restriction instead of borrowing a recommendation price', () => {
+    const html = `<!doctype html><html><body><div id="dp-container">
+      <h1 id="productTitle">Unavailable subject</h1><div id="availability">This item cannot be shipped to your selected delivery location. Please choose a different delivery location.</div>
+      <div id="twister"><button class="a-button-selected" title="Black">Black</button></div>
+      <section class="related-products"><a href="/dp/REC0000001">Other</a><span class="a-price"><span class="a-offscreen">$19.99</span></span></section>
+    </div></body></html>`
+    const out = extractTf.extract(html, { url: 'https://www.amazon.com/dp/B012345678' })
+    expect(out.product?.price).toBeNull()
+    expect(out.product?.availability?.value).toContain('cannot be shipped')
+    expect(out.product?.variants?.[0]).toMatchObject({ value: 'Black', selected: true })
+    expect(JSON.stringify(out.product)).not.toContain('19.99')
+  })
+
+  it('keeps alternate offer prices paired with their sellers', () => {
+    const html = `<!doctype html><html><body><div id="dp-container"><h1 id="productTitle">Multi-seller subject</h1>
+      <div id="corePrice_feature_div"><span class="a-price"><span class="a-offscreen">$20.00</span></span></div><a id="sellerProfileTriggerId">Primary Shop</a>
+      <div id="aod-offer-list"><div class="aod-information-block"><span class="a-price"><span class="a-offscreen">$21.50</span></span><span class="aod-offer-soldBy"><a>Second Shop</a></span></div></div>
+    </div></body></html>`
+    const out = extractTf.extract(html, { url: 'https://www.amazon.com/dp/B012345678' })
+    expect(out.product?.prices).toEqual(expect.arrayContaining([
+      expect.objectContaining({ amount: expect.objectContaining({ value: '20.00' }), seller: expect.objectContaining({ value: 'Primary Shop' }) }),
+      expect.objectContaining({ amount: expect.objectContaining({ value: '21.50' }), seller: expect.objectContaining({ value: 'Second Shop' }) }),
+    ]))
+  })
+})

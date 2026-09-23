@@ -30,6 +30,7 @@ export interface ScrapeAtom {
 
 export interface CrawlSpec {
   seedUrl: string
+  seedUrls?: readonly string[]
   taskDir: string
   mode: CrawlMode
   budget: CrawlBudget
@@ -64,6 +65,7 @@ export interface CrawlPage {
   status: StepStatus
   lane: Lane | null
   markdown: string | null
+  json?: import('./structured.js').StructuredExtractionResult | null
   failureReason: string | null
   blockReason: string | null
   budgetExceeded: BudgetKind | null

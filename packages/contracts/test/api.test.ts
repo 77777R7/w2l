@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CRAWL_MODES, defaultApiMode, isApiCrawlMode } from '../src/index.js'
+import { CRAWL_MODES, defaultApiMode, isApiCrawlMode, parseScrapeRequest } from '../src/index.js'
 import type { CrawlAccepted, CrawlStartRequest, ScrapeRequest, ScrapeResponse } from '../src/index.js'
 
 describe('REST contract: scrape + crawl reuse existing result types', () => {
@@ -31,5 +31,21 @@ describe('REST contract: scrape + crawl reuse existing result types', () => {
   it('scrape response is a FetchResult, not a wrapper status', () => {
     const sample: Pick<ScrapeResponse, 'status' | 'markdown'> = { status: 'success', markdown: 'x' }
     expect(sample.status).toBe('success')
+  })
+
+  it('accepts explicit markdown, links, and one bounded JSON schema format', () => {
+    const req = parseScrapeRequest({
+      url: 'https://example.com/product', debug: false,
+      formats: ['markdown', 'links', { type: 'json', schema: { type: 'object', properties: { title: { type: 'string' } }, required: ['title'] }, modelFallback: true }],
+    })
+    expect(req.debug).toBe(false)
+    expect(req.formats).toHaveLength(3)
+  })
+
+  it('rejects remote JSON schema references', () => {
+    expect(() => parseScrapeRequest({
+      url: 'https://example.com/product',
+      formats: [{ type: 'json', schema: { $ref: 'https://schemas.example/product.json' } }],
+    })).toThrow('only supports local $ref')
   })
 })

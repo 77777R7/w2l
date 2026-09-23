@@ -10,6 +10,7 @@
 
 import type { CrawlMode } from './compliance.js'
 import type { FetchResult, LadderRunAudit } from './result.js'
+import type { ScrapeFormat } from './structured.js'
 import type { BudgetKind, Lane, ResultStatus } from './status.js'
 
 export const TASK_STATUS = ['pending', 'running', 'paused', 'completed', 'failed', 'cancelled'] as const
@@ -58,6 +59,8 @@ export interface Task {
   mode: CrawlMode
   status: TaskStatus
   budget: CrawlBudget
+  /** Present only for an explicit URL-array batch. Stored with the checkpoint. */
+  batch?: { urls: readonly string[]; formats: readonly ScrapeFormat[]; includeLinks: boolean }
   createdAt: string
   updatedAt: string
 }

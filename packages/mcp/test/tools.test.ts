@@ -4,18 +4,19 @@ import { callTool, TOOL_NAMES, TOOLS } from '../src/tools.js'
 import { parseBaseUrl, parseToken } from '../src/stdio.js'
 
 describe('MCP tools', () => {
-  it('exposes exactly scrape, crawl, and get_crawl', () => {
-    expect([...TOOL_NAMES]).toEqual(['scrape', 'crawl', 'get_crawl', 'get_crawl_pages', 'get_crawl_errors', 'cancel_crawl'])
-    expect(TOOLS.map((t) => t.name)).toEqual(['scrape', 'crawl', 'get_crawl', 'get_crawl_pages', 'get_crawl_errors', 'cancel_crawl'])
+  it('exposes scrape, crawl, and persistent batch operations', () => {
+    const expected = ['scrape', 'crawl', 'get_crawl', 'get_crawl_pages', 'get_crawl_errors', 'cancel_crawl', 'batch_scrape', 'get_batch', 'get_batch_items', 'wait_batch', 'cancel_batch']
+    expect([...TOOL_NAMES]).toEqual(expected)
+    expect(TOOLS.map((t) => t.name)).toEqual(expected)
   })
 
   it('dispatches to the REST SDK with A1 fields', async () => {
-    const calls: string[] = []
+    const calls: Array<{ line: string; body: unknown }> = []
     const client = new W2L({
       baseUrl: 'http://127.0.0.1:8787',
       fetch: (async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input)
-        calls.push(`${init?.method ?? 'GET'} ${url}`)
+        calls.push({ line: `${init?.method ?? 'GET'} ${url}`, body: init?.body ? JSON.parse(String(init.body)) : null })
         if (url.endsWith('/v1/scrape')) {
           return json({ status: 'success', markdown: 'ok', requestedUrl: 'https://example.com/' })
         }
@@ -38,7 +39,7 @@ describe('MCP tools', () => {
     expect((await callTool(client, 'get_crawl_pages', { id: 'task-1', limit: 1 }) as { items: unknown[] }).items).toHaveLength(1)
     expect((await callTool(client, 'get_crawl_errors', { id: 'task-1' }) as { items: unknown[] }).items).toEqual([])
     expect((await callTool(client, 'cancel_crawl', { id: 'task-1' }) as { status: string }).status).toBe('cancelled')
-    expect(calls).toEqual([
+    expect(calls.map(call => call.line)).toEqual([
       'POST http://127.0.0.1:8787/v1/scrape',
       'POST http://127.0.0.1:8787/v1/crawl',
       'GET http://127.0.0.1:8787/v1/crawl/task-1',
@@ -46,6 +47,50 @@ describe('MCP tools', () => {
       'GET http://127.0.0.1:8787/v1/crawl/task-1/errors',
       'POST http://127.0.0.1:8787/v1/crawl/task-1/cancel',
     ])
+    expect(calls[0]?.body).toEqual({ url: 'https://example.com/', mode: 'standard', debug: false })
+  })
+
+  it('forwards custom formats and debug to REST', async () => {
+    let body: Record<string, unknown> | null = null
+    const client = new W2L({ baseUrl: 'http://127.0.0.1:8787', fetch: (async (_input, init) => {
+      body = JSON.parse(String(init?.body))
+      return json({ status: 'success' })
+    }) as typeof fetch })
+    await callTool(client, 'scrape', { url: 'https://example.com/', formats: [{ type: 'json', schema: { type: 'object' } }], debug: true })
+    expect(body).toMatchObject({ formats: [{ type: 'json', schema: { type: 'object' } }], debug: true })
+  })
+
+  it('keeps the legacy links format and caller schema on the public tool schema', () => {
+    const scrape = TOOLS.find(tool => tool.name === 'scrape')
+    const batch = TOOLS.find(tool => tool.name === 'batch_scrape')
+    expect(JSON.stringify(scrape?.inputSchema)).toContain('"links"')
+    expect(JSON.stringify(scrape?.inputSchema)).toContain('"schema"')
+    expect(JSON.stringify(batch?.inputSchema)).toContain('"schema"')
+  })
+
+  it('dispatches URL arrays and paginated batch results through the SDK', async () => {
+    const calls: string[] = []
+    const client = new W2L({ baseUrl: 'http://127.0.0.1:8787', fetch: (async (input, init) => {
+      const url = String(input)
+      calls.push(`${init?.method ?? 'GET'} ${url}`)
+      if (url.endsWith('/v1/batches')) return json({ taskId: 'batch-1' }, 202)
+      if (url.includes('/items')) return json({ items: [{ id: 'item-1' }], nextCursor: null, hasMore: false })
+      return json({ taskId: 'batch-1', status: 'completed', completed: 1, requested: 1, remaining: 0 })
+    }) as typeof fetch })
+    expect(await callTool(client, 'batch_scrape', { urls: ['https://example.com/a'] })).toEqual({ taskId: 'batch-1' })
+    expect((await callTool(client, 'get_batch_items', { id: 'batch-1', limit: 1 }) as { items: unknown[] }).items).toHaveLength(1)
+    expect((await callTool(client, 'wait_batch', { id: 'batch-1' }) as { status: string }).status).toBe('completed')
+    expect(calls).toEqual([
+      'POST http://127.0.0.1:8787/v1/batches',
+      'GET http://127.0.0.1:8787/v1/batches/batch-1/items?limit=1',
+      'GET http://127.0.0.1:8787/v1/batches/batch-1',
+    ])
+  })
+
+  it('bounds wait_batch and returns current state when its wait expires', async () => {
+    const client = new W2L({ baseUrl: 'http://127.0.0.1:8787', fetch: (async () => json({ taskId: 'batch-1', status: 'running', completed: 0, requested: 2, remaining: 2 })) as typeof fetch })
+    const state = await callTool(client, 'wait_batch', { id: 'batch-1', timeoutMs: 10 }) as { status: string }
+    expect(state.status).toBe('running')
   })
 
   it('has no resource or oauth surface', async () => {

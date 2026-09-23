@@ -65,6 +65,40 @@ describe('REST /v1/scrape and /v1/crawl', () => {
     expect(body).not.toHaveProperty('html')
   })
 
+  it('returns a compact response before serialization and keeps debug opt-in', async () => {
+    const app = createApp(engine)
+    const request = async (debug: boolean) => app.request('/v1/scrape', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ url: `${server.url}/crawl/listing`, formats: ['markdown'], debug }),
+    })
+    const compactText = await (await request(false)).text()
+    const debugText = await (await request(true)).text()
+    const compact = JSON.parse(compactText)
+    expect(compact.markdown).toContain('Harbour lantern catalog')
+    expect(compact).not.toHaveProperty('trace')
+    expect(compact).not.toHaveProperty('ladderTrace')
+    expect(compact).not.toHaveProperty('summary')
+    expect(compact.usage.totalMs).toBeGreaterThanOrEqual(0)
+    expect(JSON.parse(debugText).summary.attempts[0].result.markdown).toContain('Harbour lantern catalog')
+    expect(Buffer.byteLength(compactText)).toBeLessThanOrEqual(Buffer.byteLength(debugText) * 0.6)
+  })
+
+  it('supports JSON-only and Markdown plus JSON without changing legacy defaults', async () => {
+    const app = createApp(engine)
+    const schema = { type: 'object', properties: { title: { type: 'string' } }, required: ['title'] }
+    const scrape = async (formats: unknown[]) => (await app.request('/v1/scrape', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ url: `${server.url}/crawl/listing`, formats, debug: false }),
+    })).json()
+    const only = await scrape([{ type: 'json', schema }])
+    expect(only).not.toHaveProperty('markdown')
+    expect(only.json.status).toBe('complete')
+    expect(only.json.data.title).toBe('Harbour lantern catalog')
+    const both = await scrape(['markdown', { type: 'json', schema }])
+    expect(both.markdown).toContain('Harbour lantern catalog')
+    expect(both.json.data.title).toBe('Harbour lantern catalog')
+  })
+
   it('POST /v1/crawl is 202 and GET /v1/crawl/:id returns CrawlReport', async () => {
     const app = createApp(engine)
     const started = await app.request('/v1/crawl', {

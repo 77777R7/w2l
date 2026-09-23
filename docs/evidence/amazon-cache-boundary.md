@@ -1,0 +1,5 @@
+# Cache boundary: Amazon-like response
+
+The earlier [10-URL batch run](amazon-batch-concurrency-before-transport-pacing.json) observed cache headers on four HTTP-lane captures: three at concurrency 1 and one at concurrency 2. Each had `Cache-Control: no-cache, no-transform`, no ETag or Last-Modified, and `Set-Cookie: true`. The [final paced run](amazon-batch-concurrency.json) routed every page through the browser lane, which did not expose those header fields in the stored result. Its cache behavior is **unmeasured**, not inferred from the earlier HTTP samples.
+
+`packages/api/test/monitorReliability.test.ts` separately serves a controlled page with no validator, `Cache-Control: no-cache`, and `Set-Cookie`. Two Monitor runs make two full 200 requests, send no conditional validator, and leave `monitor_transport` empty. The existing positive 304 test uses a different public, validator-bearing fixture. These results validate the cache exclusion path; they do not establish a speedup for the Amazon batch.

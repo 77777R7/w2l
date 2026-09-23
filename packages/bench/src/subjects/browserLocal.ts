@@ -23,10 +23,11 @@ import { assertSafeUrl, BodyTooLargeError, defaultNetworkPolicy } from '../egres
 import type { SubjectAdapter } from '../subject.js'
 import { RobotsOriginCache } from '../robotsLookup.js'
 import { waitForRenderedStability } from '../browserSettle.js'
+import { OriginScheduler, type OriginPermit } from './originScheduler.js'
+import { captureRawHtml } from '../rawArtifact.js'
 import {
   BROWSER_FINGERPRINT,
   CHROME_MAJOR_FLOOR,
-  DEFAULT_NETWORK_POLICY,
   assertIdentityBundle,
   checkIdentityHonesty,
   identityBundleFrom,
@@ -74,8 +75,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
   }
 
   private activeExecutions = 0
-  private readonly pendingByOrigin = new Map<string, Promise<void>>()
-  private readonly cooldownUntilByOrigin = new Map<string, number>()
+  private readonly scheduler: OriginScheduler
   private browser: Browser | null = null
   private browserPromise: Promise<Browser> | null = null
   private managedContext: BrowserContext | null = null
@@ -111,11 +111,17 @@ export class BrowserLocalSubject implements SubjectAdapter {
     private readonly headed = false,
     networkPolicy?: NetworkPolicy,
     private readonly managedProfileDir: string | null = null,
+    scheduler?: OriginScheduler,
+    private readonly publicPreferenceState: string | null = null,
   ) {
+    if (publicPreferenceState !== null && (mode !== 'standard' || access != null || managedProfileDir !== null)) {
+      throw new Error('anonymous public preference state is only available to the standard public browser')
+    }
     this.chain = new ComplianceChain(crypto.randomUUID(), mode)
     this.access = normalizeAccessConfig(access)
     this.accessConfig = access ?? null
     this.networkPolicy = networkPolicy ?? defaultNetworkPolicy()
+    this.scheduler = scheduler ?? new OriginScheduler(this.networkPolicy)
     this.robotsCache = new RobotsOriginCache(this.networkPolicy)
   }
 
@@ -130,36 +136,53 @@ export class BrowserLocalSubject implements SubjectAdapter {
   async fetch(url: string, deadlineMs?: number, signal?: AbortSignal, onRetryAfter?: ExecutionContext['onRetryAfter']): Promise<FetchResult> {
     const scope = createExecutionScope({ signal, deadlineAt: deadlineMs, onRetryAfter })
     const start = Date.now()
+    const monotonicStart = performance.now()
+    let queueMs = 0
+    let cooldownWaitMs = 0
+    const finish = (result: FetchResult): FetchResult => {
+      const totalMs = Math.max(0, performance.now() - monotonicStart)
+      return {
+        ...result,
+        usage: {
+          ...result.usage,
+          wallMs: totalMs,
+          timings: {
+            ...(result.usage.timings ?? {}),
+            queueMs,
+            cooldownWaitMs,
+            totalMs,
+          },
+        },
+      }
+    }
     const origin = new URL(url).origin
     this.activeExecutions++
-    const previous = this.pendingByOrigin.get(origin) ?? Promise.resolve()
-    let release!: () => void
-    const ticket = new Promise<void>(resolve => { release = resolve })
-    const pending = previous.then(() => ticket)
-    this.pendingByOrigin.set(origin, pending)
+    let permit: OriginPermit | undefined
     try {
-      await raceWithSignal(previous, scope.signal)
+      permit = await this.scheduler.acquire(origin, scope.signal)
+      queueMs = permit.queueMs
+      cooldownWaitMs = permit.cooldownWaitMs
       throwIfExecutionStopped(scope)
-      const retryAt = this.cooldownUntilByOrigin.get(origin) ?? 0
-      if (retryAt > Date.now()) {
-        if (scope.deadlineAt !== undefined && retryAt >= scope.deadlineAt) return { ...this.denied(url, start, [], new Error('aborted')), retryAt }
-        await abortableSleep(retryAt - Date.now(), scope.signal)
-      }
-      const result = await this.fetchWithinBudget(url, scope)
-      if (result.retryAt !== undefined) this.cooldownUntilByOrigin.set(origin, Math.max(retryAt, result.retryAt))
-      return result
+      const result = await this.fetchWithinBudget(url, scope, (intervalMs, cooldownMs) => { queueMs += intervalMs; cooldownWaitMs += cooldownMs })
+      if (result.retryAt !== undefined) this.scheduler.cooldown(origin, result.retryAt)
+      return finish(result)
     } catch (error) {
-      if (!scope.signal.aborted) throw error
-      return this.denied(url, start, [], new Error('aborted'))
+      if (!scope.signal.aborted && (deadlineMs === undefined || Date.now() < deadlineMs)) throw error
+      const retryAt = this.scheduler.retryAt(origin)
+      if (!permit) {
+        const waited = Math.max(0, performance.now() - monotonicStart)
+        queueMs = retryAt === undefined ? waited : 0
+        cooldownWaitMs = retryAt === undefined ? 0 : waited
+      }
+      return finish({ ...this.denied(url, start, [], new Error('aborted')), ...(retryAt === undefined ? {} : { retryAt }) })
     } finally {
       this.activeExecutions--
       scope.dispose()
-      release()
-      void pending.then(() => { if (this.pendingByOrigin.get(origin) === pending) this.pendingByOrigin.delete(origin) })
+      permit?.release()
     }
   }
 
-  private async fetchWithinBudget(url: string, execution: ExecutionContext): Promise<FetchResult> {
+  private async fetchWithinBudget(url: string, execution: ExecutionContext, onRequestWait?: (intervalMs: number, cooldownMs: number) => void): Promise<FetchResult> {
     const signal = execution.signal
     const start = Date.now()
     const trace: TraceEvent[] = [{ at: 0, lane: 'browser_local', event: 'browser_start' }]
@@ -220,7 +243,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
           rateLimit: {
             previousRequestAtMs: this.lastRequestAtMsByHost.get(host) ?? null,
             observedDelayMs: null,
-            requiredDelayMs: DEFAULT_NETWORK_POLICY.perHostMinDelayMs,
+            requiredDelayMs: this.networkPolicy.perHostMinDelayMs,
             compliant: true,
             recentSameHostCount: 0,
           },
@@ -266,6 +289,8 @@ export class BrowserLocalSubject implements SubjectAdapter {
         }
       }
 
+      const amazonPublicState = this.publicPreferenceState !== null && /(^|\.)amazon\.(com|sg)$/i.test(host)
+        ? this.publicPreferenceState : null
       const pendingContext = managedContext ? Promise.resolve(managedContext) : browser.newContext({
         userAgent: identity.userAgent,
         locale: BROWSER_FINGERPRINT.locale,
@@ -277,8 +302,8 @@ export class BrowserLocalSubject implements SubjectAdapter {
         // Restore the user's full session state (cookies, localStorage,
         // sessionStorage) when they inherited a storageState blob — the
         // serialized JSON IS the Playwright shape, passed through verbatim.
-        ...(this.accessConfig?.session?.storageState
-          ? { storageState: JSON.parse(this.accessConfig.session.storageState) }
+        ...(this.accessConfig?.session?.storageState ?? amazonPublicState
+          ? { storageState: JSON.parse((this.accessConfig?.session?.storageState ?? amazonPublicState)!) }
           : {}),
         // The user's egress, if they supplied one. Note what does NOT change
         // alongside it: the UA, the locale, the timezone, the viewport. A
@@ -300,6 +325,10 @@ export class BrowserLocalSubject implements SubjectAdapter {
       })
       void pendingContext.then(created => { if (signal?.aborted && created !== this.managedContext) void created.close().catch(() => {}) }, () => {})
       context = await raceWithSignal(pendingContext, signal)
+      if (amazonPublicState !== null) trace.push({
+        at: Date.now() - start, lane: 'browser_local', event: 'anonymous_public_preference_attached',
+        detail: { host, stateSha256: sha256Utf8(amazonPublicState) },
+      })
       throwIfExecutionStopped(execution)
       // The user's session, if they inherited one to us. Cookies go in through
       // the context API rather than a header so the browser scopes them the
@@ -324,12 +353,11 @@ export class BrowserLocalSubject implements SubjectAdapter {
       page = await raceWithSignal(pendingPage, signal)
       throwIfExecutionStopped(execution)
 
-      // Rate-limit facts for this host, captured before the request.
-      const previousRequestAtMs = this.lastRequestAtMsByHost.get(host) ?? null
-      const observedDelayMs = previousRequestAtMs === null ? null : Date.now() - previousRequestAtMs
-      const requiredDelayMs = DEFAULT_NETWORK_POLICY.perHostMinDelayMs
-      const compliant = observedDelayMs === null || observedDelayMs >= requiredDelayMs
-      this.lastRequestAtMsByHost.set(host, Date.now())
+      // Rate-limit facts are captured at actual navigation, after setup.
+      let previousRequestAtMs: number | null = null
+      let observedDelayMs: number | null = null
+      const requiredDelayMs = this.networkPolicy.perHostMinDelayMs
+      let compliant = true
 
       // Browser-tier retry: the same transport-independent policy the
       // http engine shares (503 only, once, authoritative Retry-After). The
@@ -339,6 +367,12 @@ export class BrowserLocalSubject implements SubjectAdapter {
       let attemptCount = 1
       let response: Response | null = null
       for (;;) {
+        await this.scheduler.beforeRequest(new URL(url).origin, signal, onRequestWait)
+        previousRequestAtMs = this.lastRequestAtMsByHost.get(host) ?? null
+        const navigationAt = Date.now()
+        observedDelayMs = previousRequestAtMs === null ? null : navigationAt - previousRequestAtMs
+        compliant = observedDelayMs === null || observedDelayMs >= requiredDelayMs
+        this.lastRequestAtMsByHost.set(host, navigationAt)
         trace.push({ at: Date.now() - start, lane: 'browser_local', event: 'navigate', detail: { url, attempt: attemptCount } })
         response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: remainingTimeout(execution, 20_000) })
         const status = response?.status() ?? 0
@@ -347,7 +381,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
           if (delay !== null) {
             const target = response?.url() ?? url
             const retryAt = Date.now() + delay
-            for (const origin of new Set([new URL(url).origin, new URL(target).origin])) this.cooldownUntilByOrigin.set(origin, Math.max(this.cooldownUntilByOrigin.get(origin) ?? 0, retryAt))
+            for (const origin of new Set([new URL(url).origin, new URL(target).origin])) this.scheduler.cooldown(origin, retryAt)
             execution.onRetryAfter?.(target, retryAt)
           }
         }
@@ -383,6 +417,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
         return this.denied(url, start, trace, new BodyTooLargeError(this.networkPolicy.maxDecompressedBytes))
       }
       const rawBodySha256 = sha256Utf8(body)
+      const rawArtifacts = await captureRawHtml(body, rawBodySha256)
       const wallMs = Date.now() - start
       const browserMs = wallMs
       trace.push({ at: wallMs, lane: 'browser_local', event: 'rendered', detail: { status, attemptCount } })
@@ -435,7 +470,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
           redirectChain: finalUrl !== url ? [url, finalUrl] : [],
           contentType: 'text/html; rendered',
           rawBodySha256,
-          artifacts: [],
+          artifacts: rawArtifacts,
         },
         usage: {
           wallMs,
@@ -496,7 +531,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
         }
       }
 
-      const extracted = extractTf.extract(body)
+      const extracted = extractTf.extract(body, { url: finalUrl })
       const links = collectLinks(body, finalUrl)
       trace.push({
         at: wallMs,
@@ -544,6 +579,16 @@ export class BrowserLocalSubject implements SubjectAdapter {
         escalations: [],
         markdown,
         links,
+        document: {
+          title: extracted.title,
+          pageType: extracted.pageType,
+          strategy: extracted.strategy,
+          confidence: extracted.confidence,
+          product: extracted.product ?? null,
+          adapter: extracted.adapter,
+          entities: extracted.entities,
+          adapterValidation: extracted.adapterValidation,
+        },
         usage: { ...base.usage, contentTokens: estimateTokens(markdown) },
       }
     } catch (err) {

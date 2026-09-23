@@ -140,6 +140,11 @@ describe('classifyGate — Cloudflare interstitial', () => {
 })
 
 describe('classifyGate — captcha widgets are distinct from interstitials', () => {
+  it('classifies the Amazon human-verification form served with HTTP 200', () => {
+    const body = '<html><title>Amazon.com</title><form method="get" action="/errors_page/validateCaptcha"><input name="amzn" /></form></html>'
+    expect(classifyGate(res({ status: 200, body }))).toEqual({ reason: 'captcha', signals: ['amazon_validate_captcha_form'] })
+    expect(classifyGate(res({ status: 200, body, contentful: true }))?.reason).toBe('captcha')
+  })
   it('classifies a standalone reCAPTCHA widget as captcha', () => {
     const v = classifyGate(
       res({ status: 403, body: '<div class="g-recaptcha" data-sitekey="abc"></div>' }),
