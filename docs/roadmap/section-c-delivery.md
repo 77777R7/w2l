@@ -19,6 +19,8 @@ Current evidence: [Gate 2–4 acceptance](gate-2-4-acceptance.md).
 [C2/C3 local MCP evidence](../evidence/c2-c3-mcp-local-2026-09-23.md)
 records the HTTPS flow and actual local `SIGKILL` recovery, along with the
 remaining hosted gates.
+[Managed loopback MCP evidence](../evidence/c2-c3-loopback-local-2026-09-23.md)
+adds the single-process local installation and clean-source recovery run.
 [The earlier stage review](stage-review-2026-09-22.md) retains its original
 baseline and records subsequent resolution separately. No new Section D is added.
 

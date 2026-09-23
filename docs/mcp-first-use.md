@@ -63,6 +63,8 @@ This loopback check does not validate WorkOS or a deployed Codex login.
 `npm run verify:c2-first-use` remains the authenticated-host test seam.
 Detailed, potentially sensitive
 evidence stays under ignored `.w2l/c2-first-use-*/evidence.json`.
+The dated [loopback acceptance note](evidence/c2-c3-loopback-local-2026-09-23.md)
+records a clean-source run and the live macOS service check.
 
 For a conversational client, use these MCP calls in order:
 
