@@ -183,7 +183,10 @@ const AMAZON_ADAPTER: PublicPageAdapter = {
     const canonical = clean(qs(doc, 'link[rel="canonical"]')?.getAttribute('href'))
     const observedCanonical = canonical?.match(/\/(?:dp|clp|gp\/product)\/([A-Z0-9]{10})(?:[/?]|$)/i)?.[1]?.toUpperCase() ?? null
     if (!observedInput && !observedCanonical) issues.push('subject_id_unverified')
-    if (expected && [observedInput, observedCanonical].some(value => value !== null && value !== expected)) issues.push('asin_mismatch')
+    // Amazon can canonicalize a selected child variant to a parent listing.
+    // The page's own selected ASIN is stronger subject evidence than that
+    // canonical URL. A conflicting selected ASIN still invalidates the page.
+    if (expected && (observedInput !== null ? observedInput !== expected : observedCanonical !== null && observedCanonical !== expected)) issues.push('asin_mismatch')
     if (!product?.name || product.name.path === 'document:url') issues.push('subject_title_unverified')
     if (entities[0]?.id !== expected) issues.push('subject_id_mismatch')
     return { valid: issues.length === 0, issues }

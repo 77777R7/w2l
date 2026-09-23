@@ -8,9 +8,14 @@ import { execFileSync, spawn } from 'node:child_process'
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:net'
 
-const outputRoot = '.w2l/amazon-holdout'
+const marketplaceArg = process.argv.indexOf('--marketplace')
+const marketplace = marketplaceArg < 0 ? 'com' : process.argv[marketplaceArg + 1]
+if (!['com', 'sg'].includes(marketplace)) throw new Error('--marketplace must be com or sg')
+const outputRoot = marketplace === 'com' ? '.w2l/amazon-holdout' : '.w2l/amazon-holdout-sg'
 const statePath = '.w2l/amazon-baseline/anonymous-public-state.json'
-const manifestPath = 'research/amazon-product-holdout-100.v1.json'
+const manifestPath = marketplace === 'com'
+  ? 'research/amazon-product-holdout-100.v1.json'
+  : 'research/amazon-product-holdout-100-sg.v1.json'
 try {
   await access(manifestPath)
   throw new Error(`holdout manifest already frozen: ${manifestPath}`)
@@ -19,17 +24,13 @@ try {
 }
 const baseline = JSON.parse(await readFile('research/amazon-product-baseline.v1.json', 'utf8'))
 const excluded = new Set(baseline.urls.map(url => url.match(/\/dp\/([A-Z0-9]{10})/i)?.[1]).filter(Boolean))
+if (marketplace === 'sg') {
+  const prior = JSON.parse(await readFile('research/amazon-product-holdout-100.v1.json', 'utf8'))
+  for (const url of prior.urls) excluded.add(url.match(/\/dp\/([A-Z0-9]{10})/i)?.[1])
+}
 const stateSha256 = createHash('sha256').update(await readFile(statePath)).digest('hex')
-const seeds = [
-  'https://www.amazon.com/gp/bestsellers/electronics',
-  'https://www.amazon.com/gp/bestsellers/home-garden',
-  'https://www.amazon.com/gp/bestsellers/beauty',
-  'https://www.amazon.com/gp/bestsellers/pet-supplies',
-  'https://www.amazon.com/gp/bestsellers/sporting-goods',
-  'https://www.amazon.com/gp/bestsellers/office-products',
-  'https://www.amazon.com/gp/bestsellers/toys-and-games',
-  'https://www.amazon.com/gp/bestsellers/automotive',
-]
+const seeds = ['electronics', 'home-garden', 'beauty', 'pet-supplies', 'sporting-goods', 'office-products', 'toys-and-games', 'automotive']
+  .map(category => `https://www.amazon.${marketplace}/gp/bestsellers/${category}`)
 
 async function freePort() {
   const server = createServer()
@@ -49,7 +50,7 @@ async function waitForApi(baseUrl, child) {
 function productAsin(link) {
   try {
     const url = new URL(link)
-    if (!/(^|\.)amazon\.(com|sg)$/i.test(url.hostname)) return null
+    if (!new RegExp(`(^|\\.)amazon\\.${marketplace}$`, 'i').test(url.hostname)) return null
     return url.pathname.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})(?:\/|$)/i)?.[1]?.toUpperCase() ?? null
   } catch { return null }
 }
@@ -105,7 +106,7 @@ try {
       const asin = bySeed.get(seed)?.[index]
       if (!asin || seen.has(asin)) continue
       seen.add(asin)
-      selected.push({ asin, seed, url: `https://www.amazon.com/dp/${asin}` })
+      selected.push({ asin, seed, url: `https://www.amazon.${marketplace}/dp/${asin}` })
       if (selected.length === 100) break
     }
     index++
@@ -120,7 +121,7 @@ try {
   await mkdir(outputRoot, { recursive: true })
   await writeFile(`${outputRoot}/discovery.json`, JSON.stringify(report, null, 2))
   if (report.frozen) {
-    const manifest = { ...baseline, version: 2, cohort: '100-unseen-holdout', discoverySource: seeds,
+    const manifest = { ...baseline, version: 2, cohort: `100-unseen-holdout-${marketplace}`, discoverySource: seeds,
       rounds: 1, concurrency: 1, urls: selected.map(item => item.url) }
     await writeFile(manifestPath, JSON.stringify(manifest, null, 2) + '\n', { flag: 'wx' })
   }
