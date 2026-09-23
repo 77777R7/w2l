@@ -1,0 +1,100 @@
+{
+  "kind": "amazon-100-product-human-field-review",
+  "sourceCommit": "991097f15e6513de58ccd3df165f7b789dfff201",
+  "manifestSha256": "4764bf94aee623d6fbb762dc8cd00f2053b3eb7de8706584bb0e40ffe15257c5",
+  "schemaSha256": "fdb13640d8a26c642b447ff44f5e4ecd1331dd5b87d92168def88d183c2fbc8b",
+  "anonymousStateSha256": "46da30659105f7018e15f1b3b294630d8ac27cb47f960751f4156ad38e375b0c",
+  "reviewPacketSha256": "c05bc8acda7b9ee5a05f606c19615353d687e6ea3643d2f188f870b90012718f",
+  "rawCaptureReportSha256": "a7928bb8797f8e55e764c14cff5f6da63bc79b0150f04824253df5404548afe1",
+  "reviewedCaptureCount": 100,
+  "signoff": {
+    "reviewer": "Howard",
+    "recordedAt": "2026-09-23T08:39:04Z",
+    "method": "explicit user reply after reviewing the 100 raw-HTML links in the local review packet"
+  },
+  "reviewerResponse": "已核对：除第 40 行如实不完整外，无字段错误或串入",
+  "score": {
+    "scoredFields": [
+      "asin",
+      "title",
+      "price",
+      "currency",
+      "seller"
+    ],
+    "accuracy": {
+      "correct": 456,
+      "emitted": 456,
+      "rate": 1
+    },
+    "visibleCoverage": {
+      "matched": 456,
+      "visibleApplicable": 460,
+      "rate": 0.991304347826087
+    },
+    "perField": {
+      "asin": {
+        "visibleApplicable": 100,
+        "emitted": 99,
+        "matched": 99,
+        "accuracy": 1,
+        "visibleCoverage": 0.99,
+        "unverifiedEmitted": [],
+        "mismatch": [],
+        "missingVisible": [
+          40
+        ]
+      },
+      "title": {
+        "visibleApplicable": 100,
+        "emitted": 99,
+        "matched": 99,
+        "accuracy": 1,
+        "visibleCoverage": 0.99,
+        "unverifiedEmitted": [],
+        "mismatch": [],
+        "missingVisible": [
+          40
+        ]
+      },
+      "price": {
+        "visibleApplicable": 87,
+        "emitted": 86,
+        "matched": 86,
+        "accuracy": 1,
+        "visibleCoverage": 0.9885057471264368,
+        "unverifiedEmitted": [],
+        "mismatch": [],
+        "missingVisible": [
+          40
+        ]
+      },
+      "currency": {
+        "visibleApplicable": 87,
+        "emitted": 86,
+        "matched": 86,
+        "accuracy": 1,
+        "visibleCoverage": 0.9885057471264368,
+        "unverifiedEmitted": [],
+        "mismatch": [],
+        "missingVisible": [
+          40
+        ]
+      },
+      "seller": {
+        "visibleApplicable": 86,
+        "emitted": 86,
+        "matched": 86,
+        "accuracy": 1,
+        "visibleCoverage": 1,
+        "unverifiedEmitted": [],
+        "mismatch": [],
+        "missingVisible": []
+      }
+    },
+    "recommendationAsinLeakCount": 0,
+    "recommendationImageLeakCount": 0,
+    "strictSubjectExactCount": 99,
+    "strictSubjectPassed": false
+  },
+  "status": "field_metrics_passed_strict_subject_gate_failed"
+}
