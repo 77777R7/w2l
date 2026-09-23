@@ -149,10 +149,11 @@ function amazonPrices(doc: Document, subscription: boolean): readonly ProductPri
       if (raw === null || !/[\d]/.test(raw) || seen.has(raw)) continue
       seen.add(raw)
       const currency = currencyOf(raw)
+      const unitPrice = el.closest('.apex-priceperunit-value, .pricePerUnit, .unit-price') !== null
       prices.push({
         amount: { value: amountOf(raw), source: 'dom', path: selector },
         currency: currency === null ? null : { value: currency, source: 'dom', path: selector },
-        priceType: subscription ? 'subscription' : prices.length === 0 ? 'current' : 'other',
+        priceType: subscription ? 'subscription' : unitPrice ? 'unit' : prices.length === 0 ? 'current' : 'other',
         seller: null,
       })
       if (prices.length >= 4) return prices
@@ -242,14 +243,16 @@ export function collectAmazonProductFacts(doc: Document, url: string | undefined
     ?? metaFact(doc, 'meta[property="og:title"]')
   let rawPrices = [...amazonPrices(doc, subscription), ...alternateOffers(doc)]
   if (rawPrices.length === 0 && subscription) {
-    const amount = pageText.match(/\bBilling:\s*(?:Monthly|Annual).*?([$€£]\s*\d[\d,]*(?:\.\d{1,2})?)/i)?.[1]
-      ?? pageText.match(/([$€£]\s*\d[\d,]*(?:\.\d{1,2})?)/)?.[1]
-      ?? null
-    if (amount !== null) rawPrices = [{ amount: domFact(amountOf(amount), 'body:Billing')!, currency: domFact(currencyOf(amount), 'body:Billing'), priceType: 'subscription', seller: null }]
+    // Blink's page shows prices for other plans above the selected buy box.
+    // A page-wide first-price fallback can silently assign Plus AI to Plus.
+    const selectedOfferSelector = '[data-cy="subs-buy-box-container"], #subs-buy-box-container'
+    const selectedOffer = text(doc, selectedOfferSelector)
+    const amount = selectedOffer?.match(/([$€£]\s*\d[\d,]*(?:\.\d{1,2})?)/)?.[1] ?? null
+    if (amount !== null) rawPrices = [{ amount: domFact(amountOf(amount), selectedOfferSelector)!, currency: domFact(currencyOf(amount), selectedOfferSelector), priceType: 'subscription', seller: null }]
   }
   const store = first(doc, ['#bylineInfo', '[data-feature-name="bylineInfo"]'])
   const brand = store === null ? null : domFact(store.value.replace(/^Brand:\s*/i, '').replace(/^Visit the\s+/i, '').replace(/\s+Store$/i, ''), store.selector)
-  const sellerHit = first(doc, ['#sellerProfileTriggerId', '#merchant-info', '.tabular-buybox-text[tabular-attribute-name="Sold by"]'])
+  const sellerHit = first(doc, ['#sellerProfileTriggerId', '#merchant-info', '.tabular-buybox-text[tabular-attribute-name="Sold by"]', '#merchantInfoFeature_feature_div .offer-display-feature-text-message'])
   const seller = sellerHit === null
     ? (/\bSold\s*by\s*Blink\b/i.test(pageText) || /SoldbyBlink/i.test(pageText.replace(/\s+/g, '')) ? domFact('Blink', 'body:Sold by') : null)
     : domFact(sellerHit.value, sellerHit.selector)

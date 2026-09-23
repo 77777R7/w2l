@@ -330,6 +330,22 @@ describe('Amazon product adapter', () => {
     expect(out.product?.priceCurrency?.value).toBe('SGD')
   })
 
+  it('reads the primary offer seller from Amazon offer display and labels unit prices', () => {
+    const html = `<!doctype html><html><body><div id="dp-container">
+      <h1 id="productTitle">Cotton rounds</h1>
+      <div id="corePrice_feature_div">
+        <span class="a-price apex-pricetopay-value"><span class="a-offscreen">S$3.77</span></span>
+        <span class="a-price apex-priceperunit-value"><span class="a-offscreen">S$0.04</span></span>
+      </div>
+      <div id="merchantInfoFeature_feature_div"><span class="offer-display-feature-text-message">Amazon.com</span></div>
+      <section class="related-products"><span class="offer-display-feature-text-message">Other Shop</span></section>
+    </div></body></html>`
+    const out = extractTf.extract(html, { url: 'https://www.amazon.com/dp/B012345678' })
+    expect(out.product?.seller?.value).toBe('Amazon.com')
+    expect(out.product?.seller?.path).toBe('#merchantInfoFeature_feature_div .offer-display-feature-text-message')
+    expect(out.product?.prices?.map(price => price.priceType)).toEqual(['current', 'unit'])
+  })
+
   it('skips the Amazon location placeholder and normalizes the visible Singapore postal code', () => {
     const html = `<html><body><span id="glow-ingress-line2">Update location</span>
       <span id="contextualIngressPtLabel_deliveryShortLine">Delivering to Singapore 170000 – Update location</span>
@@ -394,6 +410,24 @@ describe('Amazon product adapter', () => {
     expect(out.pageType).toBe('product')
     expect(out.product?.kind).toBe('subscription')
     expect(out.product?.prices?.[0]?.priceType).toBe('subscription')
+  })
+
+  it('binds a Blink subscription price to the selected buy box instead of another plan', () => {
+    const html = `<!doctype html><html><head><title>Blink plus plan</title></head><body>
+      <div data-cy="twister-plus-label-text">Plan: Blink plus</div>
+      <div>Blink plus ai $14.99/month</div>
+      <div>Billing: Monthly</div>
+      <div data-cy="subs-buy-box-container"><span>$11.99/month</span></div>
+      <div data-cy="sold-by-value">Blink</div>
+    </body></html>`
+    const out = extractTf.extract(html, { url: 'https://www.amazon.com/dp/B08JHCVHTY' })
+    expect(out.product?.kind).toBe('subscription')
+    expect(out.product?.price?.value).toBe('11.99')
+    expect(out.product?.price?.path).toBe('[data-cy="subs-buy-box-container"], #subs-buy-box-container')
+
+    const noSelectedOffer = extractTf.extract(html.replace('<div data-cy="subs-buy-box-container"><span>$11.99/month</span></div>', ''),
+      { url: 'https://www.amazon.com/dp/B08JHCVHTY' })
+    expect(noSelectedOffer.product?.price).toBeNull()
   })
 
   it('binds JSON-LD to the URL ASIN and ignores a recommended Product record', () => {
