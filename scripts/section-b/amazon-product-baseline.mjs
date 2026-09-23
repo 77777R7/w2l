@@ -100,7 +100,8 @@ transport.stderr?.on('data', chunk => process.stderr.write(chunk))
 
 const records = []
 const roundDurations = []
-let stoppedForGate = false
+let stoppedForSafety = false
+let haltReason = null
 let observedRegion = null
 const observedCurrencyByAsin = new Map()
 const startedAt = new Date().toISOString()
@@ -112,7 +113,7 @@ try {
   for (let round = 1; round <= rounds; round++) {
     const roundStart = performance.now()
     let nextIndex = 0
-    if (stoppedForGate) {
+    if (stoppedForSafety) {
       for (const [index, url] of manifest.urls.entries()) records.push({
         round, index: index + 1, asin: url.match(/\/dp\/([A-Z0-9]{10})/)?.[1] ?? null, url,
         clientMs: null, responseBytes: 0, discovery: round === 1, comparable: false,
@@ -169,12 +170,15 @@ try {
         record = { round, index: index + 1, asin, url, clientMs: performance.now() - began, responseBytes: 0, discovery: round === 1, comparable: false, comparisonStatus: 'request_error', error: String(error) }
       }
       records.push(record)
-      if (record.outcome?.status === 'blocked') stoppedForGate = true
+      if (record.outcome?.status === 'blocked' || record.comparisonStatus === 'request_error') {
+        stoppedForSafety = true
+        haltReason = record.outcome?.status === 'blocked' ? `capture_blocked:${record.outcome.blockReason}` : 'mcp_or_api_request_error'
+      }
       console.log(JSON.stringify({ round, index: index + 1, asin, status: record.outcome?.status ?? 'error', comparisonStatus: record.comparisonStatus, clientMs: Math.round(record.clientMs) }))
     }
     const workers = Array.from({ length: Math.min(concurrency, manifest.urls.length) }, async () => {
       for (;;) {
-        if (stoppedForGate) return
+        if (stoppedForSafety) return
         const index = nextIndex++
         if (index >= manifest.urls.length) return
         await runOne(index)
@@ -190,24 +194,37 @@ try {
       })
     }
     roundDurations.push(performance.now() - roundStart)
+    if (!stoppedForSafety && round < rounds) {
+      try {
+        const reset = await fetch(`${baseUrl}/baseline/reset-browser`, { method: 'POST' })
+        if (!reset.ok) throw new Error(`browser reset returned ${reset.status}`)
+      } catch (error) {
+        stoppedForSafety = true
+        haltReason = `browser_reset_failed:${String(error)}`
+      }
+    }
   }
 
-  let responseSize = { passed: false, notTestedReason: 'a gate interrupted the real product capture' }
-  if (!stoppedForGate && records.some(record => record.outcome?.status === 'success')) {
-    const sampleUrl = manifest.urls[0]
-    const compact = textResult(await client.callTool({ name: 'scrape', arguments: { url: sampleUrl, mode: 'standard', formats: ['markdown'], debug: false } }))
-    const debug = textResult(await client.callTool({ name: 'scrape', arguments: { url: sampleUrl, mode: 'standard', formats: ['markdown'], debug: true } }))
-    const sameCaptureCompact = compactScrapeResponse(debug.value, { url: sampleUrl, mode: 'standard', formats: ['markdown'], debug: false })
-    const sameCaptureCompactBytes = Buffer.byteLength(JSON.stringify(sameCaptureCompact))
-    responseSize = {
-      url: sampleUrl,
-      actualCompactBytes: compact.bytes,
-      sameCaptureCompactBytes,
-      debugBytes: debug.bytes,
-      ratio: sameCaptureCompactBytes / debug.bytes,
-      nestedBodyAbsent: compact.value.summary === undefined && compact.value.trace === undefined && compact.value.ladderTrace === undefined,
-      passed: debug.value.status === 'success' && compact.value.status === 'success'
-        && sameCaptureCompactBytes <= debug.bytes * 0.6 && compact.value.summary === undefined,
+  let responseSize = { passed: false, notTestedReason: haltReason ?? 'no successful product capture' }
+  if (!stoppedForSafety && records.some(record => record.outcome?.status === 'success')) {
+    try {
+      const sampleUrl = manifest.urls[0]
+      const compact = textResult(await client.callTool({ name: 'scrape', arguments: { url: sampleUrl, mode: 'standard', formats: ['markdown'], debug: false } }))
+      const debug = textResult(await client.callTool({ name: 'scrape', arguments: { url: sampleUrl, mode: 'standard', formats: ['markdown'], debug: true } }))
+      const sameCaptureCompact = compactScrapeResponse(debug.value, { url: sampleUrl, mode: 'standard', formats: ['markdown'], debug: false })
+      const sameCaptureCompactBytes = Buffer.byteLength(JSON.stringify(sameCaptureCompact))
+      responseSize = {
+        url: sampleUrl,
+        actualCompactBytes: compact.bytes,
+        sameCaptureCompactBytes,
+        debugBytes: debug.bytes,
+        ratio: sameCaptureCompactBytes / debug.bytes,
+        nestedBodyAbsent: compact.value.summary === undefined && compact.value.trace === undefined && compact.value.ladderTrace === undefined,
+        passed: debug.value.status === 'success' && compact.value.status === 'success'
+          && sameCaptureCompactBytes <= debug.bytes * 0.6 && compact.value.summary === undefined,
+      }
+    } catch (error) {
+      responseSize = { passed: false, notTestedReason: `size_probe_error:${String(error)}` }
     }
   }
 
@@ -255,7 +272,7 @@ try {
       failed: records.filter(record => record.outcome?.status === 'failed' || record.error).length,
       notAttempted: records.filter(record => record.outcome?.status === 'not_attempted').length,
       clientMs: { p50: percentile(attemptedAssessment.map(record => record.clientMs), 0.5), p95: percentile(attemptedAssessment.map(record => record.clientMs), 0.95), total: attemptedAssessment.reduce((sum, record) => sum + record.clientMs, 0) },
-      tenPageRunMs: { values: perRoundClientMs, median: stoppedForGate ? null : percentile(perRoundClientMs, 0.5), targetMs: 20_000, passed: rounds >= 3 && !stoppedForGate && percentile(perRoundClientMs, 0.5) <= 20_000 },
+      tenPageRunMs: { values: perRoundClientMs, median: stoppedForSafety ? null : percentile(perRoundClientMs, 0.5), targetMs: 20_000, passed: rounds >= 3 && !stoppedForSafety && percentile(perRoundClientMs, 0.5) <= 20_000 },
       totalMs: { p50: percentile(attemptedAssessment.map(record => record.usage?.totalMs).filter(Number.isFinite), 0.5), p95: percentile(attemptedAssessment.map(record => record.usage?.totalMs).filter(Number.isFinite), 0.95) },
       stageTimings,
       attempts: { total: records.reduce((sum, record) => sum + (record.usage?.attemptCount ?? 0), 0), retriedRecords: records.filter(record => (record.usage?.attemptCount ?? 0) > 1).length },
@@ -274,11 +291,12 @@ try {
       },
     },
     responseSize,
+    haltReason,
     acceptance: {
       automatedPassed: rounds >= 3
         && discoverySuccessful.length === manifest.urls.length
         && comparable.length === manifest.urls.length * (rounds - 1)
-        && !stoppedForGate
+        && !stoppedForSafety
         && successful.length === comparable.length
         && successful.every(record => record.checks.asinExact && record.checks.titlePresent && record.checks.recommendationAsinLeaks.length === 0)
         && successful.every(record => record.structured?.status === 'complete')

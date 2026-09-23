@@ -32,6 +32,13 @@ const engine = createApiEngine({
   },
 })
 const app = createApp(engine)
+// A benchmark round owns no persistent browser state; the public preference
+// is restored into each fresh context. Recycle Chromium between rounds so a
+// long live test does not depend on one growing DevTools connection.
+app.post('/baseline/reset-browser', async c => {
+  await subject.teardown()
+  return c.json({ reset: true })
+})
 const port = Number(process.env.W2L_AMAZON_BASELINE_PORT)
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('W2L_AMAZON_BASELINE_PORT is required')
 const server = serve({ fetch: app.fetch, hostname: '127.0.0.1', port })
