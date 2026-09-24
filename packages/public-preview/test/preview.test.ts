@@ -7,6 +7,7 @@ import { join } from 'node:path'
 import type { FetchResult, StructuredExtractionResult } from '@w2l/contracts'
 import { createPreviewServer } from '../src/server.js'
 import { mapPreviewResult, normalizePreviewUrl, type CaptureOutcome } from '../src/preview.js'
+import { resolvePreviewCapability } from '../src/capability.js'
 import type { PreviewQuota } from '../src/quota.js'
 import { AmazonGateBusyError, type AmazonOriginGate } from '../src/amazonGate.js'
 
@@ -36,6 +37,37 @@ async function endpoint(quota: PreviewQuota, capture: NonNullable<Parameters<typ
 }
 
 describe('anonymous preview contract', () => {
+  it('preflights a planned route without capture, quota, or a visitor cookie', async () => {
+    let captures = 0
+    let quotaCalls = 0
+    const url = await endpoint({ consume: async () => { quotaCalls++; return 'ok' } }, async target => { captures++; return fixture(target.url) }, {
+      visitorCookieSecret: 's'.repeat(32), enabled: false,
+    })
+    for (const [input, task, route] of [
+      ['https://docs.example/page', 'readable_page', 'http'],
+      ['https://www.amazon.sg/dp/B0D4DHBFFH', 'amazon_sg_product', 'browser_local'],
+      ['https://x.com/alice/status/222', 'x_public_post', 'http'],
+      ['https://www.reddit.com/r/test/comments/abc123/story/', 'reddit_public_post', 'http'],
+    ]) {
+      const response = await fetch(`${url}/api/capability?url=${encodeURIComponent(input)}`)
+      expect(response.status).toBe(200)
+      expect(response.headers.get('set-cookie')).toBeNull()
+      expect(await response.json()).toMatchObject({ capability: { task, captureMode: route } })
+    }
+    expect([captures, quotaCalls]).toEqual([0, 0])
+    expect((await fetch(`${url}/api/capability?url=file:///etc/passwd`)).status).toBe(400)
+    expect((await fetch(`${url}/api/capability?url=https://docs.example&debug=true`)).status).toBe(400)
+    expect((await fetch(`${url}/api/capability`, { method: 'POST' })).status).toBe(405)
+  })
+
+  it('keeps hosted X and Reddit routes conditional despite local adapters', () => {
+    for (const address of ['https://x.com/a/status/2', 'https://reddit.com/r/a/comments/abc/title']) {
+      const capability = resolvePreviewCapability(normalizePreviewUrl(address))
+      expect(capability.captureMode).toBe('http')
+      expect(capability.support).toBe('conditional')
+      expect(capability.lastValidatedSourceCommit).toBeNull()
+    }
+  })
   it('serves documentation deep links but returns 404 for unknown documentation pages', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'w2l-doc-routes-'))
     tempDirs.push(dir)
@@ -172,9 +204,26 @@ describe('anonymous preview contract', () => {
     outcome.result.status = 'failed'
     outcome.result.failureReason = 'policy_denied'
     outcome.result.trace = [{ at: 0, lane: 'http', event: 'ssrf_denied' }]
-    expect(mapPreviewResult(url, normalizePreviewUrl(url), outcome, 10)).toMatchObject({ status: 'failed', reason: 'This URL is not allowed for public preview.' })
+    expect(mapPreviewResult(url, normalizePreviewUrl(url), outcome, 10)).toMatchObject({ status: 'failed', reason: 'This URL is not allowed for public preview.', diagnostic: { code: 'policy_denied', stage: 'policy' } })
     outcome.result.trace = [{ at: 0, lane: 'http', event: 'robots_disallowed' }]
-    expect(mapPreviewResult(url, normalizePreviewUrl(url), outcome, 10)).toMatchObject({ status: 'blocked', reason: 'This site does not allow automated preview of this page.' })
+    expect(mapPreviewResult(url, normalizePreviewUrl(url), outcome, 10)).toMatchObject({ status: 'blocked', reason: 'This site does not allow automated preview of this page.', diagnostic: { code: 'robots_disallowed', evidence: 'observed' } })
+  })
+
+  it('separates login, verification, timeout, and service failures for older clients', async () => {
+    const url = 'https://example.com/page'
+    const outcome = fixture(url)
+    outcome.result.status = 'blocked'
+    outcome.result.blockReason = 'login_wall'
+    expect(mapPreviewResult(url, normalizePreviewUrl(url), outcome, 10)).toMatchObject({ status: 'blocked', diagnostic: { code: 'login_required' } })
+    outcome.result.blockReason = 'bot_detected_generic'
+    expect(mapPreviewResult(url, normalizePreviewUrl(url), outcome, 10)).toMatchObject({ status: 'blocked', diagnostic: { code: 'challenge' } })
+    outcome.result.status = 'failed'
+    outcome.result.blockReason = null
+    outcome.result.failureReason = 'timeout'
+    expect(mapPreviewResult(url, normalizePreviewUrl(url), outcome, 10)).toMatchObject({ status: 'timeout', diagnostic: { code: 'timeout' } })
+    const base = await endpoint({ consume: async () => { throw new Error('quota offline') } }, async () => { throw new Error('must not capture') })
+    const response = await fetch(`${base}/api/preview`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ url }) })
+    expect(await response.json()).toMatchObject({ status: 'failed', diagnostic: { code: 'service_unavailable' } })
   })
 
   it('rejects foreign Origin and unsupported options before spending quota', async () => {
@@ -259,6 +308,15 @@ describe('anonymous preview contract', () => {
     expect(mapped.product?.asin).toBeNull()
     expect(mapped.product?.data).toBeNull()
     expect(mapped.status).toBe('incomplete')
+    expect(mapped.diagnostic?.code).toBe('subject_unverified')
+  })
+
+  it('distinguishes a directly observed substitute subject from an unverified quote', () => {
+    const target = normalizePreviewUrl('https://www.amazon.sg/dp/B0D4DHBFFH')
+    const outcome = fixture(target.url, true)
+    const json: StructuredExtractionResult = { status: 'incomplete', data: { asin: 'B0D4DHBFFH', currency: 'SGD', deliveryLocation: 'Singapore 238823' }, evidence: [], issues: [{ code: 'missing', path: '/price', message: 'missing' }] }
+    expect(mapPreviewResult(target.url, target, { ...outcome, json }, 20).diagnostic).toMatchObject({ code: 'quote_unverified', stage: 'field' })
+    expect(mapPreviewResult(target.url, target, { ...outcome, selectedAsin: 'B000000000', json }, 20)).toMatchObject({ status: 'incomplete', diagnostic: { code: 'subject_mismatch', evidence: 'observed' }, product: { data: null } })
   })
 
   it('treats a matching canonical without a selected-ASIN DOM witness as incomplete', () => {

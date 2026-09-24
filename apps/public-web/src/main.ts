@@ -19,8 +19,10 @@ type PreviewResponse = {
   markdown: string | null
   totalMs: number
   reason: string | null
+  diagnostic?: { code: string; stage: string; evidence: 'observed' | 'unobserved' }
   product?: ProductPreview
 }
+type CapabilityResponse = { requestedUrl: string; capability: { task: string; support: string; captureMode: 'http' | 'browser_local'; limitation: string } }
 type OutputFormat = 'markdown' | 'json'
 
 const app = document.querySelector<HTMLDivElement>('#app')!
@@ -56,13 +58,14 @@ app.innerHTML = `
             <span class="url-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13.5a4.5 4.5 0 0 0 6.36 0l3.18-3.18a4.5 4.5 0 0 0-6.36-6.36L11.5 5.64"/><path d="M14 10.5a4.5 4.5 0 0 0-6.36 0l-3.18 3.18a4.5 4.5 0 0 0 6.36 6.36l1.68-1.68"/></svg>
             </span>
-            <input id="url-input" name="url" type="url" inputmode="url" autocomplete="url" spellcheck="false" placeholder="https://docs.firecrawl.dev/introduction" aria-describedby="url-help form-message" required />
+            <input id="url-input" name="url" type="url" inputmode="url" autocomplete="url" spellcheck="false" placeholder="https://docs.firecrawl.dev/introduction" aria-describedby="url-help capability-message form-message" required />
             <button class="submit-button" id="submit-button" type="submit"><span id="submit-label">Extract page</span><span class="button-arrow" aria-hidden="true">→</span></button>
           </div>
           <div class="form-meta">
             <p id="url-help">3 free previews per browser, daily · Public pages only</p>
             <button class="example-button" id="example-button" type="button">Try an example <span aria-hidden="true">↗</span></button>
           </div>
+          <p class="capability-message" id="capability-message" role="status" aria-live="polite"></p>
           <div class="format-choice">
             <label for="output-format">Format</label>
             <select id="output-format" aria-describedby="format-help">
@@ -114,7 +117,10 @@ const subtitle = document.querySelector<HTMLElement>('#result-subtitle')!
 const badge = document.querySelector<HTMLElement>('#result-badge')!
 const content = document.querySelector<HTMLElement>('#result-content')!
 const formatSelect = document.querySelector<HTMLSelectElement>('#output-format')!
+const capabilityMessage = document.querySelector<HTMLElement>('#capability-message')!
 let latestResult: PreviewResponse | null = null
+let capabilityTimer: number | undefined
+let capabilityRequest: AbortController | undefined
 
 function downloadFile(content: string, name: string, type: string): void {
   const objectUrl = URL.createObjectURL(new Blob([content], { type }))
@@ -147,6 +153,7 @@ document.querySelector<HTMLButtonElement>('#example-button')!.addEventListener('
   input.focus()
   message.textContent = 'Example URL added. Select “Extract page” to begin.'
   message.className = 'form-message'
+  scheduleCapability()
 })
 
 function normalizeUrl(value: string): string {
@@ -162,6 +169,37 @@ function normalizeUrl(value: string): string {
   if (url.toString().length > 2048) throw new Error('The URL is too long. Keep it under 2,048 characters.')
   return url.toString()
 }
+
+function scheduleCapability(): void {
+  window.clearTimeout(capabilityTimer)
+  capabilityRequest?.abort()
+  const entered = input.value.trim()
+  capabilityMessage.textContent = ''
+  if (!entered) return
+  let url: string
+  try { url = normalizeUrl(entered) }
+  catch { return }
+  capabilityTimer = window.setTimeout(async () => {
+    const request = new AbortController()
+    capabilityRequest = request
+    try {
+      const response = await fetch(`/api/capability?url=${encodeURIComponent(url)}`, { signal: request.signal, credentials: 'same-origin' })
+      if (!response.ok) return
+      const result = await response.json() as CapabilityResponse
+      if (request.signal.aborted || normalizeUrl(input.value) !== url) return
+      const route = result.capability.captureMode === 'browser_local' ? 'a limited browser route' : 'restricted HTTP'
+      const task = result.capability.task === 'amazon_sg_product' ? 'Amazon.sg product beta' : result.capability.task === 'x_public_post' ? 'X post' : result.capability.task === 'reddit_public_post' ? 'Reddit post' : 'Public page'
+      const limit = result.capability.task === 'amazon_sg_product'
+        ? 'Subject or quote may be unverified; the product gate remains open.'
+        : result.capability.task === 'x_public_post' || result.capability.task === 'reddit_public_post'
+          ? 'Site policy, login, or rendering may block capture.'
+          : 'Site policy or rendering may limit content.'
+      capabilityMessage.textContent = `${task} · Planned route: ${route}. ${limit}`
+    } catch { /* A hint failure must not prevent extraction. */ }
+  }, 300)
+}
+
+input.addEventListener('input', scheduleCapability)
 
 function setBusy(busy: boolean): void {
   submit.disabled = busy
@@ -191,7 +229,12 @@ function formatDuration(ms: number): string {
   return ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(2)} s`
 }
 
-function statusText(status: PreviewStatus, product?: ProductPreview): string {
+function statusText(status: PreviewStatus, product?: ProductPreview, diagnostic?: PreviewResponse['diagnostic']): string {
+  if (diagnostic?.code === 'subject_mismatch') return 'Different product selected'
+  if (diagnostic?.code === 'quote_unverified') return 'Quote not verified'
+  if (diagnostic?.code === 'robots_disallowed') return 'Site policy blocks preview'
+  if (diagnostic?.code === 'login_required') return 'Login required'
+  if (diagnostic?.code === 'challenge') return 'Verification page'
   if (status === 'success' && product?.status === 'incomplete') return 'Page read · Product fields need review'
   if (status === 'success' && product?.status === 'invalid') return 'Page read · Product fields invalid'
   return ({ success: 'Extraction complete', incomplete: 'Partial result', blocked: 'Blocked by site', failed: 'Extraction failed', timeout: 'Timed out', invalid_url: 'Invalid URL', quota_exceeded: 'Daily limit reached' })[status]
@@ -416,7 +459,7 @@ function renderResult(result: PreviewResponse, clientMs: number, started: number
   content.replaceChildren()
   const isPageRead = result.status === 'success' || result.status === 'incomplete'
   subtitle.textContent = result.title || (isPageRead ? 'Page content' : 'No readable content returned')
-  badge.textContent = statusText(result.status, result.product)
+  badge.textContent = statusText(result.status, result.product, result.diagnostic)
   badge.className = `result-badge status-${result.status}`
   if (result.product?.status !== 'complete' && result.product) badge.classList.add('status-partial')
 
@@ -424,7 +467,7 @@ function renderResult(result: PreviewResponse, clientMs: number, started: number
   facts.className = 'result-facts'
   const statusFact = document.createElement('div')
   statusFact.className = 'result-fact'
-  statusFact.append(textElement('span', 'Status', 'fact-label'), textElement('strong', statusText(result.status, result.product)))
+  statusFact.append(textElement('span', 'Status', 'fact-label'), textElement('strong', statusText(result.status, result.product, result.diagnostic)))
   facts.append(statusFact)
   const timeFact = document.createElement('div')
   timeFact.className = 'result-fact'
