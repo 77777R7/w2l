@@ -4,8 +4,19 @@ import { createExecutionScope } from '@w2l/http-core'
 import { extractStructured } from '@w2l/api/structured'
 import { parseHTML } from 'linkedom'
 import { AMAZON_PRODUCT_SCHEMA } from './productSchema.js'
+import { resolvePreviewCapability, type PreviewCapability } from './capability.js'
 
 export type PreviewStatus = 'success' | 'incomplete' | 'blocked' | 'failed' | 'timeout' | 'quota_exceeded' | 'invalid_url'
+
+export type PreviewDiagnosticCode = 'subject_mismatch' | 'subject_unverified' | 'quote_unverified' | 'region_unverified' | 'currency_unverified'
+  | 'robots_disallowed' | 'login_required' | 'challenge' | 'policy_denied' | 'timeout' | 'quota_exceeded'
+  | 'service_unavailable' | 'content_unverified' | 'capture_failed' | 'invalid_url'
+export interface PreviewDiagnostic {
+  code: PreviewDiagnosticCode
+  stage: 'input' | 'policy' | 'acquisition' | 'subject' | 'field' | 'quota' | 'service'
+  /** Observed means this request contains direct evidence of the specific condition. */
+  evidence: 'observed' | 'unobserved'
+}
 
 export interface PreviewProduct {
   status: StructuredExtractionResult['status']
@@ -25,6 +36,8 @@ export interface PreviewResponse {
   /** Server-side total including acquisition and extraction. The UI measures round-trip time separately. */
   totalMs: number
   reason: string | null
+  capability?: PreviewCapability
+  diagnostic?: PreviewDiagnostic
   product?: PreviewProduct
   /** Returned only to an operator holding W2L_EVAL_TOKEN; never to visitors. */
   evaluation?: {
@@ -87,7 +100,7 @@ export async function capturePreview(url: NormalizedPreviewUrl, signal: AbortSig
     localPreviewRobotsException: localPlatformRequest && localPlatformRobotsException,
     // No third-party provider calls, even if environment keys happen to exist.
     keys: {},
-  }).filter(channel => channel.id === (url.amazonAsin === null ? 'http' : 'browser_local'))
+  }).filter(channel => channel.id === resolvePreviewCapability(url).captureMode)
   const scope = createExecutionScope({ signal, deadlineAt, onRetryAfter })
   try {
     const run = await new LadderRunner(channels, { mode: 'standard' }).run(url.url, null, scope)
@@ -224,7 +237,9 @@ export function mapPreviewResult(requestedUrl: string, normalized: NormalizedPre
     : result.failureReason === 'timeout' || result.budgetExceeded === 'time' || result.status === 'cancelled' ? 'timeout'
       : result.status === 'success' ? product && product.status !== 'complete' || social.applies && social.markdown === null ? 'incomplete' : 'success'
         : result.status === 'partial' || result.status === 'empty_verified' || (product && result.failureReason === 'identity_compromised') ? 'incomplete' : 'failed'
-  const reason = status === 'success' ? null
+  const extractedPrice = jsonObject(outcome.json?.data ?? null)?.price
+  const quoteMissing = typeof extractedPrice !== 'number' || !Number.isFinite(extractedPrice)
+  let reason = status === 'success' ? null
     : status === 'blocked' ? robotsDenied ? 'This site does not allow automated preview of this page.'
       : result.blockReason === 'bot_detected_generic' ? 'The site returned a verification page instead of the requested content.'
         : result.blockReason === 'login_wall' ? 'The page requires a login.'
@@ -235,6 +250,23 @@ export function mapPreviewResult(requestedUrl: string, normalized: NormalizedPre
           : result.failureReason === 'policy_denied' ? 'This URL is not allowed for public preview.'
             : result.failureReason ? `Extraction failed (${result.failureReason}).`
             : status === 'incomplete' ? 'The page content is incomplete.' : 'We could not extract this page right now.'
+  const diagnostic: PreviewDiagnostic | undefined = status === 'success' ? undefined
+    : robotsDenied ? { code: 'robots_disallowed', stage: 'policy', evidence: 'observed' }
+      : result.blockReason === 'login_wall' ? { code: 'login_required', stage: 'acquisition', evidence: 'observed' }
+        : result.blockReason === 'bot_detected_generic' ? { code: 'challenge', stage: 'acquisition', evidence: 'observed' }
+          : result.failureReason === 'policy_denied' ? { code: 'policy_denied', stage: 'policy', evidence: 'observed' }
+            : status === 'timeout' ? { code: 'timeout', stage: 'acquisition', evidence: 'unobserved' }
+              : status === 'failed' ? { code: 'capture_failed', stage: 'acquisition', evidence: 'unobserved' }
+              : product && outcome.selectedAsin !== null && outcome.selectedAsin !== undefined && outcome.selectedAsin !== normalized.amazonAsin
+                ? { code: 'subject_mismatch', stage: 'subject', evidence: 'observed' }
+                : product && product.asin === null ? { code: 'subject_unverified', stage: 'subject', evidence: 'unobserved' }
+                  : product && product.region === null ? { code: 'region_unverified', stage: 'field', evidence: 'unobserved' }
+                    : product && quoteMissing ? { code: 'quote_unverified', stage: 'field', evidence: 'unobserved' }
+                      : product && product.currency === null ? { code: 'currency_unverified', stage: 'field', evidence: 'unobserved' }
+                        : status === 'incomplete' ? { code: 'content_unverified', stage: 'field', evidence: 'unobserved' }
+                          : { code: 'capture_failed', stage: 'acquisition', evidence: 'unobserved' }
+  if (diagnostic?.code === 'subject_mismatch') reason = 'The page selected a different product from the requested ASIN. Its fields and price were withheld.'
+  if (diagnostic?.code === 'quote_unverified') reason = 'No selected quote was verified for this product in the captured Singapore page.'
   return {
     status,
     requestedUrl,
@@ -245,6 +277,8 @@ export function mapPreviewResult(requestedUrl: string, normalized: NormalizedPre
       : null,
     totalMs,
     reason,
+    capability: resolvePreviewCapability(normalized),
+    ...(diagnostic === undefined ? {} : { diagnostic }),
     ...(product === undefined ? {} : { product }),
   }
 }

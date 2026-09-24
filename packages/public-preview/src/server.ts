@@ -6,6 +6,7 @@ import { extname, relative, resolve } from 'node:path'
 import type { PreviewQuota, QuotaDecision } from './quota.js'
 import { AmazonGateBusyError, type AmazonOriginGate, type AmazonOriginPermit } from './amazonGate.js'
 import { capturePreview, mapPreviewResult, normalizePreviewUrl, type PreviewCapture, type PreviewResponse } from './preview.js'
+import { resolvePreviewCapability } from './capability.js'
 
 export interface PreviewServerOptions {
   quota: PreviewQuota
@@ -39,8 +40,13 @@ function sendJson(res: ServerResponse, status: number, body: PreviewResponse | R
   }).end(JSON.stringify(body))
 }
 
-function empty(status: PreviewResponse['status'], url: string, reason: string, totalMs = 0): PreviewResponse {
-  return { status, requestedUrl: url, finalUrl: null, title: null, markdown: null, totalMs, reason }
+function empty(status: PreviewResponse['status'], url: string, reason: string, totalMs = 0, override?: PreviewResponse['diagnostic']): PreviewResponse {
+  const code = status === 'invalid_url' ? 'invalid_url' : status === 'quota_exceeded' ? 'quota_exceeded'
+    : status === 'timeout' ? 'timeout' : 'service_unavailable'
+  const stage = status === 'invalid_url' ? 'input' : status === 'quota_exceeded' ? 'quota'
+    : status === 'timeout' ? 'acquisition' : 'service'
+  return { status, requestedUrl: url, finalUrl: null, title: null, markdown: null, totalMs, reason,
+    diagnostic: override ?? { code, stage, evidence: 'unobserved' } }
 }
 
 function visitorAddress(req: IncomingMessage): string {
@@ -148,9 +154,22 @@ export function createPreviewHandler(options: PreviewServerOptions): (req: Incom
   return (req, res) => { void (async () => {
     const started = performance.now()
     const deadlineAt = Date.now() + deadlineMs
-    const pathname = new URL(req.url ?? '/', 'http://localhost').pathname
+    const requestUrl = new URL(req.url ?? '/', 'http://localhost')
+    const pathname = requestUrl.pathname
     if (pathname === '/healthz' || pathname === '/api/health') {
       sendJson(res, 200, { status: 'ok', anonymousPreviewEnabled: options.enabled !== false })
+      return
+    }
+    if (pathname === '/api/capability') {
+      if (req.method !== 'GET') { res.writeHead(405, { allow: 'GET' }).end(); return }
+      try {
+        const entries = [...requestUrl.searchParams.entries()]
+        if (entries.length !== 1 || entries[0]?.[0] !== 'url') throw new Error('Provide one public URL in the url query parameter.')
+        const target = normalizePreviewUrl(entries[0][1])
+        sendJson(res, 200, { requestedUrl: target.url, capability: resolvePreviewCapability(target) })
+      } catch (error) {
+        sendJson(res, 400, { error: 'invalid_url', reason: error instanceof Error ? error.message : 'Invalid URL.' })
+      }
       return
     }
     if (pathname !== '/api/preview') {
@@ -161,7 +180,7 @@ export function createPreviewHandler(options: PreviewServerOptions): (req: Incom
     }
     if (req.method !== 'POST') { res.writeHead(405, { allow: 'POST' }).end(); return }
     if (!requestOriginAllowed(req) || req.headers['sec-fetch-site'] === 'cross-site') {
-      sendJson(res, 403, empty('failed', '', 'Submit links from this site only.', Math.max(0, performance.now() - started)))
+      sendJson(res, 403, empty('failed', '', 'Submit links from this site only.', Math.max(0, performance.now() - started), { code: 'policy_denied', stage: 'policy', evidence: 'observed' }))
       return
     }
     let submitted = ''
@@ -184,7 +203,7 @@ export function createPreviewHandler(options: PreviewServerOptions): (req: Incom
       }
       const evaluation = authorizedEvaluation(req, options.evalToken)
       if (req.headers.authorization !== undefined && !evaluation) {
-        sendJson(res, 401, empty('failed', submitted, 'Invalid evaluation credentials.', Math.max(0, performance.now() - started)))
+        sendJson(res, 401, empty('failed', submitted, 'Invalid evaluation credentials.', Math.max(0, performance.now() - started), { code: 'policy_denied', stage: 'policy', evidence: 'observed' }))
         return
       }
       const abort = new AbortController()

@@ -93,6 +93,8 @@ a { color: inherit; }
 @keyframes nudge { 50% { transform: translateX(4px); } }
 .form-meta { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 15px 4px 0; font-size: 12px; color: #d5e5f7; }
 .form-meta p { margin: 0; }
+.capability-message { width: fit-content; max-width: 100%; min-height: 1.4em; margin: 7px 0 0; padding: 4px 8px; border-radius: 6px; color: #f1f6ff; background: rgba(7, 27, 79, .58); font-size: 12px; line-height: 1.5; }
+.capability-message:empty { padding: 0; background: transparent; }
 .format-choice { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 10px 4px 0; color: #d5e5f7; font-size: 12px; }
 .format-choice label { font-weight: 400; }
 .format-choice select, .output-view-select { padding: 7px 28px 7px 10px; border: 1px solid rgba(219, 235, 255, .5); border-radius: 8px; color: #fff; background: #17386e; cursor: pointer; }
