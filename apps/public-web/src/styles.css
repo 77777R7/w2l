@@ -44,43 +44,32 @@ a { color: inherit; }
   inset: 0;
   z-index: 0;
   pointer-events: none;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #000 10%, #000 76%, transparent 96%);
+  mask-image: linear-gradient(to bottom, transparent 0%, #000 10%, #000 76%, transparent 96%);
 }
 .hero-ascii-layer {
   position: absolute;
-  width: min(43vw, 600px);
-  height: 74%;
+  width: min(48vw, 690px);
+  height: 84%;
   pointer-events: none;
   overflow: hidden;
-  filter: drop-shadow(0 0 7px rgba(92, 163, 250, .14));
 }
-.hero-ascii-left { left: -5%; }
-.hero-ascii-right { right: -5%; }
+.hero-ascii-left { left: -3%; }
+.hero-ascii-right { right: -3%; }
 .hero-ascii-far {
   top: 0;
-  opacity: .24;
-  -webkit-mask-image:
-    radial-gradient(ellipse 38% 27% at 16% 31%, #000 15%, transparent 100%),
-    radial-gradient(ellipse 34% 24% at 53% 45%, #000 10%, transparent 100%),
-    radial-gradient(ellipse 35% 25% at 75% 19%, #000 7%, transparent 100%);
-  mask-image:
-    radial-gradient(ellipse 38% 27% at 16% 31%, #000 15%, transparent 100%),
-    radial-gradient(ellipse 34% 24% at 53% 45%, #000 10%, transparent 100%),
-    radial-gradient(ellipse 35% 25% at 75% 19%, #000 7%, transparent 100%);
+  opacity: .10;
+  -webkit-mask-image: radial-gradient(ellipse 72% 81% at 47% 47%, #000 36%, transparent 100%);
+  mask-image: radial-gradient(ellipse 72% 81% at 47% 47%, #000 36%, transparent 100%);
 }
 .hero-ascii-near {
-  top: 13%;
-  opacity: .43;
-  -webkit-mask-image:
-    radial-gradient(ellipse 36% 25% at 22% 48%, #000 14%, transparent 100%),
-    radial-gradient(ellipse 34% 24% at 61% 65%, #000 12%, transparent 100%),
-    radial-gradient(ellipse 31% 24% at 83% 34%, #000 5%, transparent 100%);
-  mask-image:
-    radial-gradient(ellipse 36% 25% at 22% 48%, #000 14%, transparent 100%),
-    radial-gradient(ellipse 34% 24% at 61% 65%, #000 12%, transparent 100%),
-    radial-gradient(ellipse 31% 24% at 83% 34%, #000 5%, transparent 100%);
+  top: 9%;
+  opacity: .20;
+  -webkit-mask-image: radial-gradient(ellipse 68% 74% at 50% 51%, #000 39%, transparent 100%);
+  mask-image: radial-gradient(ellipse 68% 74% at 50% 51%, #000 39%, transparent 100%);
 }
-.hero-ascii-right.hero-ascii-far { top: -5%; }
-.hero-ascii-right.hero-ascii-near { top: 7%; }
+.hero-ascii-right.hero-ascii-far { top: -4%; opacity: .075; }
+.hero-ascii-right.hero-ascii-near { top: 4%; opacity: .15; }
 .hero-ascii-right .w2l-ascii-filter pre { color: #d3ddff; }
 .hero-ascii-right.hero-ascii-near .w2l-ascii-filter pre { color: #ffd1ad; }
 
@@ -200,9 +189,9 @@ a { color: inherit; }
 .footer-inner a:hover { color: #ffae86; }
 
 @media (max-width: 800px) {
-  .hero-ascii-layer { width: 47%; height: 57%; }
-  .hero-ascii-near { top: 17%; }
-  .hero-ascii-right.hero-ascii-near { top: 10%; }
+  .hero-ascii-layer { width: 53%; height: 67%; }
+  .hero-ascii-near { top: 13%; }
+  .hero-ascii-right.hero-ascii-near { top: 8%; }
   .layout-width { width: min(100% - 40px, 680px); }
   .hero { min-height: 710px; }
   .hero-backdrop { background-position: 57% center; }

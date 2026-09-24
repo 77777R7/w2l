@@ -212,9 +212,53 @@ class CanvasTxt {
   }
 }
 
+// W2L field mode preserves React Bits' WebGL-to-ASCII pipeline while replacing
+// the word-shaped source image with a filled, softly varying luminance field.
+class CanvasField {
+  constructor(text, variant) {
+    this.canvas = document.createElement('canvas');
+    this.context = this.canvas.getContext('2d');
+    this.seed = [...text].reduce((value, char) => (value * 31 + char.charCodeAt(0)) % 997, variant + 1);
+    this.variant = variant;
+  }
+
+  resize(width, height) {
+    const scale = 0.48;
+    this.canvas.width = Math.max(128, Math.round(width * scale));
+    this.canvas.height = Math.max(128, Math.round(height * scale));
+  }
+
+  render() {
+    const { width, height } = this.canvas;
+    const image = this.context.createImageData(width, height);
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const nx = x / width;
+        const ny = y / height;
+        const broad = Math.sin(nx * 10.2 + ny * 5.4 + this.seed) * 0.13;
+        const folds = Math.sin(ny * 18.5 - nx * 7.1 + this.variant * 1.7) * 0.1;
+        const ripples = Math.cos(nx * 27.3 + Math.sin(ny * 9.8) * 2.1) * 0.06;
+        const grain = Math.sin((x + this.seed) * 12.9898 + y * 78.233) * 43758.5453;
+        const value = Math.max(0.19, Math.min(0.82, 0.4 + broad + folds + ripples + (grain - Math.floor(grain) - 0.5) * 0.18));
+        const color = Math.round(value * 255);
+        const offset = (x + y * width) * 4;
+        image.data[offset] = color;
+        image.data[offset + 1] = color;
+        image.data[offset + 2] = color;
+        image.data[offset + 3] = 255;
+      }
+    }
+    this.context.putImageData(image, 0, 0);
+  }
+
+  get width() { return this.canvas.width; }
+  get height() { return this.canvas.height; }
+  get texture() { return this.canvas; }
+}
+
 class CanvAscii {
   constructor(
-    { text, asciiFontSize, textFontSize, textColor, planeBaseHeight, enableWaves },
+    { text, asciiFontSize, textFontSize, textColor, planeBaseHeight, enableWaves, fieldMode, fieldVariant },
     containerElem,
     width,
     height
@@ -228,6 +272,8 @@ class CanvAscii {
     this.width = width;
     this.height = height;
     this.enableWaves = enableWaves;
+    this.fieldMode = fieldMode;
+    this.fieldVariant = fieldVariant;
 
     this.camera = new PerspectiveCamera(45, this.width / this.height, 1, 1000);
     this.camera.position.z = 30;
@@ -250,21 +296,22 @@ class CanvAscii {
   }
 
   setMesh() {
-    this.textCanvas = new CanvasTxt(this.textString, {
+    this.textCanvas = this.fieldMode ? new CanvasField(this.textString, this.fieldVariant) : new CanvasTxt(this.textString, {
       fontSize: this.textFontSize,
       fontFamily: 'Courier New',
       color: this.textColor
     });
-    this.textCanvas.resize();
+    this.textCanvas.resize(this.width, this.height);
     this.textCanvas.render();
 
     this.texture = new CanvasTexture(this.textCanvas.texture);
     this.texture.minFilter = NearestFilter;
 
     const textAspect = this.textCanvas.width / this.textCanvas.height;
-    const baseH = this.planeBaseHeight;
+    const baseH = this.fieldMode ? 2 * this.camera.position.z * Math.tan(Math.PI / 8) * 1.28 : this.planeBaseHeight;
     const planeW = baseH * textAspect;
     const planeH = baseH;
+    this.fieldAspect = textAspect;
 
     this.geometry = new PlaneGeometry(planeW, planeH, 36, 36);
     this.material = new ShaderMaterial({
@@ -310,6 +357,7 @@ class CanvAscii {
 
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
+    if (this.fieldMode && this.mesh) this.mesh.scale.x = (w / h) / this.fieldAspect;
 
     this.filter.setSize(w, h);
 
@@ -420,7 +468,9 @@ export default function ASCIIText({
   textFontSize = 200,
   textColor = '#fdf9f3',
   planeBaseHeight = 8,
-  enableWaves = true
+  enableWaves = true,
+  fieldMode = false,
+  fieldVariant = 0
 }) {
   const containerRef = useRef(null);
   const asciiRef = useRef(null);
@@ -433,7 +483,7 @@ export default function ASCIIText({
     let instance;
     try {
       instance = new CanvAscii(
-        { text, asciiFontSize, textFontSize, textColor, planeBaseHeight, enableWaves },
+        { text, asciiFontSize, textFontSize, textColor, planeBaseHeight, enableWaves, fieldMode, fieldVariant },
         container, width, height
       );
       instance.init();
@@ -461,7 +511,7 @@ export default function ASCIIText({
       instance.dispose();
       asciiRef.current = null;
     };
-  }, [text, asciiFontSize, textFontSize, textColor, planeBaseHeight, enableWaves]);
+  }, [text, asciiFontSize, textFontSize, textColor, planeBaseHeight, enableWaves, fieldMode, fieldVariant]);
 
   return <div ref={containerRef} className="ascii-text-container" aria-hidden="true" />;
 }

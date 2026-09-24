@@ -7,16 +7,16 @@ export function mountReactBitsAscii(container: HTMLElement): () => void {
   root.render(
     <>
       <div className="hero-ascii-layer hero-ascii-left hero-ascii-far">
-        <ASCIIText text="hello_world" enableWaves={true} asciiFontSize={16} planeBaseHeight={11} />
+        <ASCIIText text="hello_world" enableWaves={true} asciiFontSize={16} fieldMode={true} fieldVariant={1} />
       </div>
       <div className="hero-ascii-layer hero-ascii-left hero-ascii-near">
-        <ASCIIText text="hello_world" enableWaves={true} asciiFontSize={16} planeBaseHeight={16} />
+        <ASCIIText text="hello_world" enableWaves={true} asciiFontSize={16} fieldMode={true} fieldVariant={2} />
       </div>
       <div className="hero-ascii-layer hero-ascii-right hero-ascii-far">
-        <ASCIIText text="hello_world" enableWaves={true} asciiFontSize={16} planeBaseHeight={11} />
+        <ASCIIText text="hello_world" enableWaves={true} asciiFontSize={16} fieldMode={true} fieldVariant={3} />
       </div>
       <div className="hero-ascii-layer hero-ascii-right hero-ascii-near">
-        <ASCIIText text="hello_world" enableWaves={true} asciiFontSize={16} planeBaseHeight={16} />
+        <ASCIIText text="hello_world" enableWaves={true} asciiFontSize={16} fieldMode={true} fieldVariant={4} />
       </div>
     </>
   )
