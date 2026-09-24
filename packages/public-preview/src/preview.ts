@@ -49,11 +49,11 @@ const AMAZON_ASIN_PATH = /^\/dp\/([A-Z0-9]{10})\/?$/i
 
 /** Normalize only supported public URL forms. Do not pass visitor options to the crawler. */
 export function normalizePreviewUrl(input: unknown): NormalizedPreviewUrl {
-  if (typeof input !== 'string' || input.length > 2048 || input.length === 0) throw new Error('请输入不超过 2048 字符的公开网页链接。')
+  if (typeof input !== 'string' || input.length > 2048 || input.length === 0) throw new Error('Enter a public page URL with no more than 2,048 characters.')
   let parsed: URL
-  try { parsed = new URL(input) } catch { throw new Error('请输入有效的 HTTP 或 HTTPS 网页链接。') }
+  try { parsed = new URL(input) } catch { throw new Error('Enter a valid HTTP or HTTPS page URL.') }
   if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password || parsed.port || !parsed.hostname) {
-    throw new Error('仅支持不含账号密码或自定义端口的公开 HTTP/HTTPS 链接。')
+    throw new Error('Use a public HTTP or HTTPS URL without credentials or a custom port.')
   }
   parsed.hash = ''
   const asin = AMAZON_HOSTS.has(parsed.hostname) ? AMAZON_ASIN_PATH.exec(parsed.pathname)?.[1]?.toUpperCase() ?? null : null
@@ -129,11 +129,11 @@ function productView(expectedAsin: string, outcome: CaptureOutcome): PreviewProd
   const currencyVerified = currency === 'SGD'
   const issues: { code: string; message: string }[] = (extraction?.issues ?? []).map(issue => ({
     code: issue.code,
-    message: issue.path ? `字段 ${issue.path} 暂时无法确认。` : issue.code === 'subject_unverified' ? '页面主体商品身份无法确认。' : '部分商品字段暂时无法确认。',
+    message: issue.path ? `We could not verify ${issue.path}.` : issue.code === 'subject_unverified' ? 'We could not verify the main product on this page.' : 'We could not verify some product fields.',
   }))
-  if (!identityVerified) issues.push({ code: 'subject_unverified', message: '页面选中的商品 ASIN 与请求的 ASIN 未能核对一致。' })
-  if (!regionVerified) issues.push({ code: location === null ? 'region_unverified' : 'region_mismatch', message: '无法确认此页面的配送地区为 Singapore 238823。' })
-  if (!currencyVerified) issues.push({ code: 'currency_unverified', message: '无法确认此页面的报价币种为 SGD。' })
+  if (!identityVerified) issues.push({ code: 'subject_unverified', message: 'The ASIN selected on the page does not match the requested ASIN.' })
+  if (!regionVerified) issues.push({ code: location === null ? 'region_unverified' : 'region_mismatch', message: 'We could not verify delivery to Singapore 238823 on this page.' })
+  if (!currencyVerified) issues.push({ code: 'currency_unverified', message: 'We could not verify that the price currency is SGD.' })
   const valid = outcome.result.status === 'success' && extraction?.status === 'complete' && identityVerified && regionVerified && currencyVerified
   // Do not leak a different selected product or an offer from an uncertain
   // shipping/currency context into a public price result.
@@ -166,17 +166,17 @@ function productSummary(product: PreviewProduct): string | null {
     return value.replace(/[\r\n]+/g, ' ').replace(/[\[\]()*_`]/g, '').trim()
   }
   const data = product.data
-  const lines = [`# ${clean(data.title) ?? '商品页面'}`, '', `主体 ASIN：${product.asin}`]
-  const add = (label: string, value: unknown): void => { const normalized = clean(value); if (normalized) lines.push(`${label}：${normalized}`) }
-  add('品牌', data.brand)
-  add('卖家', data.seller)
-  add('库存', data.availability)
-  add('配送地区', product.region)
-  add('币种', product.currency)
+  const lines = [`# ${clean(data.title) ?? 'Product page'}`, '', `Main ASIN: ${product.asin}`]
+  const add = (label: string, value: unknown): void => { const normalized = clean(value); if (normalized) lines.push(`${label}: ${normalized}`) }
+  add('Brand', data.brand)
+  add('Seller', data.seller)
+  add('Availability', data.availability)
+  add('Delivery location', product.region)
+  add('Currency', product.currency)
   if (product.status === 'complete' && typeof data.price === 'number' && Number.isFinite(data.price) && product.currency === 'SGD') {
-    lines.push(`价格：SGD ${data.price}`)
+    lines.push(`Price: SGD ${data.price}`)
   }
-  if (product.status !== 'complete') lines.push('', '部分商品字段仍待确认。')
+  if (product.status !== 'complete') lines.push('', 'Some product fields still need verification.')
   return lines.join('\n')
 }
 
@@ -188,11 +188,11 @@ export function mapPreviewResult(requestedUrl: string, normalized: NormalizedPre
       : result.status === 'success' ? product && product.status !== 'complete' ? 'incomplete' : 'success'
         : result.status === 'partial' || result.status === 'empty_verified' || (product && result.failureReason === 'identity_compromised') ? 'incomplete' : 'failed'
   const reason = status === 'success' ? null
-    : status === 'blocked' ? '目标网站阻止了此次访问。'
-      : status === 'timeout' ? '网页未能在试用期限内完成抓取。'
+    : status === 'blocked' ? 'The website blocked this request.'
+      : status === 'timeout' ? 'The page did not finish loading within the preview time limit.'
         : product && product.issues.length > 0 ? product.issues[0]!.message
-          : result.failureReason ? `抓取失败（${result.failureReason}）。`
-            : status === 'incomplete' ? '网页内容尚不完整。' : '暂时无法抓取此网页。'
+          : result.failureReason ? `Extraction failed (${result.failureReason}).`
+            : status === 'incomplete' ? 'The page content is incomplete.' : 'We could not extract this page right now.'
   return {
     status,
     requestedUrl,

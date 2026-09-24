@@ -63,7 +63,7 @@ describe('anonymous preview contract', () => {
     const response = await fetch(`${url}/api/preview`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ url: 'https://www.amazon.sg/dp/B0D4DHBFFH' }) })
     expect(response.status).toBe(503)
     expect(response.headers.get('retry-after')).toBe('1')
-    expect((await response.json()).reason).toContain('繁忙')
+    expect((await response.json()).reason).toContain('busy')
     expect([quotaCalls, captureCalls]).toEqual([0, 0])
   })
 
@@ -151,7 +151,7 @@ describe('anonymous preview contract', () => {
     const broken = await endpoint({ consume: async () => { throw new Error('Firestore unavailable') } }, async () => { throw new Error('should never run') })
     const failed = await fetch(`${broken}/api/preview`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ url: 'https://docs.example' }) })
     expect(failed.status).toBe(503)
-    expect((await failed.json()).reason).toBe('试用额度服务暂时不可用。')
+    expect((await failed.json()).reason).toBe('The preview quota service is temporarily unavailable.')
   })
 
   it('masks an Amazon price when region is not verified', () => {
@@ -170,7 +170,7 @@ describe('anonymous preview contract', () => {
     expect(JSON.stringify(mapped.product?.data)).not.toMatch(/9999|8888|price/i)
     expect(mapped.product?.issues).toContainEqual(expect.objectContaining({ code: 'region_unverified' }))
     expect(mapped.markdown).not.toContain('9999')
-    expect(mapped.markdown).not.toContain('价格：')
+    expect(mapped.markdown).not.toContain('Price:')
   })
 
   it('does not expose price for a different Singapore postal code', () => {
@@ -199,7 +199,7 @@ describe('anonymous preview contract', () => {
     expect(mapped.status).toBe('success')
     expect(mapped.product?.status).toBe('complete')
     expect(mapped.product?.data).toMatchObject({ price: 7.23, currency: 'SGD' })
-    expect(mapped.markdown).toContain('价格：SGD 7.23')
+    expect(mapped.markdown).toContain('Price: SGD 7.23')
     expect(mapped.markdown).not.toContain('9999')
   })
 

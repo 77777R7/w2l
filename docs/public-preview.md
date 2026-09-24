@@ -4,7 +4,7 @@ The first-use page accepts one public HTTP(S) URL and shows readable content, th
 
 ## Try it
 
-Open the public HTTPS service URL, paste a page address, and choose **提取网页**. The Firecrawl Introduction example on the page is a public documentation smoke test. A blocked, partial, or timed-out result is displayed as such. The page makes no promise to access login walls or solve challenges. The page and `POST /api/preview` are on the same HTTPS origin; no local repository, MCP connection, or service key is needed by visitors.
+Open the public HTTPS service URL, paste a page address, and choose **Extract page**. The Firecrawl Introduction example on the page is a public documentation smoke test. A blocked, partial, or timed-out result is displayed as such. The page makes no promise to access login walls or solve challenges. The page and `POST /api/preview` are on the same HTTPS origin; no local repository, MCP connection, or service key is needed by visitors.
 
 The anonymous allowance is three attempts per browser visitor per UTC day and 100 attempts globally per UTC day. A signed, HttpOnly, SameSite=Lax cookie identifies a visitor; direct clients without that cookie use a conservative address-based fallback. The Firestore counters survive service restarts. An unavailable quota store denies preview requests. The web page and `/healthz` remain available when preview is disabled. For Amazon.sg, the public readable body is a short summary built from the checked subject record, so unrelated recommendation prices in the raw page are not shown as this product's content.
 
@@ -12,7 +12,7 @@ Amazon.sg browser requests also use one Firestore-backed origin lease across the
 
 ## Local integration
 
-Run `npm ci` and `npm run build:public`. For focused local tests, inject a test `PreviewQuota` into `createPreviewServer`; production CLI intentionally requires Firestore configuration. Keep `W2L_CAPTURE_RAW_DIR` unset. The public service never starts the Monitor or Delivery workers and does not persist crawl state or captured HTML.
+Run `npm ci`, then `npm run public:preview:local` to open `http://127.0.0.1:8798/`. Set `W2L_AMAZON_PUBLIC_STATE_FILE` to a validated, anonymous Singapore preference state to try Amazon.sg locally. This review server binds loopback and uses in-memory daily limits and Amazon spacing; **its counters and coordination reset on restart**, so it must not be exposed publicly. The production CLI intentionally requires Firestore configuration. Keep `W2L_CAPTURE_RAW_DIR` unset. The public service never starts the Monitor or Delivery workers and does not persist crawl state or captured HTML.
 
 ## Cloud Run deployment
 

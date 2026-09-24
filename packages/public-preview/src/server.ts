@@ -83,18 +83,18 @@ function authorizedEvaluation(req: IncomingMessage, configuredToken: string | un
 
 async function readRequestBody(req: IncomingMessage): Promise<unknown> {
   const type = req.headers['content-type'] ?? ''
-  if (!type.toLowerCase().startsWith('application/json')) throw new Error('请使用 JSON 提交单个 url 字段。')
-  if (Number(req.headers['content-length'] ?? 0) > 4_096) throw new Error('请求内容过大。')
+  if (!type.toLowerCase().startsWith('application/json')) throw new Error('Send JSON containing a single url field.')
+  if (Number(req.headers['content-length'] ?? 0) > 4_096) throw new Error('The request is too large.')
   const chunks: Buffer[] = []
   let length = 0
   for await (const chunk of req) {
     const next = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
     length += next.length
-    if (length > 4_096) throw new Error('请求内容过大。')
+    if (length > 4_096) throw new Error('The request is too large.')
     chunks.push(next)
   }
   try { return JSON.parse(Buffer.concat(chunks).toString('utf8')) }
-  catch { throw new Error('请求内容必须是有效的 JSON。') }
+  catch { throw new Error('The request body must be valid JSON.') }
 }
 
 function requestOriginAllowed(req: IncomingMessage): boolean {
@@ -155,7 +155,7 @@ export function createPreviewHandler(options: PreviewServerOptions): (req: Incom
     }
     if (req.method !== 'POST') { res.writeHead(405, { allow: 'POST' }).end(); return }
     if (!requestOriginAllowed(req) || req.headers['sec-fetch-site'] === 'cross-site') {
-      sendJson(res, 403, empty('failed', '', '仅允许从本站提交链接。', Math.max(0, performance.now() - started)))
+      sendJson(res, 403, empty('failed', '', 'Submit links from this site only.', Math.max(0, performance.now() - started)))
       return
     }
     let submitted = ''
@@ -163,22 +163,22 @@ export function createPreviewHandler(options: PreviewServerOptions): (req: Incom
       const body = await readRequestBody(req)
       if (body === null || typeof body !== 'object' || Array.isArray(body)
         || Object.keys(body).length !== 1 || typeof (body as Record<string, unknown>).url !== 'string') {
-        throw new Error('请求只能包含一个 url 字段。')
+        throw new Error('The request must contain only one url field.')
       }
       submitted = (body as { url: string }).url
       const target = normalizePreviewUrl(submitted)
-      if (options.enabled === false) { sendJson(res, 503, empty('failed', submitted, '公开试用暂时不可用。', Math.max(0, performance.now() - started))); return }
+      if (options.enabled === false) { sendJson(res, 503, empty('failed', submitted, 'The public preview is temporarily unavailable.', Math.max(0, performance.now() - started))); return }
       if (target.amazonAsin !== null && !options.amazonState) {
-        sendJson(res, 503, empty('incomplete', submitted, 'Amazon 新加坡地区试用尚未配置。', Math.max(0, performance.now() - started)))
+        sendJson(res, 503, empty('incomplete', submitted, 'The Singapore Amazon preview is not configured yet.', Math.max(0, performance.now() - started)))
         return
       }
       if (target.amazonAsin !== null && !options.amazonGate) {
-        sendJson(res, 503, empty('failed', submitted, 'Amazon 并发协调服务尚未配置。', Math.max(0, performance.now() - started)))
+        sendJson(res, 503, empty('failed', submitted, 'Amazon request coordination is not configured yet.', Math.max(0, performance.now() - started)))
         return
       }
       const evaluation = authorizedEvaluation(req, options.evalToken)
       if (req.headers.authorization !== undefined && !evaluation) {
-        sendJson(res, 401, empty('failed', submitted, '验收凭据无效。', Math.max(0, performance.now() - started)))
+        sendJson(res, 401, empty('failed', submitted, 'Invalid evaluation credentials.', Math.max(0, performance.now() - started)))
         return
       }
       const abort = new AbortController()
@@ -195,7 +195,7 @@ export function createPreviewHandler(options: PreviewServerOptions): (req: Incom
             || error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')
           if (!res.destroyed) sendJson(res, interrupted ? 200 : 503,
             empty(interrupted ? 'timeout' : 'failed', submitted,
-              interrupted ? '网页未能在试用期限内完成抓取。' : '试用额度服务暂时不可用。',
+              interrupted ? 'The page did not finish loading within the preview time limit.' : 'The preview quota service is temporarily unavailable.',
               Math.max(0, performance.now() - started)))
           return
         }
@@ -203,14 +203,14 @@ export function createPreviewHandler(options: PreviewServerOptions): (req: Incom
           const tomorrow = Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate() + 1)
           if (!res.destroyed) sendJson(res, 429,
             empty('quota_exceeded', submitted,
-              available === 'global_limited' ? '今日公开试用额度已用完。' : '你今天的 3 次试用额度已用完。',
+              available === 'global_limited' ? 'The public preview has reached its daily limit.' : 'You have used your three previews for today.',
               Math.max(0, performance.now() - started)),
             { 'retry-after': String(Math.max(1, Math.ceil((tomorrow - Date.now()) / 1_000))) })
           return
         }
       }
       type Reply = { status: number; body: PreviewResponse; headers?: Record<string, string> }
-      let reply: Reply = { status: 503, body: empty('failed', submitted, '试用服务暂时不可用。') }
+      let reply: Reply = { status: 503, body: empty('failed', submitted, 'The preview service is temporarily unavailable.') }
       let permit: AmazonOriginPermit | undefined
       let observedRetryAt = 0
       const retryNotes: Promise<void>[] = []
@@ -224,12 +224,12 @@ export function createPreviewHandler(options: PreviewServerOptions): (req: Incom
           const interrupted = abort.signal.aborted || Date.now() >= deadlineAt
             || error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')
           reply = interrupted
-            ? { status: 200, body: empty('timeout', submitted, '网页未能在试用期限内完成抓取。') }
-            : { status: 503, body: empty('failed', submitted, '试用额度服务暂时不可用。') }
+            ? { status: 200, body: empty('timeout', submitted, 'The page did not finish loading within the preview time limit.') }
+            : { status: 503, body: empty('failed', submitted, 'The preview quota service is temporarily unavailable.') }
         }
         if (quota !== undefined && quota !== 'ok') {
           const tomorrow = Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate() + 1)
-          reply = { status: 429, body: empty('quota_exceeded', submitted, quota === 'global_limited' ? '今日公开试用额度已用完。' : '你今天的 3 次试用额度已用完。'),
+          reply = { status: 429, body: empty('quota_exceeded', submitted, quota === 'global_limited' ? 'The public preview has reached its daily limit.' : 'You have used your three previews for today.'),
             headers: { 'retry-after': String(Math.max(1, Math.ceil((tomorrow - Date.now()) / 1_000))) } }
         } else if (quota === 'ok') {
           try {
@@ -265,21 +265,21 @@ export function createPreviewHandler(options: PreviewServerOptions): (req: Incom
             const timeout = error instanceof Error && error.name === 'TimeoutError'
             if (evaluation) console.log(JSON.stringify({ event: 'public_preview_evaluation', status: timeout ? 'timeout' : 'failed', totalMs: Math.max(0, performance.now() - started) }))
             reply = { status: 200, body: empty(timeout || abort.signal.aborted ? 'timeout' : 'failed', submitted,
-              timeout ? '网页未能在试用期限内完成抓取。' : abort.signal.aborted ? '本次抓取已中断。' : '暂时无法抓取此网页。') }
+              timeout ? 'The page did not finish loading within the preview time limit.' : abort.signal.aborted ? 'This extraction was interrupted.' : 'We could not extract this page right now.') }
           }
         }
       } catch (error) {
         reply = abort.signal.aborted || Date.now() >= deadlineAt
-          ? { status: 200, body: empty('timeout', submitted, '网页未能在试用期限内完成抓取。') }
+          ? { status: 200, body: empty('timeout', submitted, 'The page did not finish loading within the preview time limit.') }
           : error instanceof AmazonGateBusyError
-          ? { status: 503, body: empty('failed', submitted, 'Amazon 当前繁忙，请稍后重试。'),
+          ? { status: 503, body: empty('failed', submitted, 'Amazon requests are busy. Try again shortly.'),
             headers: { 'retry-after': String(Math.max(1, Math.ceil(((error.retryAfterAt ?? Date.now() + 1_000) - Date.now()) / 1_000))) } }
-          : { status: 503, body: empty('failed', submitted, 'Amazon 并发协调服务暂时不可用。') }
+          : { status: 503, body: empty('failed', submitted, 'Amazon request coordination is temporarily unavailable.') }
       } finally {
         if (permit) {
           await Promise.allSettled(retryNotes)
           try { await permit.release(observedRetryAt || undefined) }
-          catch { reply = { status: 503, body: empty('failed', submitted, 'Amazon 并发协调服务暂时不可用。') } }
+          catch { reply = { status: 503, body: empty('failed', submitted, 'Amazon request coordination is temporarily unavailable.') } }
         }
       }
       reply.body.totalMs = Math.max(0, performance.now() - started)
@@ -287,7 +287,7 @@ export function createPreviewHandler(options: PreviewServerOptions): (req: Incom
     } catch (error) {
       if (!res.destroyed) sendJson(res, 400, empty('invalid_url', submitted, error instanceof Error ? error.message : 'Invalid request.', Math.max(0, performance.now() - started)))
     }
-  })().catch(() => { if (!res.headersSent) sendJson(res, 500, empty('failed', '', '试用服务暂时不可用。')) }) }
+  })().catch(() => { if (!res.headersSent) sendJson(res, 500, empty('failed', '', 'The preview service is temporarily unavailable.')) }) }
 }
 
 export function createPreviewServer(options: PreviewServerOptions): Server {

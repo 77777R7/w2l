@@ -14,6 +14,7 @@
     "test": "vitest run",
     "build:public": "tsc --build && npm run build --workspace @w2l/public-web",
     "public:preview": "npm run build:public && node packages/public-preview/dist/cli.js",
+    "public:preview:local": "npm run build:public && node scripts/section-c/public-preview-local.mjs",
     "bench": "tsc --build && node --import tsx packages/bench/src/cli.ts",
     "benchmark:gate": "tsc --build && node --import tsx packages/bench/src/gateCli.ts",
     "benchmark:phase3:manifest": "tsc --build && node --import tsx packages/bench/src/phase3ManifestCli.ts",
