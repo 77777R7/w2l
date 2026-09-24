@@ -1,0 +1,33 @@
+.ascii-text-container,
+.w2l-ascii-filter {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.w2l-ascii-filter {
+  animation: w2l-ascii-arrive .8s ease-out both;
+}
+
+@keyframes w2l-ascii-arrive {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.w2l-ascii-filter canvas {
+  display: none;
+}
+
+.w2l-ascii-filter pre {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  color: #a8c9fa;
+  font: 500 16px/1 'Courier New', ui-monospace, monospace;
+  white-space: pre;
+  user-select: none;
+}

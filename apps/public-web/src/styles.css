@@ -29,8 +29,7 @@ a { color: inherit; }
   background: #071b4f;
 }
 .hero-backdrop,
-.hero-shade,
-.hero-ascii { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.hero-shade { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .hero-backdrop {
   z-index: -3;
   background: url('/assets/mountain-hero.webp') center 58% / cover no-repeat;
@@ -40,7 +39,18 @@ a { color: inherit; }
   background: linear-gradient(180deg, rgba(3, 14, 45, .30) 0%, rgba(3, 14, 45, .08) 37%, rgba(3, 14, 45, .29) 75%, rgba(3, 14, 45, .75) 100%),
     linear-gradient(90deg, rgba(4, 19, 63, .28), transparent 55%);
 }
-.hero-ascii { z-index: -2; }
+.hero-ascii-accent {
+  position: absolute;
+  z-index: -2;
+  top: 8%;
+  right: 5%;
+  width: min(34vw, 490px);
+  height: 205px;
+  opacity: .26;
+  pointer-events: none;
+  -webkit-mask-image: radial-gradient(ellipse 68% 64% at 50% 50%, #000 38%, transparent 100%);
+  mask-image: radial-gradient(ellipse 68% 64% at 50% 50%, #000 38%, transparent 100%);
+}
 
 .site-header { display: flex; align-items: center; justify-content: space-between; min-height: 88px; position: relative; z-index: 2; }
 .brand { display: inline-flex; align-items: center; gap: 8px; color: #fff; text-decoration: none; }
@@ -157,6 +167,10 @@ a { color: inherit; }
 .footer-inner a { text-decoration: none; }
 .footer-inner a:hover { color: #ffae86; }
 
+@media (min-width: 601px) and (max-width: 900px) {
+  .hero-ascii-accent { top: 7%; right: 4%; width: 280px; height: 145px; opacity: .2; }
+}
+
 @media (max-width: 800px) {
   .layout-width { width: min(100% - 40px, 680px); }
   .hero { min-height: 710px; }
@@ -177,7 +191,7 @@ a { color: inherit; }
   .hero { min-height: 720px; }
   .hero-backdrop { background-position: 54% center; }
   .hero-shade { background: linear-gradient(180deg, rgba(3, 14, 45, .43), rgba(3, 14, 45, .4) 49%, rgba(3, 14, 45, .58) 67%, rgba(3, 14, 45, .79)); }
-  .hero-ascii { display: none; }
+  .hero-ascii-accent { display: none; }
   .site-header { min-height: 72px; }
   .brand { gap: 2px; }
   .brand-mark { width: 44px; height: 44px; }
@@ -226,6 +240,6 @@ a { color: inherit; }
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
-  .hero-ascii { display: none; }
+  .hero-ascii-accent { display: none; }
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }

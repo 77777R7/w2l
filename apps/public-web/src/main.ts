@@ -26,7 +26,7 @@ app.innerHTML = `
   <div class="page-shell">
     <section class="hero" id="top" aria-labelledby="hero-title">
       <div class="hero-backdrop" aria-hidden="true"></div>
-      <canvas class="hero-ascii" id="hero-ascii" aria-hidden="true"></canvas>
+      <div class="hero-ascii-accent" id="hero-ascii" aria-hidden="true"></div>
       <div class="hero-shade" aria-hidden="true"></div>
 
       <header class="site-header layout-width">
@@ -91,7 +91,7 @@ app.innerHTML = `
 `
 
 const hero = document.querySelector<HTMLElement>('.hero')!
-mountHeroAscii(document.querySelector<HTMLCanvasElement>('#hero-ascii')!, hero)
+mountHeroAscii(document.querySelector<HTMLElement>('#hero-ascii')!, hero)
 
 const form = document.querySelector<HTMLFormElement>('#preview-form')!
 const input = document.querySelector<HTMLInputElement>('#url-input')!
