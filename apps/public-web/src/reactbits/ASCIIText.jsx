@@ -58,6 +58,45 @@ const mountainImage = new Image();
 mountainImage.src = '/assets/mountain-hero.webp';
 const octopusImage = new Image();
 octopusImage.src = '/assets/octopus-original.webp';
+let octopusCrop = null;
+const getOctopusCrop = () => {
+  if (octopusCrop) return octopusCrop;
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const context = canvas.getContext('2d', { willReadFrequently: true });
+  if (!context) return null;
+  context.drawImage(octopusImage, 0, 0, size, size);
+  const pixels = context.getImageData(0, 0, size, size).data;
+  const background = [pixels[0], pixels[1], pixels[2]];
+  let left = size, top = size, right = 0, bottom = 0;
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const i = (y * size + x) * 4;
+      const distance = Math.hypot(pixels[i] - background[0], pixels[i + 1] - background[1], pixels[i + 2] - background[2]) / 441.67;
+      if (distance < 0.095) continue;
+      left = Math.min(left, x);
+      right = Math.max(right, x);
+      top = Math.min(top, y);
+      bottom = Math.max(bottom, y);
+    }
+  }
+  if (left > right) return null;
+  const padding = 4;
+  left = Math.max(0, left - padding);
+  top = Math.max(0, top - padding);
+  right = Math.min(size, right + padding + 1);
+  bottom = Math.min(size, bottom + padding + 1);
+  octopusCrop = {
+    x: left / size * octopusImage.naturalWidth,
+    y: top / size * octopusImage.naturalHeight,
+    width: (right - left) / size * octopusImage.naturalWidth,
+    height: (bottom - top) / size * octopusImage.naturalHeight,
+    background
+  };
+  return octopusCrop;
+};
 const GLYPHS = '.,:;+=*/\\<>x#%@';
 const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
 const smoothstep = value => value * value * (3 - 2 * value);
@@ -177,6 +216,8 @@ class AsciiFilter {
 
   updateMotifSample() {
     if (!this.motifMode || !octopusImage.naturalWidth || !this.cols || !this.rows || !this.container) return;
+    const crop = getOctopusCrop();
+    if (!crop) return;
     const rect = this.container.getBoundingClientRect();
     if (!rect.width || !rect.height) return;
     const sample = document.createElement('canvas');
@@ -186,19 +227,19 @@ class AsciiFilter {
     if (!context) return;
     // Character cells are taller than they are wide. Fit in physical pixels
     // before mapping into cells so the octopus keeps its original proportions.
-    const scale = Math.min(rect.width / octopusImage.naturalWidth, rect.height / octopusImage.naturalHeight) * 0.98;
-    const width = octopusImage.naturalWidth * scale / this.charWidth;
-    const height = octopusImage.naturalHeight * scale / this.fontSize;
-    context.drawImage(octopusImage, (this.cols - width) / 2, (this.rows - height) / 2, width, height);
+    const scale = Math.min(rect.width / crop.width, rect.height / crop.height) * 0.98;
+    const width = crop.width * scale / this.charWidth;
+    const height = crop.height * scale / this.fontSize;
+    context.drawImage(octopusImage, crop.x, crop.y, crop.width, crop.height,
+      (this.cols - width) / 2, (this.rows - height) / 2, width, height);
     const pixels = context.getImageData(0, 0, this.cols, this.rows).data;
-    const corner = context.getImageData(Math.floor((this.cols - width) / 2 + 2), Math.floor((this.rows - height) / 2 + 2), 1, 1).data;
     const tones = new Float32Array(this.cols * this.rows);
     for (let i = 0; i < tones.length; i++) {
       const p = i * 4;
       if (pixels[p + 3] < 16) continue;
-      const dr = pixels[p] - corner[0];
-      const dg = pixels[p + 1] - corner[1];
-      const db = pixels[p + 2] - corner[2];
+      const dr = pixels[p] - crop.background[0];
+      const dg = pixels[p + 1] - crop.background[1];
+      const db = pixels[p + 2] - crop.background[2];
       const distance = Math.hypot(dr, dg, db) / 441.67;
       tones[i] = Math.pow(clamp((distance - 0.055) / 0.39, 0, 1), 0.7);
     }
