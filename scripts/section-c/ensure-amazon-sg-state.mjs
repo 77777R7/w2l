@@ -36,8 +36,10 @@ try {
   if (!location.includes('Singapore 238823')) throw new Error('Singapore delivery context was not retained')
   const state = await context.storageState()
   const cookies = state.cookies.filter(cookie => /(^|\.)amazon\.sg$/i.test(cookie.domain))
-  const origins = state.origins.filter(origin => /(^|\.)amazon\.sg$/i.test(new URL(origin.origin).hostname))
-  const serialized = JSON.stringify({cookies,origins})
+  // Delivery and currency survive in the anonymous cookies. Amazon's local
+  // storage contains large transient telemetry and is not needed for either
+  // preference; omit it so the state fits in one Secret Manager version.
+  const serialized = JSON.stringify({cookies,origins:[]})
   const sha256 = validateAmazonPublicState(serialized)
   await mkdir(dirname(file),{recursive:true})
   const temporary = `${file}.tmp-${process.pid}`
