@@ -41,6 +41,7 @@ a { color: inherit; }
   background: linear-gradient(180deg, rgba(3, 14, 45, .30) 0%, rgba(3, 14, 45, .08) 37%, rgba(3, 14, 45, .29) 75%, rgba(3, 14, 45, .75) 100%),
     linear-gradient(90deg, rgba(4, 19, 63, .28), transparent 55%);
 }
+.hero-click-spark { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
 .hero-ascii-accent {
   position: absolute;
   inset: 0;

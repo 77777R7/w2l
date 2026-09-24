@@ -1,5 +1,6 @@
 import './styles.css'
 import { mountHeroAscii } from './ascii'
+import { mountHeroClickSpark } from './clickSpark'
 
 type PreviewStatus = 'success' | 'incomplete' | 'blocked' | 'failed' | 'timeout' | 'invalid_url' | 'quota_exceeded'
 type ProductPreview = {
@@ -30,6 +31,7 @@ app.innerHTML = `
       <div class="hero-octopus-static" aria-hidden="true"></div>
       <div class="hero-ascii-accent" id="hero-ascii" aria-hidden="true"></div>
       <div class="hero-shade" aria-hidden="true"></div>
+      <div class="hero-click-spark" id="hero-click-spark" aria-hidden="true"></div>
 
       <header class="site-header layout-width">
         <a class="brand" href="#top" aria-label="W2L home">
@@ -99,6 +101,7 @@ app.innerHTML = `
 
 const hero = document.querySelector<HTMLElement>('.hero')!
 mountHeroAscii(document.querySelector<HTMLElement>('#hero-ascii')!, hero)
+mountHeroClickSpark(document.querySelector<HTMLElement>('#hero-click-spark')!, hero)
 
 const form = document.querySelector<HTMLFormElement>('#preview-form')!
 const input = document.querySelector<HTMLInputElement>('#url-input')!
