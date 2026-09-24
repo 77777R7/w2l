@@ -1,0 +1,16 @@
+{
+  "name": "@w2l/public-preview",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": { "build": "tsc --build" },
+  "dependencies": {
+    "@w2l/api": "*",
+    "@w2l/bench": "*",
+    "@w2l/contracts": "*",
+    "@w2l/http-core": "*",
+    "linkedom": "^0.18.13"
+  }
+}

@@ -101,6 +101,25 @@ describe('public site adapter registry', () => {
     expect(out.adapterValidation).toEqual({ valid: false, issues: ['missing_post', 'missing_thread'] })
   })
 
+  it('accepts X post metadata only when both publisher URLs and author match the requested status', () => {
+    const html = `<html><head><link rel="canonical" href="https://x.com/alice/status/222">
+      <meta property="og:url" content="https://x.com/alice/status/222">
+      <meta property="og:title" content="Alice (@alice) on X">
+      <meta property="og:description" content="The exact public post"></head>
+      <body><main><h1>Post</h1><p>Recommended post: wrong text</p></main></body></html>`
+    const out = extractTf.extract(html, { url: 'https://x.com/alice/status/222' })
+    expect(out.adapterValidation?.valid).toBe(true)
+    expect(out.entities.find(entity => entity.type === 'post')?.fields.text).toMatchObject({ normalized: 'The exact public post', source: 'meta', path: 'meta[property="og:description"]' })
+    expect(JSON.stringify(out.entities)).not.toContain('wrong text')
+    for (const altered of [
+      html.replace('og:url" content="https://x.com/alice/status/222', 'og:url" content="https://x.com/alice/status/111'),
+      html.replace('rel="canonical" href="https://x.com/alice/status/222', 'rel="canonical" href="https://x.com/alice/status/111'),
+      html.replace('Alice (@alice) on X', 'Bob (@bob) on X'),
+    ]) {
+      expect(extractTf.extract(altered, { url: 'https://x.com/alice/status/222' }).adapterValidation?.valid).toBe(false)
+    }
+  })
+
   it('excludes cross-post and orphan Reddit comments, including transitive descendants', () => {
     const html = `<html><head><script type="application/json">{"post":{"id":"abc123","title":"Target","selftext":"Target body"},
       "comments":[{"id":"c1","parent_id":"t3_abc123","body":"On target"},

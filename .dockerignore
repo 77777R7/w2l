@@ -3,7 +3,8 @@ node_modules
 .w2l
 **/dist
 **/*.tsbuildinfo
-research
+research/*
+!research/amazon-product-schema.v1.json
 docs
 *.tgz
 *.zip

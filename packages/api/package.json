@@ -13,6 +13,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./structured": {
+      "types": "./dist/structured.d.ts",
+      "default": "./dist/structured.js"
     }
   },
   "scripts": {

@@ -5,8 +5,10 @@
 
 import { parseBatchStartRequest, parseCrawlStartRequest, parseScrapeRequest } from '@w2l/contracts'
 import type { W2L } from '@w2l/sdk'
+import { hostedAmazonUrl } from './hostedToolPolicy.js'
+import { AMAZON_PRODUCT_SCHEMA } from './productSchema.js'
 
-export const TOOL_NAMES = ['scrape', 'crawl', 'get_crawl', 'get_crawl_pages', 'get_crawl_errors', 'cancel_crawl', 'batch_scrape', 'get_batch', 'get_batch_items', 'wait_batch', 'cancel_batch',
+export const TOOL_NAMES = ['scrape_product', 'batch_products', 'scrape', 'crawl', 'get_crawl', 'get_crawl_pages', 'get_crawl_errors', 'cancel_crawl', 'batch_scrape', 'get_batch', 'get_batch_items', 'wait_batch', 'cancel_batch',
   'preview_monitor','create_monitor','list_monitors','get_monitor','run_monitor','get_monitor_run','pause_monitor','resume_monitor','cancel_monitor_run',
   'create_delivery_destination','list_delivery_destinations','pause_delivery_destination','resume_delivery_destination','list_deliveries','get_delivery','retry_dead_letter'] as const
 export type ToolName = (typeof TOOL_NAMES)[number]
@@ -32,6 +34,16 @@ const MONITOR_TOOLS = [
 ] as const
 
 export const TOOLS = [
+  {
+    name:'scrape_product',
+    description:'Get evidence-backed JSON for one anonymous Amazon.sg /dp/{ASIN} product. No schema or model setup needed.',
+    inputSchema:{type:'object',properties:{url:{type:'string'},debug:{type:'boolean'}},required:['url'],additionalProperties:false},
+  },
+  {
+    name:'batch_products',
+    description:'Queue 1-1000 distinct Amazon.sg product URLs with the reviewed JSON schema. Returns taskId; page results with get_batch_items.',
+    inputSchema:{type:'object',properties:{urls:{type:'array',minItems:1,maxItems:1000,items:{type:'string'}}},required:['urls'],additionalProperties:false},
+  },
   {
     name: 'scrape',
     description: 'Fetch one URL through the W2L coverage ladder. Compact by default; set debug=true for the full audit.',
@@ -164,6 +176,18 @@ export const TOOLS = [
 ] as const
 
 export async function callTool(client: W2L, name: string, args: unknown): Promise<unknown> {
+  if (name === 'scrape_product') {
+    const input=readRecord(args)
+    if (Object.keys(input).some(key=>!['url','debug'].includes(key)) || (input.debug !== undefined && typeof input.debug !== 'boolean')) throw new Error('invalid scrape_product options')
+    return client.scrape(hostedAmazonUrl(input.url),{mode:'standard',formats:[{type:'json',schema:AMAZON_PRODUCT_SCHEMA,modelFallback:false}],debug:input.debug === true})
+  }
+  if (name === 'batch_products') {
+    const input=readRecord(args)
+    if (Object.keys(input).some(key=>key!=='urls') || !Array.isArray(input.urls) || input.urls.length<1 || input.urls.length>1000) throw new Error('batch_products requires 1..1000 URLs')
+    const urls=input.urls.map(hostedAmazonUrl)
+    if(new Set(urls).size!==urls.length)throw new Error('batch_products URLs must be unique by ASIN')
+    return client.batchScrape(urls,{mode:'standard',formats:[{type:'json',schema:AMAZON_PRODUCT_SCHEMA,modelFallback:false}],includeLinks:false})
+  }
   if (name === 'scrape') {
     const req = parseScrapeRequest(args)
     return client.scrape(req.url, {

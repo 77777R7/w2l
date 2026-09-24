@@ -28,6 +28,10 @@ if(command==='install') {
   if(!Number.isSafeInteger(port)||port<1||port>65535)throw new Error('W2L_LOCAL_MCP_PORT must be 1..65535')
   const allowLocalDelivery=process.env.W2L_LOCAL_DELIVERY_LOOPBACK==='1'
   if(allowLocalDelivery&&!readable(receiverCert))throw new Error('install the local HTTPS receiver first')
+  const amazonStateFile=process.env.W2L_AMAZON_PUBLIC_STATE_FILE?resolve(process.env.W2L_AMAZON_PUBLIC_STATE_FILE):null
+  if(amazonStateFile&&!readable(amazonStateFile))throw new Error('anonymous Amazon.sg state file is unreadable')
+  const amazonStateEnv=amazonStateFile?`<key>W2L_AMAZON_PUBLIC_STATE_FILE</key><string>${xml(amazonStateFile)}</string>`:''
+  const rawCaptureEnv=process.env.W2L_CAPTURE_RAW_DIR?`<key>W2L_CAPTURE_RAW_DIR</key><string>${xml(resolve(process.env.W2L_CAPTURE_RAW_DIR))}</string>`:''
   const extraEnv=allowLocalDelivery
     ? `<key>W2L_LOCAL_DELIVERY_LOOPBACK</key><string>1</string><key>W2L_DELIVERY_CA_FILE</key><string>${xml(receiverCert)}</string>`
     : ''
@@ -36,7 +40,10 @@ if(command==='install') {
   mkdirSync(dirname(plist),{recursive:true})
   mkdirSync(join(root,'.w2l'),{recursive:true})
   if(readable(plist)) {
-    if(!readFileSync(plist,'utf8').includes(`<string>${label}</string>`))throw new Error(`refusing to replace ${plist}`)
+    const previous=readFileSync(plist,'utf8')
+    if(!previous.includes(`<string>${label}</string>`) || !previous.includes(`<string>${xml(join(root,'packages/mcp/dist/localHostCli.js'))}</string>`)) {
+      throw new Error(`refusing to replace another checkout's local MCP service: ${plist}`)
+    }
     try{launch('bootout',domain,plist)}catch{}
   }
   writeFileSync(plist,`<?xml version="1.0" encoding="UTF-8"?>
@@ -45,14 +52,14 @@ if(command==='install') {
 <key>Label</key><string>${label}</string>
 <key>ProgramArguments</key><array><string>${xml(process.execPath)}</string><string>${xml(join(root,'packages/mcp/dist/localHostCli.js'))}</string></array>
 <key>WorkingDirectory</key><string>${xml(root)}</string>
-<key>EnvironmentVariables</key><dict><key>W2L_TASK_ROOT</key><string>${xml(taskRoot)}</string><key>W2L_LOCAL_MCP_PORT</key><string>${port}</string>${extraEnv}${pollEnv}</dict>
+<key>EnvironmentVariables</key><dict><key>W2L_TASK_ROOT</key><string>${xml(taskRoot)}</string><key>W2L_LOCAL_MCP_PORT</key><string>${port}</string>${extraEnv}${pollEnv}${amazonStateEnv}${rawCaptureEnv}</dict>
 <key>RunAtLoad</key><true/><key>KeepAlive</key><true/><key>ThrottleInterval</key><integer>10</integer>
 <key>StandardOutPath</key><string>${xml(join(root,'.w2l/local-mcp.stdout.log'))}</string>
 <key>StandardErrorPath</key><string>${xml(join(root,'.w2l/local-mcp.stderr.log'))}</string>
 </dict></plist>
 `,{mode:0o600})
   launch('bootstrap',domain,plist)
-  console.log(JSON.stringify({installed:true,url:`http://127.0.0.1:${port}/mcp`,plist,taskRoot,localHttpsDelivery:allowLocalDelivery}))
+  console.log(JSON.stringify({installed:true,url:`http://127.0.0.1:${port}/mcp`,plist,taskRoot,localHttpsDelivery:allowLocalDelivery,amazonPublicState:amazonStateFile!==null}))
 } else if(command==='install-receiver') {
   mkdirSync(dirname(receiverPlist),{recursive:true})
   mkdirSync(receiverRoot,{recursive:true,mode:0o700})
@@ -64,7 +71,10 @@ if(command==='install') {
     chmodSync(receiverKey,0o600)
   }
   if(readable(receiverPlist)) {
-    if(!readFileSync(receiverPlist,'utf8').includes(`<string>${receiverLabel}</string>`))throw new Error(`refusing to replace ${receiverPlist}`)
+    const previous=readFileSync(receiverPlist,'utf8')
+    if(!previous.includes(`<string>${receiverLabel}</string>`) || !previous.includes(`<string>${xml(join(root,'scripts/section-c/local-receiver-cli.mjs'))}</string>`)) {
+      throw new Error(`refusing to replace another checkout's HTTPS receiver: ${receiverPlist}`)
+    }
     try{launch('bootout',domain,receiverPlist)}catch{}
   }
   const ackLossTest=process.env.W2L_RECEIVER_ACK_LOSS_ONCE==='1'

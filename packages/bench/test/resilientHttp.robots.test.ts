@@ -28,6 +28,10 @@ beforeAll(async () => {
       )
       return
     }
+    if (req.url === '/redirect-metadata') {
+      res.writeHead(302, { location: 'http://169.254.169.254/latest/meta-data/' }).end()
+      return
+    }
     res.writeHead(404).end()
   })
   await new Promise<void>((resolve) => robotsServer.listen(0, '127.0.0.1', resolve))
@@ -41,6 +45,35 @@ afterAll(async () => {
 })
 
 describe('ResilientHttpSubject robots', () => {
+  it('never applies a local platform exception to another host', async () => {
+    const subject = new ResilientHttpSubject('standard', undefined, undefined, true, 'http://127.0.0.1:7890', true)
+    try {
+      await expect(subject.fetch('https://example.com/')).rejects.toThrow('limited to fixed platform hosts')
+    } finally { await subject.teardown() }
+  })
+
+  it('never fetches the page when public-preview robots responds 503', async () => {
+    let pageHits = 0
+    const server = createServer((req, res) => {
+      if (req.url === '/robots.txt') res.writeHead(503).end('temporarily unavailable')
+      else { pageHits++; res.writeHead(200).end('<html><body>Must not fetch</body></html>') }
+    })
+    await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+    const address = server.address()
+    if (address === null || typeof address === 'string') throw new Error('no fixture address')
+    const subject = new ResilientHttpSubject('standard', undefined, undefined, true)
+    try {
+      const out = await subject.fetch(`http://127.0.0.1:${address.port}/page`)
+      expect(out.status).toBe('failed')
+      expect(out.failureReason).toBe('policy_denied')
+      expect(out.trace).toContainEqual(expect.objectContaining({ event: 'robots_disallowed' }))
+      expect(pageHits).toBe(0)
+    } finally {
+      await subject.teardown()
+      await new Promise<void>(resolve => server.close(() => resolve()))
+    }
+  })
+
   it('refuses a robots-disallowed path and never hits the origin', async () => {
     const subject = new ResilientHttpSubject()
     const before = privateHits
@@ -57,6 +90,15 @@ describe('ResilientHttpSubject robots', () => {
     const out = await subject.fetch(`${robotsUrl}/private/ok`)
     expect(out.status).toBe('success')
     expect(out.markdown).toContain('Private area')
+  })
+
+  it('rejects a redirect to metadata before any follow-up request', async () => {
+    const subject = new ResilientHttpSubject()
+    const out = await subject.fetch(`${robotsUrl}/redirect-metadata`)
+    expect(out.status).toBe('failed')
+    expect(out.failureReason).toBe('policy_denied')
+    expect(out.usage.requestCount).toBe(1)
+    expect(out.trace.some(event => event.event === 'ssrf_denied')).toBe(true)
   })
 })
 

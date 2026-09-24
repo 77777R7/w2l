@@ -19,12 +19,14 @@ import {
   type ComplianceSentHeader,
 } from '@w2l/http-core'
 import { chromium, type Browser, type BrowserContext, type Page, type Response } from 'playwright'
-import { assertSafeUrl, BodyTooLargeError, defaultNetworkPolicy } from '../egress.js'
+import { assertSafeUrl, BodyTooLargeError, defaultNetworkPolicy, pinnedBrowserHostRules } from '../egress.js'
 import type { SubjectAdapter } from '../subject.js'
 import { RobotsOriginCache } from '../robotsLookup.js'
 import { waitForRenderedStability } from '../browserSettle.js'
 import { OriginScheduler, type OriginPermit } from './originScheduler.js'
 import { captureRawHtml } from '../rawArtifact.js'
+import { amazonVariantFollowupUrl } from './amazonVariantFollowup.js'
+import { hostedBrowserRequestAllowed } from './browserRequestPolicy.js'
 import {
   BROWSER_FINGERPRINT,
   CHROME_MAJOR_FLOOR,
@@ -113,16 +115,24 @@ export class BrowserLocalSubject implements SubjectAdapter {
     private readonly managedProfileDir: string | null = null,
     scheduler?: OriginScheduler,
     private readonly publicPreferenceState: string | null = null,
+    private readonly browserAllowedHosts?: readonly string[],
+    /** In-memory witness for an explicitly authorized evaluation. Never a persistence path. */
+    private readonly onRenderedHtml?: (html: string, sha256: string) => void,
+    robotsFailClosed = false,
   ) {
     if (publicPreferenceState !== null && (mode !== 'standard' || access != null || managedProfileDir !== null)) {
       throw new Error('anonymous public preference state is only available to the standard public browser')
     }
+    if (browserAllowedHosts !== undefined && (access != null || managedProfileDir !== null)) {
+      throw new Error('host-pinned browser requires an unmanaged direct connection')
+    }
+    if (browserAllowedHosts !== undefined) this.browserAllowedHosts = browserAllowedHosts.map(host => host.toLowerCase())
     this.chain = new ComplianceChain(crypto.randomUUID(), mode)
     this.access = normalizeAccessConfig(access)
     this.accessConfig = access ?? null
     this.networkPolicy = networkPolicy ?? defaultNetworkPolicy()
     this.scheduler = scheduler ?? new OriginScheduler(this.networkPolicy)
-    this.robotsCache = new RobotsOriginCache(this.networkPolicy)
+    this.robotsCache = new RobotsOriginCache(this.networkPolicy, undefined, robotsFailClosed)
   }
 
   /** Managed profile is a distinct lifecycle path; it is never implied by an anonymous subject. */
@@ -299,6 +309,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
         screen: BROWSER_FINGERPRINT.screen,
         deviceScaleFactor: BROWSER_FINGERPRINT.deviceScaleFactor,
         extraHTTPHeaders: identity.clientHints,
+        ...(this.browserAllowedHosts === undefined ? {} : { serviceWorkers: 'block' as const }),
         // Restore the user's full session state (cookies, localStorage,
         // sessionStorage) when they inherited a storageState blob — the
         // serialized JSON IS the Playwright shape, passed through verbatim.
@@ -325,6 +336,29 @@ export class BrowserLocalSubject implements SubjectAdapter {
       })
       void pendingContext.then(created => { if (signal?.aborted && created !== this.managedContext) void created.close().catch(() => {}) }, () => {})
       context = await raceWithSignal(pendingContext, signal)
+      let deniedResources = 0
+      if (this.browserAllowedHosts !== undefined) {
+        // Context routes are installed before creating a page so the first
+        // navigation of a popup or worker cannot bypass the host policy.
+        const allowedHosts = new Set(this.browserAllowedHosts)
+        await context.route('**/*', async route => {
+          const request = route.request()
+          let allowed = false
+          try {
+            allowed = hostedBrowserRequestAllowed(request.url(), request.resourceType(), allowedHosts)
+            if (allowed) await assertSafeUrl(request.url(), this.networkPolicy)
+          } catch { allowed = false }
+          if (!allowed) {
+            deniedResources++
+            await route.abort('blockedbyclient').catch(() => {})
+            return
+          }
+          await route.continue().catch(() => {})
+        })
+        // HTTP routes do not intercept WebSocket handshakes. The public
+        // preview does not need sockets, so block them before any page runs.
+        await context.routeWebSocket('**/*', async ws => { await ws.close({ code: 1008, reason: 'network policy' }) })
+      }
       if (amazonPublicState !== null) trace.push({
         at: Date.now() - start, lane: 'browser_local', event: 'anonymous_public_preference_attached',
         detail: { host, stateSha256: sha256Utf8(amazonPublicState) },
@@ -363,29 +397,37 @@ export class BrowserLocalSubject implements SubjectAdapter {
       // http engine shares (503 only, once, authoritative Retry-After). The
       // runner resets fixture state per subject, so the browser arm
       // genuinely sees flaky attempt 1 and must retry to survive it.
-      const MAX_ATTEMPTS = 2
-      let attemptCount = 1
+      const MAX_STATUS_RETRIES = 1
+      let statusRetries = 0
+      let variantFollowups = 0
+      let retryWaitMs = 0
+      let attemptCount = 0
+      let navigationUrl = url
+      const requestedAmazonAsin = new URL(url).hostname === 'www.amazon.sg'
+        ? /^\/dp\/([A-Z0-9]{10})\/?$/i.exec(new URL(url).pathname)?.[1]?.toUpperCase() ?? null
+        : null
       let response: Response | null = null
       for (;;) {
-        await this.scheduler.beforeRequest(new URL(url).origin, signal, onRequestWait)
+        await this.scheduler.beforeRequest(new URL(navigationUrl).origin, signal, onRequestWait)
         previousRequestAtMs = this.lastRequestAtMsByHost.get(host) ?? null
         const navigationAt = Date.now()
         observedDelayMs = previousRequestAtMs === null ? null : navigationAt - previousRequestAtMs
-        compliant = observedDelayMs === null || observedDelayMs >= requiredDelayMs
+        compliant &&= observedDelayMs === null || observedDelayMs >= requiredDelayMs
         this.lastRequestAtMsByHost.set(host, navigationAt)
-        trace.push({ at: Date.now() - start, lane: 'browser_local', event: 'navigate', detail: { url, attempt: attemptCount } })
-        response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: remainingTimeout(execution, 20_000) })
+        attemptCount++
+        trace.push({ at: Date.now() - start, lane: 'browser_local', event: 'navigate', detail: { url: navigationUrl, attempt: attemptCount } })
+        response = await page.goto(navigationUrl, { waitUntil: 'domcontentloaded', timeout: remainingTimeout(execution, 20_000) })
         const status = response?.status() ?? 0
         if (status === 429 || status === 503) {
           const delay = parseRetryAfterMs(response?.headers()['retry-after'] ?? null)
           if (delay !== null) {
             const target = response?.url() ?? url
             const retryAt = Date.now() + delay
-            for (const origin of new Set([new URL(url).origin, new URL(target).origin])) this.scheduler.cooldown(origin, retryAt)
+            for (const origin of new Set([new URL(navigationUrl).origin, new URL(target).origin])) this.scheduler.cooldown(origin, retryAt)
             execution.onRetryAfter?.(target, retryAt)
           }
         }
-        if (isRetryableStatus(status) && attemptCount < MAX_ATTEMPTS) {
+        if (isRetryableStatus(status) && statusRetries < MAX_STATUS_RETRIES) {
           const retryAfter = response?.headers()['retry-after'] ?? null
           const delayMs = parseRetryAfterMs(retryAfter) ?? 250
           const retryAt = Date.now() + delayMs
@@ -395,16 +437,43 @@ export class BrowserLocalSubject implements SubjectAdapter {
             return { ...deferred, retryAt, evidence: { ...deferred.evidence, httpStatus: status, finalUrl: page.url() } }
           }
           trace.push({ at: Date.now() - start, lane: 'browser_local', event: 'retry', detail: { attempt: attemptCount, status, delayMs } })
-          attemptCount++
-          if (delayMs > 0) await abortableSleep(delayMs, signal)
+          statusRetries++
+          if (delayMs > 0) {
+            const waitStarted = performance.now()
+            try { await abortableSleep(delayMs, signal) }
+            finally { retryWaitMs += Math.max(0, performance.now() - waitStarted) }
+          }
           continue
+        }
+        await raceWithSignal(waitForRenderedStability(page, { maxMs: remainingTimeout(execution, 1_500) }), signal)
+        throwIfExecutionStopped(execution)
+        if (status === 200 && variantFollowups === 0 && requestedAmazonAsin !== null) {
+          const variant = await raceWithSignal(page.evaluate((asin) => ({
+            selectedAsin: document.querySelector('input[name="ASIN"]')?.getAttribute('value') ?? null,
+            requestedVariantAvailable: Array.from(document.querySelectorAll('li[data-asin]')).some(element =>
+              element.getAttribute('data-asin')?.toUpperCase() === asin
+              && /swatchAvailable/i.test(element.getAttribute('data-csa-c-content-id') ?? '')),
+          }), requestedAmazonAsin), signal)
+          const followupUrl = amazonVariantFollowupUrl(url, page.url(), variant.selectedAsin, variant.requestedVariantAvailable)
+          if (followupUrl !== null) {
+            const followupRobots = this.robotsCache.decision(cachedRobots, followupUrl, identity.userAgent)
+            if (followupRobots.decision === 'disallowed') {
+              trace.push({ at: Date.now() - start, lane: 'browser_local', event: 'amazon_variant_followup_denied', detail: { url: followupUrl } })
+            } else {
+              await raceWithSignal(assertSafeUrl(followupUrl, this.networkPolicy), signal)
+              variantFollowups++
+              navigationUrl = followupUrl
+              trace.push({ at: Date.now() - start, lane: 'browser_local', event: 'amazon_variant_followup', detail: { selectedAsin: variant.selectedAsin, requestedAsin: requestedAmazonAsin, url: followupUrl } })
+              continue
+            }
+          }
         }
         break
       }
-      await raceWithSignal(waitForRenderedStability(page, { maxMs: remainingTimeout(execution, 1_500) }), signal)
       throwIfExecutionStopped(execution)
       const status = response?.status() ?? 0
       const finalUrl = page.url()
+      if (deniedResources > 0) trace.push({ at: Date.now() - start, lane: 'browser_local', event: 'browser_resources_denied', detail: { count: deniedResources } })
       if (finalUrl !== url) {
         try {
           await assertSafeUrl(finalUrl, this.networkPolicy)
@@ -417,6 +486,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
         return this.denied(url, start, trace, new BodyTooLargeError(this.networkPolicy.maxDecompressedBytes))
       }
       const rawBodySha256 = sha256Utf8(body)
+      this.onRenderedHtml?.(body, rawBodySha256)
       const rawArtifacts = await captureRawHtml(body, rawBodySha256)
       const wallMs = Date.now() - start
       const browserMs = wallMs
@@ -453,7 +523,7 @@ export class BrowserLocalSubject implements SubjectAdapter {
           observedDelayMs,
           requiredDelayMs,
           compliant,
-          recentSameHostCount: 1,
+          recentSameHostCount: attemptCount,
         },
         access: this.access,
       })
@@ -479,9 +549,12 @@ export class BrowserLocalSubject implements SubjectAdapter {
           bytesDecompressed: Buffer.byteLength(body),
           requestCount: attemptCount,
           attemptCount,
+          statusRetryCount: statusRetries,
+          navigationFollowupCount: variantFollowups,
           contentTokens: null as number | null,
           browserMs,
           externalCostUsd: null,
+          timings: {retryWaitMs,totalMs:wallMs},
         },
         trace,
       }
@@ -709,7 +782,17 @@ export class BrowserLocalSubject implements SubjectAdapter {
     if (this.browserPromise === null) {
       // Startup belongs to the shared subject. Each caller has its own budget;
       // one short caller must not set the launch deadline for another monitor.
-      const pending = chromium.launch({ headless: !this.headed, timeout: 30_000 }).then(async browser => {
+      const launch = async (): Promise<Browser> => {
+        const args = this.browserAllowedHosts === undefined ? [] : [
+          // Direct connections keep resolution inside Chromium, where the
+          // validated host rules apply. A proxy would resolve hosts itself.
+          '--proxy-server=direct://',
+          `--host-resolver-rules=${await pinnedBrowserHostRules(this.browserAllowedHosts, this.networkPolicy)}`,
+        ]
+        if (this.activeExecutions === 0) throw new DOMException('Browser startup abandoned', 'AbortError')
+        return chromium.launch({ headless: !this.headed, timeout: 30_000, ...(args.length === 0 ? {} : { args }) })
+      }
+      const pending = launch().then(async browser => {
         if (this.activeExecutions === 0) {
           if (this.browserPromise === pending) this.browserPromise = null
           await browser.close().catch(() => {})
@@ -756,5 +839,6 @@ export class BrowserLocalSubject implements SubjectAdapter {
     await this.browser?.close().catch(() => {})
     this.browser = null
     this.browserPromise = null
+    await this.robotsCache.teardown()
   }
 }

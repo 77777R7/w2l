@@ -143,11 +143,30 @@ function xEntities(doc: Document, url: string | undefined): ExtractedEntity[] {
       qsa(el, 'a[href]').some(link => {
         try { return new URL(link.getAttribute('href') ?? '', url).pathname === `/${username}/status/${statusId}` } catch { return false }
       })) ?? null
-    if (tweet === null && article === null) return entities
+    // The public X HTML often contains no hydration or tweet article, but it
+    // does publish the subject's own Open Graph card. Treat it as evidence only
+    // when canonical and og:url independently name the exact requested status
+    // and og:title names its author. A URL by itself cannot prove the body.
+    const publisherStatus = (value: string | null): boolean => {
+      if (!value) return false
+      try {
+        const parsed = new URL(value)
+        return parsed.protocol === 'https:' && ['x.com', 'www.x.com', 'twitter.com', 'www.twitter.com'].includes(parsed.hostname.toLowerCase())
+          && parsed.pathname.toLowerCase() === `/${username.toLowerCase()}/status/${statusId}`
+      } catch { return false }
+    }
+    const canonical = qs(doc, 'link[rel="canonical"]')?.getAttribute('href') ?? null
+    const ogUrl = qs(doc, 'meta[property="og:url"]')?.getAttribute('content') ?? null
+    const ogTitle = clean(qs(doc, 'meta[property="og:title"]')?.getAttribute('content'))
+    const ogText = clean(qs(doc, 'meta[property="og:description"]')?.getAttribute('content'))
+    const metadataVerified = publisherStatus(canonical) && publisherStatus(ogUrl)
+      && ogTitle?.toLowerCase().includes(`(@${username.toLowerCase()})`) === true && ogText !== null
+    if (tweet === null && article === null && !metadataVerified) return entities
     const fields: Record<string, EntityField> = {}; const text = tweet ? stringValue(legacy ?? tweet, 'full_text', 'text') : null
     if (text) fields.text = field(text, 'hydration', `hydration:tweet/${statusId}/legacy/full_text`)
     if (!fields.text && article) { const value = clean(textOf(qs(article, '[data-testid="tweetText"]') ?? article)); if (value) fields.text = field(value, 'dom', '[data-testid="tweetText"]') }
-    fields.author = field(username, 'dom', 'document:url'); const time = article ? qs(article, 'time') : null; const created = clean(time?.getAttribute('datetime')); if (created) fields.createdAt = field(created, 'dom', 'article time[datetime]'); fields.url = field(url ?? '', 'dom', 'document:url')
+    if (!fields.text && metadataVerified) fields.text = field(ogText!, 'meta', 'meta[property="og:description"]')
+    fields.author = field(username, metadataVerified && !tweet && !article ? 'meta' : 'dom', metadataVerified && !tweet && !article ? 'meta[property="og:title"]' : 'document:url'); const time = article ? qs(article, 'time') : null; const created = clean(time?.getAttribute('datetime')); if (created) fields.createdAt = field(created, 'dom', 'article time[datetime]'); fields.url = field(metadataVerified ? ogUrl! : url ?? '', metadataVerified ? 'meta' : 'dom', metadataVerified ? 'meta[property="og:url"]' : 'document:url')
     if (fields.text) {
       entities.push({ type: 'post', id: statusId, fields, relationships: { author: username } })
       entities.push({ type: 'thread', id: statusId, fields: {}, relationships: { rootPost: statusId } })

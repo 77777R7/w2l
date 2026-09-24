@@ -94,6 +94,14 @@ describe('resilient subject on served fixture bytes', () => {
     expect(out.status).toBe('failed')
     expect(out.failureReason).toBe('body_too_large')
   })
+
+  it('closes its guarded connection pool after an oversized response', async () => {
+    const isolated = new ResilientHttpSubject()
+    const out = await isolated.fetch(`${server.url}/limit/huge-body`)
+    expect(out.failureReason).toBe('body_too_large')
+    await isolated.teardown()
+    await isolated.teardown()
+  })
 })
 
 describe('hosted network policy on the HTTP arm', () => {

@@ -82,13 +82,13 @@ function deliveryLocation(doc: Document): { value: string; selector: string } | 
 }
 
 function currencyOf(value: string): string | null {
-  if (/\bSGD\b|S\$/.test(value)) return 'SGD'
-  if (/\bCAD\b|C\$/.test(value)) return 'CAD'
-  if (/\bAUD\b|A\$/.test(value)) return 'AUD'
-  if (/\bINR\b|₹/.test(value)) return 'INR'
-  if (/\bEUR\b|€/.test(value)) return 'EUR'
-  if (/\bGBP\b|£/.test(value)) return 'GBP'
-  if (/\bUSD\b|\$/.test(value)) return 'USD'
+  if (/\bSGD\b|\bS\$/i.test(value)) return 'SGD'
+  if (/\bCAD\b|\bC\$/i.test(value)) return 'CAD'
+  if (/\bAUD\b|\bA\$/i.test(value)) return 'AUD'
+  if (/\bINR\b|₹/i.test(value)) return 'INR'
+  if (/\bEUR\b|€/i.test(value)) return 'EUR'
+  if (/\bGBP\b|£/i.test(value)) return 'GBP'
+  if (/\bUSD\b|\bUS\$/i.test(value)) return 'USD'
   return null
 }
 
@@ -112,7 +112,7 @@ export function inferAmazonCurrency(url: string | undefined, price: string): Pro
   let hostname: string
   try { hostname = new URL(url).hostname.toLowerCase() } catch { return null }
   const explicit = currencyOf(price)
-  if (explicit !== null && !price.includes('$')) return { value: explicit, source: 'text', path: 'subject price text' }
+  if (explicit !== null) return { value: explicit, source: 'text', path: 'subject price text' }
   const value = hostname.endsWith('amazon.ca') ? 'CAD'
     : hostname.endsWith('amazon.com.au') ? 'AUD'
       : hostname.endsWith('amazon.co.uk') ? 'GBP'
@@ -137,7 +137,7 @@ export function selectAmazonProduct(doc: Document): Element | null {
   return qs(doc, '#dp-container, #ppd, main')
 }
 
-function amazonPrices(doc: Document, subscription: boolean): readonly ProductPrice[] {
+function amazonPrices(doc: Document, subscription: boolean, url: string | undefined): readonly ProductPrice[] {
   const selectors = subscription
     ? ['#subscriptionPrice', '[data-feature-name="subscriptionPrice"] .a-offscreen', '#buybox .a-price .a-offscreen']
     : ['#corePrice_feature_div .a-price .a-offscreen', '#apex_desktop .a-price .a-offscreen', '#buybox .a-price .a-offscreen', '#rightCol .priceToPay .a-offscreen', '.apexPriceToPay .a-offscreen', '.priceToPay .a-offscreen', '#priceblock_ourprice', '#priceblock_dealprice']
@@ -148,11 +148,11 @@ function amazonPrices(doc: Document, subscription: boolean): readonly ProductPri
       const raw = clean(textOf(el))
       if (raw === null || !/[\d]/.test(raw) || seen.has(raw)) continue
       seen.add(raw)
-      const currency = currencyOf(raw)
+      const currency = inferAmazonCurrency(url, raw)
       const unitPrice = el.closest('.apex-priceperunit-value, .pricePerUnit, .unit-price') !== null
       prices.push({
         amount: { value: amountOf(raw), source: 'dom', path: selector },
-        currency: currency === null ? null : { value: currency, source: 'dom', path: selector },
+        currency: currency === null ? null : { value: currency.value, source: 'dom', path: selector },
         priceType: subscription ? 'subscription' : unitPrice ? 'unit' : prices.length === 0 ? 'current' : 'other',
         seller: null,
       })
@@ -162,7 +162,7 @@ function amazonPrices(doc: Document, subscription: boolean): readonly ProductPri
   return prices
 }
 
-function alternateOffers(doc: Document): readonly ProductPrice[] {
+function alternateOffers(doc: Document, url: string | undefined): readonly ProductPrice[] {
   const out: ProductPrice[] = []
   for (const row of qsa(doc, '#aod-offer-list .aod-information-block, #aod-offer-list [id^="aod-offer-"]')) {
     const raw = text(row, '.a-price .a-offscreen')
@@ -170,7 +170,7 @@ function alternateOffers(doc: Document): readonly ProductPrice[] {
     const sellerValue = text(row, '.aod-offer-soldBy a, [id^="aod-offer-soldBy"] a, .a-size-small a')
     out.push({
       amount: domFact(amountOf(raw), '#aod-offer-list .a-price')!,
-      currency: domFact(currencyOf(raw), '#aod-offer-list .a-price'),
+      currency: domFact(inferAmazonCurrency(url, raw)?.value, '#aod-offer-list .a-price'),
       priceType: 'other',
       seller: domFact(sellerValue, '#aod-offer-list .aod-offer-soldBy'),
     })
@@ -241,14 +241,14 @@ export function collectAmazonProductFacts(doc: Document, url: string | undefined
     ?? jsonFact(jsonNode?.name, `${jsonPath}/name`)
     ?? (subscriptionPlan === null ? null : domFact(`${subscriptionPlan} subscription plan`, 'body:Plan'))
     ?? metaFact(doc, 'meta[property="og:title"]')
-  let rawPrices = [...amazonPrices(doc, subscription), ...alternateOffers(doc)]
+  let rawPrices = [...amazonPrices(doc, subscription, url), ...alternateOffers(doc, url)]
   if (rawPrices.length === 0 && subscription) {
     // Blink's page shows prices for other plans above the selected buy box.
     // A page-wide first-price fallback can silently assign Plus AI to Plus.
     const selectedOfferSelector = '[data-cy="subs-buy-box-container"], #subs-buy-box-container'
     const selectedOffer = text(doc, selectedOfferSelector)
     const amount = selectedOffer?.match(/([$€£]\s*\d[\d,]*(?:\.\d{1,2})?)/)?.[1] ?? null
-    if (amount !== null) rawPrices = [{ amount: domFact(amountOf(amount), selectedOfferSelector)!, currency: domFact(currencyOf(amount), selectedOfferSelector), priceType: 'subscription', seller: null }]
+    if (amount !== null) rawPrices = [{ amount: domFact(amountOf(amount), selectedOfferSelector)!, currency: domFact(inferAmazonCurrency(url, amount)?.value, selectedOfferSelector), priceType: 'subscription', seller: null }]
   }
   const store = first(doc, ['#bylineInfo', '[data-feature-name="bylineInfo"]'])
   const brand = store === null ? null : domFact(store.value.replace(/^Brand:\s*/i, '').replace(/^Visit the\s+/i, '').replace(/\s+Store$/i, ''), store.selector)

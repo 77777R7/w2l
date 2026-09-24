@@ -1,0 +1,18 @@
+FROM node:22-bookworm-slim
+
+WORKDIR /app
+COPY package.json package-lock.json tsconfig.base.json tsconfig.json ./
+COPY packages ./packages
+COPY apps ./apps
+COPY research/amazon-product-schema.v1.json ./research/amazon-product-schema.v1.json
+
+# better-sqlite3 is in the existing workspace dependency graph. Supply a
+# node-gyp fallback when a matching Linux/Node prebuilt binary is unavailable.
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
+    && rm -rf /var/lib/apt/lists/*
+RUN npm ci && npx playwright install --with-deps chromium && npm run build:public
+
+ENV NODE_ENV=production
+ENV PORT=8080
+EXPOSE 8080
+CMD ["node", "packages/public-preview/dist/cli.js"]

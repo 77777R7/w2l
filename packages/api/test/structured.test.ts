@@ -99,6 +99,16 @@ describe('structured JSON extraction', () => {
     expect(out.modelUsage).toBeNull()
   })
 
+  it('keeps a verified subject complete while explaining null offer fields', async () => {
+    const noOffer: FetchResult = { ...result, document: { ...result.document!, product: { ...product, price:null, priceCurrency:null, seller:null } } }
+    const schema: JsonFormatRequest = {type:'json',schema:{type:'object',properties:{asin:{type:'string'},price:{type:['number','null']},currency:{type:['string','null']},seller:{type:['string','null']}},required:['asin','price','currency','seller']}}
+    const out=await extractStructured(noOffer,schema,{},null)
+    expect(out.status).toBe('complete')
+    expect(out.data).toMatchObject({asin:'B012345678',price:null,currency:null,seller:null})
+    expect(out.issues.map(issue=>issue.path)).toEqual(['/price','/currency','/seller'])
+    expect(out.issues.every(issue=>issue.code==='field_unavailable')).toBe(true)
+  })
+
   it('reports an explicit incomplete result when model fallback is unavailable', async () => {
     const out = await extractStructured(result, format({ requireMaterial: true, modelFallback: true }), {}, null)
     expect(out.status).toBe('incomplete')

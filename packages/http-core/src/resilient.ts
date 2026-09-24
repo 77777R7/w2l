@@ -23,6 +23,16 @@ import { abortableSleep, createExecutionScope, raceWithSignal, remainingTimeout,
 
 export type UrlGuard = (url: string) => Promise<void>
 
+/** Undici may wrap a connector rejection as the cause of its socket error. */
+function isSsrfDeniedError(error: unknown): boolean {
+  let current = error
+  for (let depth = 0; depth < 4 && current !== null && typeof current === 'object'; depth++) {
+    if ('name' in current && current.name === 'SsrfDeniedError') return true
+    current = 'cause' in current ? current.cause : null
+  }
+  return false
+}
+
 export interface ResilientHttpConfig extends ExecutionBudget {
   /** Maximum redirects followed per logical attempt. */
   maxRedirects: number
@@ -226,7 +236,7 @@ export async function resilientFetch(
         const reason: ResilientFailureReason =
           scope.signal.aborted || name === 'AbortError' || name === 'TimeoutError' || name === 'HeadersTimeoutError' || name === 'BodyTimeoutError'
             ? 'timeout'
-            : name === 'SsrfDeniedError'
+            : isSsrfDeniedError(err)
               ? 'policy_denied'
               : name === 'BodyTooLargeError'
                 ? 'body_too_large'
