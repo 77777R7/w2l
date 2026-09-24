@@ -6,7 +6,7 @@ import { extname, relative, resolve } from 'node:path'
 import type { PreviewQuota, QuotaDecision } from './quota.js'
 import { AmazonGateBusyError, type AmazonOriginGate, type AmazonOriginPermit } from './amazonGate.js'
 import { capturePreview, mapPreviewResult, normalizePreviewUrl, type PreviewCapture, type PreviewResponse } from './preview.js'
-import { resolvePreviewCapability } from './capability.js'
+import { isPreviewTargetStaticallyDenied, resolvePreviewCapability } from './capability.js'
 
 export interface PreviewServerOptions {
   quota: PreviewQuota
@@ -192,6 +192,11 @@ export function createPreviewHandler(options: PreviewServerOptions): (req: Incom
       }
       submitted = (body as { url: string }).url
       const target = normalizePreviewUrl(submitted)
+      if (isPreviewTargetStaticallyDenied(target.url)) {
+        sendJson(res, 200, empty('blocked', submitted, 'Private or reserved network targets are not available in the public preview.',
+          Math.max(0, performance.now() - started), { code: 'policy_denied', stage: 'policy', evidence: 'observed' }))
+        return
+      }
       if (options.enabled === false) { sendJson(res, 503, empty('failed', submitted, 'The public preview is temporarily unavailable.', Math.max(0, performance.now() - started))); return }
       if (target.amazonAsin !== null && !options.amazonState) {
         sendJson(res, 503, empty('incomplete', submitted, 'The Singapore Amazon preview is not configured yet.', Math.max(0, performance.now() - started)))

@@ -55,6 +55,9 @@ describe('anonymous preview contract', () => {
       expect(await response.json()).toMatchObject({ capability: { task, captureMode: route } })
     }
     expect([captures, quotaCalls]).toEqual([0, 0])
+    const privateHint = await fetch(`${url}/api/capability?url=${encodeURIComponent('http://169.254.169.254/computeMetadata/v1/')}`)
+    expect(await privateHint.json()).toMatchObject({ capability: { support: 'unsupported', fields: [] } })
+    expect([captures, quotaCalls]).toEqual([0, 0])
     expect((await fetch(`${url}/api/capability?url=file:///etc/passwd`)).status).toBe(400)
     expect((await fetch(`${url}/api/capability?url=https://docs.example&debug=true`)).status).toBe(400)
     expect((await fetch(`${url}/api/capability`, { method: 'POST' })).status).toBe(405)
@@ -67,6 +70,17 @@ describe('anonymous preview contract', () => {
       expect(capability.support).toBe('conditional')
       expect(capability.lastValidatedSourceCommit).toBeNull()
     }
+  })
+
+  it('rejects known private and metadata targets before quota or outbound capture', async () => {
+    let quotaCalls = 0
+    let captures = 0
+    const base = await endpoint({ consume: async () => { quotaCalls++; return 'ok' } }, async target => { captures++; return fixture(target.url) })
+    for (const target of ['http://169.254.169.254/computeMetadata/v1/', 'http://127.0.0.1/', 'http://localhost/', 'http://metadata.google.internal/']) {
+      const response = await fetch(`${base}/api/preview`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ url: target }) })
+      expect(await response.json()).toMatchObject({ status: 'blocked', finalUrl: null, diagnostic: { code: 'policy_denied', stage: 'policy', evidence: 'observed' } })
+    }
+    expect([quotaCalls, captures]).toEqual([0, 0])
   })
   it('serves documentation deep links but returns 404 for unknown documentation pages', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'w2l-doc-routes-'))

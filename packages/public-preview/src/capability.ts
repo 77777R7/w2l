@@ -1,4 +1,6 @@
 /** Describes this deployed preview route, not a promise that a remote site will respond. */
+import { evaluateUrl, hostedNetworkPolicy } from '@w2l/contracts'
+
 export type PreviewSupport = 'beta' | 'conditional' | 'unsupported'
 export type PreviewTask = 'readable_page' | 'amazon_sg_product' | 'x_public_post' | 'reddit_public_post'
 export type PreviewCaptureMode = 'http' | 'browser_local'
@@ -16,7 +18,22 @@ export interface PreviewCapability {
 
 const PUBLIC_PREVIEW_COMMIT = 'bb32cbf306251de4855b1249416079dc06d2631d'
 
+/** Reject only targets whose private identity is known without DNS. The
+ * transport still validates and pins every resolved address and redirect. */
+export function isPreviewTargetStaticallyDenied(url: string): boolean {
+  const host = new URL(url).hostname.toLowerCase()
+  if (host === 'localhost' || host.endsWith('.localhost')) return true
+  const decision = evaluateUrl(url, hostedNetworkPolicy())
+  return 'allowed' in decision && !decision.allowed
+}
+
 export function resolvePreviewCapability(target: { url: string; amazonAsin: string | null }): PreviewCapability {
+  if (isPreviewTargetStaticallyDenied(target.url)) return {
+    task: 'readable_page', support: 'unsupported', captureMode: 'http',
+    access: 'anonymous_public_page', environment: 'cloud_run_public_preview', fields: [],
+    limitation: 'Private or reserved network targets are not available in the public preview.',
+    lastValidatedSourceCommit: null,
+  }
   if (target.amazonAsin !== null) return {
     task: 'amazon_sg_product', support: 'beta', captureMode: 'browser_local',
     access: 'anonymous_public_page', environment: 'cloud_run_public_preview',

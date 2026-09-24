@@ -187,6 +187,10 @@ function scheduleCapability(): void {
       if (!response.ok) return
       const result = await response.json() as CapabilityResponse
       if (request.signal.aborted || normalizeUrl(input.value) !== url) return
+      if (result.capability.support === 'unsupported') {
+        capabilityMessage.textContent = `Cannot preview this address. ${result.capability.limitation}`
+        return
+      }
       const route = result.capability.captureMode === 'browser_local' ? 'a limited browser route' : 'restricted HTTP'
       const task = result.capability.task === 'amazon_sg_product' ? 'Amazon.sg product beta' : result.capability.task === 'x_public_post' ? 'X post' : result.capability.task === 'reddit_public_post' ? 'Reddit post' : 'Public page'
       const limit = result.capability.task === 'amazon_sg_product'
