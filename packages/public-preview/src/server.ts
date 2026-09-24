@@ -149,7 +149,7 @@ export function createPreviewHandler(options: PreviewServerOptions): (req: Incom
     const started = performance.now()
     const deadlineAt = Date.now() + deadlineMs
     const pathname = new URL(req.url ?? '/', 'http://localhost').pathname
-    if (pathname === '/healthz') {
+    if (pathname === '/healthz' || pathname === '/api/health') {
       sendJson(res, 200, { status: 'ok', anonymousPreviewEnabled: options.enabled !== false })
       return
     }

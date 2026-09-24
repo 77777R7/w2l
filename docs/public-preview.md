@@ -13,7 +13,7 @@ The Hero keeps the static mountain artwork and uses the [React Bits ASCIIText JS
 
 Open the public HTTPS service URL, paste a page address, and choose **Extract page**. The Firecrawl Introduction example on the page is a public documentation smoke test. A blocked, partial, or timed-out result is displayed as such. The page makes no promise to access login walls or solve challenges. The page and `POST /api/preview` are on the same HTTPS origin; no local repository, MCP connection, or service key is needed by visitors.
 
-The anonymous allowance is three attempts per browser visitor per UTC day and 100 attempts globally per UTC day. A signed, HttpOnly, SameSite=Lax cookie identifies a visitor; direct clients without that cookie use a conservative address-based fallback. The Firestore counters survive service restarts. An unavailable quota store denies preview requests. The web page and `/healthz` remain available when preview is disabled. For Amazon.sg, the public readable body is a short summary built from the checked subject record, so unrelated recommendation prices in the raw page are not shown as this product's content.
+The anonymous allowance is three attempts per browser visitor per UTC day and 100 attempts globally per UTC day. A signed, HttpOnly, SameSite=Lax cookie identifies a visitor; direct clients without that cookie use a conservative address-based fallback. The Firestore counters survive service restarts. An unavailable quota store denies preview requests. The web page and `/api/health` remain available when preview is disabled. For Amazon.sg, the public readable body is a short summary built from the checked subject record, so unrelated recommendation prices in the raw page are not shown as this product's content.
 
 Amazon.sg browser requests also use one Firestore-backed origin lease across the two Cloud Run instances. It preserves spacing and observed Retry-After cooldown, and exhausted visitors are rejected by a read-only quota check before acquiring that lease. This coordination is specific to Amazon.sg; generic public HTTP pages still use per-request scheduling, so this release does not claim shared cross-instance pacing for every domain.
 
@@ -100,7 +100,7 @@ gcloud run deploy w2l-public-preview --image="$W2L_IMAGE" --region="$W2L_REGION"
 gcloud run services describe w2l-public-preview --region="$W2L_REGION" --project="$W2L_PROJECT_ID" --format='value(status.url)'
 ```
 
-The `--allow-unauthenticated` flag is intentional for this limited, public trial. The Secret Manager grants are restricted to the dedicated runtime service account. Secret versions referenced as environment variables are resolved at instance startup; after rotating those secrets, deploy a new revision so every instance uses the new value. Verify the actual `/healthz` and preview behavior on the returned HTTPS URL before sharing it.
+The `--allow-unauthenticated` flag is intentional for this limited, public trial. The Secret Manager grants are restricted to the dedicated runtime service account. Secret versions referenced as environment variables are resolved at instance startup; after rotating those secrets, deploy a new revision so every instance uses the new value. Verify the actual `/api/health` and preview behavior on the returned HTTPS URL before sharing it.
 
 The initial Cloud Run settings are:
 
@@ -120,7 +120,7 @@ To pause anonymous capture without removing the public page, run `gcloud run ser
 
 ## Release checks
 
-Check `/healthz`, then complete a real public-document extraction in the browser and inspect its final URL, state, body, and visible elapsed time. Test an Amazon.sg `/dp/{ASIN}` from the same page and confirm the requested/selected ASIN, Singapore location, SGD currency, and explicit issues on uncertainty. Exercise wrong-origin, private/metadata URL, redirect, invalid URL, quota exhaustion, and Firestore-unavailable cases. Record warm/cold p50/p95 including failures and retry time, and inspect Cloud Run billing rather than inferring cost from the free tier.
+Check `/api/health`, then complete a real public-document extraction in the browser and inspect its final URL, state, body, and visible elapsed time. Test an Amazon.sg `/dp/{ASIN}` from the same page and confirm the requested/selected ASIN, Singapore location, SGD currency, and explicit issues on uncertainty. Exercise wrong-origin, private/metadata URL, redirect, invalid URL, quota exhaustion, and Firestore-unavailable cases. Record warm/cold p50/p95 including failures and retry time, and inspect Cloud Run billing rather than inferring cost from the free tier.
 
 The fixed 100-product manifest is `research/amazon-product-holdout-100-sg.v1.json`. Run `scripts/public-preview/verify-holdout.mjs` from the **same clean source commit** as the deployed service. It sends all 100 fixed URLs through the HTTPS `/api/preview` endpoint, compares the reported source and anonymous-state hashes, and saves the owner-only same-capture HTML witnesses under ignored `.w2l/` for review. This cohort was already seen in local experiments; this is a public-path regression, **not another 100 unseen products**.
 
