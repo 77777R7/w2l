@@ -9,6 +9,8 @@ node_modules
 docs
 examples
 scripts
+!apps/public-web/scripts/
+!apps/public-web/scripts/build-docs.mjs
 .github
 render.yaml
 Dockerfile
@@ -19,6 +21,7 @@ LICENSE
 research/*
 !research/amazon-product-schema.v1.json
 *.md
+!apps/public-web/content/*.md
 *.py
 *.tgz
 *.zip

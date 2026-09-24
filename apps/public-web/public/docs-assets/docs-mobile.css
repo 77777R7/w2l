@@ -1,0 +1,38 @@
+.doc-mobile-pages{display:none}
+@media(max-width:820px){
+  .doc-sidebar{display:none}
+  .doc-mobile-pages{display:block;margin:0 0 28px;border:1px solid #cbd8e9;border-radius:8px;background:#eaf1fb}
+  .doc-mobile-pages summary{padding:13px 15px;cursor:pointer;color:#143c78;font-size:13px;font-weight:700}
+  .doc-mobile-pages nav{display:flex;flex-direction:column;padding:0 12px 13px}
+  .doc-mobile-pages .doc-nav-heading{margin:14px 0 5px;color:#5677a9;font:700 11px ui-monospace,SFMono-Regular,Menlo,monospace;text-transform:uppercase;letter-spacing:.12em}
+  .doc-mobile-pages a{padding:8px 10px;border-radius:6px;text-decoration:none;color:#465b7d;font-size:13px}
+  .doc-mobile-pages a[aria-current=page]{border-left:0;background:#f3683d;color:#071b4f;font-weight:700}
+  .mcp-picker-head{padding:25px 25px 27px}
+  .mcp-client-tab{min-height:118px}
+  .mcp-client-panel{padding:23px 25px 26px}
+  .mcp-picker-foot{padding:23px 25px 25px}
+}
+@media(max-width:540px){
+  .mcp-picker{border-radius:14px}
+  .mcp-picker-head{display:block;padding:23px 20px}
+  .doc-article .mcp-picker-head h2{font-size:25px}
+  .doc-article .mcp-picker-head p{font-size:14px}
+  .doc-article .mcp-picker-head a{display:inline-block;margin-top:14px;font-size:13px}
+  .mcp-client-tabs{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .mcp-client-tab:nth-child(2){border-right:0}
+  .mcp-client-tab:nth-child(-n+2){border-bottom:1px solid #31578a}
+  .mcp-client-tab{min-height:112px}
+  .mcp-client-tab img{width:33px;height:33px;margin-bottom:2px}
+  .mcp-client-tab strong{font-size:14px}
+  .mcp-client-tab small{font-size:11px}
+  .mcp-client-panel{padding:19px 20px 22px}
+  .doc-article .mcp-client-panel .mcp-client-intro{font-size:14px}
+  .mcp-command-row{gap:7px;padding:9px 11px}
+  .mcp-command-row pre{font-size:11px}
+  .mcp-command-row .copy-code{padding-left:22px;font-size:12px}
+  .mcp-command-row .copy-code:before{left:1px}
+  .mcp-command-row .copy-code:after{left:5px}
+  .mcp-picker-foot{padding:18px 20px 22px}
+  .doc-article .mcp-picker-foot p{font-size:14px}
+  .mcp-picker-foot .mcp-command-row pre{font-size:11px}
+}

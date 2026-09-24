@@ -121,7 +121,8 @@ async function serveStatic(req: IncomingMessage, res: ServerResponse, directory:
   let file = requested
   let info = await stat(file).catch(() => null)
   if (info?.isDirectory()) { file = resolve(file, 'index.html'); info = await stat(file).catch(() => null) }
-  if (!info?.isFile() && !extname(relativePath) && !relativePath.startsWith('/api/')) {
+  if (!info?.isFile() && !extname(relativePath) && !relativePath.startsWith('/api/')
+    && relativePath !== '/docs' && !relativePath.startsWith('/docs/')) {
     file = resolve(root, 'index.html')
     info = await stat(file).catch(() => null)
   }

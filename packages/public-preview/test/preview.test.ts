@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import type { AddressInfo } from 'node:net'
 import type { Server } from 'node:http'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { FetchResult, StructuredExtractionResult } from '@w2l/contracts'
@@ -36,6 +36,23 @@ async function endpoint(quota: PreviewQuota, capture: NonNullable<Parameters<typ
 }
 
 describe('anonymous preview contract', () => {
+  it('serves documentation deep links but returns 404 for unknown documentation pages', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'w2l-doc-routes-'))
+    tempDirs.push(dir)
+    await mkdir(join(dir, 'docs', 'guides', 'extract-page'), { recursive: true })
+    await writeFile(join(dir, 'index.html'), '<h1>Preview</h1>')
+    await writeFile(join(dir, 'docs', 'index.html'), '<h1>Documentation</h1>')
+    await writeFile(join(dir, 'docs', 'guides', 'extract-page', 'index.html'), '<h1>Extract</h1>')
+    const url = await endpoint({ consume: async () => 'ok' }, async target => fixture(target.url), { staticDir: dir })
+    const docs = await fetch(`${url}/docs/`)
+    expect(docs.status).toBe(200)
+    expect(await docs.text()).toContain('Documentation')
+    const deepLink = await fetch(`${url}/docs/guides/extract-page/`)
+    expect(deepLink.status).toBe(200)
+    expect(await deepLink.text()).toContain('Extract')
+    expect((await fetch(`${url}/docs/not-a-page/`)).status).toBe(404)
+  })
+
   it('rejects an exhausted Amazon visitor before acquiring the origin gate', async () => {
     let acquires = 0
     let consumes = 0

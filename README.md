@@ -38,6 +38,12 @@ For the no-install, single-page web preview and its deployment requirements, see
 it does not have a permanent public URL until the Cloud Run deployment and live
 acceptance are complete.
 
+The same local preview service now serves an English [documentation home](apps/public-web/content/introduction.md)
+at `/docs/`, with Codex MCP connection steps, four task guides, and limits.
+Run `npm run public:preview:local` and open `http://127.0.0.1:8798/docs/`.
+These pages are generated from Markdown during the public web build; their
+hosted status labels must be updated only after an actual public acceptance run.
+
 Use Node.js 22.12+ or 24+ and npm. The SDK is currently a private workspace package; build it from this checkout. For the full Monitor → result → HTTPS event → restart workflow, follow [the onboarding guide](docs/onboarding.md) and [independent developer acceptance checklist](docs/independent-developer-acceptance.md).
 
 ```bash

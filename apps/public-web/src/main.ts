@@ -40,6 +40,7 @@ app.innerHTML = `
         </a>
         <nav class="site-nav" aria-label="Main navigation">
           <a href="#how-it-works">How it works <span aria-hidden="true">↗</span></a>
+          <a href="/docs/">Docs <span aria-hidden="true">↗</span></a>
         </nav>
       </header>
 
@@ -95,7 +96,7 @@ app.innerHTML = `
       </div>
     </section>
 
-    <footer class="site-footer"><div class="layout-width footer-inner"><div class="footer-brand"><img src="/assets/octopus-original.webp" alt="" width="34" height="34" /><strong>W2L.</strong></div><span>Single-page public web preview</span><a href="#top">Back to top ↑</a></div></footer>
+    <footer class="site-footer"><div class="layout-width footer-inner"><div class="footer-brand"><img src="/assets/octopus-original.webp" alt="" width="34" height="34" /><strong>W2L.</strong></div><span>Single-page public web preview</span><a href="/docs/">Documentation ↗</a><a href="#top">Back to top ↑</a></div></footer>
   </div>
 `
 
