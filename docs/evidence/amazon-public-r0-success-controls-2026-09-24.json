@@ -1,0 +1,131 @@
+{
+  "version": 1,
+  "method": "For each cohort, sort successful audit records by SHA-256 of r0-success-v1:<cohort>:<index>:<requestedAsin>; take first 10. Frozen before reviewing their raw HTML.",
+  "sourceCommit": "bb32cbf306251de4855b1249416079dc06d2631d",
+  "cohorts": {
+    "fixed": [
+      {
+        "index": 26,
+        "requestedAsin": "B093VT9YWL",
+        "rawSha256": "f30a23667c7b6d364145d05853303510f5720f4be3bfa9768594f9c7cad3da92",
+        "sortKey": "004f49208f95f51e41c352964799b3456f925dae725396179aaf4c54f88c286f"
+      },
+      {
+        "index": 23,
+        "requestedAsin": "B0711D5RNZ",
+        "rawSha256": "925a66dc935c8739ed1df81ea5a1f0f99f571ac3b607e4b875bf81affb6cd4c3",
+        "sortKey": "01cb159157623546bb877add9b477095f083308bbe9dd014b4fbb2746499cef9"
+      },
+      {
+        "index": 16,
+        "requestedAsin": "B0GQN1X2K1",
+        "rawSha256": "392d11a247d86c1a7bf24919853790a5215fb9d232a60b0f13cebbe666641c40",
+        "sortKey": "02646c15e3821954251d802fa3a6d0e3179597470f10d775f95598bf0d95183b"
+      },
+      {
+        "index": 24,
+        "requestedAsin": "B0D41ZWR68",
+        "rawSha256": "6585cced5e7dff489d78701c3cbf3fbb3262a5691eedf239db75126b233c5ef7",
+        "sortKey": "060f11ceb3ef0b2310a804e3bf39b31e43d4bfe2e81efedc6d9668540c31e9cb"
+      },
+      {
+        "index": 10,
+        "requestedAsin": "B0FK1FDHXP",
+        "rawSha256": "f18eac9db988372019c32b76d9c4ae28e157b1a846378d1240beef493c0d1dc6",
+        "sortKey": "06fc33225d41c248bf85e13b76e8c4fc22419e18388642b92b5a66ef23e556df"
+      },
+      {
+        "index": 33,
+        "requestedAsin": "B07RJ28SK9",
+        "rawSha256": "0304967efbdb5ab253675a0cdab5913cc56f2803e64bdb70e9e930acfea09424",
+        "sortKey": "0a27fe765dff4c22a7dcafb4e78ec12aa39557f11ee32ce2d91e07345d114c32"
+      },
+      {
+        "index": 3,
+        "requestedAsin": "B0CS81Q6Z7",
+        "rawSha256": "d5ed944147119dd7a540d69d847047d473cefc768d89b39063ee148083d32e4f",
+        "sortKey": "0a3167cc834d5f41a5826b13d339e4dcabd62ec4b7bd20d5c0502ad339ca7b9f"
+      },
+      {
+        "index": 78,
+        "requestedAsin": "B0FDWQRBVB",
+        "rawSha256": "b931020a872b7f77a9fc4fd03b3167e1479fa8d9d9285648670174c1b7639014",
+        "sortKey": "0b708a62315d2224311b35ca505d0b133a1c0aba55b3133d8ba5476936d2731b"
+      },
+      {
+        "index": 5,
+        "requestedAsin": "B00000JZKB",
+        "rawSha256": "97092fef0ab04c065a16ee7359ee86113e2738d66ee46cd2f9ca7bfa36de697a",
+        "sortKey": "10a75d6ff17065bc63f57d1c63b1abc6b9b9b91038492dfac6800cd9154a684b"
+      },
+      {
+        "index": 59,
+        "requestedAsin": "B000E23RSQ",
+        "rawSha256": "b6f949c2292ba72e61a480d516fc9459525a5e1b166bcfe1a49fe5e0795fbbd2",
+        "sortKey": "113786500919aa19f744baa25d23e0fb36e18bc185c37a8c8e92a8d2a8683277"
+      }
+    ],
+    "unseen": [
+      {
+        "index": 1,
+        "requestedAsin": "B0C85KXCXK",
+        "rawSha256": "a1775789917bffbdef34fdc2aa0f39b2b5a15e96c8736e892632ed4537170522",
+        "sortKey": "01e73cf195fab286e95b00978b89523dfc6f60a8d44d22fd5e3ffc578f921b42"
+      },
+      {
+        "index": 19,
+        "requestedAsin": "B01BD9KYCU",
+        "rawSha256": "fa4e2b54f851cb7131c9e1f6b1415e8ebfa8c2f5541c0a7035f09d8af7767415",
+        "sortKey": "050e6dbf1c28d7afe4de2cfed02db05096c7feddeca2e213c07e5625ca5f865a"
+      },
+      {
+        "index": 49,
+        "requestedAsin": "B0DBM2QF8F",
+        "rawSha256": "faafadc8a3f3c30b436574c7203752fbd537939a37c011ace3b9f1977a650fb1",
+        "sortKey": "07f39d4e41919920b0eca561b1c644db4bd20ff43be83136171f9d40ede6138d"
+      },
+      {
+        "index": 16,
+        "requestedAsin": "B079T3KSYL",
+        "rawSha256": "492930372ee15a7d5839e2ac4fa1574eb25f53058198d67f7b2e65067bd660d4",
+        "sortKey": "0a1c6be1b61593f926cea13024ab104f1637c767c6fd176111b4dfd222140c42"
+      },
+      {
+        "index": 87,
+        "requestedAsin": "B098WCDXBG",
+        "rawSha256": "3e0fc3cb9b6b4f439b130f4e3c63a20e101892de2a924066ff0af556d55b4b57",
+        "sortKey": "0a55a63036d632ed0322eedf159566f75e68d69a7fb9299cf4a71e1ef9576b1d"
+      },
+      {
+        "index": 66,
+        "requestedAsin": "B0HCCGCS1L",
+        "rawSha256": "74cc42632312325636a0e9090840941a45fd948b417b58f97619143dfadc9e85",
+        "sortKey": "0bd220cfe5eb75fe338388607a0c1c6b069de1fdd22c94dd20c789156c395441"
+      },
+      {
+        "index": 45,
+        "requestedAsin": "B08J63ST2W",
+        "rawSha256": "9ac51e8165f3b45ce3b78fe3236587c9bde591098b826e21fa6165eee48b0b6c",
+        "sortKey": "1107d4caab774995a1ae885c8d7ccd282e23cf370910ce10821a746f92959d6c"
+      },
+      {
+        "index": 70,
+        "requestedAsin": "B0C7JVJFKX",
+        "rawSha256": "f2293f6cbd531a38590c1f4403af843c84386abb1a15ef41a3978895807f18ac",
+        "sortKey": "121ffce26d7e4addc2a4c5ddc523eb92cefc5dc730b34763a079f2dd2bd94e3b"
+      },
+      {
+        "index": 71,
+        "requestedAsin": "B085WTJFFD",
+        "rawSha256": "3dcf6f6f6b4c0aa2be7f2d9d25a9751fb05a9e3683daada230a78eb9176b7bac",
+        "sortKey": "12d484487b59a5c0647f6759abcc1e4e6ac9c154aa693580ca9b1ecb974c08de"
+      },
+      {
+        "index": 34,
+        "requestedAsin": "B0B6PLTJMH",
+        "rawSha256": "ece9ea596229af0cb245d937a53827e097844d3000781055b7425f66bd58cf07",
+        "sortKey": "14aa0dde7de5ba191816a3d6bdcc252bf826eaf10ef6beabe0bf7d667c72885d"
+      }
+    ]
+  }
+}
