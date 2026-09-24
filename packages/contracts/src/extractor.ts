@@ -13,13 +13,14 @@ export type ExtractStrategy = 'article' | 'list' | 'table' | 'product'
  * Where a product fact came from. The ordering is a strength ordering:
  * `jsonld` and `microdata` are the publisher's own machine-readable claim,
  * `meta` is a tag written for machines, `text` is our reading of rendered
- * prose. A price we matched out of visible text is a weaker claim than one
+ * prose, `inferred` is our derivation from context (e.g., currency from domain).
+ * A price we matched out of visible text is a weaker claim than one
  * the publisher declared, and a consumer is entitled to know which it got.
  */
-export type ProductFactSource = 'jsonld' | 'microdata' | 'meta' | 'dom' | 'text' | 'model'
+export type ProductFactSource = 'jsonld' | 'microdata' | 'meta' | 'dom' | 'text' | 'inferred' | 'model'
 
 /** Evidence classes allowed on the normalized cross-site entity surface. */
-export type EntityFieldSource = 'jsonld' | 'microdata' | 'meta' | 'hydration' | 'dom'
+export type EntityFieldSource = 'jsonld' | 'microdata' | 'meta' | 'hydration' | 'dom' | 'inferred'
 export type EntityFieldStatus = 'confirmed' | 'unconfirmed'
 export type EntityType = 'product' | 'post' | 'thread' | 'comment' | 'profile' | 'community' | 'video' | 'article'
 export type AdapterStatus = 'generic' | 'beta adapter' | 'verified adapter' | 'unsupported'
@@ -83,6 +84,42 @@ export interface ProductVariant {
 }
 
 /**
+ * Product identity verification result with multi-evidence approach.
+ * R1-B: Ensures we never output data for the wrong product.
+ */
+export interface ProductIdentity {
+  /** ASIN or SKU requested by the user (from URL). */
+  requestedId: string
+  /** ASIN or SKU observed as selected on the page (from DOM multi-evidence). */
+  observedSelectedId: string
+  /** Parent ASIN if this is a variant product. */
+  parentId: string | null
+  /** Selected variant attributes if applicable. */
+  selectedVariants: readonly ProductVariant[]
+  /** Why the selected subject could or could not be verified. */
+  status: 'matched' | 'mismatched' | 'unverified' | 'conflicting'
+  /** True only when the observed selected product is the requested product. */
+  identityMatch: boolean
+  /** CSS selectors or paths that contributed to identity determination. */
+  identityEvidence: readonly string[]
+}
+
+/**
+ * Quote/price state classification.
+ * R1-C: Distinguishes "definitely absent" from "not found yet" from "present".
+ */
+export enum QuoteState {
+  /** Quote found and extracted successfully. */
+  Present = 'present',
+  /** Evidence that quote does not exist (e.g., "Currently unavailable"). */
+  AbsentObserved = 'absent_observed',
+  /** Not found in current extraction, may exist elsewhere. */
+  Unobserved = 'unobserved',
+  /** Multiple conflicting quotes found. */
+  Conflicting = 'conflicting'
+}
+
+/**
  * Facts a product-detail page asserted about the product it is about.
  * Every field is independently nullable: a page may declare a price and no
  * SKU, and inventing the missing one is worse than reporting null.
@@ -105,6 +142,10 @@ export interface ProductFacts {
   images?: readonly ProductFact[]
   variants?: readonly ProductVariant[]
   specifications?: Readonly<Record<string, ProductFact>>
+  /** R1-B: Multi-evidence identity verification. */
+  identity?: ProductIdentity
+  /** R1-C: Quote state classification. */
+  quoteState?: QuoteState
 }
 
 export interface DocumentExtraction {

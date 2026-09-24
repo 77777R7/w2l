@@ -1,4 +1,4 @@
-import type { ProductFact, ProductFacts, ProductPrice, ProductVariant } from '@w2l/contracts'
+import type { ProductFact, ProductFacts, ProductPrice, ProductVariant, ProductIdentity, QuoteState } from '@w2l/contracts'
 import { qs, qsa, textOf } from './dom.js'
 
 const AMAZON_HOST = /(^|\.)amazon\.[a-z.]+$/i
@@ -41,7 +41,7 @@ function jsonLdProduct(doc: Document, asin: string | null): { node: Record<strin
     } catch { /* malformed publisher JSON-LD is ignored */ }
   }
   if (asin === null) return candidates.length === 1 ? candidates[0]! : null
-  return candidates.find(({ node }) => [node.asin, node.sku, node.productID].some(value => typeof value === 'string' && value.toUpperCase().includes(asin))) ?? null
+  return candidates.find(({ node }) => [node.asin, node.sku, node.productID].some(value => typeof value === 'string' && value.trim().toUpperCase() === asin)) ?? null
 }
 
 function jsonFact(value: unknown, path: string): ProductFact | null {
@@ -120,7 +120,8 @@ export function inferAmazonCurrency(url: string | undefined, price: string): Pro
         : hostname.endsWith('amazon.in') ? 'INR'
           : hostname.endsWith('amazon.com') ? 'USD'
             : explicit
-  return value === null ? null : { value, source: 'text', path: 'subject price text + Amazon marketplace' }
+  // R1-F: Inferred from marketplace should be marked as 'inferred', not 'text'
+  return value === null ? null : { value, source: 'inferred', path: 'Amazon marketplace domain' }
 }
 
 export function isAmazonProductPage(doc: Document, url: string | undefined): boolean {
@@ -137,14 +138,93 @@ export function selectAmazonProduct(doc: Document): Element | null {
   return qs(doc, '#dp-container, #ppd, main')
 }
 
+/**
+ * R1-B: Multi-evidence product identity verification.
+ * Collects ALL available evidence and cross-validates, not first-match-wins.
+ * Returns identity verification result with evidence trail.
+ */
+function verifyProductIdentity(doc: Document, url: string | undefined, selectedVariants: readonly ProductVariant[]): ProductIdentity {
+  const requestedId = amazonAsin(url) ?? ''
+  const witnesses: Array<{ id: string; path: string }> = []
+  const asin = (value: string | null | undefined): string | null => {
+    const normalized = clean(value)?.toUpperCase()
+    return normalized && /^[A-Z0-9]{10}$/.test(normalized) ? normalized : null
+  }
+  const add = (value: string | null | undefined, path: string): void => {
+    const id = asin(value)
+    if (id !== null) witnesses.push({ id, path })
+  }
+
+  // Only selected-product controls count as primary identity witnesses.
+  const productContainer = selectAmazonProduct(doc)
+  for (const input of productContainer ? qsa(productContainer, 'input[name="ASIN"], #ASIN') : []) {
+    if (input.closest('#recommendations, .related-products, .a-carousel')) continue
+    add(input.getAttribute('value') ?? input.textContent, 'main product input[name="ASIN"]')
+  }
+  const buyBox = qs(doc, '#buybox, [data-feature-name="buybox"]')
+  if (buyBox !== null) add(buyBox.getAttribute('data-asin') ?? buyBox.getAttribute('data-product-asin'), 'buybox data-asin')
+  for (const selected of qsa(doc, '#twister .a-button-selected[data-csa-c-asin], #twister .swatchSelect[data-defaultasin]')) {
+    add(selected.getAttribute('data-csa-c-asin') ?? selected.getAttribute('data-defaultasin'), 'selected variant ASIN')
+  }
+
+  const parentId = asin(qs(doc, 'input[name="parentASIN"]')?.getAttribute('value')) ?? null
+  const selectedIds = [...new Set(witnesses.map(witness => witness.id))]
+  // A matching URL or parent listing is never a substitute for a selected-product witness.
+  // A vote among conflicting controls would silently assign another variant's quote.
+  const observedSelectedId = selectedIds.length === 1 ? selectedIds[0]! : ''
+  let status: ProductIdentity['status'] = selectedIds.length === 0 ? 'unverified'
+    : selectedIds.length > 1 ? 'conflicting'
+      : observedSelectedId === requestedId ? 'matched' : 'mismatched'
+
+  // A unique JSON-LD Product can corroborate a selected control. It cannot
+  // establish selection by itself, and a different parent SKU is contextual.
+  const jsonLd = jsonLdProduct(doc, null)
+  const jsonId = asin(String(jsonLd?.node.asin ?? jsonLd?.node.sku ?? jsonLd?.node.productID ?? ''))
+  if (jsonId !== null && observedSelectedId && jsonId !== observedSelectedId && jsonId !== parentId) status = 'conflicting'
+
+  const identityEvidence = witnesses.map(witness => `${witness.path}=${witness.id}`)
+  if (parentId !== null) identityEvidence.push(`parentASIN=${parentId} (context only)`)
+  if (jsonId !== null) identityEvidence.push(`unique JSON-LD Product=${jsonId}`)
+  if (selectedIds.length === 0) identityEvidence.push('no selected-product ASIN observed')
+  if (selectedIds.length > 1) identityEvidence.push('selected-product witnesses conflict')
+  return {
+    requestedId,
+    observedSelectedId,
+    parentId,
+    selectedVariants,
+    status,
+    identityMatch: status === 'matched',
+    identityEvidence,
+  }
+}
+
+/**
+ * R1-C: Determine quote state from page evidence.
+ * Distinguishes "absent_observed" from "unobserved" from "present".
+ */
+function determineQuoteState(selectedPrices: readonly ProductPrice[], availabilityText: string | null): QuoteState {
+  const selected = selectedPrices.filter(price => price.priceType === 'current' || price.priceType === 'subscription')
+  const currencies = new Set(selectedPrices.filter(price => price.priceType !== 'unit').map(price => price.currency?.value).filter(Boolean))
+  if (currencies.size > 1) return 'conflicting' as QuoteState
+  if (selected.length > 0) return 'present' as QuoteState
+  // This is an observation of the captured location and page only. It is not
+  // a claim that no seller can offer the item through another entry point.
+  if (availabilityText && /currently unavailable|temporarily out of stock|out of stock|this item cannot be shipped/i.test(availabilityText)) {
+    return 'absent_observed' as QuoteState
+  }
+  return 'unobserved' as QuoteState
+}
+
 function amazonPrices(doc: Document, subscription: boolean, url: string | undefined): readonly ProductPrice[] {
   const selectors = subscription
     ? ['#subscriptionPrice', '[data-feature-name="subscriptionPrice"] .a-offscreen', '#buybox .a-price .a-offscreen']
     : ['#corePrice_feature_div .a-price .a-offscreen', '#apex_desktop .a-price .a-offscreen', '#buybox .a-price .a-offscreen', '#rightCol .priceToPay .a-offscreen', '.apexPriceToPay .a-offscreen', '.priceToPay .a-offscreen', '#priceblock_ourprice', '#priceblock_dealprice']
   const seen = new Set<string>()
   const prices: ProductPrice[] = []
+  const subject = selectAmazonProduct(doc) ?? doc
   for (const selector of selectors) {
-    for (const el of qsa(doc, selector)) {
+    for (const el of qsa(subject, selector)) {
+      if (el.closest('#recommendations, .related-products, .a-carousel, #aod-offer-list')) continue
       const raw = clean(textOf(el))
       if (raw === null || !/[\d]/.test(raw) || seen.has(raw)) continue
       seen.add(raw)
@@ -152,8 +232,8 @@ function amazonPrices(doc: Document, subscription: boolean, url: string | undefi
       const unitPrice = el.closest('.apex-priceperunit-value, .pricePerUnit, .unit-price') !== null
       prices.push({
         amount: { value: amountOf(raw), source: 'dom', path: selector },
-        currency: currency === null ? null : { value: currency.value, source: 'dom', path: selector },
-        priceType: subscription ? 'subscription' : unitPrice ? 'unit' : prices.length === 0 ? 'current' : 'other',
+        currency: currency === null ? null : { ...currency, path: currency.source === 'inferred' ? currency.path : selector },
+        priceType: subscription ? 'subscription' : unitPrice ? 'unit' : prices.some(price => price.priceType === 'current') ? 'other' : 'current',
         seller: null,
       })
       if (prices.length >= 4) return prices
@@ -170,7 +250,7 @@ function alternateOffers(doc: Document, url: string | undefined): readonly Produ
     const sellerValue = text(row, '.aod-offer-soldBy a, [id^="aod-offer-soldBy"] a, .a-size-small a')
     out.push({
       amount: domFact(amountOf(raw), '#aod-offer-list .a-price')!,
-      currency: domFact(inferAmazonCurrency(url, raw)?.value, '#aod-offer-list .a-price'),
+      currency: inferAmazonCurrency(url, raw),
       priceType: 'other',
       seller: domFact(sellerValue, '#aod-offer-list .aod-offer-soldBy'),
     })
@@ -237,18 +317,44 @@ export function collectAmazonProductFacts(doc: Document, url: string | undefined
     ?? null
   const subscription = subscriptionPlan !== null
     || /\bsubscription plan\b/i.test(pageText) && /\bBilling:\s*(?:Monthly|Annual)\b/i.test(pageText)
+
+  // R1-B: Extract variants BEFORE identity check (needed for identity verification)
+  const extractedVariants = variants(doc)
+
+  // R1-B: CRITICAL - Verify product identity FIRST, before extracting prices
+  const identity = verifyProductIdentity(doc, url, extractedVariants)
+
+  // RED LINE: If identity doesn't match, return incomplete immediately
+  // Do NOT extract price/currency for wrong product
+  if (!identity.identityMatch) {
+    return {
+      name: null,
+      price: null,
+      priceCurrency: null,
+      sku: null,
+      brand: null,
+      availability: null,
+      subjectId: null,
+      prices: [],
+      seller: null,
+      identity,
+      quoteState: 'unobserved' as QuoteState,
+    }
+  }
+
+  // Identity verified - proceed with normal extraction
   const title = domFact(text(doc, titleSelector), titleSelector)
     ?? jsonFact(jsonNode?.name, `${jsonPath}/name`)
     ?? (subscriptionPlan === null ? null : domFact(`${subscriptionPlan} subscription plan`, 'body:Plan'))
     ?? metaFact(doc, 'meta[property="og:title"]')
-  let rawPrices = [...amazonPrices(doc, subscription, url), ...alternateOffers(doc, url)]
-  if (rawPrices.length === 0 && subscription) {
+  let selectedPrices = [...amazonPrices(doc, subscription, url)]
+  if (selectedPrices.length === 0 && subscription) {
     // Blink's page shows prices for other plans above the selected buy box.
     // A page-wide first-price fallback can silently assign Plus AI to Plus.
     const selectedOfferSelector = '[data-cy="subs-buy-box-container"], #subs-buy-box-container'
     const selectedOffer = text(doc, selectedOfferSelector)
     const amount = selectedOffer?.match(/([$€£]\s*\d[\d,]*(?:\.\d{1,2})?)/)?.[1] ?? null
-    if (amount !== null) rawPrices = [{ amount: domFact(amountOf(amount), selectedOfferSelector)!, currency: domFact(inferAmazonCurrency(url, amount)?.value, selectedOfferSelector), priceType: 'subscription', seller: null }]
+    if (amount !== null) selectedPrices = [{ amount: domFact(amountOf(amount), selectedOfferSelector)!, currency: inferAmazonCurrency(url, amount), priceType: 'subscription', seller: null }]
   }
   const store = first(doc, ['#bylineInfo', '[data-feature-name="bylineInfo"]'])
   const brand = store === null ? null : domFact(store.value.replace(/^Brand:\s*/i, '').replace(/^Visit the\s+/i, '').replace(/\s+Store$/i, ''), store.selector)
@@ -275,30 +381,36 @@ export function collectAmazonProductFacts(doc: Document, url: string | undefined
   const fallbackCurrency = jsonCurrency ?? metaCurrency
   const jsonSeller = record(offer?.seller)
   const effectiveSeller = seller ?? jsonFact(jsonSeller?.name, `${jsonPath}/offers/seller/name`)
-  const fallbackPrices: readonly ProductPrice[] = fallbackPrice === null ? [] : [{ amount: fallbackPrice, currency: fallbackCurrency, priceType: subscription ? 'subscription' : 'current', seller: null }]
-  const prices: readonly ProductPrice[] = (rawPrices.length > 0 ? rawPrices : fallbackPrices)
+  const fallbackPrices: readonly ProductPrice[] = fallbackPrice === null ? [] : [{ amount: fallbackPrice, currency: fallbackCurrency, priceType: 'other', seller: null }]
+  const quoteState = determineQuoteState(selectedPrices, availabilityHit?.value ?? null)
+  const prices: readonly ProductPrice[] = (selectedPrices.length > 0 ? [...selectedPrices, ...alternateOffers(doc, url)] : fallbackPrices)
     .map((price, index) => index === 0 && effectiveSeller !== null ? { ...price, seller: effectiveSeller } : price)
-  const primary = prices[0] ?? null
+  const primary = quoteState === 'present'
+    ? selectedPrices.find(price => price.priceType === 'current' || price.priceType === 'subscription') ?? null
+    : null
   const jsonImage = Array.isArray(jsonNode?.image) ? jsonNode?.image[0] : jsonNode?.image
   const subjectImages = images.length > 0 ? images : [jsonFact(jsonImage, `${jsonPath}/image`), metaFact(doc, 'meta[property="og:image"]')].filter((value): value is ProductFact => value !== null).slice(0, 1)
   const jsonAvailability = typeof offer?.availability === 'string' ? offer.availability.split('/').pop() : null
+
   return {
     ...declared,
     name: title,
     price: primary?.amount ?? null,
     priceCurrency: primary?.currency ?? null,
-    sku: asin === null ? jsonFact(jsonNode?.sku, `${jsonPath}/sku`) : { value: asin, source: 'dom', path: 'url:/dp/{asin}' },
+    sku: { value: identity.observedSelectedId, source: 'dom', path: 'main product input[name="ASIN"]' },
     brand: brand ?? jsonFact(jsonBrand?.name ?? jsonNode?.brand, `${jsonPath}/brand/name`),
     availability: availabilityHit === null ? jsonFact(jsonAvailability, `${jsonPath}/offers/availability`) : availabilityFact(availabilityHit.value, availabilityHit.selector),
     kind: subscription ? 'subscription' : 'physical',
-    subjectId: asin === null ? null : { value: asin, source: 'dom', path: 'url:/dp/{asin}' },
+    subjectId: { value: identity.observedSelectedId, source: 'dom', path: 'main product input[name="ASIN"]' },
     prices,
     seller: effectiveSeller,
     deliveryLocation: deliveryHit === null ? null : domFact(deliveryHit.value, deliveryHit.selector),
     rating: domFact(ratingRaw?.match(/[0-5](?:\.[0-9])?/)?.[0] ?? null, '#acrPopover'),
     reviewCount: domFact(reviewRaw?.match(/[\d,]+/)?.[0]?.replaceAll(',', '') ?? null, '#acrCustomerReviewText'),
     images: subjectImages,
-    variants: variants(doc),
+    variants: extractedVariants,
     specifications: specifications(doc),
+    identity,
+    quoteState,
   }
 }

@@ -49,6 +49,7 @@
     "gate2:claim-race": "tsc --build && node --import tsx scripts/section-b/monitor-claim-race.ts",
     "gate3:https": "tsc --build && node --import tsx scripts/section-b/https-delivery-evidence.ts",
     "baseline:amazon": "tsc --build && node scripts/section-b/amazon-product-baseline.mjs",
+    "replay:amazon:r1": "tsc --build && node scripts/section-c/replay-amazon-r1.mjs",
     "baseline:concurrency": "tsc --build && node --import tsx scripts/section-b/batch-concurrency-evidence.ts",
     "baseline:amazon-batch": "tsc --build && node scripts/section-b/amazon-batch-concurrency.mjs",
     "verify:batch-crash": "tsc --build && node scripts/section-b/batch-crash-recovery.mjs",

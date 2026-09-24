@@ -8,7 +8,7 @@ import { resolvePreviewCapability, type PreviewCapability } from './capability.j
 
 export type PreviewStatus = 'success' | 'incomplete' | 'blocked' | 'failed' | 'timeout' | 'quota_exceeded' | 'invalid_url'
 
-export type PreviewDiagnosticCode = 'subject_mismatch' | 'subject_unverified' | 'quote_unverified' | 'region_unverified' | 'currency_unverified'
+export type PreviewDiagnosticCode = 'subject_mismatch' | 'subject_conflicting' | 'subject_unverified' | 'quote_unverified' | 'quote_absent_observed' | 'quote_conflicting' | 'region_unverified' | 'currency_unverified'
   | 'robots_disallowed' | 'login_required' | 'challenge' | 'policy_denied' | 'timeout' | 'quota_exceeded'
   | 'service_unavailable' | 'content_unverified' | 'capture_failed' | 'invalid_url'
 export interface PreviewDiagnostic {
@@ -108,9 +108,13 @@ export async function capturePreview(url: NormalizedPreviewUrl, signal: AbortSig
     const sameCaptureHtml = rendered !== undefined && rendered.sha256 === run.result.evidence.rawBodySha256 ? rendered.html : undefined
     let selectedAsin: string | null = null
     if (sameCaptureHtml !== undefined) {
-      const selected = parseHTML(sameCaptureHtml).document.querySelector('input[name="ASIN"], #ASIN')
-      const value = selected?.getAttribute('value') ?? selected?.textContent
-      selectedAsin = typeof value === 'string' && /^[A-Z0-9]{10}$/i.test(value.trim()) ? value.trim().toUpperCase() : null
+      const identity = run.result.document?.product?.identity
+      if (identity !== undefined) selectedAsin = identity.observedSelectedId || null
+      else {
+        const selected = parseHTML(sameCaptureHtml).document.querySelector('input[name="ASIN"], #ASIN')
+        const value = selected?.getAttribute('value') ?? selected?.textContent
+        selectedAsin = typeof value === 'string' && /^[A-Z0-9]{10}$/i.test(value.trim()) ? value.trim().toUpperCase() : null
+      }
     }
     return {
       result: run.result,
@@ -136,21 +140,25 @@ function field(data: Record<string, unknown> | null, key: string): string | null
 function productView(expectedAsin: string, outcome: CaptureOutcome): PreviewProduct {
   const extraction = outcome.json
   const data = extraction ? jsonObject(extraction.data) : null
+  const facts = outcome.result.document?.product
   const asin = field(data, 'asin')
   const location = field(data, 'deliveryLocation')
   const currency = field(data, 'currency')
   const identityVerified = outcome.result.document?.adapter.id === 'amazon-product'
     && outcome.result.document.adapterValidation?.valid === true && asin === expectedAsin && outcome.selectedAsin === expectedAsin
+    && (facts === undefined || facts === null || facts.identity?.status === 'matched')
   const regionVerified = location !== null && /\bSingapore[\s,·-]*238823\b/i.test(location)
-  const currencyVerified = currency === 'SGD'
+  const currencyVerified = currency === 'SGD' && (facts === undefined || facts === null || facts.priceCurrency !== null && facts.priceCurrency.source !== 'inferred')
+  const quoteVerified = facts === undefined || facts === null || facts.quoteState === 'present'
   const issues: { code: string; message: string }[] = (extraction?.issues ?? []).map(issue => ({
     code: issue.code,
     message: issue.path ? `We could not verify ${issue.path}.` : issue.code === 'subject_unverified' ? 'We could not verify the main product on this page.' : 'We could not verify some product fields.',
   }))
-  if (!identityVerified) issues.push({ code: 'subject_unverified', message: 'The ASIN selected on the page does not match the requested ASIN.' })
+  if (!identityVerified) issues.push({ code: facts?.identity?.status === 'conflicting' ? 'subject_conflicting' : 'subject_unverified', message: facts?.identity?.status === 'conflicting' ? 'The selected-product identity controls disagree.' : 'The ASIN selected on the page does not match the requested ASIN.' })
   if (!regionVerified) issues.push({ code: location === null ? 'region_unverified' : 'region_mismatch', message: 'We could not verify delivery to Singapore 238823 on this page.' })
+  if (!quoteVerified) issues.push({ code: facts?.quoteState === 'absent_observed' ? 'quote_absent_observed' : facts?.quoteState === 'conflicting' ? 'quote_conflicting' : 'quote_unverified', message: 'No selected quote was verified in this captured page context.' })
   if (!currencyVerified) issues.push({ code: 'currency_unverified', message: 'We could not verify that the price currency is SGD.' })
-  const valid = outcome.result.status === 'success' && extraction?.status === 'complete' && identityVerified && regionVerified && currencyVerified
+  const valid = outcome.result.status === 'success' && extraction?.status === 'complete' && identityVerified && regionVerified && currencyVerified && quoteVerified
   // Do not leak a different selected product or an offer from an uncertain
   // shipping/currency context into a public price result.
   // Incomplete extraction may hide offer text inside nested specifications or
@@ -238,7 +246,8 @@ export function mapPreviewResult(requestedUrl: string, normalized: NormalizedPre
       : result.status === 'success' ? product && product.status !== 'complete' || social.applies && social.markdown === null ? 'incomplete' : 'success'
         : result.status === 'partial' || result.status === 'empty_verified' || (product && result.failureReason === 'identity_compromised') ? 'incomplete' : 'failed'
   const extractedPrice = jsonObject(outcome.json?.data ?? null)?.price
-  const quoteMissing = typeof extractedPrice !== 'number' || !Number.isFinite(extractedPrice)
+  const quoteState = result.document?.product?.quoteState
+  const quoteMissing = typeof extractedPrice !== 'number' || !Number.isFinite(extractedPrice) || (quoteState !== undefined && quoteState !== 'present')
   let reason = status === 'success' ? null
     : status === 'blocked' ? robotsDenied ? 'This site does not allow automated preview of this page.'
       : result.blockReason === 'bot_detected_generic' ? 'The site returned a verification page instead of the requested content.'
@@ -257,21 +266,26 @@ export function mapPreviewResult(requestedUrl: string, normalized: NormalizedPre
           : result.failureReason === 'policy_denied' ? { code: 'policy_denied', stage: 'policy', evidence: 'observed' }
             : status === 'timeout' ? { code: 'timeout', stage: 'acquisition', evidence: 'unobserved' }
               : status === 'failed' ? { code: 'capture_failed', stage: 'acquisition', evidence: 'unobserved' }
-              : product && outcome.selectedAsin !== null && outcome.selectedAsin !== undefined && outcome.selectedAsin !== normalized.amazonAsin
+              : product && result.document?.product?.identity?.status === 'conflicting'
+                ? { code: 'subject_conflicting', stage: 'subject', evidence: 'observed' }
+                : product && outcome.selectedAsin !== null && outcome.selectedAsin !== undefined && outcome.selectedAsin !== normalized.amazonAsin
                 ? { code: 'subject_mismatch', stage: 'subject', evidence: 'observed' }
                 : product && product.asin === null ? { code: 'subject_unverified', stage: 'subject', evidence: 'unobserved' }
                   : product && product.region === null ? { code: 'region_unverified', stage: 'field', evidence: 'unobserved' }
-                    : product && quoteMissing ? { code: 'quote_unverified', stage: 'field', evidence: 'unobserved' }
+                    : product && quoteMissing ? { code: quoteState === 'absent_observed' ? 'quote_absent_observed' : quoteState === 'conflicting' ? 'quote_conflicting' : 'quote_unverified', stage: 'field', evidence: quoteState === 'absent_observed' || quoteState === 'conflicting' ? 'observed' : 'unobserved' }
                       : product && product.currency === null ? { code: 'currency_unverified', stage: 'field', evidence: 'unobserved' }
                         : status === 'incomplete' ? { code: 'content_unverified', stage: 'field', evidence: 'unobserved' }
                           : { code: 'capture_failed', stage: 'acquisition', evidence: 'unobserved' }
   if (diagnostic?.code === 'subject_mismatch') reason = 'The page selected a different product from the requested ASIN. Its fields and price were withheld.'
+  if (diagnostic?.code === 'subject_conflicting') reason = 'The captured page contains conflicting selected-product identities. Product fields and price were withheld.'
   if (diagnostic?.code === 'quote_unverified') reason = 'No selected quote was verified for this product in the captured Singapore page.'
+  if (diagnostic?.code === 'quote_absent_observed') reason = 'This captured page shows the selected item as unavailable in this delivery context; no selected quote was verified.'
+  if (diagnostic?.code === 'quote_conflicting') reason = 'The captured page contains conflicting selected quote evidence; the price was withheld.'
   return {
     status,
     requestedUrl,
     finalUrl: result.evidence.finalUrl || null,
-    title: result.document?.title ?? null,
+    title: product && product.asin === null ? null : result.document?.title ?? null,
     markdown: result.status === 'success' || result.status === 'partial'
       ? product !== undefined ? productSummary(product) : social.applies ? social.markdown : (result.markdown?.slice(0, 1_000_000) ?? null)
       : null,

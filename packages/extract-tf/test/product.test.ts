@@ -321,7 +321,7 @@ describe('Amazon product adapter', () => {
 
   it('normalizes Singapore dollar symbols and marketplace inference', () => {
     const html = `<!doctype html><html><body><div id="dp-container">
-      <h1 id="productTitle">Subject wipes</h1>
+      <input name="ASIN" value="B012345678"><h1 id="productTitle">Subject wipes</h1>
       <div id="corePrice_feature_div"><span class="a-price"><span class="a-offscreen">S$32.73</span></span></div>
       <p id="feature-bullets">A complete subject description.</p>
     </div></body></html>`
@@ -344,7 +344,7 @@ describe('Amazon product adapter', () => {
 
   it('reads the primary offer seller from Amazon offer display and labels unit prices', () => {
     const html = `<!doctype html><html><body><div id="dp-container">
-      <h1 id="productTitle">Cotton rounds</h1>
+      <input name="ASIN" value="B012345678"><h1 id="productTitle">Cotton rounds</h1>
       <div id="corePrice_feature_div">
         <span class="a-price apex-pricetopay-value"><span class="a-offscreen">S$3.77</span></span>
         <span class="a-price apex-priceperunit-value"><span class="a-offscreen">S$0.04</span></span>
@@ -361,7 +361,7 @@ describe('Amazon product adapter', () => {
   it('skips the Amazon location placeholder and normalizes the visible Singapore postal code', () => {
     const html = `<html><body><span id="glow-ingress-line2">Update location</span>
       <span id="contextualIngressPtLabel_deliveryShortLine">Delivering to Singapore 170000 – Update location</span>
-      <div id="dp-container"><h1 id="productTitle">Subject wipes</h1>
+      <div id="dp-container"><input name="ASIN" value="B012345678"><h1 id="productTitle">Subject wipes</h1>
       <div id="corePrice_feature_div"><span class="a-price"><span class="a-offscreen">S$32.73</span></span></div></div>
     </body></html>`
     const out = extractTf.extract(html, { url: 'https://www.amazon.com/dp/B012345678' })
@@ -371,7 +371,7 @@ describe('Amazon product adapter', () => {
 
   it('normalizes Amazon brand labels without changing the subject evidence location', () => {
     const html = `<html><head><link rel="canonical" href="https://www.amazon.sg/dp/B012345678"></head><body>
-      <div id="dp-container"><h1 id="productTitle">Subject lotion</h1>
+      <div id="dp-container"><input name="ASIN" value="B012345678"><h1 id="productTitle">Subject lotion</h1>
       <a id="bylineInfo">Brand: eos</a></div></body></html>`
     const out = extractTf.extract(html, { url: 'https://www.amazon.com/dp/B012345678' })
     expect(out.product?.brand).toEqual({ value: 'eos', source: 'dom', path: '#bylineInfo' })
@@ -384,6 +384,7 @@ describe('Amazon product adapter', () => {
     </head><body>
       <span id="glow-ingress-line2">India</span>
       <div id="dp-container">
+        <input name="ASIN" value="B012345678">
         <h1 id="productTitle">Subject headphones</h1>
         <a id="bylineInfo">Visit the SoundCo Store</a>
         <div id="corePrice_feature_div"><span class="a-price"><span class="a-offscreen">INR 1,299.00</span></span></div>
@@ -414,7 +415,7 @@ describe('Amazon product adapter', () => {
 
   it('marks an Amazon subscription offer without treating it as a physical item', () => {
     const html = `<!doctype html><html><body><div id="dp-container">
-      <h1 id="productTitle">Blink Plus subscription plan</h1>
+      <input name="ASIN" value="B08JHCVHTY"><h1 id="productTitle">Blink Plus subscription plan</h1>
       <p>Billing: Monthly</p><div id="subscriptionPrice">$11.99</div>
       <p id="feature-bullets">Cloud video storage subscription plan for supported devices.</p>
     </div></body></html>`
@@ -426,7 +427,7 @@ describe('Amazon product adapter', () => {
 
   it('binds a Blink subscription price to the selected buy box instead of another plan', () => {
     const html = `<!doctype html><html><head><title>Blink plus plan</title></head><body>
-      <div data-cy="twister-plus-label-text">Plan: Blink plus</div>
+      <main><input name="ASIN" value="B08JHCVHTY"></main><div data-cy="twister-plus-label-text">Plan: Blink plus</div>
       <div>Blink plus ai $14.99/month</div>
       <div>Billing: Monthly</div>
       <div data-cy="subs-buy-box-container"><span>$11.99/month</span></div>
@@ -448,10 +449,11 @@ describe('Amazon product adapter', () => {
         {"@type":"Product","sku":"REC0000001","name":"Recommended item","image":"https://images.example/recommended.jpg","offers":{"price":"12.57","priceCurrency":"USD"}},
         {"@type":"Product","sku":"B012345678","name":"Subject from JSON-LD","brand":{"name":"Subject Brand"},"image":"https://images.example/subject.jpg","offers":{"price":"1299.00","priceCurrency":"INR","seller":{"name":"Subject Seller"},"availability":"https://schema.org/InStock"}}
       ]}</script>
-    </head><body><div id="dp-container"><h1 id="productTitle">Subject headphones</h1><p id="feature-bullets">The main product description has enough content to identify this item.</p></div></body></html>`
+    </head><body><div id="dp-container"><input name="ASIN" value="B012345678"><h1 id="productTitle">Subject headphones</h1><p id="feature-bullets">The main product description has enough content to identify this item.</p></div></body></html>`
     const out = extractTf.extract(html, { url: 'https://www.amazon.com/dp/B012345678' })
-    expect(out.product?.price?.value).toBe('1299.00')
-    expect(out.product?.price?.source).toBe('jsonld')
+    expect(out.product?.price).toBeNull()
+    expect(out.product?.quoteState).toBe('unobserved')
+    expect(out.product?.prices?.[0]?.amount).toMatchObject({ value: '1299.00', source: 'jsonld' })
     expect(out.product?.seller?.value).toBe('Subject Seller')
     expect(out.product?.images?.map(image => image.value)).toEqual(['https://images.example/subject.jpg'])
     expect(JSON.stringify(out.product)).not.toContain('REC0000001')
@@ -461,7 +463,7 @@ describe('Amazon product adapter', () => {
 
   it('returns null price with an explicit shipping restriction instead of borrowing a recommendation price', () => {
     const html = `<!doctype html><html><body><div id="dp-container">
-      <h1 id="productTitle">Unavailable subject</h1><div id="availability">This item cannot be shipped to your selected delivery location. Please choose a different delivery location.</div>
+      <input name="ASIN" value="B012345678"><h1 id="productTitle">Unavailable subject</h1><div id="availability">This item cannot be shipped to your selected delivery location. Please choose a different delivery location.</div>
       <div id="twister"><button class="a-button-selected" title="Black">Black</button></div>
       <section class="related-products"><a href="/dp/REC0000001">Other</a><span class="a-price"><span class="a-offscreen">$19.99</span></span></section>
     </div></body></html>`
@@ -473,7 +475,7 @@ describe('Amazon product adapter', () => {
   })
 
   it('keeps alternate offer prices paired with their sellers', () => {
-    const html = `<!doctype html><html><body><div id="dp-container"><h1 id="productTitle">Multi-seller subject</h1>
+    const html = `<!doctype html><html><body><div id="dp-container"><input name="ASIN" value="B012345678"><h1 id="productTitle">Multi-seller subject</h1>
       <div id="corePrice_feature_div"><span class="a-price"><span class="a-offscreen">$20.00</span></span></div><a id="sellerProfileTriggerId">Primary Shop</a>
       <div id="aod-offer-list"><div class="aod-information-block"><span class="a-price"><span class="a-offscreen">$21.50</span></span><span class="aod-offer-soldBy"><a>Second Shop</a></span></div></div>
     </div></body></html>`

@@ -33,7 +33,7 @@ function record(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null
 }
 function sourceOf(source: string | undefined): EntityFieldSource {
-  return source === 'jsonld' || source === 'microdata' || source === 'meta' ? source : 'dom'
+  return source === 'jsonld' || source === 'microdata' || source === 'meta' || source === 'inferred' ? source : 'dom'
 }
 function productEntity(product: ProductFacts, url: string | undefined): ExtractedEntity {
   const fields: Record<string, EntityField> = {}
@@ -184,7 +184,7 @@ function validateEntities(entities: readonly ExtractedEntity[], requiredTypes: r
     if (entity.id === '') issues.push(`entity_${entityIndex}_empty_id`)
     for (const [name, value] of Object.entries(entity.fields)) {
       if (value.path.trim().length === 0) issues.push(`entity_${entityIndex}_${name}_missing_path`)
-      if (!['jsonld', 'microdata', 'meta', 'hydration', 'dom'].includes(value.source)) issues.push(`entity_${entityIndex}_${name}_invalid_source`)
+      if (!['jsonld', 'microdata', 'meta', 'hydration', 'dom', 'inferred'].includes(value.source)) issues.push(`entity_${entityIndex}_${name}_invalid_source`)
     }
   }
   return { valid: issues.length === 0, issues }
@@ -198,14 +198,10 @@ const AMAZON_ADAPTER: PublicPageAdapter = {
     const base = validateEntities(entities, ['product'])
     const issues = [...base.issues]
     const expected = amazonAsin(url)
-    const observedInput = clean(qs(doc, 'input[name="ASIN"], #ASIN')?.getAttribute('value') ?? qs(doc, 'input[name="ASIN"], #ASIN')?.textContent)?.toUpperCase() ?? null
-    const canonical = clean(qs(doc, 'link[rel="canonical"]')?.getAttribute('href'))
-    const observedCanonical = canonical?.match(/\/(?:dp|clp|gp\/product)\/([A-Z0-9]{10})(?:[/?]|$)/i)?.[1]?.toUpperCase() ?? null
-    if (!observedInput && !observedCanonical) issues.push('subject_id_unverified')
-    // Amazon can canonicalize a selected child variant to a parent listing.
-    // The page's own selected ASIN is stronger subject evidence than that
-    // canonical URL. A conflicting selected ASIN still invalidates the page.
-    if (expected && (observedInput !== null ? observedInput !== expected : observedCanonical !== null && observedCanonical !== expected)) issues.push('asin_mismatch')
+    const identity = product?.identity
+    if (identity?.status === 'unverified' || !identity) issues.push('subject_id_unverified')
+    if (identity?.status === 'conflicting') issues.push('subject_id_conflicting')
+    if (identity?.status === 'mismatched' || expected && identity?.observedSelectedId && identity.observedSelectedId !== expected) issues.push('asin_mismatch')
     if (!product?.name || product.name.path === 'document:url') issues.push('subject_title_unverified')
     if (entities[0]?.id !== expected) issues.push('subject_id_mismatch')
     return { valid: issues.length === 0, issues }

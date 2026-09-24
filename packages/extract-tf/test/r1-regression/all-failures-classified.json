@@ -1,0 +1,1273 @@
+{
+  "version": 1,
+  "sourceCommit": "bb32cbf306251de4855b1249416079dc06d2631d",
+  "totalFailures": 29,
+  "classifications": {
+    "unavailable_in_captured_context": {
+      "count": 4,
+      "cases": [
+        {
+          "cohort": "fixed",
+          "index": 1,
+          "requestedAsin": "B0D4DHBFFH",
+          "selectedAsin": "B0D4DHBFFH",
+          "capturedAt": "2026-09-24T12:17:04.783Z",
+          "deployedSourceCommit": "bb32cbf306251de4855b1249416079dc06d2631d",
+          "finalUrl": "https://www.amazon.sg/dp/B0D4DHBFFH",
+          "redirectChain": "not_recorded",
+          "screenshot": "not_recorded",
+          "resultStatus": "incomplete",
+          "jsonStatus": "incomplete",
+          "region": {
+            "rawSingapore238823Visible": true,
+            "outputVerified": true
+          },
+          "currency": {
+            "selectedQuoteExplicitSgdVisible": false,
+            "outputVerified": false
+          },
+          "selectedQuote": {
+            "visible": false,
+            "belongsToRequestedAsin": false,
+            "selector": null
+          },
+          "classification": "unavailable_in_captured_context",
+          "observation": "The selected product buy box says Currently unavailable; no selected quote was verified in this capture.",
+          "causeCertainty": "capture_observation_only",
+          "timingsMs": {
+            "client": 12382.316332999999,
+            "server": 11071.411783999996,
+            "browser": 8527,
+            "retryWait": 0
+          },
+          "witness": {
+            "htmlSha256": "8bf6e377f04fbc4a074c236ba51b83f06262ab009e2cbea6e9d3fc377ec45abf",
+            "privateRelativePath": "final-100/2026-09-24T12-17-04-782Z/raw/001-8bf6e377f04fbc4a074c236ba51b83f06262ab009e2cbea6e9d3fc377ec45abf.html",
+            "selectors": [
+              "#availability",
+              "#buybox"
+            ]
+          },
+          "reviewStatus": "machine_assisted_pending_independent_review"
+        },
+        {
+          "cohort": "unseen",
+          "index": 32,
+          "requestedAsin": "B00W2EN8CE",
+          "selectedAsin": "B00W2EN8CE",
+          "capturedAt": "2026-09-24T12:46:45.587Z",
+          "deployedSourceCommit": "bb32cbf306251de4855b1249416079dc06d2631d",
+          "finalUrl": "https://www.amazon.sg/dp/B00W2EN8CE",
+          "redirectChain": "not_recorded",
+          "screenshot": "not_recorded",
+          "resultStatus": "incomplete",
+          "jsonStatus": "incomplete",
+          "region": {
+            "rawSingapore238823Visible": true,
+            "outputVerified": true
+          },
+          "currency": {
+            "selectedQuoteExplicitSgdVisible": false,
+            "outputVerified": false
+          },
+          "selectedQuote": {
+            "visible": false,
+            "belongsToRequestedAsin": false,
+            "selector": null
+          },
+          "classification": "unavailable_in_captured_context",
+          "observation": "The selected product buy box says Currently unavailable; no selected quote was verified in this capture.",
+          "causeCertainty": "capture_observation_only",
+          "timingsMs": {
+            "client": 11528.684624999994,
+            "server": 10512.892726000166,
+            "browser": 8905,
+            "retryWait": 0
+          },
+          "witness": {
+            "htmlSha256": "1df123f64a67f8682f951b132bf9eb0ef62812b0c7271887ca8135d0a1029433",
+            "privateRelativePath": "final-100/2026-09-24T12-40-09-956Z/raw/032-1df123f64a67f8682f951b132bf9eb0ef62812b0c7271887ca8135d0a1029433.html",
+            "selectors": [
+              "#availability",
+              "#buybox"
+            ]
+          },
+          "reviewStatus": "machine_assisted_pending_independent_review"
+        },
+        {
+          "cohort": "unseen",
+          "index": 68,
+          "requestedAsin": "B013CP3JDO",
+          "selectedAsin": "B013CP3JDO",
+          "capturedAt": "2026-09-24T12:54:13.231Z",
+          "deployedSourceCommit": "bb32cbf306251de4855b1249416079dc06d2631d",
+          "finalUrl": "https://www.amazon.sg/dp/B013CP3JDO",
+          "redirectChain": "not_recorded",
+          "screenshot": "not_recorded",
+          "resultStatus": "incomplete",
+          "jsonStatus": "incomplete",
+          "region": {
+            "rawSingapore238823Visible": true,
+            "outputVerified": true
+          },
+          "currency": {
+            "selectedQuoteExplicitSgdVisible": false,
+            "outputVerified": false
+          },
+          "selectedQuote": {
+            "visible": false,
+            "belongsToRequestedAsin": false,
+            "selector": null
+          },
+          "classification": "unavailable_in_captured_context",
+          "observation": "The selected product buy box says Currently unavailable; no selected quote was verified in this capture.",
+          "causeCertainty": "capture_observation_only",
+          "timingsMs": {
+            "client": 9883.295292000053,
+            "server": 9088.683420999907,
+            "browser": 7510,
+            "retryWait": 0
+          },
+          "witness": {
+            "htmlSha256": "8b063dc0edc94f39ab595578cf2ada29b60cfcb9bec3fd13b6dc56ab4c78a63e",
+            "privateRelativePath": "final-100/2026-09-24T12-40-09-956Z/raw/068-8b063dc0edc94f39ab595578cf2ada29b60cfcb9bec3fd13b6dc56ab4c78a63e.html",
+            "selectors": [
+              "#availability",
+              "#buybox"
+            ]
+          },
+          "reviewStatus": "machine_assisted_pending_independent_review"
+        },
+        {
+          "cohort": "unseen",
+          "index": 69,
+          "requestedAsin": "B0CMF2JNYK",
+          "selectedAsin": "B0CMF2JNYK",
+          "capturedAt": "2026-09-24T12:54:23.151Z",
+          "deployedSourceCommit": "bb32cbf306251de4855b1249416079dc06d2631d",
+          "finalUrl": "https://www.amazon.sg/dp/B0CMF2JNYK",
+          "redirectChain": "not_recorded",
+          "screenshot": "not_recorded",
+          "resultStatus": "incomplete",
+          "jsonStatus": "incomplete",
+          "region": {
+            "rawSingapore238823Visible": true,
+            "outputVerified": true
+          },
+          "currency": {
+            "selectedQuoteExplicitSgdVisible": false,
+            "outputVerified": false
+          },
+          "selectedQuote": {
+            "visible": false,
+            "belongsToRequestedAsin": false,
+            "selector": null
+          },
+          "classification": "unavailable_in_captured_context",
+          "observation": "The selected product buy box says Currently unavailable; no selected quote was verified in this capture.",
+          "causeCertainty": "capture_observation_only",
+          "timingsMs": {
+            "client": 7810.155582999927,
+            "server": 7264.942263999954,
+            "browser": 6019,
+            "retryWait": 0
+          },
+          "witness": {
+            "htmlSha256": "894edf99eff38cf29d89b3da3b8172833a216b78dde42ab56448aa56f0987494",
+            "privateRelativePath": "final-100/2026-09-24T12-40-09-956Z/raw/069-894edf99eff38cf29d89b3da3b8172833a216b78dde42ab56448aa56f0987494.html",
+            "selectors": [
+              "#availability",
+              "#buybox"
+            ]
+          },
+          "reviewStatus": "machine_assisted_pending_independent_review"
+        }
+      ]
+    },
+    "purchase_options_only_in_capture": {
+      "count": 23,
+      "cases": [
+        {
+          "cohort": "fixed",
+          "index": 14,
+          "requestedAsin": "B0161ZC5GY",
+          "selectedAsin": "B0161ZC5GY",
+          "capturedAt": "2026-09-24T12:19:55.638Z",
+          "deployedSourceCommit": "bb32cbf306251de4855b1249416079dc06d2631d",
+          "finalUrl": "https://www.amazon.sg/dp/B0161ZC5GY",
+          "redirectChain": "not_recorded",
+          "screenshot": "not_recorded",
+          "resultStatus": "incomplete",
+          "jsonStatus": "incomplete",
+          "region": {
+            "rawSingapore238823Visible": true,
+            "outputVerified": true
+          },
+          "currency": {
+            "selectedQuoteExplicitSgdVisible": false,
+            "outputVerified": false
+          },
+          "selectedQuote": {
+            "visible": false,
+            "belongsToRequestedAsin": false,
+            "selector": null
+          },
+          "classification": "purchase_options_only_in_capture",
+          "observation": "The selected product buy box offers See All Buying Options but contains no selected quote in this capture; unopened options were not assessed.",
+          "causeCertainty": "capture_observation_only",
+          "timingsMs": {
+            "client": 12827.812416,
+            "server": 11862.522911000066,
+            "browser": 9232,
+            "retryWait": 0
+          },
+          "witness": {
+            "htmlSha256": "e3ce85dc1d7fe3f82a167b47421f88aa5faa56629e00b6a66aacaf817aaf8520",
+            "privateRelativePath": "final-100/2026-09-24T12-17-04-782Z/raw/014-e3ce85dc1d7fe3f82a167b47421f88aa5faa56629e00b6a66aacaf817aaf8520.html",
+            "selectors": [
+              "#buybox"
+            ]
+          },
+          "reviewStatus": "machine_assisted_pending_independent_review"
+        },
+        {
+          "cohort": "fixed",
+          "index": 25,
+          "requestedAsin": "B0DJ8NB84Z",
+          "selectedAsin": "B0DJ8NB84Z",
+          "capturedAt": "2026-09-24T12:22:07.968Z",
+          "deployedSourceCommit": "bb32cbf306251de4855b1249416079dc06d2631d",
+          "finalUrl": "https://www.amazon.sg/dp/B0DJ8NB84Z",
+          "redirectChain": "not_recorded",
+          "screenshot": "not_recorded",
+          "resultStatus": "incomplete",
+          "jsonStatus": "incomplete",
+          "region": {
+            "rawSingapore238823Visible": true,
+            "outputVerified": true
+          },
+          "currency": {
+            "selectedQuoteExplicitSgdVisible": false,
+            "outputVerified": false
+          },
+          "selectedQuote": {
+            "visible": false,
+            "belongsToRequestedAsin": false,
+            "selector": null
+          },
+          "classification": "purchase_options_only_in_capture",
+          "observation": "The selected product buy box offers See All Buying Options but contains no selected quote in this capture; unopened options were not assessed.",
+          "causeCertainty": "capture_observation_only",
+          "timingsMs": {
+            "client": 10814.994082999998,
+            "server": 9947.610485999961,
+            "browser": 7649,
+            "retryWait": 0
+          },
+          "witness": {
+            "htmlSha256": "457bc9b02da7d5d549edee0ce17607b690108095a4daec7dad4ac5947b3aa58b",
+            "privateRelativePath": "final-100/2026-09-24T12-17-04-782Z/raw/025-457bc9b02da7d5d549edee0ce17607b690108095a4daec7dad4ac5947b3aa58b.html",
+            "selectors": [
+              "#buybox"
+            ]
+          },
+          "reviewStatus": "machine_assisted_pending_independent_review"
+        },
+        {
+          "cohort": "fixed",
+          "index": 31,
+          "requestedAsin": "B0C48B3RGL",
+          "selectedAsin": "B0C48B3RGL",
+          "capturedAt": "2026-09-24T12:23:22.447Z",
+          "deployedSourceCommit": "bb32cbf306251de4855b1249416079dc06d2631d",
+          "finalUrl": "https://www.amazon.sg/dp/B0C48B3RGL",
+          "redirectChain": "not_recorded",
+          "screenshot": "not_recorded",
+          "resultStatus": "incomplete",
+          "jsonStatus": "incomplete",
+          "region": {
+            "rawSingapore238823Visible": true,
+            "outputVerified": true
+          },
+          "currency": {
+            "selectedQuoteExplicitSgdVisible": false,
+            "outputVerified": false
+          },
+          "selectedQuote": {
+            "visible": false,
+            "belongsToRequestedAsin": false,
+            "selector": null
+          },
+          "classification": "purchase_options_only_in_capture",
+          "observation": "The selected product buy box offers See All Buying Options but contains no selected quote in this capture; unopened options were not assessed.",
+          "causeCertainty": "capture_observation_only",
+          "timingsMs": {
+            "client": 10493.700333000044,
+            "server": 9614.69122899999,
+            "browser": 7641,
+            "retryWait": 0
+          },
+          "witness": {
+            "htmlSha256": "b00171374d6a42229619da17538b862b672d6617e6992854411a52787da959f4",
+            "privateRelativePath": "final-100/2026-09-24T12-17-04-782Z/raw/031-b00171374d6a42229619da17538b862b672d6617e6992854411a52787da959f4.html",
+            "selectors": [
+              "#buybox"
+            ]
+          },
+          "reviewStatus": "machine_assisted_pending_independent_review"
+        },
+        {
+          "cohort": "fixed",
+          "index": 32,
+          "requestedAsin": "B07FD24RTR",
+          "selectedAsin": "B07FD24RTR",
+          "capturedAt": "2026-09-24T12:23:32.980Z",
+          "deployedSourceCommit": "bb32cbf306251de4855b1249416079dc06d2631d",
+          "finalUrl": "https://www.amazon.sg/dp/B07FD24RTR",
+          "redirectChain": "not_recorded",
+          "screenshot": "not_recorded",
+          "resultStatus": "incomplete",
+          "jsonStatus": "incomplete",
+          "region": {
+            "rawSingapore238823Visible": true,
+            "outputVerified": true
+          },
+          "currency": {
+            "selectedQuoteExplicitSgdVisible": false,
+            "outputVerified": false
+          },
+          "selectedQuote": {
+            "visible": false,
+            "belongsToRequestedAsin": false,
+            "selector": null
+          },
+          "classification": "purchase_options_only_in_capture",
+          "observation": "The selected product buy box offers See All Buying Options but contains no selected quote in this capture; unopened options were not assessed.",
+          "causeCertainty": "capture_observation_only",
+          "timingsMs": {
+            "client": 9214.754249999998,
+            "server": 8268.10893899994,
+            "browser": 6481,
+            "retryWait": 0
+          },
+          "witness": {
+            "htmlSha256": "e7b1d8ae1b0c83d0eb813fe0ea0c7aba4fef4ad210066f7647d7dab91234ced7",
+            "privateRelativePath": "final-100/2026-09-24T12-17-04-782Z/raw/032-e7b1d8ae1b0c83d0eb813fe0ea0c7aba4fef4ad210066f7647d7dab91234ced7.html",
+            "selectors": [
+              "#buybox"
+            ]
+          },
+          "reviewStatus": "machine_assisted_pending_independent_review"
+        },
+        {
+          "cohort": "fixed",
+          "index": 43,
+          "requestedAsin": "B07NY23WBG",
+          "selectedAsin": "B07NY23WBG",
+          "capturedAt": "2026-09-24T12:25:56.525Z",
+          "deployedSourceCommit": "bb32cbf306251de4855b1249416079dc06d2631d",
+          "finalUrl": "https://www.amazon.sg/dp/B07NY23WBG",
+          "redirectChain": "not_recorded",
+          "screenshot": "not_recorded",
+          "resultStatus": "incomplete",
+          "jsonStatus": "incomplete",
+          "region": {
+            "rawSingapore238823Visible": true,
+            "outputVerified": true
+          },
+          "currency": {
+            "selectedQuoteExplicitSgdVisible": false,
+            "outputVerified": false
+          },
+          "selectedQuote": {
+            "visible": false,
+            "belongsToRequestedAsin": false,
+            "selector": null
+          },
+          "classification": "purchase_options_only_in_capture",
+          "observation": "The selected product buy box offers See All Buying Options but contains no selected quote in this capture; unopened options were not assessed.",
+          "causeCertainty": "capture_observation_only",
+          "timingsMs": {
+            "client": 10857.40729100001,
+            "server": 9975.851601999952,
+            "browser": 7930,
+            "retryWait": 0
+          },
+          "witness": {
+            "htmlSha256": "a934b2bbea3a98604a0dcee1c3bff62d698de98fd496caa1864d6b1b52ff931e",
+            "privateRelativePath": "final-100/2026-09-24T12-17-04-782Z/raw/043-a934b2bbea3a98604a0dcee1c3bff62d698de98fd496caa1864d6b1b52ff931e.html",
+            "selectors": [
+              "#buybox"
+            ]
+          },
+          "reviewStatus": "machine_assisted_pending_independent_review"
+        },
+        {
+          "cohort": "fixed",
+          "index": 56,
+          "requestedAsin": "B07RK4HST7",
+          "selectedAsin": "B07RK4HST7",
+          "capturedAt": "2026-09-24T12:28:44.127Z",
+          "deployedSourceCommit": "bb32cbf306251de4855b1249416079dc06d2631d",
+          "finalUrl": "https://www.amazon.sg/dp/B07RK4HST7",
+          "redirectChain": "not_recorded",
+          "screenshot": "not_recorded",
+          "resultStatus": "incomplete",
+          "jsonStatus": "incomplete",
+          "region": {
+            "rawSingapore238823Visible": true,
+            "outputVerified": true
+          },
+          "currency": {
+            "selectedQuoteExplicitSgdVisible": false,
+            "outputVerified": false
+          },
+          "selectedQuote": {
+            "visible": false,
+            "belongsToRequestedAsin": false,
+            "selector": null
+          },
+          "classification": "purchase_options_only_in_capture",
+          "observation": "The selected product buy box offers See All Buying Options but contains no selected quote in this capture; unopened options were not assessed.",
+          "causeCertainty": "capture_observation_only",
+          "timingsMs": {
+            "client": 15604.889124999987,
+            "server": 14623.087598999962,
+            "browser": 11284,
+            "retryWait": 0
+          },
+          "witness": {
+            "htmlSha256": "56195c7d2fa723af17301ed6429e8672fc1f40f765f3915d6597104396441f43",
+            "privateRelativePath": "final-100/2026-09-24T12-17-04-782Z/raw/056-56195c7d2fa723af17301ed6429e8672fc1f40f765f3915d6597104396441f43.html",
+            "selectors": [
+              "#buybox"
+            ]
+          },
+          "reviewStatus": "machine_assisted_pending_independent_review"
+        },
+        {
+          "cohort": "fixed",
+          "index": 71,
+          "requestedAsin": "B001BKHHGS",
+          "selectedAsin": "B001BKHHGS",
+          "capturedAt": "2026-09-24T12:31:57.562Z",
+          "deployedSourceCommit": "bb32cbf306251de4855b1249416079dc06d2631d",
+          "finalUrl": "https://www.amazon.sg/dp/B001BKHHGS",
+          "redirectChain": "not_recorded",
+          "screenshot": "not_recorded",
+          "resultStatus": "incomplete",
+          "jsonStatus": "incomplete",
+          "region": {
+            "rawSingapore238823Visible": true,
+            "outputVerified": true
+          },
+          "currency": {
+            "selectedQuoteExplicitSgdVisible": false,
+            "outputVerified": false
+          },
+          "selectedQuote": {
+            "visible": false,
+            "belongsToRequestedAsin": false,
+            "selector": null
+          },
+          "classification": "purchase_options_only_in_capture",
+          "observation": "The selected product buy box offers See All Buying Options but contains no selected quote in this capture; unopened options were not assessed.",
+          "causeCertainty": "capture_observation_only",
+          "timingsMs": {
+            "client": 11445.247791999951,
+            "server": 10729.011061000172,
+            "browser": 8527,
+            "retryWait": 0
+          },
+          "witness": {
+            "htmlSha256": "8ab48b1c44ca136ee04a0062a9d96a61017d40ff088b7d28ae034af5c47d6b4c",
+            "privateRelativePath": "final-100/2026-09-24T12-17-04-782Z/raw/071-8ab48b1c44ca136ee04a0062a9d96a61017d40ff088b7d28ae034af5c47d6b4c.html",
+            "selectors": [
+              "#buybox"
+            ]
+          },
+          "reviewStatus": "machine_assisted_pending_independent_review"
+        },
+        {
+          "cohort": "fixed",
+          "index": 73,
+          "requestedAsin": "B0CK778YL5",
+          "selectedAsin": "B0CK778YL5",
+          "capturedAt": "2026-09-24T12:32:20.414Z",
+          "deployedSourceCommit": "bb32cbf306251de4855b1249416079dc06d2631d",
+          "finalUrl": "https://www.amazon.sg/dp/B0CK778YL5",
+          "redirectChain": "not_recorded",
+          "screenshot": "not_recorded",
+          "resultStatus": "incomplete",
+          "jsonStatus": "incomplete",
+          "region": {
+            "rawSingapore238823Visible": true,
+            "outputVerified": true
+          },
+          "currency": {
+            "selectedQuoteExplicitSgdVisible": false,
+            "outputVerified": false
+          },
+          "selectedQuote": {
+            "visible": false,
+            "belongsToRequestedAsin": false,
+            "selector": null
+          },
+          "classification": "purchase_options_only_in_capture",
+          "observation": "The selected product buy box offers See All Buying Options but contains no selected quote in this capture; unopened options were not assessed.",
+          "causeCertainty": "capture_observation_only",
+          "timingsMs": {
+            "client": 11864.738125000033,
+            "server": 11002.029877999797,
+            "browser": 9286,
+            "retryWait": 0
+          },
+          "witness": {
+            "htmlSha256": "4240c800b9cbf675685eb24dbc9584c32c7b533765fc888ee7ca633d92a9fca2",
+            "privateRelativePath": "final-100/2026-09-24T12-17-04-782Z/raw/073-4240c800b9cbf675685eb24dbc9584c32c7b533765fc888ee7ca633d92a9fca2.html",
+            "selectors": [
+              "#buybox"
+            ]
+          },
+          "reviewStatus": "machine_assisted_pending_independent_review"
+        },
+        {
+          "cohort": "fixed",
+          "index": 74,
+          "requestedAsin": "B00TTD9BRC",
+          "selectedAsin": "B00TTD9BRC",
+          "capturedAt": "2026-09-24T12:32:32.313Z",
+          "deployedSourceCommit": "bb32cbf306251de4855b1249416079dc06d2631d",
+          "finalUrl": "https://www.amazon.sg/dp/B00TTD9BRC",
+          "redirectChain": "not_recorded",
+          "screenshot": "not_recorded",
+          "resultStatus": "incomplete",
+          "jsonStatus": "incomplete",
+          "region": {
+            "rawSingapore238823Visible": true,
+            "outputVerified": true
+          },
+          "currency": {
+            "selectedQuoteExplicitSgdVisible": false,
+            "outputVerified": false
+          },
+          "selectedQuote": {
+            "visible": false,
+            "belongsToRequestedAsin": false,
+            "selector": null
+          },
+          "classification": "purchase_options_only_in_capture",
+          "observation": "The selected product buy box offers See All Buying Options but contains no selected quote in this capture; unopened options were not assessed.",
+          "causeCertainty": "capture_observation_only",
+          "timingsMs": {
+            "client": 13060.883167000022,
+            "server": 11696.751055000117,
+            "browser": 8724,
+            "retryWait": 0
+          },
+          "witness": {
+            "htmlSha256": "5d587332a022f1e1a980e337f71e1c50c58e58d34e9a14c58bea4e5fb67b86f9",
+            "privateRelativePath": "final-100/2026-09-24T12-17-04-782Z/raw/074-5d587332a022f1e1a980e337f71e1c50c58e58d34e9a14c58bea4e5fb67b86f9.html",
+            "selectors": [
+              "#buybox"
+            ]
+          },
+          "reviewStatus": "machine_assisted_pending_independent_review"
+        },
+        {
+          "cohort": "fixed",
+          "index": 80,
+          "requestedAsin": "B002EQASKA",
+          "selectedAsin": "B002EQASKA",
+          "capturedAt": "2026-09-24T12:33:52.133Z",
+          "deployedSourceCommit": "bb32cbf306251de4855b1249416079dc06d2631d",
+          "finalUrl": "https://www.amazon.sg/dp/B002EQASKA",
+          "redirectChain": "not_recorded",
+          "screenshot": "not_recorded",
+          "resultStatus": "incomplete",
+          "jsonStatus": "incomplete",
+          "region": {
+            "rawSingapore238823Visible": true,
+            "outputVerified": true
+          },
+          "currency": {
+            "selectedQuoteExplicitSgdVisible": false,
+            "outputVerified": false
+          },
+          "selectedQuote": {
+            "visible": false,
+            "belongsToRequestedAsin": false,
+            "selector": null
+          },
+          "classification": "purchase_options_only_in_capture",
+          "observation": "The selected product buy box offers See All Buying Options but contains no selected quote in this capture; unopened options were not assessed.",
+          "causeCertainty": "capture_observation_only",
+          "timingsMs": {
+            "client": 10742.057833999977,
+            "server": 9828.507011000067,
+            "browser": 7517,
+            "retryWait": 0
+          },
+          "witness": {
+            "htmlSha256": "8ae8933244fe71b6de91ca117cf7a8531e7471b1e0dd4924c01570c146398716",
+            "privateRelativePath": "final-100/2026-09-24T12-17-04-782Z/raw/080-8ae8933244fe71b6de91ca117cf7a8531e7471b1e0dd4924c01570c146398716.html",
+            "selectors": [
+              "#buybox"
+            ]
+          },
+          "reviewStatus": "machine_assisted_pending_independent_review"
+        },
+        {
+          "cohort": "fixed",
+          "index": 86,
+          "requestedAsin": "B07VWSN95S",
+          "selectedAsin": "B07VWSN95S",
+          "capturedAt": "2026-09-24T12:34:57.759Z",
+          "deployedSourceCommit": "bb32cbf306251de4855b1249416079dc06d2631d",
+          "finalUrl": "https://www.amazon.sg/dp/B07VWSN95S",
+          "redirectChain": "not_recorded",
+          "screenshot": "not_recorded",
+          "resultStatus": "incomplete",
+          "jsonStatus": "incomplete",
+          "region": {
+            "rawSingapore238823Visible": true,
+            "outputVerified": true
+          },
+          "currency": {
+            "selectedQuoteExplicitSgdVisible": false,
+            "outputVerified": false
+          },
+          "selectedQuote": {
+            "visible": false,
+            "belongsToRequestedAsin": false,
+            "selector": null
+          },
+          "classification": "purchase_options_only_in_capture",
+          "observation": "The selected product buy box offers See All Buying Options but contains no selected quote in this capture; unopened options were not assessed.",
+          "causeCertainty": "capture_observation_only",
+          "timingsMs": {
+            "client": 11793.57133299997,
+            "server": 11009.52985100029,
+            "browser": 9168,
+            "retryWait": 0
+          },
+          "witness": {
+            "htmlSha256": "a6020cf08fef2a7e451e201351b3325bf734837781c4c5aaaecd5430bd359c46",
+            "privateRelativePath": "final-100/2026-09-24T12-17-04-782Z/raw/086-a6020cf08fef2a7e451e201351b3325bf734837781c4c5aaaecd5430bd359c46.html",
+            "selectors": [
+              "#buybox"
+            ]
+          },
+          "reviewStatus": "machine_assisted_pending_independent_review"
+        },
+        {
+          "cohort": "fixed",
+          "index": 93,
+          "requestedAsin": "B00GZQYK4K",
+          "selectedAsin": "B00GZQYK4K",
+          "capturedAt": "2026-09-24T12:36:22.086Z",
+          "deployedSourceCommit": "bb32cbf306251de4855b1249416079dc06d2631d",
+          "finalUrl": "https://www.amazon.sg/dp/B00GZQYK4K",
+          "redirectChain": "not_recorded",
+          "screenshot": "not_recorded",
+          "resultStatus": "incomplete",
+          "jsonStatus": "incomplete",
+          "region": {
+            "rawSingapore238823Visible": true,
+            "outputVerified": true
+          },
+          "currency": {
+            "selectedQuoteExplicitSgdVisible": false,
+            "outputVerified": false
+          },
+          "selectedQuote": {
+            "visible": false,
+            "belongsToRequestedAsin": false,
+            "selector": null
+          },
+          "classification": "purchase_options_only_in_capture",
+          "observation": "The selected product buy box offers See All Buying Options but contains no selected quote in this capture; unopened options were not assessed.",
+          "causeCertainty": "capture_observation_only",
+          "timingsMs": {
+            "client": 11219.410291000037,
+            "server": 10452.536339999875,
+            "browser": 8291,
+            "retryWait": 0
+          },
+          "witness": {
+            "htmlSha256": "6cda93c76822c65b782f33b98916befe0b849a4d7fe586656d18b8b0730e75af",
+            "privateRelativePath": "final-100/2026-09-24T12-17-04-782Z/raw/093-6cda93c76822c65b782f33b98916befe0b849a4d7fe586656d18b8b0730e75af.html",
+            "selectors": [
+              "#buybox"
+            ]
+          },
+          "reviewStatus": "machine_assisted_pending_independent_review"
+        },
+        {
+          "cohort": "fixed",
+          "index": 99,
+          "requestedAsin": "B0BGXW1KSF",
+          "selectedAsin": "B0BGXW1KSF",
+          "capturedAt": "2026-09-24T12:37:26.095Z",
+          "deployedSourceCommit": "bb32cbf306251de4855b1249416079dc06d2631d",
+          "finalUrl": "https://www.amazon.sg/dp/B0BGXW1KSF",
+          "redirectChain": "not_recorded",
+          "screenshot": "not_recorded",
+          "resultStatus": "incomplete",
+          "jsonStatus": "incomplete",
+          "region": {
+            "rawSingapore238823Visible": true,
+            "outputVerified": true
+          },
+          "currency": {
+            "selectedQuoteExplicitSgdVisible": false,
+            "outputVerified": false
+          },
+          "selectedQuote": {
+            "visible": false,
+            "belongsToRequestedAsin": false,
+            "selector": null
+          },
+          "classification": "purchase_options_only_in_capture",
+          "observation": "The selected product buy box offers See All Buying Options but contains no selected quote in this capture; unopened options were not assessed.",
+          "causeCertainty": "capture_observation_only",
+          "timingsMs": {
+            "client": 9596.455875000218,
+            "server": 8887.984927000012,
+            "browser": 6871,
+            "retryWait": 0
+          },
+          "witness": {
+            "htmlSha256": "a2d27606ed6afc188504513028be6e5ae59fec87f73317047c26e893ec5eae08",
+            "privateRelativePath": "final-100/2026-09-24T12-17-04-782Z/raw/099-a2d27606ed6afc188504513028be6e5ae59fec87f73317047c26e893ec5eae08.html",
+            "selectors": [
+              "#buybox"
+            ]
+          },
+          "reviewStatus": "machine_assisted_pending_independent_review"
+        },
+        {
+          "cohort": "fixed",
+          "index": 100,
+          "requestedAsin": "B0GQN2VM88",
+          "selectedAsin": "B0GQN2VM88",
+          "capturedAt": "2026-09-24T12:37:35.729Z",
+          "deployedSourceCommit": "bb32cbf306251de4855b1249416079dc06d2631d",
+          "finalUrl": "https://www.amazon.sg/dp/B0GQN2VM88",
+          "redirectChain": "not_recorded",
+          "screenshot": "not_recorded",
+          "resultStatus": "incomplete",
+          "jsonStatus": "incomplete",
+          "region": {
+            "rawSingapore238823Visible": true,
+            "outputVerified": true
+          },
+          "currency": {
+            "selectedQuoteExplicitSgdVisible": false,
+            "outputVerified": false
+          },
+          "selectedQuote": {
+            "visible": false,
+            "belongsToRequestedAsin": false,
+            "selector": null
+          },
+          "classification": "purchase_options_only_in_capture",
+          "observation": "The selected product buy box offers See All Buying Options but contains no selected quote in this capture; unopened options were not assessed.",
+          "causeCertainty": "capture_observation_only",
+          "timingsMs": {
+            "client": 12896.286583000096,
+            "server": 11935.82389399968,
+            "browser": 9611,
+            "retryWait": 0
+          },
+          "witness": {
+            "htmlSha256": "42e2352b2160617d2b033acc841b953be0a58eaf07a7eb1476f76d8f7b605bb1",
+            "privateRelativePath": "final-100/2026-09-24T12-17-04-782Z/raw/100-42e2352b2160617d2b033acc841b953be0a58eaf07a7eb1476f76d8f7b605bb1.html",
+            "selectors": [
+              "#buybox"
+            ]
+          },
+          "reviewStatus": "machine_assisted_pending_independent_review"
+        },
+        {
+          "cohort": "unseen",
+          "index": 5,
+          "requestedAsin": "B0B6DCN2CJ",
+          "selectedAsin": "B0B6DCN2CJ",
+          "capturedAt": "2026-09-24T12:41:12.862Z",
+          "deployedSourceCommit": "bb32cbf306251de4855b1249416079dc06d2631d",
+          "finalUrl": "https://www.amazon.sg/dp/B0B6DCN2CJ",
+          "redirectChain": "not_recorded",
+          "screenshot": "not_recorded",
+          "resultStatus": "incomplete",
+          "jsonStatus": "incomplete",
+          "region": {
+            "rawSingapore238823Visible": true,
+            "outputVerified": true
+          },
+          "currency": {
+            "selectedQuoteExplicitSgdVisible": false,
+            "outputVerified": false
+          },
+          "selectedQuote": {
+            "visible": false,
+            "belongsToRequestedAsin": false,
+            "selector": null
+          },
+          "classification": "purchase_options_only_in_capture",
+          "observation": "The selected product buy box offers See All Buying Options but contains no selected quote in this capture; unopened options were not assessed.",
+          "causeCertainty": "capture_observation_only",
+          "timingsMs": {
+            "client": 13937.462209000005,
+            "server": 12831.437764000148,
+            "browser": 9869,
+            "retryWait": 0
+          },
+          "witness": {
+            "htmlSha256": "35ce50ed509d76b27602c85c87caec53bda107dc6949f8b0ce139ee5b3aee9f1",
+            "privateRelativePath": "final-100/2026-09-24T12-40-09-956Z/raw/005-35ce50ed509d76b27602c85c87caec53bda107dc6949f8b0ce139ee5b3aee9f1.html",
+            "selectors": [
+              "#buybox"
+            ]
+          },
+          "reviewStatus": "machine_assisted_pending_independent_review"
+        },
+        {
+          "cohort": "unseen",
+          "index": 29,
+          "requestedAsin": "B0GSFW3FXL",
+          "selectedAsin": "B0GSFW3FXL",
+          "capturedAt": "2026-09-24T12:46:14.444Z",
+          "deployedSourceCommit": "bb32cbf306251de4855b1249416079dc06d2631d",
+          "finalUrl": "https://www.amazon.sg/dp/B0GSFW3FXL",
+          "redirectChain": "not_recorded",
+          "screenshot": "not_recorded",
+          "resultStatus": "incomplete",
+          "jsonStatus": "incomplete",
+          "region": {
+            "rawSingapore238823Visible": true,
+            "outputVerified": true
+          },
+          "currency": {
+            "selectedQuoteExplicitSgdVisible": false,
+            "outputVerified": false
+          },
+          "selectedQuote": {
+            "visible": false,
+            "belongsToRequestedAsin": false,
+            "selector": null
+          },
+          "classification": "purchase_options_only_in_capture",
+          "observation": "The selected product buy box offers See All Buying Options but contains no selected quote in this capture; unopened options were not assessed.",
+          "causeCertainty": "capture_observation_only",
+          "timingsMs": {
+            "client": 9389.160166000016,
+            "server": 8504.518151999917,
+            "browser": 6929,
+            "retryWait": 0
+          },
+          "witness": {
+            "htmlSha256": "a4a049d50e27aa58e79d66415b0de0e17cb1b32c5dff9ef4532388c64af97121",
+            "privateRelativePath": "final-100/2026-09-24T12-40-09-956Z/raw/029-a4a049d50e27aa58e79d66415b0de0e17cb1b32c5dff9ef4532388c64af97121.html",
+            "selectors": [
+              "#buybox"
+            ]
+          },
+          "reviewStatus": "machine_assisted_pending_independent_review"
+        },
+        {
+          "cohort": "unseen",
+          "index": 35,
+          "requestedAsin": "B089LJLC3S",
+          "selectedAsin": "B089LJLC3S",
+          "capturedAt": "2026-09-24T12:47:20.735Z",
+          "deployedSourceCommit": "bb32cbf306251de4855b1249416079dc06d2631d",
+          "finalUrl": "https://www.amazon.sg/dp/B089LJLC3S",
+          "redirectChain": "not_recorded",
+          "screenshot": "not_recorded",
+          "resultStatus": "incomplete",
+          "jsonStatus": "incomplete",
+          "region": {
+            "rawSingapore238823Visible": true,
+            "outputVerified": true
+          },
+          "currency": {
+            "selectedQuoteExplicitSgdVisible": false,
+            "outputVerified": false
+          },
+          "selectedQuote": {
+            "visible": false,
+            "belongsToRequestedAsin": false,
+            "selector": null
+          },
+          "classification": "purchase_options_only_in_capture",
+          "observation": "The selected product buy box offers See All Buying Options but contains no selected quote in this capture; unopened options were not assessed.",
+          "causeCertainty": "capture_observation_only",
+          "timingsMs": {
+            "client": 12642.405041999999,
+            "server": 11901.742531999946,
+            "browser": 9217,
+            "retryWait": 0
+          },
+          "witness": {
+            "htmlSha256": "1508ece73d97e58fcec93261cea00e7fdf733de4691ab303ff337944b2988502",
+            "privateRelativePath": "final-100/2026-09-24T12-40-09-956Z/raw/035-1508ece73d97e58fcec93261cea00e7fdf733de4691ab303ff337944b2988502.html",
+            "selectors": [
+              "#buybox"
+            ]
+          },
+          "reviewStatus": "machine_assisted_pending_independent_review"
+        },
+        {
+          "cohort": "unseen",
+          "index": 39,
+          "requestedAsin": "B01CFHQG6C",
+          "selectedAsin": "B01CFHQG6C",
+          "capturedAt": "2026-09-24T12:48:15.083Z",
+          "deployedSourceCommit": "bb32cbf306251de4855b1249416079dc06d2631d",
+          "finalUrl": "https://www.amazon.sg/dp/B01CFHQG6C",
+          "redirectChain": "not_recorded",
+          "screenshot": "not_recorded",
+          "resultStatus": "incomplete",
+          "jsonStatus": "incomplete",
+          "region": {
+            "rawSingapore238823Visible": true,
+            "outputVerified": true
+          },
+          "currency": {
+            "selectedQuoteExplicitSgdVisible": false,
+            "outputVerified": false
+          },
+          "selectedQuote": {
+            "visible": false,
+            "belongsToRequestedAsin": false,
+            "selector": null
+          },
+          "classification": "purchase_options_only_in_capture",
+          "observation": "The selected product buy box offers See All Buying Options but contains no selected quote in this capture; unopened options were not assessed.",
+          "causeCertainty": "capture_observation_only",
+          "timingsMs": {
+            "client": 11327.652417000034,
+            "server": 10652.384488999844,
+            "browser": 8973,
+            "retryWait": 0
+          },
+          "witness": {
+            "htmlSha256": "ed12f69a5e31b4c61e2e5970de3ab7c25b92a0b6df9b24a167556c8c89953b5e",
+            "privateRelativePath": "final-100/2026-09-24T12-40-09-956Z/raw/039-ed12f69a5e31b4c61e2e5970de3ab7c25b92a0b6df9b24a167556c8c89953b5e.html",
+            "selectors": [
+              "#buybox"
+            ]
+          },
+          "reviewStatus": "machine_assisted_pending_independent_review"
+        },
+        {
+          "cohort": "unseen",
+          "index": 48,
+          "requestedAsin": "1339028018",
+          "selectedAsin": "1339028018",
+          "capturedAt": "2026-09-24T12:50:07.166Z",
+          "deployedSourceCommit": "bb32cbf306251de4855b1249416079dc06d2631d",
+          "finalUrl": "https://www.amazon.sg/dp/1339028018",
+          "redirectChain": "not_recorded",
+          "screenshot": "not_recorded",
+          "resultStatus": "incomplete",
+          "jsonStatus": "incomplete",
+          "region": {
+            "rawSingapore238823Visible": true,
+            "outputVerified": true
+          },
+          "currency": {
+            "selectedQuoteExplicitSgdVisible": false,
+            "outputVerified": false
+          },
+          "selectedQuote": {
+            "visible": false,
+            "belongsToRequestedAsin": false,
+            "selector": null
+          },
+          "classification": "purchase_options_only_in_capture",
+          "observation": "The selected product buy box offers See All Buying Options but contains no selected quote in this capture; unopened options were not assessed.",
+          "causeCertainty": "capture_observation_only",
+          "timingsMs": {
+            "client": 12469.61033299996,
+            "server": 11727.380777999759,
+            "browser": 9010,
+            "retryWait": 0
+          },
+          "witness": {
+            "htmlSha256": "16cf9619c915ff671e8136ca2084fa99ed04138e9a4ce32b6f189b3990d293d5",
+            "privateRelativePath": "final-100/2026-09-24T12-40-09-956Z/raw/048-16cf9619c915ff671e8136ca2084fa99ed04138e9a4ce32b6f189b3990d293d5.html",
+            "selectors": [
+              "#buybox"
+            ]
+          },
+          "reviewStatus": "machine_assisted_pending_independent_review"
+        },
+        {
+          "cohort": "unseen",
+          "index": 51,
+          "requestedAsin": "B00SNPCSUY",
+          "selectedAsin": "B00SNPCSUY",
+          "capturedAt": "2026-09-24T12:50:43.115Z",
+          "deployedSourceCommit": "bb32cbf306251de4855b1249416079dc06d2631d",
+          "finalUrl": "https://www.amazon.sg/dp/B00SNPCSUY",
+          "redirectChain": "not_recorded",
+          "screenshot": "not_recorded",
+          "resultStatus": "incomplete",
+          "jsonStatus": "incomplete",
+          "region": {
+            "rawSingapore238823Visible": true,
+            "outputVerified": true
+          },
+          "currency": {
+            "selectedQuoteExplicitSgdVisible": false,
+            "outputVerified": false
+          },
+          "selectedQuote": {
+            "visible": false,
+            "belongsToRequestedAsin": false,
+            "selector": null
+          },
+          "classification": "purchase_options_only_in_capture",
+          "observation": "The selected product buy box offers See All Buying Options but contains no selected quote in this capture; unopened options were not assessed.",
+          "causeCertainty": "capture_observation_only",
+          "timingsMs": {
+            "client": 12845.644375000033,
+            "server": 12048.641906999983,
+            "browser": 9123,
+            "retryWait": 0
+          },
+          "witness": {
+            "htmlSha256": "e5fa294f2fb9c4d878fa74276c9de9f43a1402f98a79fc234d51c808c0863d6e",
+            "privateRelativePath": "final-100/2026-09-24T12-40-09-956Z/raw/051-e5fa294f2fb9c4d878fa74276c9de9f43a1402f98a79fc234d51c808c0863d6e.html",
+            "selectors": [
+              "#buybox"
+            ]
+          },
+          "reviewStatus": "machine_assisted_pending_independent_review"
+        },
+        {
+          "cohort": "unseen",
+          "index": 59,
+          "requestedAsin": "B078D7MGY5",
+          "selectedAsin": "B078D7MGY5",
+          "capturedAt": "2026-09-24T12:52:20.057Z",
+          "deployedSourceCommit": "bb32cbf306251de4855b1249416079dc06d2631d",
+          "finalUrl": "https://www.amazon.sg/dp/B078D7MGY5",
+          "redirectChain": "not_recorded",
+          "screenshot": "not_recorded",
+          "resultStatus": "incomplete",
+          "jsonStatus": "incomplete",
+          "region": {
+            "rawSingapore238823Visible": true,
+            "outputVerified": true
+          },
+          "currency": {
+            "selectedQuoteExplicitSgdVisible": false,
+            "outputVerified": false
+          },
+          "selectedQuote": {
+            "visible": false,
+            "belongsToRequestedAsin": false,
+            "selector": null
+          },
+          "classification": "purchase_options_only_in_capture",
+          "observation": "The selected product buy box offers See All Buying Options but contains no selected quote in this capture; unopened options were not assessed.",
+          "causeCertainty": "capture_observation_only",
+          "timingsMs": {
+            "client": 10192.388083999977,
+            "server": 9234.8775510001,
+            "browser": 7720,
+            "retryWait": 0
+          },
+          "witness": {
+            "htmlSha256": "4a62adfe1162ea019d75d248722d0eac812e5b122d2a3a97e84a0ad23bed7d5b",
+            "privateRelativePath": "final-100/2026-09-24T12-40-09-956Z/raw/059-4a62adfe1162ea019d75d248722d0eac812e5b122d2a3a97e84a0ad23bed7d5b.html",
+            "selectors": [
+              "#buybox"
+            ]
+          },
+          "reviewStatus": "machine_assisted_pending_independent_review"
+        },
+        {
+          "cohort": "unseen",
+          "index": 65,
+          "requestedAsin": "B0B9T4KCV7",
+          "selectedAsin": "B0B9T4KCV7",
+          "capturedAt": "2026-09-24T12:53:38.181Z",
+          "deployedSourceCommit": "bb32cbf306251de4855b1249416079dc06d2631d",
+          "finalUrl": "https://www.amazon.sg/dp/B0B9T4KCV7",
+          "redirectChain": "not_recorded",
+          "screenshot": "not_recorded",
+          "resultStatus": "incomplete",
+          "jsonStatus": "incomplete",
+          "region": {
+            "rawSingapore238823Visible": true,
+            "outputVerified": true
+          },
+          "currency": {
+            "selectedQuoteExplicitSgdVisible": false,
+            "outputVerified": false
+          },
+          "selectedQuote": {
+            "visible": false,
+            "belongsToRequestedAsin": false,
+            "selector": null
+          },
+          "classification": "purchase_options_only_in_capture",
+          "observation": "The selected product buy box offers See All Buying Options but contains no selected quote in this capture; unopened options were not assessed.",
+          "causeCertainty": "capture_observation_only",
+          "timingsMs": {
+            "client": 12897.598624999984,
+            "server": 11560.40746299969,
+            "browser": 9152,
+            "retryWait": 0
+          },
+          "witness": {
+            "htmlSha256": "2f8b93a3645e99fe1c72f3adc8d6066cb0d7b44d2708a06ac811fdd073e52fb3",
+            "privateRelativePath": "final-100/2026-09-24T12-40-09-956Z/raw/065-2f8b93a3645e99fe1c72f3adc8d6066cb0d7b44d2708a06ac811fdd073e52fb3.html",
+            "selectors": [
+              "#buybox"
+            ]
+          },
+          "reviewStatus": "machine_assisted_pending_independent_review"
+        },
+        {
+          "cohort": "unseen",
+          "index": 90,
+          "requestedAsin": "B001GR4BJM",
+          "selectedAsin": "B001GR4BJM",
+          "capturedAt": "2026-09-24T12:58:27.982Z",
+          "deployedSourceCommit": "bb32cbf306251de4855b1249416079dc06d2631d",
+          "finalUrl": "https://www.amazon.sg/dp/B001GR4BJM",
+          "redirectChain": "not_recorded",
+          "screenshot": "not_recorded",
+          "resultStatus": "incomplete",
+          "jsonStatus": "incomplete",
+          "region": {
+            "rawSingapore238823Visible": true,
+            "outputVerified": true
+          },
+          "currency": {
+            "selectedQuoteExplicitSgdVisible": false,
+            "outputVerified": false
+          },
+          "selectedQuote": {
+            "visible": false,
+            "belongsToRequestedAsin": false,
+            "selector": null
+          },
+          "classification": "purchase_options_only_in_capture",
+          "observation": "The selected product buy box offers See All Buying Options but contains no selected quote in this capture; unopened options were not assessed.",
+          "causeCertainty": "capture_observation_only",
+          "timingsMs": {
+            "client": 11171.733167000115,
+            "server": 10239.161435000133,
+            "browser": 7818,
+            "retryWait": 0
+          },
+          "witness": {
+            "htmlSha256": "896920e45082d9b045f2316387f94b6746f775cdc6f96b2868ad836eeae44736",
+            "privateRelativePath": "final-100/2026-09-24T12-40-09-956Z/raw/090-896920e45082d9b045f2316387f94b6746f775cdc6f96b2868ad836eeae44736.html",
+            "selectors": [
+              "#buybox"
+            ]
+          },
+          "reviewStatus": "machine_assisted_pending_independent_review"
+        }
+      ]
+    },
+    "selected_subject_mismatch": {
+      "count": 2,
+      "cases": [
+        {
+          "cohort": "unseen",
+          "index": 61,
+          "requestedAsin": "B0BDXSK2K7",
+          "selectedAsin": "B0D1V6F7Y9",
+          "capturedAt": "2026-09-24T12:52:43.878Z",
+          "deployedSourceCommit": "bb32cbf306251de4855b1249416079dc06d2631d",
+          "finalUrl": "https://www.amazon.sg/dp/B0BDXSK2K7",
+          "redirectChain": "not_recorded",
+          "screenshot": "not_recorded",
+          "resultStatus": "incomplete",
+          "jsonStatus": "incomplete",
+          "region": {
+            "rawSingapore238823Visible": true,
+            "outputVerified": false
+          },
+          "currency": {
+            "selectedQuoteExplicitSgdVisible": false,
+            "outputVerified": false
+          },
+          "selectedQuote": {
+            "visible": false,
+            "belongsToRequestedAsin": false,
+            "selector": null
+          },
+          "classification": "selected_subject_mismatch",
+          "observation": "The captured selected ASIN differs from the requested ASIN; substitute product data was withheld.",
+          "causeCertainty": "observed_subject_mismatch",
+          "timingsMs": {
+            "client": 9377.27341699996,
+            "server": 8560.418639999814,
+            "browser": 7104,
+            "retryWait": 0
+          },
+          "witness": {
+            "htmlSha256": "bb86c2bc6a788a98990ca44bdddf6c6cdbf35faddcf6b44af02e6c65658c45e2",
+            "privateRelativePath": "final-100/2026-09-24T12-40-09-956Z/raw/061-bb86c2bc6a788a98990ca44bdddf6c6cdbf35faddcf6b44af02e6c65658c45e2.html",
+            "selectors": [
+              "input[name=\"ASIN\"], #ASIN"
+            ]
+          },
+          "reviewStatus": "machine_assisted_pending_independent_review"
+        },
+        {
+          "cohort": "unseen",
+          "index": 80,
+          "requestedAsin": "B0CMCQ3684",
+          "selectedAsin": "B0CMCPRT3L",
+          "capturedAt": "2026-09-24T12:56:36.571Z",
+          "deployedSourceCommit": "bb32cbf306251de4855b1249416079dc06d2631d",
+          "finalUrl": "https://www.amazon.sg/dp/B0CMCQ3684",
+          "redirectChain": "not_recorded",
+          "screenshot": "not_recorded",
+          "resultStatus": "incomplete",
+          "jsonStatus": "incomplete",
+          "region": {
+            "rawSingapore238823Visible": true,
+            "outputVerified": false
+          },
+          "currency": {
+            "selectedQuoteExplicitSgdVisible": true,
+            "outputVerified": false
+          },
+          "selectedQuote": {
+            "visible": true,
+            "belongsToRequestedAsin": false,
+            "selector": "#corePrice_feature_div .a-price .a-offscreen"
+          },
+          "classification": "selected_subject_mismatch",
+          "observation": "The captured selected ASIN differs from the requested ASIN; substitute product data was withheld.",
+          "causeCertainty": "observed_subject_mismatch",
+          "timingsMs": {
+            "client": 11586.895374999964,
+            "server": 10775.998155000154,
+            "browser": 8445,
+            "retryWait": 0
+          },
+          "witness": {
+            "htmlSha256": "c3f4c396caa10b8372b3983f3b8c9697772039b22f9928f8fea2fe241afe906e",
+            "privateRelativePath": "final-100/2026-09-24T12-40-09-956Z/raw/080-c3f4c396caa10b8372b3983f3b8c9697772039b22f9928f8fea2fe241afe906e.html",
+            "selectors": [
+              "input[name=\"ASIN\"], #ASIN"
+            ]
+          },
+          "reviewStatus": "machine_assisted_pending_independent_review"
+        }
+      ]
+    }
+  }
+}
