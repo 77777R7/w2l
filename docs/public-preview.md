@@ -2,7 +2,7 @@
 
 The first-use page accepts one public HTTP(S) URL and shows readable content, the final URL, the result state, and elapsed time. Amazon.sg `/dp/{ASIN}` pages also show a fixed product record. It exposes a price only when the selected ASIN, Singapore delivery context, and SGD currency can be verified; otherwise the product record is marked incomplete with explicit issues. Crawl, batches, and Monitor remain separate authenticated/persistent workflows.
 
-The Hero uses an adapted [React Bits ASCIIText JS-CSS component](https://reactbits.dev/text-animations/ascii-text) sourced from its [registry entry](https://reactbits.dev/r/ASCIIText-JS-CSS.json). React, React DOM, and the registry-listed Three.js dependency are confined to a lazy decorative chunk. The effect uses `text="hello_world"`, `enableWaves={true}`, and `asciiFontSize={16}` in a small, faded part of the mountain sky. It is omitted on touch or narrow screens and when reduced motion is requested; the static image, form, and extraction path do not depend on WebGL.
+The Hero uses an adapted [React Bits ASCIIText JS-CSS component](https://reactbits.dev/text-animations/ascii-text) sourced from its [registry entry](https://reactbits.dev/r/ASCIIText-JS-CSS.json). React, React DOM, and the registry-listed Three.js dependency are confined to a lazy decorative chunk. Two masked instances flank the Hero, using `text="hello_world"`, `enableWaves={true}`, and `asciiFontSize={16}`. Their larger but bounded ASCII fields fade toward the central headline and input. The effect is omitted on touch or narrow screens and when reduced motion is requested; the static image, form, and extraction path do not depend on WebGL.
 
 ## Try it
 

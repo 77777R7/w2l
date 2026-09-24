@@ -41,16 +41,21 @@ a { color: inherit; }
 }
 .hero-ascii-accent {
   position: absolute;
+  inset: 0;
   z-index: -2;
-  top: 8%;
-  right: 5%;
-  width: min(34vw, 490px);
-  height: 205px;
-  opacity: .26;
   pointer-events: none;
+}
+.hero-ascii-wing {
+  position: absolute;
+  top: 1%;
+  width: min(42vw, 600px);
+  height: 82%;
+  opacity: .64;
   -webkit-mask-image: radial-gradient(ellipse 68% 64% at 50% 50%, #000 38%, transparent 100%);
   mask-image: radial-gradient(ellipse 68% 64% at 50% 50%, #000 38%, transparent 100%);
 }
+.hero-ascii-wing-left { left: -3%; }
+.hero-ascii-wing-right { right: -3%; top: -6%; }
 
 .site-header { display: flex; align-items: center; justify-content: space-between; min-height: 88px; position: relative; z-index: 2; }
 .brand { display: inline-flex; align-items: center; gap: 8px; color: #fff; text-decoration: none; }
@@ -168,7 +173,8 @@ a { color: inherit; }
 .footer-inner a:hover { color: #ffae86; }
 
 @media (min-width: 601px) and (max-width: 900px) {
-  .hero-ascii-accent { top: 7%; right: 4%; width: 280px; height: 145px; opacity: .2; }
+  .hero-ascii-wing { top: 1%; width: 42%; height: 55%; opacity: .6; }
+  .hero-ascii-wing-right { top: -3%; }
 }
 
 @media (max-width: 800px) {
