@@ -20,6 +20,7 @@ type PreviewResponse = {
   reason: string | null
   product?: ProductPreview
 }
+type OutputFormat = 'markdown' | 'json'
 
 const app = document.querySelector<HTMLDivElement>('#app')!
 app.innerHTML = `
@@ -59,6 +60,14 @@ app.innerHTML = `
           <div class="form-meta">
             <p id="url-help">No setup · 3 tries per browser each day · Public pages only</p>
             <button class="example-button" id="example-button" type="button">Try an example <span aria-hidden="true">↗</span></button>
+          </div>
+          <div class="format-choice">
+            <label for="output-format">Output format</label>
+            <select id="output-format" aria-describedby="format-help">
+              <option value="markdown">Readable Markdown</option>
+              <option value="json">Result JSON</option>
+            </select>
+            <span id="format-help">Switch formats after extraction without another request.</span>
           </div>
           <p class="form-message" id="form-message" role="status" aria-live="polite"></p>
         </form>
@@ -102,6 +111,34 @@ const section = document.querySelector<HTMLElement>('#result-section')!
 const subtitle = document.querySelector<HTMLElement>('#result-subtitle')!
 const badge = document.querySelector<HTMLElement>('#result-badge')!
 const content = document.querySelector<HTMLElement>('#result-content')!
+const formatSelect = document.querySelector<HTMLSelectElement>('#output-format')!
+let latestResult: PreviewResponse | null = null
+
+function downloadFile(content: string, name: string, type: string): void {
+  const objectUrl = URL.createObjectURL(new Blob([content], { type }))
+  const anchor = document.createElement('a')
+  anchor.href = objectUrl
+  anchor.download = name
+  document.body.append(anchor)
+  anchor.click()
+  anchor.remove()
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000)
+}
+
+function resultFilename(result: PreviewResponse, extension: 'md' | 'json'): string {
+  let name = 'page'
+  try {
+    const url = new URL(result.finalUrl ?? result.requestedUrl)
+    const lastSegment = url.pathname.split('/').filter(Boolean).at(-1) ?? 'page'
+    name = `${url.hostname.replace(/^www\./, '')}-${lastSegment}`
+  } catch { /* An unsuccessful request may not have a parseable URL. */ }
+  const safe = name.replace(/[^a-z0-9.-]+/gi, '-').replace(/^-+|-+$/g, '').slice(0, 72) || 'page'
+  return `w2l-${safe}.${extension}`
+}
+
+formatSelect.addEventListener('change', () => {
+  if (latestResult) renderOutputPanel(latestResult)
+})
 
 document.querySelector<HTMLButtonElement>('#example-button')!.addEventListener('click', () => {
   input.value = 'https://docs.firecrawl.dev/introduction'
@@ -313,10 +350,68 @@ function renderProduct(product: ProductPreview): HTMLElement {
   return section
 }
 
+function renderOutputPanel(result: PreviewResponse): void {
+  content.querySelector('.output-panel')?.remove()
+  const format = formatSelect.value as OutputFormat
+  const isJson = format === 'json'
+  const output = document.createElement('section')
+  output.className = 'output-panel'
+  output.setAttribute('aria-labelledby', 'content-title')
+  const header = document.createElement('div')
+  header.className = 'output-head'
+  const title = document.createElement('div')
+  title.append(textElement('p', isJson ? 'EXTRACTED RESULT / JSON' : 'EXTRACTED CONTENT / MARKDOWN', 'panel-kicker'))
+  const h3 = textElement('h3', isJson ? 'Result JSON' : 'Readable content')
+  h3.id = 'content-title'
+  title.append(h3)
+  header.append(title)
+
+  const actions = document.createElement('div')
+  actions.className = 'output-actions'
+  const viewLabel = textElement('label', 'View', 'output-view-label')
+  const viewSelect = document.createElement('select')
+  viewSelect.className = 'output-view-select'
+  viewSelect.setAttribute('aria-label', 'View output format')
+  viewSelect.append(new Option('Markdown', 'markdown'), new Option('JSON', 'json'))
+  viewSelect.value = format
+  viewSelect.addEventListener('change', () => {
+    formatSelect.value = viewSelect.value
+    renderOutputPanel(result)
+    content.querySelector<HTMLSelectElement>('.output-view-select')?.focus()
+  })
+  viewLabel.append(viewSelect)
+  actions.append(viewLabel)
+  const payload = isJson ? `${JSON.stringify(result, null, 2)}\n` : result.markdown ?? ''
+  const copy = textElement('button', isJson ? 'Copy JSON' : 'Copy content', 'copy-button')
+  copy.type = 'button'
+  copy.disabled = !payload
+  copy.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(payload)
+      copy.textContent = 'Copied ✓'
+      window.setTimeout(() => { copy.textContent = isJson ? 'Copy JSON' : 'Copy content' }, 2200)
+    } catch { copy.textContent = 'Copy failed. Select the text manually.' }
+  })
+  actions.append(copy)
+  const download = textElement('button', isJson ? '↓ Download JSON' : '↓ Download Markdown', 'download-button')
+  download.type = 'button'
+  download.disabled = !payload
+  download.addEventListener('click', () => downloadFile(payload, resultFilename(result, isJson ? 'json' : 'md'), isJson ? 'application/json;charset=utf-8' : 'text/markdown;charset=utf-8'))
+  actions.append(download)
+  header.append(actions)
+  output.append(header)
+  if (isJson) {
+    output.append(textElement('p', 'This is the sanitized server response. Its totalMs measures server processing; the page total above includes browser network time. Verified Amazon.sg product fields appear under “product” when available.', 'output-explanation'))
+    output.append(textElement('pre', payload, 'json-output'))
+  } else if (payload.trim()) output.append(renderMarkdown(payload))
+  else output.append(textElement('p', 'No readable Markdown was returned. Switch to Result JSON to inspect the status and reason.', 'empty-content'))
+  content.append(output)
+}
+
 function renderResult(result: PreviewResponse, clientMs: number, started: number): void {
+  latestResult = result
   section.hidden = false
   content.replaceChildren()
-  const hasReadable = Boolean(result.markdown?.trim())
   const isPageRead = result.status === 'success' || result.status === 'incomplete'
   subtitle.textContent = result.title || (isPageRead ? 'Page content' : 'No readable content returned')
   badge.textContent = statusText(result.status, result.product)
@@ -356,33 +451,7 @@ function renderResult(result: PreviewResponse, clientMs: number, started: number
     content.append(note)
   }
   if (result.product) content.append(renderProduct(result.product))
-  if (hasReadable) {
-    const output = document.createElement('section')
-    output.className = 'output-panel'
-    output.setAttribute('aria-labelledby', 'content-title')
-    const header = document.createElement('div')
-    header.className = 'output-head'
-    const title = document.createElement('div')
-    title.append(textElement('p', 'EXTRACTED CONTENT / MARKDOWN', 'panel-kicker'))
-    const h3 = textElement('h3', 'Readable content')
-    h3.id = 'content-title'
-    title.append(h3)
-    header.append(title)
-    const copy = textElement('button', 'Copy content', 'copy-button')
-    copy.type = 'button'
-    copy.addEventListener('click', async () => {
-      try {
-        await navigator.clipboard.writeText(result.markdown!)
-        copy.textContent = 'Copied ✓'
-        window.setTimeout(() => { copy.textContent = 'Copy content' }, 2200)
-      } catch {
-        copy.textContent = 'Copy failed. Select the text manually.'
-      }
-    })
-    header.append(copy)
-    output.append(header, renderMarkdown(result.markdown!))
-    content.append(output)
-  } else if (isPageRead) content.append(textElement('p', 'The page was processed, but there is no readable text to show.', 'empty-content'))
+  renderOutputPanel(result)
 
   // The browser measurement includes network and synchronous result rendering.
   requestAnimationFrame(() => {
@@ -393,6 +462,7 @@ function renderResult(result: PreviewResponse, clientMs: number, started: number
 }
 
 function renderLoading(): void {
+  latestResult = null
   section.hidden = false
   subtitle.textContent = 'Reading the page…'
   badge.textContent = 'Extracting'
