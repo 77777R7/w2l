@@ -235,7 +235,10 @@ function formatDuration(ms: number): string {
 
 function statusText(status: PreviewStatus, product?: ProductPreview, diagnostic?: PreviewResponse['diagnostic']): string {
   if (diagnostic?.code === 'subject_mismatch') return 'Different product selected'
+  if (diagnostic?.code === 'subject_conflicting') return 'Conflicting product identity'
   if (diagnostic?.code === 'quote_unverified') return 'Quote not verified'
+  if (diagnostic?.code === 'quote_absent_observed') return 'Unavailable in this page context'
+  if (diagnostic?.code === 'quote_conflicting') return 'Conflicting quote evidence'
   if (diagnostic?.code === 'robots_disallowed') return 'Site policy blocks preview'
   if (diagnostic?.code === 'login_required') return 'Login required'
   if (diagnostic?.code === 'challenge') return 'Verification page'

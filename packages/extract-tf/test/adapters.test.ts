@@ -13,7 +13,7 @@ describe('public site adapter registry', () => {
 
   it('emits canonical Amazon product fields without recommendation contamination', () => {
     const html = `<!doctype html><html><head><link rel="canonical" href="https://www.amazon.com/dp/B012345678"></head><body>
-      <div id="dp-container"><h1 id="productTitle">Subject camera</h1>
+      <div id="dp-container"><input name="ASIN" value="B012345678"><h1 id="productTitle">Subject camera</h1>
       <div id="corePrice_feature_div"><span class="a-price"><span class="a-offscreen">$499.00</span></span></div>
       <a id="sellerProfileTriggerId">Camera Shop</a><div id="availability"><span>In Stock</span></div>
       <p id="feature-bullets">The subject camera and its main product description.</p></div>

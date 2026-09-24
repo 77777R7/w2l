@@ -10,6 +10,7 @@ import { mapPreviewResult, normalizePreviewUrl, type CaptureOutcome } from '../s
 import { resolvePreviewCapability } from '../src/capability.js'
 import type { PreviewQuota } from '../src/quota.js'
 import { AmazonGateBusyError, type AmazonOriginGate } from '../src/amazonGate.js'
+import { extractTf } from '@w2l/extract-tf'
 
 const servers: Server[] = []
 const tempDirs: string[] = []
@@ -321,6 +322,7 @@ describe('anonymous preview contract', () => {
     const mapped = mapPreviewResult(target.url, target, { ...outcome, json }, 20)
     expect(mapped.product?.asin).toBeNull()
     expect(mapped.product?.data).toBeNull()
+    expect(mapped.title).toBeNull()
     expect(mapped.status).toBe('incomplete')
     expect(mapped.diagnostic?.code).toBe('subject_unverified')
   })
@@ -331,6 +333,41 @@ describe('anonymous preview contract', () => {
     const json: StructuredExtractionResult = { status: 'incomplete', data: { asin: 'B0D4DHBFFH', currency: 'SGD', deliveryLocation: 'Singapore 238823' }, evidence: [], issues: [{ code: 'missing', path: '/price', message: 'missing' }] }
     expect(mapPreviewResult(target.url, target, { ...outcome, json }, 20).diagnostic).toMatchObject({ code: 'quote_unverified', stage: 'field' })
     expect(mapPreviewResult(target.url, target, { ...outcome, selectedAsin: 'B000000000', json }, 20)).toMatchObject({ status: 'incomplete', diagnostic: { code: 'subject_mismatch', evidence: 'observed' }, product: { data: null } })
+  })
+
+  it('keeps an inferred SGD currency and an unavailable quote out of a complete public result', () => {
+    const target = normalizePreviewUrl('https://www.amazon.sg/dp/B0D4DHBFFH')
+    const base = fixture(target.url, true)
+    const selectedPage = (body: string) => `<html><body><main id="dp-container"><input name="ASIN" value="B0D4DHBFFH"><h1 id="productTitle">Subject</h1>${body}</main></body></html>`
+    const json: StructuredExtractionResult = { status: 'complete', data: { asin: 'B0D4DHBFFH', title: 'Subject', price: 7.23, currency: 'SGD', deliveryLocation: 'Singapore 238823' }, evidence: [], issues: [] }
+
+    const inferred = extractTf.extract(selectedPage('<div id="corePrice_feature_div"><span class="a-price"><span class="a-offscreen">$7.23</span></span></div>'), { url: target.url })
+    base.result.document = { ...base.result.document!, product: inferred.product ?? null }
+    const inferredResult = mapPreviewResult(target.url, target, { ...base, json }, 20)
+    expect(inferredResult.status).toBe('incomplete')
+    expect(inferredResult.product?.data).not.toHaveProperty('price')
+    expect(inferredResult.diagnostic?.code).toBe('currency_unverified')
+
+    const unavailable = extractTf.extract(selectedPage('<div id="availability">Currently unavailable.</div>'), { url: target.url })
+    base.result.document = { ...base.result.document!, product: unavailable.product ?? null }
+    const absentResult = mapPreviewResult(target.url, target, { ...base, json }, 20)
+    expect(absentResult.status).toBe('incomplete')
+    expect(absentResult.product?.data).not.toHaveProperty('price')
+    expect(absentResult.diagnostic).toMatchObject({ code: 'quote_absent_observed', evidence: 'observed' })
+  })
+
+  it('withholds product content when selected-subject witnesses conflict', () => {
+    const target = normalizePreviewUrl('https://www.amazon.sg/dp/B0D4DHBFFH')
+    const outcome = fixture(target.url, true)
+    const html = '<html><body><main id="dp-container"><input name="ASIN" value="B0D4DHBFFH"><h1 id="productTitle">Subject</h1><div id="buybox" data-asin="B000000000"><span class="a-price"><span class="a-offscreen">S$7.23</span></span></div></main></body></html>'
+    const extracted = extractTf.extract(html, { url: target.url })
+    outcome.result.document = { ...outcome.result.document!, product: extracted.product ?? null }
+    const json: StructuredExtractionResult = { status: 'complete', data: { asin: 'B0D4DHBFFH', title: 'Subject', price: 7.23, currency: 'SGD', deliveryLocation: 'Singapore 238823' }, evidence: [], issues: [] }
+    const mapped = mapPreviewResult(target.url, target, { ...outcome, json }, 20)
+    expect(mapped.status).toBe('incomplete')
+    expect(mapped.diagnostic).toMatchObject({ code: 'subject_conflicting', evidence: 'observed' })
+    expect(mapped.title).toBeNull()
+    expect(mapped.product?.data).toBeNull()
   })
 
   it('treats a matching canonical without a selected-ASIN DOM witness as incomplete', () => {
