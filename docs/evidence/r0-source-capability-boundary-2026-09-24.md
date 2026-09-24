@@ -12,7 +12,7 @@ This is a task-level map of the **technical public preview**, not an MVP support
 | Monitor → HTTPS webhook | Locally configured operator and storage | Local MCP/service | Local scheduler, capture and delivery | Persistent monitor events with `eventId` | Local only; see repository guides | No durable Monitor/Delivery worker on anonymous Cloud Run. |
 | Persistent Batch → paginated results | Locally configured operator and storage | Local MCP/service | Local worker | Durable batch result pages | Local only; see repository guides | Not part of the anonymous one-page preview. |
 
-The server's `GET /api/capability` returns the planned route for a URL from fixed local rules. It performs no target request and spends no quota. The `POST /api/preview` result is the source of truth for an observed status and diagnostic. The preflight cannot guarantee that a page is reachable, that a quote exists, or that a returned document is the requested subject.
+The server's `GET /api/capability` returns the planned route for a URL from fixed local rules. It performs no target request and spends no quota. Known private or reserved targets are marked unsupported before capture; DNS results and redirects remain subject to guarded transport checks. The `POST /api/preview` result is the source of truth for an observed status and diagnostic. The preflight cannot guarantee that a public page is reachable, that a quote exists, or that a returned document is the requested subject.
 
 ## Frozen Amazon failure ledger
 

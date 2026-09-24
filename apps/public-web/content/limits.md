@@ -8,7 +8,7 @@ The anonymous page allows three previews per browser visitor per UTC day and 100
 
 The browser preview accepts one public HTTP(S) URL per request. It does not accept visitor-supplied model prompts, browser sessions, arbitrary capture settings, private network targets, or raw HTML downloads. Generic pages use restricted HTTP capture; the public Amazon.sg `/dp/{ASIN}` route uses a configured anonymous browser context.
 
-Typing a URL on the [Try W2L page](/) shows its **planned route**. This hint comes from the same static rules used by the server; it does not contact the target site or spend a preview. It cannot predict whether the site will allow access, return useful content, or select the requested product. Developers can read the same hint with `GET /api/capability?url=<encoded-public-url>` on the preview host. Invalid input returns HTTP 400 without starting a capture.
+Typing a URL on the [Try W2L page](/) shows its **planned route**. This hint comes from the same static rules used by the server; it does not contact the target site or spend a preview. Known private or reserved addresses are marked unsupported before capture; DNS results and redirects are checked by the guarded transport during extraction. The hint cannot predict whether a public site will allow access, return useful content, or select the requested product. Developers can read it with `GET /api/capability?url=<encoded-public-url>` on the preview host. Invalid input returns HTTP 400 without starting a capture.
 
 ## Interpret the status
 
