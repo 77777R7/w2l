@@ -52,8 +52,22 @@ const mapRange = (n, start, stop, start2, stop2) => {
   return ((n - start) / (stop - start)) * (stop2 - start2) + start2;
 };
 
+// The mountain remains a normal, readable image. Its contours also determine
+// the density of the decorative ASCII layer drawn over it.
+const mountainImage = new Image();
+mountainImage.src = '/assets/mountain-hero.webp';
+const octopusImage = new Image();
+octopusImage.src = '/assets/octopus-original.webp';
+const GLYPHS = '.,:;+=*/\\<>x#%@';
+const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
+const smoothstep = value => value * value * (3 - 2 * value);
+const cellNoise = (x, y, seed) => {
+  const value = Math.sin(x * 127.1 + y * 311.7 + seed * 74.7) * 43758.5453;
+  return value - Math.floor(value);
+};
+
 class AsciiFilter {
-  constructor(renderer, { fontSize, fontFamily, charset, invert } = {}) {
+  constructor(renderer, { fontSize, fontFamily, charset, invert, container, variant, fieldMode, motifMode } = {}) {
     this.renderer = renderer;
     this.domElement = document.createElement('div');
     this.domElement.className = 'w2l-ascii-filter';
@@ -69,9 +83,23 @@ class AsciiFilter {
     this.invert = invert ?? true;
     this.fontSize = fontSize ?? 12;
     this.fontFamily = fontFamily ?? "'Courier New', monospace";
+    this.pre.style.fontSize = `${this.fontSize}px`;
     this.charset = charset ?? ' .\'`^",:;Il!i~+_-?][}{1)(|/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$';
+    this.container = container;
+    this.variant = variant ?? 0;
+    this.fieldMode = Boolean(fieldMode);
+    this.motifMode = Boolean(motifMode);
     this.pointer = { x: -1000, y: -1000, active: false };
+    this.lastPointer = { x: -1000, y: -1000 };
     this.repel = 0;
+    this.trail = [];
+    this.lastTrailAt = 0;
+    this.mountainTones = null;
+    this.motifTones = null;
+    this.onMountainLoad = () => this.updateMountainSample();
+    this.onOctopusLoad = () => this.updateMotifSample();
+    if (this.fieldMode && !this.motifMode) mountainImage.addEventListener('load', this.onMountainLoad);
+    if (this.motifMode) octopusImage.addEventListener('load', this.onOctopusLoad);
 
     this.context.webkitImageSmoothingEnabled = false;
     this.context.mozImageSmoothingEnabled = false;
@@ -98,6 +126,83 @@ class AsciiFilter {
 
     this.canvas.width = this.cols;
     this.canvas.height = this.rows;
+    this.updateMountainSample();
+    this.updateMotifSample();
+  }
+
+  updateMountainSample() {
+    if (!this.fieldMode || this.motifMode || !mountainImage.naturalWidth || !this.cols || !this.rows || !this.container) return;
+    const hero = this.container.closest('.hero');
+    if (!hero) return;
+    const backdrop = hero.querySelector('.hero-backdrop');
+    if (!backdrop) return;
+    const heroRect = hero.getBoundingClientRect();
+    const layerRect = this.container.getBoundingClientRect();
+    if (!heroRect.width || !heroRect.height || !layerRect.width || !layerRect.height) return;
+
+    const [rawX = '50%', rawY = '50%'] = getComputedStyle(backdrop).backgroundPosition.split(' ');
+    const position = raw => raw === 'center' ? 0.5 : clamp(parseFloat(raw) / 100 || 0, 0, 1);
+    const scale = Math.max(heroRect.width / mountainImage.naturalWidth, heroRect.height / mountainImage.naturalHeight);
+    const imageWidth = mountainImage.naturalWidth * scale;
+    const imageHeight = mountainImage.naturalHeight * scale;
+    const imageX = (heroRect.width - imageWidth) * position(rawX);
+    const imageY = (heroRect.height - imageHeight) * position(rawY);
+    const layerX = layerRect.left - heroRect.left;
+    const layerY = layerRect.top - heroRect.top;
+
+    const sample = document.createElement('canvas');
+    sample.width = this.cols;
+    sample.height = this.rows;
+    const context = sample.getContext('2d', { willReadFrequently: true });
+    if (!context) return;
+    context.drawImage(
+      mountainImage,
+      (imageX - layerX) * this.cols / layerRect.width,
+      (imageY - layerY) * this.rows / layerRect.height,
+      imageWidth * this.cols / layerRect.width,
+      imageHeight * this.rows / layerRect.height
+    );
+    const pixels = context.getImageData(0, 0, this.cols, this.rows).data;
+    const luminance = new Float32Array(this.cols * this.rows);
+    for (let i = 0; i < luminance.length; i++) {
+      const p = i * 4;
+      luminance[i] = (pixels[p] * 0.2126 + pixels[p + 1] * 0.7152 + pixels[p + 2] * 0.0722) / 255;
+    }
+    const sorted = Array.from(luminance).sort((a, b) => a - b);
+    const low = sorted[Math.floor(sorted.length * 0.05)];
+    const high = sorted[Math.floor(sorted.length * 0.95)];
+    const range = Math.max(0.08, high - low);
+    this.mountainTones = luminance.map(value => Math.pow(clamp((value - low) / range, 0, 1), 0.58));
+  }
+
+  updateMotifSample() {
+    if (!this.motifMode || !octopusImage.naturalWidth || !this.cols || !this.rows || !this.container) return;
+    const rect = this.container.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const sample = document.createElement('canvas');
+    sample.width = this.cols;
+    sample.height = this.rows;
+    const context = sample.getContext('2d', { willReadFrequently: true });
+    if (!context) return;
+    // Character cells are taller than they are wide. Fit in physical pixels
+    // before mapping into cells so the octopus keeps its original proportions.
+    const scale = Math.min(rect.width / octopusImage.naturalWidth, rect.height / octopusImage.naturalHeight) * 0.98;
+    const width = octopusImage.naturalWidth * scale / this.charWidth;
+    const height = octopusImage.naturalHeight * scale / this.fontSize;
+    context.drawImage(octopusImage, (this.cols - width) / 2, (this.rows - height) / 2, width, height);
+    const pixels = context.getImageData(0, 0, this.cols, this.rows).data;
+    const corner = context.getImageData(Math.floor((this.cols - width) / 2 + 2), Math.floor((this.rows - height) / 2 + 2), 1, 1).data;
+    const tones = new Float32Array(this.cols * this.rows);
+    for (let i = 0; i < tones.length; i++) {
+      const p = i * 4;
+      if (pixels[p + 3] < 16) continue;
+      const dr = pixels[p] - corner[0];
+      const dg = pixels[p + 1] - corner[1];
+      const db = pixels[p + 2] - corner[2];
+      const distance = Math.hypot(dr, dg, db) / 441.67;
+      tones[i] = Math.pow(clamp((distance - 0.055) / 0.39, 0, 1), 0.7);
+    }
+    this.motifTones = tones;
   }
 
   render(scene, camera) {
@@ -117,40 +222,97 @@ class AsciiFilter {
     if (w && h) {
       const imgData = ctx.getImageData(0, 0, w, h).data;
       this.repel += ((this.pointer.active ? 1 : 0) - this.repel) * 0.16;
+      const now = performance.now();
+      this.trail = this.trail.filter(stamp => now - stamp.at < 1050);
+      const lastStamp = this.trail.at(-1);
+      const maskStrength = this.pointer.active ? this.repel : lastStamp ? Math.pow(1 - (now - lastStamp.at) / 1050, 2) : 0;
+      if (maskStrength > 0.01) {
+        const center = (1 - 0.45 * maskStrength).toFixed(3);
+        const middle = (1 - 0.2 * maskStrength).toFixed(3);
+        const mask = `radial-gradient(circle 155px at ${this.lastPointer.x}px ${this.lastPointer.y}px, rgba(0,0,0,${center}) 0%, rgba(0,0,0,${middle}) 45%, #000 100%)`;
+        this.pre.style.maskImage = mask;
+        this.pre.style.webkitMaskImage = mask;
+      } else if (this.pre.style.maskImage) {
+        this.pre.style.maskImage = '';
+        this.pre.style.webkitMaskImage = '';
+      }
       let str = '';
       for (let y = 0; y < h; y++) {
         for (let x = 0; x < w; x++) {
-          const dx = (x + .5) * this.charWidth - this.pointer.x;
-          const dy = (y + .5) * this.fontSize - this.pointer.y;
-          const distance = Math.hypot(dx, dy);
-          const radius = 130;
-          if (this.repel > .01 && distance < 38 * this.repel) {
-            str += ' ';
-            continue;
+          const cellX = (x + .5) * this.charWidth;
+          const cellY = (y + .5) * this.fontSize;
+          let influence = 0;
+          let sourceX = this.pointer.x;
+          let sourceY = this.pointer.y;
+          for (const stamp of this.trail) {
+            const distance = Math.hypot(cellX - stamp.x, cellY - stamp.y);
+            if (distance >= 152) continue;
+            const fade = Math.pow(1 - (now - stamp.at) / 1050, 2);
+            const strength = smoothstep(1 - distance / 152) * fade;
+            if (strength > influence) {
+              influence = strength;
+              sourceX = stamp.x;
+              sourceY = stamp.y;
+            }
           }
+          if (this.pointer.active) {
+            const distance = Math.hypot(cellX - this.pointer.x, cellY - this.pointer.y);
+            const strength = distance < 152 ? smoothstep(1 - distance / 152) * this.repel : 0;
+            if (strength > influence) {
+              influence = strength;
+              sourceX = this.pointer.x;
+              sourceY = this.pointer.y;
+            }
+          }
+
           let sampleX = x;
           let sampleY = y;
-          if (this.repel > .01 && distance < radius && distance > 0) {
-            // Inverse sampling shifts the actual ASCII glyphs outward, rather
-            // than just hiding an image underneath a cursor-shaped mask.
-            const pull = Math.pow(1 - distance / radius, 2) * 72 * this.repel;
-            sampleX -= (dx / distance) * pull / this.charWidth;
-            sampleY -= (dy / distance) * pull / this.fontSize;
+          if (influence > 0.01) {
+            const dx = cellX - sourceX;
+            const dy = cellY - sourceY;
+            const distance = Math.hypot(dx, dy);
+            if (distance > 0) {
+              // Soft inverse sampling moves glyphs aside without cutting a hole.
+              sampleX -= (dx / distance) * 18 * influence / this.charWidth;
+              sampleY -= (dy / distance) * 18 * influence / this.fontSize;
+            }
           }
-          const sx = Math.round(sampleX);
-          const sy = Math.round(sampleY);
-          if (sx < 0 || sx >= w || sy < 0 || sy >= h) { str += ' '; continue; }
+          const sx = clamp(Math.round(sampleX), 0, w - 1);
+          const sy = clamp(Math.round(sampleY), 0, h - 1);
           const i = (sx + sy * w) * 4;
           const [r, g, b, a] = [imgData[i], imgData[i + 1], imgData[i + 2], imgData[i + 3]];
 
-          if (a === 0) {
-            str += ' ';
+          if (this.motifMode) {
+            const shape = this.motifTones?.[sx + sy * w] ?? 0;
+            if (shape < 0.08) {
+              str += cellNoise(x, y, this.variant) > 0.985 ? '.' : ' ';
+              continue;
+            }
+            const gray = (0.3 * r + 0.6 * g + 0.1 * b) / 255;
+            const shimmer = Math.sin(now * 0.0008 + x * 0.12 - y * 0.08) * 0.08;
+            const dither = (cellNoise(x, y, this.variant) - 0.5) * 0.24;
+            const tone = clamp(shape * (0.67 + gray * 0.25) + shimmer + dither - influence * 0.29, 0, 1);
+            const idx = clamp(Math.round(tone * (this.charset.length - 1)), 1, this.charset.length - 1);
+            str += this.charset[idx];
             continue;
           }
 
-          let gray = (0.3 * r + 0.6 * g + 0.1 * b) / 255;
-          let idx = Math.floor((1 - gray) * (this.charset.length - 1));
-          if (this.invert) idx = this.charset.length - idx - 1;
+          if (a === 0) {
+            str += this.fieldMode ? this.charset[0] : ' ';
+            continue;
+          }
+
+          const gray = (0.3 * r + 0.6 * g + 0.1 * b) / 255;
+          let idx;
+          if (this.fieldMode) {
+            const mountain = this.mountainTones?.[sx + sy * w] ?? gray;
+            const dither = (cellNoise(x, y, this.variant) - 0.5) * 0.16;
+            const tone = clamp(mountain * 0.78 + gray * 0.22 + dither, 0, 1);
+            idx = Math.round(tone * (1 - 0.55 * influence) * (this.charset.length - 1));
+          } else {
+            idx = Math.floor((1 - gray) * (this.charset.length - 1));
+            if (this.invert) idx = this.charset.length - idx - 1;
+          }
           str += this.charset[idx];
         }
         str += '\n';
@@ -160,7 +322,19 @@ class AsciiFilter {
   }
 
   setPointer(x, y, active) {
+    const now = performance.now();
+    if (active) this.lastPointer = { x, y };
+    if (active && (!this.pointer.active || now - this.lastTrailAt > 55 || Math.hypot(x - this.pointer.x, y - this.pointer.y) > 22)) {
+      this.trail.push({ x, y, at: now });
+      if (this.trail.length > 12) this.trail.shift();
+      this.lastTrailAt = now;
+    }
     this.pointer = { x, y, active };
+  }
+
+  dispose() {
+    if (this.fieldMode && !this.motifMode) mountainImage.removeEventListener('load', this.onMountainLoad);
+    if (this.motifMode) octopusImage.removeEventListener('load', this.onOctopusLoad);
   }
 
 }
@@ -258,7 +432,7 @@ class CanvasField {
 
 class CanvAscii {
   constructor(
-    { text, asciiFontSize, textFontSize, textColor, planeBaseHeight, enableWaves, fieldMode, fieldVariant },
+    { text, asciiFontSize, textFontSize, textColor, planeBaseHeight, enableWaves, fieldMode, fieldVariant, motifMode },
     containerElem,
     width,
     height
@@ -274,6 +448,7 @@ class CanvAscii {
     this.enableWaves = enableWaves;
     this.fieldMode = fieldMode;
     this.fieldVariant = fieldVariant;
+    this.motifMode = motifMode;
 
     this.camera = new PerspectiveCamera(45, this.width / this.height, 1, 1000);
     this.camera.position.z = 30;
@@ -338,8 +513,12 @@ class CanvAscii {
     this.filter = new AsciiFilter(this.renderer, {
       fontFamily: 'Courier New',
       fontSize: this.asciiFontSize,
-      charset: ' ·+x<>/',
-      invert: true
+      charset: this.fieldMode ? GLYPHS : undefined,
+      invert: true,
+      container: this.container,
+      variant: this.fieldVariant,
+      fieldMode: this.fieldMode,
+      motifMode: this.motifMode
     });
 
     this.container.appendChild(this.filter.domElement);
@@ -446,6 +625,7 @@ class CanvAscii {
   dispose() {
     this.stop();
     if (this.filter) {
+      this.filter.dispose();
       if (this.filter.domElement.parentNode) {
         this.container.removeChild(this.filter.domElement);
       }
@@ -470,7 +650,8 @@ export default function ASCIIText({
   planeBaseHeight = 8,
   enableWaves = true,
   fieldMode = false,
-  fieldVariant = 0
+  fieldVariant = 0,
+  motifMode = false
 }) {
   const containerRef = useRef(null);
   const asciiRef = useRef(null);
@@ -483,7 +664,7 @@ export default function ASCIIText({
     let instance;
     try {
       instance = new CanvAscii(
-        { text, asciiFontSize, textFontSize, textColor, planeBaseHeight, enableWaves, fieldMode, fieldVariant },
+        { text, asciiFontSize, textFontSize, textColor, planeBaseHeight, enableWaves, fieldMode, fieldVariant, motifMode },
         container, width, height
       );
       instance.init();
@@ -511,7 +692,7 @@ export default function ASCIIText({
       instance.dispose();
       asciiRef.current = null;
     };
-  }, [text, asciiFontSize, textFontSize, textColor, planeBaseHeight, enableWaves, fieldMode, fieldVariant]);
+  }, [text, asciiFontSize, textFontSize, textColor, planeBaseHeight, enableWaves, fieldMode, fieldVariant, motifMode]);
 
   return <div ref={containerRef} className="ascii-text-container" aria-hidden="true" />;
 }

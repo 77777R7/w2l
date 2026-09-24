@@ -27,6 +27,7 @@ app.innerHTML = `
   <div class="page-shell">
     <section class="hero" id="top" aria-labelledby="hero-title">
       <div class="hero-backdrop" aria-hidden="true"></div>
+      <div class="hero-octopus-static" aria-hidden="true"></div>
       <div class="hero-ascii-accent" id="hero-ascii" aria-hidden="true"></div>
       <div class="hero-shade" aria-hidden="true"></div>
 

@@ -5,20 +5,9 @@ import ASCIIText from './reactbits/ASCIIText.jsx'
 export function mountReactBitsAscii(container: HTMLElement): () => void {
   const root = createRoot(container)
   root.render(
-    <>
-      <div className="hero-ascii-layer hero-ascii-left hero-ascii-far">
-        <ASCIIText text="hello_world" enableWaves={true} asciiFontSize={16} fieldMode={true} fieldVariant={1} />
-      </div>
-      <div className="hero-ascii-layer hero-ascii-left hero-ascii-near">
-        <ASCIIText text="hello_world" enableWaves={true} asciiFontSize={16} fieldMode={true} fieldVariant={2} />
-      </div>
-      <div className="hero-ascii-layer hero-ascii-right hero-ascii-far">
-        <ASCIIText text="hello_world" enableWaves={true} asciiFontSize={16} fieldMode={true} fieldVariant={3} />
-      </div>
-      <div className="hero-ascii-layer hero-ascii-right hero-ascii-near">
-        <ASCIIText text="hello_world" enableWaves={true} asciiFontSize={16} fieldMode={true} fieldVariant={4} />
-      </div>
-    </>
+    <div className="hero-ascii-layer hero-ascii-octopus">
+      <ASCIIText text="octopus" enableWaves={true} asciiFontSize={14} fieldMode={true} fieldVariant={5} motifMode={true} />
+    </div>
   )
   return () => root.unmount()
 }
