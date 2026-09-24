@@ -37,20 +37,18 @@ app.innerHTML = `
           <span class="brand-name">W2L<span class="brand-dot">.</span></span>
         </a>
         <nav class="site-nav" aria-label="Main navigation">
-          <span class="nav-preview"><span class="online-dot"></span> Public preview</span>
           <a href="#how-it-works">How it works <span aria-hidden="true">↗</span></a>
         </nav>
       </header>
 
       <main class="hero-main layout-width">
         <div class="hero-copy">
-          <p class="eyebrow"><span class="eyebrow-line"></span> WEB TO LIVING DATA <span class="eyebrow-line"></span></p>
           <h1 id="hero-title">One link.<br /><em>Web data, ready.</em></h1>
-          <p class="hero-description">Paste a public URL to get readable content.<br class="desktop-break" />Supported product pages also show fields you can verify.</p>
+          <p class="hero-description">Paste a public URL. Get readable content and verifiable fields where supported.</p>
         </div>
 
         <form class="url-form" id="preview-form" novalidate>
-          <label for="url-input">Start with a web page</label>
+          <label class="visually-hidden" for="url-input">Public web page URL</label>
           <div class="url-entry">
             <span class="url-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13.5a4.5 4.5 0 0 0 6.36 0l3.18-3.18a4.5 4.5 0 0 0-6.36-6.36L11.5 5.64"/><path d="M14 10.5a4.5 4.5 0 0 0-6.36 0l-3.18 3.18a4.5 4.5 0 0 0 6.36 6.36l1.68-1.68"/></svg>
@@ -59,21 +57,20 @@ app.innerHTML = `
             <button class="submit-button" id="submit-button" type="submit"><span id="submit-label">Extract page</span><span class="button-arrow" aria-hidden="true">→</span></button>
           </div>
           <div class="form-meta">
-            <p id="url-help">No setup · 3 tries per browser each day · Public pages only</p>
+            <p id="url-help">3 free previews per browser, daily · Public pages only</p>
             <button class="example-button" id="example-button" type="button">Try an example <span aria-hidden="true">↗</span></button>
           </div>
           <div class="format-choice">
-            <label for="output-format">Output format</label>
+            <label for="output-format">Format</label>
             <select id="output-format" aria-describedby="format-help">
               <option value="markdown">Readable Markdown</option>
               <option value="json">Result JSON</option>
             </select>
-            <span id="format-help">Switch formats after extraction without another request.</span>
+            <span class="visually-hidden" id="format-help">Switch formats after extraction without another request.</span>
           </div>
           <p class="form-message" id="form-message" role="status" aria-live="polite"></p>
         </form>
       </main>
-      <div class="hero-bottom layout-width" aria-hidden="true"><span>[ INPUT → OUTPUT ]</span><span>SCROLL TO EXPLORE ↓</span></div>
     </section>
 
     <section class="result-section layout-width" id="result-section" aria-labelledby="result-heading" hidden>
