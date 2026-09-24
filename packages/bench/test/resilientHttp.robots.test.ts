@@ -45,6 +45,13 @@ afterAll(async () => {
 })
 
 describe('ResilientHttpSubject robots', () => {
+  it('never applies a local platform exception to another host', async () => {
+    const subject = new ResilientHttpSubject('standard', undefined, undefined, true, 'http://127.0.0.1:7890', true)
+    try {
+      await expect(subject.fetch('https://example.com/')).rejects.toThrow('limited to fixed platform hosts')
+    } finally { await subject.teardown() }
+  })
+
   it('never fetches the page when public-preview robots responds 503', async () => {
     let pageHits = 0
     const server = createServer((req, res) => {

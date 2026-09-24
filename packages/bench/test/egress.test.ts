@@ -3,7 +3,7 @@ import { hostedNetworkPolicy, localNetworkPolicy } from '@w2l/contracts'
 import { createServer } from 'node:http'
 import { once } from 'node:events'
 import { request } from 'undici'
-import { assertSafeUrl, BodyTooLargeError, createGuardedDispatcher, readCappedBody, SsrfDeniedError } from '../src/egress.js'
+import { assertSafeUrl, BodyTooLargeError, createGuardedDispatcher, isLocalPreviewProxyTarget, readCappedBody, SsrfDeniedError, validateLocalPreviewProxy } from '../src/egress.js'
 
 async function* chunks(...parts: Uint8Array[]): AsyncIterable<Uint8Array> {
   for (const part of parts) yield part
@@ -21,6 +21,24 @@ describe('assertSafeUrl', () => {
 
   it('rejects credential-bearing URLs before a request', async () => {
     await expect(assertSafeUrl('https://user:pass@example.com/', hostedNetworkPolicy())).rejects.toBeInstanceOf(SsrfDeniedError)
+  })
+})
+
+describe('local platform preview proxy boundary', () => {
+  it('accepts only an unauthenticated loopback HTTP proxy', () => {
+    expect(validateLocalPreviewProxy('http://127.0.0.1:7890')).toBe('http://127.0.0.1:7890')
+    for (const url of ['https://127.0.0.1:7890', 'http://proxy.example:7890', 'http://u:p@127.0.0.1:7890', 'http://127.0.0.1:7890/path']) {
+      expect(() => validateLocalPreviewProxy(url)).toThrow()
+    }
+  })
+
+  it('routes only fixed HTTPS Reddit and X hosts through that proxy', () => {
+    for (const url of ['https://www.reddit.com/r/test/', 'https://old.reddit.com/r/test/', 'https://x.com/user/status/123']) {
+      expect(isLocalPreviewProxyTarget(url)).toBe(true)
+    }
+    for (const url of ['http://x.com/', 'https://x.com.evil.test/', 'https://example.com/', 'https://127.0.0.1/', 'https://x.com:444/']) {
+      expect(isLocalPreviewProxyTarget(url)).toBe(false)
+    }
   })
 })
 

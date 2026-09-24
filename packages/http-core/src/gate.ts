@@ -251,6 +251,15 @@ export function classifyGate(res: GateResponse): GateVerdict | null {
     return { reason: 'captcha', signals: ['amazon_validate_captcha_form'] }
   }
 
+  // Reddit currently serves an HTTP 200 page containing a hidden form that
+  // submits a JavaScript proof instead of the requested post. Both inputs
+  // together identify that interstitial without mistaking article copy for it.
+  if (/<form\b[^>]*\bhidden\b/i.test(head)
+    && /\bname\s*=\s*["']js_challenge["']/i.test(head)
+    && /\bname\s*=\s*["']jsc_token["']/i.test(head)) {
+    return { reason: 'bot_detected_generic', signals: ['reddit_js_verification'] }
+  }
+
   if (contentful) return null
 
   // --- interactive captcha widget ----------------------------------------

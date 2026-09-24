@@ -10,8 +10,8 @@ import {
 } from '@w2l/contracts'
 import { collectLinks, extractTf, htmlToMarkdown } from '@w2l/extract-tf'
 import { resilientFetch, createExecutionScope, throwIfExecutionStopped, classifyGate, escalationForBlock, parseRetryAfterMs, sha256Utf8, type ResilientFetcher } from '@w2l/http-core'
-import { Agent, request } from 'undici'
-import { assertSafeUrl, BodyTooLargeError, createGuardedDispatcher, defaultNetworkPolicy, readCappedBody } from '../egress.js'
+import { Agent, ProxyAgent, request, type Dispatcher } from 'undici'
+import { assertSafeUrl, BodyTooLargeError, createGuardedDispatcher, defaultNetworkPolicy, isLocalPreviewProxyTarget, readCappedBody, validateLocalPreviewProxy } from '../egress.js'
 import { prepareHttpIdentity, recordHttpIdentity } from '../httpIdentity.js'
 import { RobotsOriginCache } from '../robotsLookup.js'
 import type { SubjectAdapter } from '../subject.js'
@@ -41,20 +41,26 @@ export class ResilientHttpSubject implements SubjectAdapter {
   private readonly networkPolicy: NetworkPolicy
   private readonly scheduler: OriginScheduler
   private readonly dispatcher: Agent
+  private readonly localPreviewProxy: ProxyAgent | null
+  private readonly localPreviewRobotsException: boolean
   private teardownPromise: Promise<void> | null = null
 
-  constructor(mode: CrawlMode = 'standard', networkPolicy?: NetworkPolicy, scheduler?: OriginScheduler, robotsFailClosed = false) {
+  constructor(mode: CrawlMode = 'standard', networkPolicy?: NetworkPolicy, scheduler?: OriginScheduler, robotsFailClosed = false, localPreviewProxyUrl?: string, localPreviewRobotsException = false) {
     this.prepared = prepareHttpIdentity(mode)
+    if (localPreviewRobotsException && !localPreviewProxyUrl) throw new Error('Local platform exception requires a loopback proxy')
+    this.localPreviewRobotsException = localPreviewRobotsException
+    if (localPreviewRobotsException) this.prepared.identity.respectsRobots = false
     this.networkPolicy = networkPolicy ?? defaultNetworkPolicy()
     this.scheduler = scheduler ?? new OriginScheduler(this.networkPolicy)
     this.dispatcher = createGuardedDispatcher(this.networkPolicy)
-    this.robotsCache = new RobotsOriginCache(this.networkPolicy, this.dispatcher, robotsFailClosed)
+    this.localPreviewProxy = localPreviewProxyUrl ? new ProxyAgent(validateLocalPreviewProxy(localPreviewProxyUrl)) : null
+    this.robotsCache = new RobotsOriginCache(this.networkPolicy, url => this.dispatcherFor(url), robotsFailClosed)
     const headers = this.prepared.headers
     const maxBodyBytes = this.networkPolicy.maxBodyBytes
     this.fetcherFor = (initialUrl, validators, signal, onBodyRead, onRequestWait) => async (url, init) => {
       await this.scheduler.beforeRequest(new URL(url).origin, init.signal ?? signal, onRequestWait)
       const response = await request(url, {
-        dispatcher: this.dispatcher,
+        dispatcher: this.dispatcherFor(url),
         method: 'GET',
         headersTimeout: init.headersTimeoutMs,
         bodyTimeout: init.bodyTimeoutMs,
@@ -84,7 +90,12 @@ export class ResilientHttpSubject implements SubjectAdapter {
     }
   }
 
+  private dispatcherFor(url: string): Dispatcher {
+    return this.localPreviewProxy !== null && isLocalPreviewProxyTarget(url) ? this.localPreviewProxy : this.dispatcher
+  }
+
   async fetch(url: string, deadlineMs?: number, signal?: AbortSignal, validators: { etag?: string; lastModified?: string } = {}, onRetryAfter?: ExecutionContext['onRetryAfter']): Promise<FetchResult> {
+    if (this.localPreviewRobotsException && !isLocalPreviewProxyTarget(url)) throw new Error('Local platform exception is limited to fixed platform hosts')
     const scope = createExecutionScope({ signal, deadlineAt: deadlineMs, onRetryAfter })
     const start = Date.now()
     const monotonicStart = performance.now()
@@ -156,6 +167,9 @@ export class ResilientHttpSubject implements SubjectAdapter {
     if (!honest) {
       return this.denied(url, start, trace, 'identity_compromised')
     }
+    if (this.localPreviewRobotsException) {
+      trace.push({ at: Date.now() - start, lane: 'http', event: 'local_platform_robots_exception', detail: { host: new URL(url).hostname } })
+    }
 
     if (this.prepared.identity.respectsRobots) {
       const robotsStart = performance.now()
@@ -208,7 +222,10 @@ export class ResilientHttpSubject implements SubjectAdapter {
         onRetryAfter?.(target, retryAt)
       },
       maxRedirects: this.networkPolicy.maxRedirects,
-      assertUrl: (target) => assertSafeUrl(target, this.networkPolicy),
+      assertUrl: async (target) => {
+        if (this.localPreviewRobotsException && !isLocalPreviewProxyTarget(target)) throw new Error('Local platform exception cannot follow an off-platform redirect')
+        await assertSafeUrl(target, this.networkPolicy)
+      },
     }).catch(error => {
       if (!signal?.aborted && (deadlineAt === undefined || Date.now() < deadlineAt)) throw error
       transportMs = Math.max(0, performance.now() - transportStart - pacingWaitMs)
@@ -491,7 +508,7 @@ export class ResilientHttpSubject implements SubjectAdapter {
   }
 
   async teardown(): Promise<void> {
-    this.teardownPromise ??= this.dispatcher.close()
+    this.teardownPromise ??= Promise.all([this.dispatcher.close(), this.localPreviewProxy?.close()]).then(() => {})
     await this.teardownPromise
   }
 }

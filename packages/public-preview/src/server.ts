@@ -19,6 +19,10 @@ export interface PreviewServerOptions {
   evalToken?: string
   /** Git commit embedded at deployment so evaluation can prove source identity. */
   sourceCommit?: string
+  /** Review-only, loopback-bound HTTP proxy for fixed public Reddit/X hosts. */
+  localPlatformProxyUrl?: string
+  /** Explicit review-only exception; never set in the production launcher. */
+  localPlatformRobotsException?: boolean
 }
 
 const MIME: Record<string, string> = {
@@ -139,6 +143,7 @@ export function createPreviewHandler(options: PreviewServerOptions): (req: Incom
   const deadlineMs = Math.min(Math.max(options.deadlineMs ?? 40_000, 1_000), 60_000)
   if (options.visitorCookieSecret && options.visitorCookieSecret.length < 32) throw new Error('Visitor cookie secret must have at least 32 characters')
   if (options.evalToken && options.evalToken.length < 32) throw new Error('Evaluation token must have at least 32 characters')
+  if (options.localPlatformRobotsException && !options.localPlatformProxyUrl) throw new Error('Local platform exception requires a loopback proxy')
   return (req, res) => { void (async () => {
     const started = performance.now()
     const deadlineAt = Date.now() + deadlineMs
@@ -239,7 +244,7 @@ export function createPreviewHandler(options: PreviewServerOptions): (req: Incom
               // The lease stays owned while we persist the observed cooldown.
               // Release repeats the maximum after all notes settle.
               retryNotes.push(permit.noteRetryAfter(retryAt).catch(() => {}))
-            })
+            }, options.localPlatformProxyUrl, options.localPlatformRobotsException)
             if (outcome.result.retryAt !== undefined) observedRetryAt = Math.max(observedRetryAt, outcome.result.retryAt)
             const mapped = mapPreviewResult(submitted, target, outcome, Math.max(0, performance.now() - started))
             if (evaluation) {

@@ -31,6 +31,32 @@ export function defaultNetworkPolicy(): NetworkPolicy {
   return localNetworkPolicy()
 }
 
+// Only these fixed, platform-owned hosts may use the local review proxy.
+// Arbitrary visitor domains keep the DNS-pinned direct dispatcher.
+const LOCAL_PREVIEW_PROXY_HOSTS = new Set([
+  'reddit.com', 'www.reddit.com', 'old.reddit.com',
+  'x.com', 'www.x.com', 'twitter.com', 'www.twitter.com',
+])
+
+export function isLocalPreviewProxyTarget(input: string): boolean {
+  try {
+    const url = new URL(input)
+    return url.protocol === 'https:' && url.port === '' && LOCAL_PREVIEW_PROXY_HOSTS.has(url.hostname.toLowerCase())
+  } catch { return false }
+}
+
+/** A public visitor cannot choose egress. The local review process may use
+ * its operator's existing loopback HTTP proxy for fixed platform hosts. */
+export function validateLocalPreviewProxy(input: string): string {
+  let url: URL
+  try { url = new URL(input) } catch { throw new Error('Local preview proxy URL is invalid') }
+  if (url.protocol !== 'http:' || !['127.0.0.1', '[::1]'].includes(url.hostname)
+    || !url.port || url.username || url.password || url.pathname !== '/' || url.search || url.hash) {
+    throw new Error('Local preview proxy must be an unauthenticated loopback HTTP URL with a port')
+  }
+  return url.origin
+}
+
 type ResolvedAddress = { address: string; family: number }
 type Resolver = (hostname: string, options: { all: true }) => Promise<ResolvedAddress[]>
 

@@ -210,6 +210,16 @@ describe('classifyGate — geo restriction', () => {
 })
 
 describe('classifyGate — generic bot gate thresholds', () => {
+  it('recognizes the Reddit JavaScript verification form even with HTTP 200', () => {
+    const body = `<html><head><title>Reddit</title></head><body>
+      <form hidden method="GET" action="/r/example/comments/post/">
+        <input type="hidden" name="solution" />
+        <input type="hidden" name="js_challenge" value="1" />
+        <input type="hidden" name="jsc_token" value="test-token" />
+      </form></body></html>`
+    expect(classifyGate(res({ status: 200, body }))).toEqual({ reason: 'bot_detected_generic', signals: ['reddit_js_verification'] })
+    expect(classifyGate(res({ status: 200, body, contentful: true }))?.reason).toBe('bot_detected_generic')
+  })
   it('fires on a single strong refusal marker', () => {
     const v = classifyGate(res({ status: 403, body: '<h1>You have been blocked</h1>' }))
     expect(v?.reason).toBe('bot_detected_generic')

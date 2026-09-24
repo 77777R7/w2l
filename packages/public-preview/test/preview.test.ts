@@ -129,6 +129,34 @@ describe('anonymous preview contract', () => {
     expect(calls).toBe(1)
   })
 
+  it('does not report an unverified X status as a successful page preview', () => {
+    const url = 'https://x.com/alice/status/222'
+    const outcome = fixture(url)
+    outcome.result.document!.adapter = { id: 'x-public', version: '1.0.0', status: 'beta adapter' }
+    outcome.result.document!.adapterValidation = { valid: false, issues: ['missing_post'] }
+    outcome.result.markdown = 'Navigation and a different recommended post'
+    const result = mapPreviewResult(url, normalizePreviewUrl(url), outcome, 100)
+    expect(result).toMatchObject({ status: 'incomplete', markdown: null, reason: 'We could not verify the requested post in the page content.' })
+
+    outcome.result.document!.adapterValidation = { valid: true, issues: [] }
+    outcome.result.document!.entities = [{ type: 'post', id: '222', fields: {
+      author: { raw: 'alice', normalized: 'alice', source: 'meta', path: 'meta[property="og:title"]', status: 'confirmed' },
+      text: { raw: 'The verified post', normalized: 'The verified post', source: 'meta', path: 'meta[property="og:description"]', status: 'confirmed' },
+    }, relationships: { author: 'alice' } }]
+    expect(mapPreviewResult(url, normalizePreviewUrl(url), outcome, 100)).toMatchObject({ status: 'success', markdown: 'Post by @alice\n\nThe verified post', reason: null })
+  })
+
+  it('distinguishes a robots refusal from an unsafe URL policy refusal', () => {
+    const url = 'https://example.com/page'
+    const outcome = fixture(url)
+    outcome.result.status = 'failed'
+    outcome.result.failureReason = 'policy_denied'
+    outcome.result.trace = [{ at: 0, lane: 'http', event: 'ssrf_denied' }]
+    expect(mapPreviewResult(url, normalizePreviewUrl(url), outcome, 10)).toMatchObject({ status: 'failed', reason: 'This URL is not allowed for public preview.' })
+    outcome.result.trace = [{ at: 0, lane: 'http', event: 'robots_disallowed' }]
+    expect(mapPreviewResult(url, normalizePreviewUrl(url), outcome, 10)).toMatchObject({ status: 'blocked', reason: 'This site does not allow automated preview of this page.' })
+  })
+
   it('rejects foreign Origin and unsupported options before spending quota', async () => {
     let quotaCalls = 0
     const url = await endpoint({ consume: async () => { quotaCalls++; return 'ok' } }, async target => fixture(target.url))

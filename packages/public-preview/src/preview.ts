@@ -1,4 +1,4 @@
-import { buildChannels, LadderRunner, OriginScheduler } from '@w2l/bench'
+import { buildChannels, isLocalPreviewProxyTarget, LadderRunner, OriginScheduler } from '@w2l/bench'
 import { hostedNetworkPolicy, type FetchResult, type JsonValue, type StructuredExtractionResult } from '@w2l/contracts'
 import { createExecutionScope } from '@w2l/http-core'
 import { extractStructured } from '@w2l/api/structured'
@@ -70,11 +70,12 @@ export interface CaptureOutcome {
   rawHtml?: string
 }
 
-export type PreviewCapture = (url: NormalizedPreviewUrl, signal: AbortSignal, deadlineAt: number, amazonState: string | null, ownerEvaluation?: boolean, onRetryAfter?: (url: string, retryAt: number) => void) => Promise<CaptureOutcome>
+export type PreviewCapture = (url: NormalizedPreviewUrl, signal: AbortSignal, deadlineAt: number, amazonState: string | null, ownerEvaluation?: boolean, onRetryAfter?: (url: string, retryAt: number) => void, localPlatformProxyUrl?: string, localPlatformRobotsException?: boolean) => Promise<CaptureOutcome>
 
-export async function capturePreview(url: NormalizedPreviewUrl, signal: AbortSignal, deadlineAt: number, amazonState: string | null, ownerEvaluation = false, onRetryAfter?: (url: string, retryAt: number) => void): Promise<CaptureOutcome> {
+export async function capturePreview(url: NormalizedPreviewUrl, signal: AbortSignal, deadlineAt: number, amazonState: string | null, ownerEvaluation = false, onRetryAfter?: (url: string, retryAt: number) => void, localPlatformProxyUrl?: string, localPlatformRobotsException = false): Promise<CaptureOutcome> {
   let rendered: { html: string; sha256: string } | undefined
   const policy = { ...hostedNetworkPolicy(), maxRedirects: 3, maxBodyBytes: 2 * 1024 * 1024, maxDecompressedBytes: 4 * 1024 * 1024, perHostConcurrency: 1 }
+  const localPlatformRequest = url.amazonAsin === null && isLocalPreviewProxyTarget(url.url)
   const channels = buildChannels('standard', {
     networkPolicy: policy,
     robotsFailClosed: true,
@@ -82,6 +83,8 @@ export async function capturePreview(url: NormalizedPreviewUrl, signal: AbortSig
     publicPreferenceState: url.amazonAsin === null ? null : amazonState,
     browserAllowedHosts: url.amazonAsin === null ? undefined : ['www.amazon.sg', 'm.media-amazon.com', 'images-na.ssl-images-amazon.com', 'images-eu.ssl-images-amazon.com'],
     onRenderedHtml: url.amazonAsin !== null ? (html, sha256) => { rendered = { html, sha256 } } : undefined,
+    localPreviewProxyUrl: localPlatformRequest ? localPlatformProxyUrl : undefined,
+    localPreviewRobotsException: localPlatformRequest && localPlatformRobotsException,
     // No third-party provider calls, even if environment keys happen to exist.
     keys: {},
   }).filter(channel => channel.id === (url.amazonAsin === null ? 'http' : 'browser_local'))
@@ -180,18 +183,57 @@ function productSummary(product: PreviewProduct): string | null {
   return lines.join('\n')
 }
 
+function socialPostSummary(normalized: NormalizedPreviewUrl, result: FetchResult): { applies: boolean; markdown: string | null } {
+  const path = new URL(normalized.url).pathname
+  const adapter = result.document?.adapter.id
+  const expectedId = adapter === 'x-public' ? /^\/[^/]+\/status\/(\d+)/.exec(path)?.[1]
+    : adapter === 'reddit-public' ? /^\/r\/[^/]+\/comments\/([a-z0-9]+)/i.exec(path)?.[1] : undefined
+  if (!expectedId) return { applies: false, markdown: null }
+  if (result.document?.adapterValidation?.valid !== true) return { applies: true, markdown: null }
+  const entities = result.document.entities ?? []
+  const post = entities.find(entity => entity.type === 'post' && entity.id === expectedId)
+  const value = (key: string): string | null => {
+    const raw = post?.fields[key]?.normalized
+    return typeof raw === 'string' && raw.trim() ? raw.trim() : null
+  }
+  if (!post) return { applies: true, markdown: null }
+  if (adapter === 'x-public') {
+    const body = value('text')
+    const author = value('author')
+    return { applies: true, markdown: body && author ? `Post by @${author}\n\n${body}` : null }
+  }
+  const title = value('title')
+  if (!title) return { applies: true, markdown: null }
+  const lines = [`# ${title}`]
+  if (value('body')) lines.push('', value('body')!)
+  for (const comment of entities.filter(entity => entity.type === 'comment' && entity.relationships.thread === expectedId).slice(0, 50)) {
+    const body = comment.fields.body?.normalized
+    if (typeof body !== 'string' || !body.trim()) continue
+    const author = comment.fields.author?.normalized
+    lines.push('', `Comment${typeof author === 'string' && author ? ` by u/${author}` : ''}:`, body.trim())
+  }
+  return { applies: true, markdown: lines.join('\n') }
+}
+
 export function mapPreviewResult(requestedUrl: string, normalized: NormalizedPreviewUrl, outcome: CaptureOutcome, totalMs: number): PreviewResponse {
   const { result } = outcome
   const product = normalized.amazonAsin === null ? undefined : productView(normalized.amazonAsin, outcome)
-  const status: PreviewStatus = result.status === 'blocked' ? 'blocked'
+  const social = socialPostSummary(normalized, result)
+  const robotsDenied = result.failureReason === 'policy_denied' && result.trace?.some(event => event.event === 'robots_disallowed') === true
+  const status: PreviewStatus = result.status === 'blocked' || robotsDenied ? 'blocked'
     : result.failureReason === 'timeout' || result.budgetExceeded === 'time' || result.status === 'cancelled' ? 'timeout'
-      : result.status === 'success' ? product && product.status !== 'complete' ? 'incomplete' : 'success'
+      : result.status === 'success' ? product && product.status !== 'complete' || social.applies && social.markdown === null ? 'incomplete' : 'success'
         : result.status === 'partial' || result.status === 'empty_verified' || (product && result.failureReason === 'identity_compromised') ? 'incomplete' : 'failed'
   const reason = status === 'success' ? null
-    : status === 'blocked' ? 'The website blocked this request.'
+    : status === 'blocked' ? robotsDenied ? 'This site does not allow automated preview of this page.'
+      : result.blockReason === 'bot_detected_generic' ? 'The site returned a verification page instead of the requested content.'
+        : result.blockReason === 'login_wall' ? 'The page requires a login.'
+          : 'The website blocked this request.'
       : status === 'timeout' ? 'The page did not finish loading within the preview time limit.'
         : product && product.issues.length > 0 ? product.issues[0]!.message
-          : result.failureReason ? `Extraction failed (${result.failureReason}).`
+          : social.applies && social.markdown === null ? 'We could not verify the requested post in the page content.'
+          : result.failureReason === 'policy_denied' ? 'This URL is not allowed for public preview.'
+            : result.failureReason ? `Extraction failed (${result.failureReason}).`
             : status === 'incomplete' ? 'The page content is incomplete.' : 'We could not extract this page right now.'
   return {
     status,
@@ -199,7 +241,7 @@ export function mapPreviewResult(requestedUrl: string, normalized: NormalizedPre
     finalUrl: result.evidence.finalUrl || null,
     title: result.document?.title ?? null,
     markdown: result.status === 'success' || result.status === 'partial'
-      ? product === undefined ? (result.markdown?.slice(0, 1_000_000) ?? null) : productSummary(product)
+      ? product !== undefined ? productSummary(product) : social.applies ? social.markdown : (result.markdown?.slice(0, 1_000_000) ?? null)
       : null,
     totalMs,
     reason,

@@ -2,11 +2,23 @@ import { randomBytes } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { createPreviewServer } from '../../packages/public-preview/dist/server.js'
 import { validateAmazonPublicState } from '../../packages/public-preview/dist/preview.js'
+import { validateLocalPreviewProxy } from '../../packages/bench/dist/index.js'
 
 // Review-only launcher. Production uses Firestore for restart-safe quota and
 // Amazon origin coordination; this process deliberately binds loopback only.
 const port = Number(process.env.W2L_PUBLIC_PREVIEW_PORT ?? 8798)
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Invalid W2L_PUBLIC_PREVIEW_PORT')
+
+const platformException = process.env.W2L_PUBLIC_PREVIEW_PLATFORM_EXCEPTION === 'true'
+const explicitProxy = process.env.W2L_PUBLIC_PREVIEW_PROXY_URL
+let localPlatformProxyUrl
+try {
+  const candidate = explicitProxy ?? process.env.HTTPS_PROXY ?? process.env.https_proxy
+  if (candidate) localPlatformProxyUrl = validateLocalPreviewProxy(candidate)
+} catch (error) {
+  if (explicitProxy || platformException) throw error
+}
+if (platformException && !localPlatformProxyUrl) throw new Error('Local platform exception requires a loopback HTTP proxy')
 
 let amazonState = null
 if (process.env.W2L_AMAZON_PUBLIC_STATE_FILE) {
@@ -63,10 +75,13 @@ const server = createPreviewServer({
   staticDir: './apps/public-web/dist',
   visitorCookieSecret: randomBytes(32).toString('hex'),
   enabled: true,
+  localPlatformProxyUrl,
+  localPlatformRobotsException: platformException,
 })
 server.listen(port, '127.0.0.1', () => {
   console.log(`English public preview: http://127.0.0.1:${port}/`)
   console.log('Local review only: quota and Amazon coordination reset when this process restarts.')
   if (!amazonState) console.log('Amazon.sg preview is unavailable until W2L_AMAZON_PUBLIC_STATE_FILE is set.')
+  if (localPlatformProxyUrl) console.log(`Local Reddit/X proxy active; robots exception ${platformException ? 'enabled' : 'disabled'}.`)
 })
 for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => server.close())

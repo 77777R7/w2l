@@ -34,17 +34,17 @@ export interface CachedRobots {
 export class RobotsOriginCache {
   private readonly byOrigin = new Map<string, CachedRobots>()
   private readonly pending = new Map<string, { promise: Promise<CachedRobots | null>; controller: AbortController; users: number }>()
-  private readonly dispatcher: Dispatcher
+  private readonly dispatcher: Dispatcher | ((url: string) => Dispatcher)
   private readonly ownsDispatcher: boolean
   private teardownPromise: Promise<void> | null = null
-  constructor(private readonly networkPolicy: NetworkPolicy = defaultNetworkPolicy(), dispatcher?: Dispatcher, private readonly failClosedOnUnreachable = false) {
+  constructor(private readonly networkPolicy: NetworkPolicy = defaultNetworkPolicy(), dispatcher?: Dispatcher | ((url: string) => Dispatcher), private readonly failClosedOnUnreachable = false) {
     this.ownsDispatcher = dispatcher === undefined
     this.dispatcher = dispatcher ?? createGuardedDispatcher(networkPolicy)
   }
 
   async teardown(): Promise<void> {
     if (this.ownsDispatcher) {
-      this.teardownPromise ??= this.dispatcher.close()
+      this.teardownPromise ??= (this.dispatcher as Dispatcher).close()
       await this.teardownPromise
     }
   }
@@ -80,7 +80,7 @@ export class RobotsOriginCache {
         redirect: 'manual',
         // Node's fetch accepts the Undici dispatcher; the socket lookup
         // validates the address again and pins the validated result.
-        dispatcher: this.dispatcher,
+        dispatcher: typeof this.dispatcher === 'function' ? this.dispatcher(currentUrl) : this.dispatcher,
       } as RequestInit & { dispatcher: Dispatcher })
         if (res.status >= 300 && res.status < 400) {
           await res.body?.cancel()
