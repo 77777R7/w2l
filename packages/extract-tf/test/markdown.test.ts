@@ -235,6 +235,24 @@ describe('htmlToMarkdown', () => {
     expect(htmlToMarkdown('<svg><svg><g><span>s</span></g></svg></svg>w')).toBe('sw')
   })
 
+  it('ignores an end tag such as </span> that would close a block written in its element, as a browser does', () => {
+    // Chromium's document.body.innerText of each page.
+    const page = (body: string) => `<!doctype html><html><body>${body}</body></html>`
+    expect(htmlToMarkdown(page('<span><div>w1</span></span>w2'))).toBe('w1w2')
+    expect(htmlToMarkdown(page('<label><div>a</label>b</div><p>c</p>'))).toBe('ab\n\nc')
+    expect(htmlToMarkdown(page('<my-card><div>a</my-card>b<p>c</p>'))).toBe('ab\n\nc')
+    expect(htmlToMarkdown(page('<sup><p>1</sup>2</p>'))).toBe('12')
+    // In a table cell too.
+    expect(htmlToMarkdown(page('<table><tr><td><span><div>a</span>b</div></td><td>c</td></tr><tr><td>d</td><td>e</td></tr></table>')))
+      .toBe('| ab | c |\n| --- | --- |\n| d | e |')
+    // A <noscript> holds text to a browser: its end tag ends it, whatever htmlparser2 reads in it.
+    expect(htmlToMarkdown(page('<noscript><p>Please enable JavaScript.</noscript><h1>Title</h1><p>Article <span>text</span>.</p>'))).toBe('# Title\n\nArticle text.')
+    // A heading's end tag closes the heading open, of any level.
+    expect(htmlToMarkdown(page('<h3>a</h2>b<p>c</p>'))).toBe('### a\n\nb\n\nc')
+    // An element a browser has closed is not in between: the <p>, closed at the <div>.
+    expect(htmlToMarkdown(page('<span><p>x<b>y<div>z</div></span>w'))).toBe('xy\n\nz\n\nw')
+  })
+
   it('keeps today\'s Markdown and html with the default blockAds, and shows a cookie banner with blockAds: false', () => {
     const html = `<!doctype html><html><head><title>Kiln temperatures and glaze vitrification</title></head>
 <body><main>

@@ -101,6 +101,21 @@ const IMPLIES_CLOSE = new Map<string, Set<string>>([
   ['rp', new Set(['rb', 'rt', 'rtc', 'rp'])],
 ])
 
+/** A browser's special elements: an end tag it reads by its "any other end tag" rule closes nothing past one. */
+const SPECIAL = new Set(['address', 'applet', 'area', 'article', 'aside', 'base', 'basefont', 'bgsound', 'blockquote', 'body', 'br', 'button', 'caption', 'center', 'col', 'colgroup', 'dd', 'details', 'dir', 'div', 'dl', 'dt', 'embed', 'fieldset', 'figcaption', 'figure', 'footer', 'form', 'frame', 'frameset', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'head', 'header', 'hgroup', 'hr', 'html', 'iframe', 'img', 'input', 'keygen', 'li', 'link', 'listing', 'main', 'marquee', 'menu', 'meta', 'nav', 'noembed', 'noframes', 'noscript', 'object', 'ol', 'p', 'param', 'plaintext', 'pre', 'script', 'search', 'section', 'select', 'source', 'style', 'summary', 'table', 'tbody', 'td', 'template', 'textarea', 'tfoot', 'th', 'thead', 'title', 'tr', 'track', 'ul', 'wbr', 'xmp'])
+/** The end tags a browser reads in the body by a rule of their own (with the table tags, and `</head>`, read in the head). */
+const OWN_END_RULE = new Set(['template', 'body', 'html', 'head', 'address', 'article', 'aside', 'blockquote', 'button', 'center', 'details', 'dialog', 'dir', 'div', 'dl', 'fieldset', 'figcaption', 'figure', 'footer', 'header', 'hgroup', 'listing', 'main', 'menu', 'nav', 'ol', 'pre', 'search', 'section', 'summary', 'ul', 'form', 'p', 'li', 'dd', 'dt', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'a', 'b', 'big', 'code', 'em', 'font', 'i', 'nobr', 's', 'small', 'strike', 'strong', 'tt', 'u', 'applet', 'marquee', 'object', 'br'])
+/** Whether a browser reads an end tag by its "any other end tag" rule: `</span>`, `</label>`, `</sup>`, a custom element's. */
+const anyOtherEnd = (name: string): boolean => !OWN_END_RULE.has(name) && !TABLE_TAGS.has(name) && !VOID.has(name)
+const HEADINGS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6'])
+/** Elements whose content a browser reads as text (a <noscript> with scripting on) where htmlparser2 reads tags: their own end tag always ends them. */
+const TEXT_CONTENT = new Set(['noscript', 'iframe', 'noembed', 'noframes', 'xmp', 'plaintext', 'textarea', 'title', 'style', 'script'])
+/** The start tags at which a browser closes a <p> open in button scope. */
+const CLOSES_P = new Set(['address', 'article', 'aside', 'blockquote', 'center', 'details', 'dialog', 'dir', 'div', 'dl', 'fieldset', 'figcaption', 'figure', 'footer', 'header', 'hgroup', 'main', 'menu', 'nav', 'ol', 'p', 'search', 'section', 'summary', 'ul', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'pre', 'listing', 'form', 'plaintext', 'xmp', 'li', 'dd', 'dt', 'hr', 'table'])
+/** The elements that end a browser's default scope outside tables (with the integration points), and the special ones a <li>, <dd> or <dt> looks past. */
+const SCOPE = new Set(['applet', 'marquee', 'object', 'template', 'html'])
+const LIST_ITEM_PASSES = new Set(['address', 'div', 'p'])
+
 /** The table tags a browser ignores outside any table (outside a template, svg or math). */
 const STRAY = new Set(['caption', 'colgroup', 'col', 'thead', 'tbody', 'tfoot', 'tr', 'td', 'th'])
 
@@ -132,6 +147,15 @@ const endsWithBodyEnd = (html: string): boolean => {
   return true
 }
 
+/** Whether the page has an end tag a browser reads by its "any other end tag" rule, such as `</span>`, or a heading's, which closes any heading. */
+const hasLooseEnd = (html: string): boolean => {
+  for (const tag of html.matchAll(/<\/([A-Za-z][^\t\n\f\r />]*)/g)) {
+    const name = tag[1]!.toLowerCase()
+    if (anyOtherEnd(name) || HEADINGS.has(name)) return true
+  }
+  return false
+}
+
 /**
  * `whole` (default: the HTML has an `<html>` tag or a doctype, as the
  * converter decides) is a page as a browser would read it: a table tag
@@ -141,7 +165,7 @@ const endsWithBodyEnd = (html: string): boolean => {
  */
 export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i.test(html)): string {
   const tableTags = whole ? /<(table|t[dhr]|thead|tbody|tfoot|caption|col)/i : /<table/i
-  if (!tableTags.test(html) && (!whole || endsWithBodyEnd(html)) && !breaksOutOfForeign(html)) return html
+  if (!tableTags.test(html) && (!whole || endsWithBodyEnd(html)) && !breaksOutOfForeign(html) && !hasLooseEnd(html)) return html
   // Replace [at, end) with text, in source order.
   const edits: { at: number; end: number; text: string }[] = []
   // The elements a browser has open from the outermost table in, innermost last.
@@ -165,6 +189,8 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
   // elements, kept as ^name), and the HTML integration points in those runs.
   const plainPos: number[] = []
   const integrationPos: number[] = []
+  // The HTML elements special to a browser.
+  const specialPos: number[] = []
   // The svg and math elements opened as HTML (each starts a run), innermost last: one can sit in another's integration point.
   const regionPos: number[] = []
   const byName = new Map<string, number[]>()
@@ -177,6 +203,7 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
     if (!name.startsWith('^') && !FOREIGN.has(name)) plainPos.push(i)
     if (FOREIGN.has(name)) regionPos.push(i)
     if (name.startsWith('^') && INTEGRATION.has(name.slice(1))) integrationPos.push(i)
+    if (SPECIAL.has(name)) specialPos.push(i)
     let list = byName.get(name)
     if (list === undefined) byName.set(name, (list = []))
     list.push(i)
@@ -193,6 +220,7 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
       if (!name.startsWith('^') && !FOREIGN.has(name)) plainPos.pop()
       if (FOREIGN.has(name)) regionPos.pop()
       if (name.startsWith('^') && INTEGRATION.has(name.slice(1))) integrationPos.pop()
+      if (SPECIAL.has(name)) specialPos.pop()
       if (TABLE_TAGS.has(name)) tablePos.pop()
       if (name === IMPLIED_TBODY) impliedClosed.add(last(byName.get('table')))
       else if (TABLE_TAGS.has(name)) text += `</${name}>`
@@ -250,36 +278,61 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
     const closes = IMPLIES_CLOSE.get(name)
     while (closes !== undefined && stack.length > 0 && closes.has(stack[stack.length - 1]!)) popTo(stack.length - 1, true)
   }
-  // The elements open from the outermost svg or math opened outside any
-  // table, innermost last, as htmlparser2 builds them: the svg or math as its
-  // name, the svg and math elements in it as ^s:name and ^m:name (by the
-  // namespace they are in: an <mi> is an integration point in math, not in
-  // svg), and the HTML elements of an integration point (a <foreignObject>,
-  // say) as their name. An end tag
-  // that closes none of them may close the svg from further out, or nothing:
-  // they stay, as an end tag written for them later is ignored either way.
+  // The elements a browser has open outside any table, innermost last: HTML
+  // elements as their name, an svg or math opened in HTML as its name, and
+  // the svg and math elements in it as ^s:name and ^m:name (by the namespace
+  // they are in: an <mi> is an integration point in math, not in svg). They
+  // follow htmlparser2's tree, and a browser's closes where it closes a
+  // special element that htmlparser2 keeps open (a <li> at the next <li>, a
+  // <p> at a <div>), so an element a browser has closed does not stop an
+  // end tag (the elements htmlparser2 reads in a <noscript> or <iframe>,
+  // whose content a browser reads as text, are ended with it).
   const outer: string[] = []
   const outerByName = new Map<string, number[]>()
-  // Where its HTML elements and its integration points are, innermost last.
+  // Where its HTML elements, integration points, svg and math elements opened in HTML, special elements (integration
+  // points among them), those a <li> does not look past, and the elements that end a scope are, innermost last.
   const outerHtml: number[] = []
   const outerIntegration: number[] = []
+  const outerRoots: number[] = []
+  const outerSpecial: number[] = []
+  const outerStrict: number[] = []
+  const outerScope: number[] = []
   const isOuterHtml = (entry: string): boolean => !entry.startsWith('^') && !FOREIGN.has(entry)
-  const isOuterIntegration = (entry: string): boolean => entry.startsWith('^') && OUTER_INTEGRATION.has(entry.slice(1))
+  const isOuterIntegration = (entry: string): boolean => entry.startsWith('^') && (OUTER_INTEGRATION.has(entry.slice(1)) || entry === '^m:annotation-xml')
   const bare = (entry: string): string => (entry.startsWith('^') ? entry.slice(3) : entry)
+  const outerLists = [outerHtml, outerRoots, outerIntegration, outerSpecial, outerStrict, outerScope]
+  // Which of those lists each entry is in, one bit per list, kept beside it.
+  const outerMasks: number[] = []
+  const maskOf = (entry: string): number => {
+    const html = isOuterHtml(entry)
+    const integration = isOuterIntegration(entry)
+    const special = integration || (html && SPECIAL.has(entry))
+    return (html ? 1 : 0) | (FOREIGN.has(entry) ? 2 : 0) | (integration ? 4 : 0) | (special ? 8 : 0) |
+      (special && !LIST_ITEM_PASSES.has(entry) ? 16 : 0) | (integration || (html && SCOPE.has(entry)) ? 32 : 0)
+  }
   const outerPush = (entry: string): void => {
     let list = outerByName.get(bare(entry))
     if (list === undefined) outerByName.set(bare(entry), (list = []))
     list.push(outer.length)
-    if (isOuterHtml(entry)) outerHtml.push(outer.length)
-    if (isOuterIntegration(entry)) outerIntegration.push(outer.length)
+    const mask = maskOf(entry)
+    for (let bit = 0; bit < outerLists.length; bit++) if (mask & (1 << bit)) outerLists[bit]!.push(outer.length)
+    outerMasks.push(mask)
     outer.push(entry)
   }
   const outerPop = (): string => {
     const entry = outer.pop()!
     outerByName.get(bare(entry))!.pop()
-    if (isOuterHtml(entry)) outerHtml.pop()
-    if (isOuterIntegration(entry)) outerIntegration.pop()
+    const mask = outerMasks.pop()!
+    for (let bit = 0; bit < outerLists.length; bit++) if (mask & (1 << bit)) outerLists[bit]!.pop()
     return entry
+  }
+  const outerPopTo = (index: number): void => {
+    while (outer.length > index) outerPop()
+  }
+  /** The nearest open HTML element of a name, or -1. */
+  const outerOpen = (name: string): number => {
+    const open = last(outerByName.get(name))
+    return open >= 0 && isOuterHtml(outer[open]!) ? open : -1
   }
   /** Whether a start tag outside tables is read as svg or math: in one, but not at an integration point. */
   const inOuterForeign = (): boolean => {
@@ -304,6 +357,24 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
     const closes = IMPLIES_CLOSE.get(name)
     while (closes !== undefined && outer.length > 0 && closes.has(bare(outer[outer.length - 1]!))) outerPop()
   }
+  /** The elements a browser closes at an HTML start tag, which htmlparser2 may keep open. */
+  const outerBrowserCloses = (name: string): void => {
+    const top = outer[outer.length - 1]
+    if (HEADINGS.has(name) && top !== undefined && HEADINGS.has(top)) outerPop()
+    // A <li> closes the nearest <li> unless a special element other than <address>, <div> or <p> comes first; <dd> and <dt> alike.
+    if (name === 'li' || name === 'dd' || name === 'dt') {
+      const item = name === 'li' ? outerOpen('li') : Math.max(outerOpen('dd'), outerOpen('dt'))
+      if (item >= 0 && item >= last(outerStrict)) outerPopTo(item)
+    }
+    if (CLOSES_P.has(name)) {
+      const p = outerOpen('p')
+      if (p > Math.max(last(outerScope), outerOpen('button'))) outerPopTo(p)
+    }
+    if (name === 'button') {
+      const button = outerOpen('button')
+      if (button > last(outerScope)) outerPopTo(button)
+    }
+  }
   /**
    * Closes what an end tag closes, as a browser does, and returns whether it
    * is to be dropped: htmlparser2 would close the nearest open element of its
@@ -312,18 +383,22 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
   const outerClose = (name: string): boolean => {
     if (VOID.has(name)) return false
     const open = last(outerByName.get(name))
+    // Nothing of its name is open: htmlparser2 closes nothing either (a </p> opens an empty <p>, as in a browser).
+    if (open < 0) return false
     // In svg or math (an integration point too, as end tags there are its
     // own), an end tag of one of its elements closes it there. Any other is
-    // read as HTML: it closes the nearest element of its name unless an
-    // integration point comes first, where a browser ignores it, as it does
-    // one that finds nothing. A </template> closes the nearest template
-    // wherever it is.
-    const stop = last(outerIntegration)
-    if (open > last(outerHtml) || open > stop || (name === 'template' && open >= 0)) {
-      while (outer.length > open) outerPop()
+    // read as HTML: it closes the nearest HTML element of its name unless an
+    // integration point comes first, or, for an end tag such as </span>, any
+    // special element (the element itself aside): a browser ignores it
+    // there. A </template> closes the nearest template wherever it is, and
+    // a </noscript> (and the like) its element, whose content a browser
+    // reads as text, so it holds no element to stop at.
+    const stop = Math.max(last(outerIntegration), anyOtherEnd(name) ? last(outerSpecial) : -1)
+    if (open > last(outerHtml) || (isOuterHtml(outer[open]!) && open >= stop) || name === 'template' || TEXT_CONTENT.has(name)) {
+      outerPopTo(open)
       return false
     }
-    return stop >= 0
+    return true
   }
   const insert = (at: number, text: string) => {
     if (text !== '') edits.push({ at, end: at, text })
@@ -340,13 +415,13 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
         }
         insert(at, leaveOuterForeign())
       }
-      if (outer.length > 0) {
-        outerImplied(name)
-        if (name !== 'table' && !VOID.has(name) && !(FOREIGN.has(name) && selfClosing)) outerPush(name)
-      } else if (FOREIGN.has(name) && !selfClosing) outerPush(name)
+      const stray = STRAY.has(name) && (ended > 0 || (whole && templatesOutside === 0 && outerRoots.length === 0))
+      if (stray) return void edits.push({ at, end, text: '' })
+      outerImplied(name)
+      outerBrowserCloses(name)
+      if (name !== 'table' && !VOID.has(name) && !(FOREIGN.has(name) && selfClosing)) outerPush(name)
       if (name === 'table') push(name)
       else if (name === 'template') templatesOutside++
-      else if (STRAY.has(name) && (ended > 0 || (whole && templatesOutside === 0 && outer.length === 0))) edits.push({ at, end, text: '' })
       return
     }
     let text = ''
@@ -434,14 +509,19 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
         if (name === 'table') ended--
         return drop()
       }
-      if (STRAY.has(name) && whole && templatesOutside === 0 && outer.length === 0) return drop()
-      if (name === 'template' && templatesOutside > 0) {
-        templatesOutside--
-        // A </template> closes the nearest template wherever it is: one opened before the svg, with the svg.
-        if (last(outerByName.get(name)) < 0) while (outer.length > 0) outerPop()
-      }
+      if (STRAY.has(name) && whole && templatesOutside === 0 && outerRoots.length === 0) return drop()
+      if (name === 'template' && templatesOutside > 0) templatesOutside--
       // </p> and </br> end the svg or math they are written in, as a <p> does.
       if ((name === 'p' || name === 'br') && inOuterForeign()) insert(at, leaveOuterForeign())
+      // A heading's end tag closes the nearest heading of any level in scope: written out as that one's, which htmlparser2 closes.
+      if (HEADINGS.has(name) && !inOuterForeign()) {
+        const heading = Math.max(...[...HEADINGS].map(outerOpen))
+        if (heading > last(outerScope) && outer[heading] !== name) {
+          edits.push({ at, end, text: `</${outer[heading]}>` })
+          outerPopTo(heading)
+          return
+        }
+      }
       if (outerClose(name)) drop()
       return
     }
@@ -497,9 +577,10 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
     }
     // Any other end tag closes the nearest open element of its name, unless a
     // table element or an svg or math integration point (both special to a
-    // browser) comes first.
+    // browser) comes first, or, for an end tag such as </span>, any special
+    // element: </span> in <span><div> closes nothing.
     const open = last(byName.get(name))
-    if (open > last(tablePos) && open > last(integrationPos)) close(open)
+    if (open > last(tablePos) && open > last(integrationPos) && (!anyOtherEnd(name) || open >= last(specialPos) || TEXT_CONTENT.has(name))) close(open)
     else drop()
   }
 
