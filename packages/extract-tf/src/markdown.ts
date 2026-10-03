@@ -294,8 +294,8 @@ function misnestedTables(root: Element): Element[] {
         if (TABLE_STRUCTURE.has(name)) mark(table)
       } else if (level !== null && !IN_TABLE.has(name) && !TABLE_CHILDREN[level]!.has(name)) mark(table)
     }
-    // A <template>'s content is not the table's; a <colgroup> holds only columns.
-    if (name === 'colgroup' || name === 'template') continue
+    // A <template>'s content is not the table's, nor an svg's or math's elements; a <colgroup> holds only columns.
+    if (name === 'colgroup' || name === 'template' || name === 'svg' || name === 'math') continue
     let inner: [Element | null, Element | null, string | null]
     if (name === 'table') inner = [el, el, 'table']
     else if (name === 'td' || name === 'th' || name === 'caption') inner = [el, table, null]
@@ -326,10 +326,8 @@ function misnestedTables(root: Element): Element[] {
  * read as their content alone. A `<template>`, `<script>` or `<style>` stays
  * whole where it is.
  *
- * It rebuilds linkedom's tree, not the tags: where htmlparser2 has already
- * closed an element a browser would not (a cell's own end tag after a `<td>`
- * or `<tr>` written directly in it closes an outer open cell), the tree lost
- * what a browser keeps, and the result follows the tree.
+ * It rebuilds linkedom's tree, not the tags; the tags that htmlparser2 would
+ * apply otherwise than a browser are set right before parsing (tableTags.ts).
  */
 function rebuildTable(table: Element): void {
   const doc = table.ownerDocument
@@ -390,7 +388,7 @@ function rebuildTable(table: Element): void {
     if (node.nodeType !== 1) return void target(node)
     const el = node as Element
     const name = el.localName
-    if (name === 'table' || KEPT_WHOLE.has(name)) return void target(el)
+    if (name === 'table' || name === 'svg' || name === 'math' || KEPT_WHOLE.has(name)) return void target(el)
     // Rows and cells after the table are their content alone.
     if (TABLE_STRUCTURE.has(name)) return enterChildren(el)
     const copy = el.cloneNode(false) as Element
@@ -413,7 +411,8 @@ function rebuildTable(table: Element): void {
       after.push(el)
       return
     }
-    if (name === 'table' || (KEPT_WHOLE.has(name) && cell !== null)) return insert(el)
+    // A nested table, and an svg or math (its <tr> is not a row), move whole: into the cell, or before the table.
+    if (name === 'table' || name === 'svg' || name === 'math' || (KEPT_WHOLE.has(name) && cell !== null)) return insert(el)
     if (KEPT_WHOLE.has(name)) {
       if (row !== null) row.appendChild(el)
       else if (group !== null) (group as Element).appendChild(el)
@@ -529,7 +528,7 @@ function headAndFoot(table: Element): { head: Element | null; foot: Element | nu
 function ownRowGroups(table: Element): Element[][] {
   const runs: { group: Element | null; rows: Element[] }[] = []
   for (const tr of Array.from(table.querySelectorAll('tr'))) {
-    if (tr.closest('table') !== table) continue
+    if (tr.closest('table') !== table || inForeign(tr, table)) continue
     const group = rowGroup(tr, table)
     const last = runs[runs.length - 1]
     if (last !== undefined && last.group === group) last.rows.push(tr)
@@ -548,7 +547,15 @@ function ownRows(table: Element): Element[] {
 
 /** A row's own cells, not those of a table nested in one of them. */
 function ownCells(tr: Element): Element[] {
-  return Array.from(tr.querySelectorAll('th,td')).filter((cell) => cell.closest('tr') === tr)
+  return Array.from(tr.querySelectorAll('th,td')).filter((cell) => cell.closest('tr') === tr && !inForeign(cell, tr))
+}
+
+/** Whether an svg or math element lies between `el` and its ancestor `top`: its <tr> or <td> is not a row or cell. */
+function inForeign(el: Element, top: Element): boolean {
+  for (let up = el.parentElement; up !== null && up !== top; up = up.parentElement) {
+    if (up.localName === 'svg' || up.localName === 'math') return true
+  }
+  return false
 }
 
 /**

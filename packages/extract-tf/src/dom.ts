@@ -6,6 +6,7 @@
  */
 
 import { parseHTML } from 'linkedom'
+import { normalizeTableTags } from './tableTags.js'
 
 export interface DomDoc {
   document: Document
@@ -14,7 +15,8 @@ export interface DomDoc {
 }
 
 export function parse(html: string): DomDoc {
-  let { document } = parseHTML(html)
+  // htmlparser2 builds tables otherwise than a browser where an end tag is stray (see tableTags.ts).
+  let { document } = parseHTML(normalizeTableTags(html))
   // linkedom parses '' (and whitespace-only input) to a document whose
   // documentElement is null; its head/body getters then THROW on access.
   // Real crawls hit empty 200 bodies constantly (the empty-body fixture),

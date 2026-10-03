@@ -147,6 +147,56 @@ describe('htmlToTables', () => {
       .toEqual([['a n m', 'z'], ['b', 'c']])
   })
 
+  it('reads a table\'s tags as a browser does: an end tag it ignores closes nothing, a cell it closes is closed', () => {
+    const rows = (html: string) => htmlToTables(html).map((t) => [t.headerRows, t.rows])
+    // Each expected grid is Chromium's. htmlparser2 applied each of these end tags to an element further out.
+    // The cell's own </td> after a <td> written in it, once a <thead> in the outer cell has closed that cell.
+    expect(rows('<table><tbody><tr><th>A</th><td><thead><tr><td><div>B</div><td>C</td></td></tr><tr><td>D</td><td>E</td></tr></thead></td></tr><tr><td>F</td><td>G</td></tr></tbody></table>'))
+      .toEqual([[2, [['B', 'C'], ['D', 'E'], ['A', ''], ['F', 'G']]]])
+    // The same in a table nested in a cell: it closed the outer cell and the nested table.
+    expect(rows('<table><tr><td>out<table><tr><td>a<td>b</td></td></tr><tr><td>c</td><td>d</td></tr></table>tail</td><td>z</td></tr><tr><td>y</td><td>w</td></tr></table>'))
+      .toEqual([[0, [['out a b c d tail', 'z'], ['y', 'w']]]])
+    // An end tag for an element outside the table closed the table.
+    const div = '<div><table><tr><td>a</div>b</td><td>c</td></tr><tr><td>d</td><td>e</td></tr></table></div><p>after</p>'
+    expect(rows(div)).toEqual([[0, [['ab', 'c'], ['d', 'e']]]])
+    expect(htmlToMarkdown(div)).toBe('| ab | c |\n| --- | --- |\n| d | e |\n\nafter')
+    const body = '<table><tr><td>a</td><td>b</td></tr></body><tr><td>c</td><td>d</td></tr></table><p>after</p>'
+    expect(rows(body)).toEqual([[0, [['a', 'b'], ['c', 'd']]]])
+    expect(htmlToMarkdown(body)).toBe('| a | b |\n| --- | --- |\n| c | d |\n\nafter')
+    // A cell directly in a <thead> is in a row of it; htmlparser2 closed the <thead> there.
+    expect(rows('<table><thead><td>H</td><td>I</td></thead><tbody><tr><td>a</td><td>b</td></tr></tbody></table>')).toEqual([[1, [['H', 'I'], ['a', 'b']]]])
+    // The rows before and after a caption are two row groups: a rowspan of 0 ends with the first.
+    expect(rows('<table><tr><td rowspan="0">a</td><td>b</td></tr><caption>cap</caption><tr><td>c</td><td>d</td></tr></table>')).toEqual([[0, [['a', 'b'], ['c', 'd']]]])
+    // Text in a column group closes it and comes before the table.
+    expect(htmlToMarkdown('<table><colgroup><col>note<col></colgroup><tr><td>a</td><td>b</td></tr><tr><td>c</td><td>d</td></tr></table>')).toBe('note\n\n| a | b |\n| --- | --- |\n| c | d |')
+    // A <table> in a <template> ends no table: no table is in scope there.
+    expect(rows('<table><tr><td>a</td><td>b</td></tr><template><thead><table><tr><td>x</td></tr></table></thead></template><tr><td>c</td><td>d</td></tr></table>'))
+      .toEqual([[0, [['a', 'b'], ['c', 'd']]]])
+  })
+
+  it('edits a table\'s tags only where htmlparser2 and a browser differ: odd end tags, svg and math, implied closes', () => {
+    const tail = '<td>b</td></tr><tr><td>c</td><td>d</td></tr></table><p>after</p>'
+    // An end tag with space after </ is a comment to a browser.
+    expect(htmlToMarkdown(`<table><tr><td>a</ div>b</td><td>c</td></tr><tr><td>d</td><td>e</td></tr></table><p>after</p>`)).toBe('| ab | c |\n| --- | --- |\n| d | e |\n\nafter')
+    // A self-closing or unclosed <svg> in a cell ends with the cell.
+    expect(htmlToMarkdown(`<table><tr><td><svg width="0"/>a</td>${tail}`)).toBe('| a | b |\n| --- | --- |\n| c | d |\n\nafter')
+    expect(htmlToMarkdown(`<table><tr><td><svg><path d="M0"></td>${tail}`)).toBe('|  | b |\n| --- | --- |\n| c | d |\n\nafter')
+    // An svg icon's <title>, MathML's <mi>, an svg's <foreignObject>: their end tags close them, as their content is HTML.
+    expect(htmlToMarkdown(`<table><tr><td><svg><title>Icon</title><path d="M0"/></svg> a</td>${tail}`)).toBe('| a | b |\n| --- | --- |\n| c | d |\n\nafter')
+    expect(htmlToMarkdown(`<table><tr><td><math><mi>x</mi><mo>+</mo><mn>1</mn></math></td>${tail}`)).toBe('| x+1 | b |\n| --- | --- |\n| c | d |\n\nafter')
+    expect(htmlToTables(`<table><tr><td><svg><foreignObject><div>z</div></foreignObject><text>t</text></svg>y</td>${tail}`)[0]!.rows).toEqual([['y', 'b'], ['c', 'd']])
+    // An svg in an svg's <foreignObject> closes with its own end tag, not the outer one's.
+    expect(htmlToMarkdown(`<table><tr><td><svg><foreignObject><svg><title>t</title><path/></svg><div>in</div></foreignObject><text>q</text></svg>a</td>${tail}`))
+      .toBe('| a | b |\n| --- | --- |\n| c | d |\n\nafter')
+    // </foreignObject> closes it, and the unclosed svg in it, as a browser looks past that svg.
+    expect(htmlToMarkdown(`<table><tr><td><svg><foreignObject><svg><path></foreignObject></svg>a</td>${tail}`)).toBe('| a | b |\n| --- | --- |\n| c | d |\n\nafter')
+    // An HTML element such as <div> ends the svg it is written in.
+    expect(htmlToTables(`<table><tr><td><svg><rect/><div>x</div></svg>y</td>${tail}`)[0]!.rows).toEqual([['x y', 'b'], ['c', 'd']])
+    // A <p> closes the <p> before it in htmlparser2 as in a browser: no </p> is written out for it.
+    expect(htmlToMarkdown('<p><span><table><tr><td>a</td><td>b</td></tr><p>N1<p>N2<tr><td>c</td><td>d</td></tr></table></span></p><p>after</p>'))
+      .toBe('N1\n\nN2\n\n| a | b |\n| --- | --- |\n| c | d |\n\nafter')
+  })
+
   it('ends a table at a table written where its rows belong, as the browser\'s parser does', () => {
     const r = (t: string) => `<tr><td>${t}</td><td>${t}.</td></tr>`
     // Chromium: the outer table ends there, the inner one follows it, and the rows after it are text.
