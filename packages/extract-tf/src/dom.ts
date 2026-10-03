@@ -12,7 +12,7 @@
  */
 
 import { parseHTML } from 'linkedom'
-import { defaultTreeAdapter, html as htmlSpec, Parser, Tokenizer } from 'parse5'
+import { defaultTreeAdapter, foreignContent, html as htmlSpec, Parser, Tokenizer } from 'parse5'
 import type { DefaultTreeAdapterMap, DefaultTreeAdapterTypes as Spec, ParserOptions, Token } from 'parse5'
 
 export interface DomDoc {
@@ -22,22 +22,36 @@ export interface DomDoc {
 }
 
 const HTML_NS = 'http://www.w3.org/1999/xhtml'
+const SVG_NS = 'http://www.w3.org/2000/svg'
 
 const GROUP_ENDS = new Set([htmlSpec.TAG_ID.TBODY, htmlSpec.TAG_ID.TFOOT, htmlSpec.TAG_ID.THEAD])
-/** parse5 8.0.1's InsertionMode.IN_ROW, which it does not export (the version is pinned). */
-const IN_ROW = 13
-/** parse5 8.0.1's IN_BODY and IN_TEMPLATE. */
-const IN_BODY = 6
-const IN_TEMPLATE = 17
+/** parse5 8.0.1's InsertionMode values, which it does not export (the version is pinned). */
+const MODE = {
+  BEFORE_HEAD: 2, IN_HEAD: 3, AFTER_HEAD: 5, IN_BODY: 6, IN_TABLE: 8, IN_TABLE_TEXT: 9, IN_CAPTION: 10, IN_COLUMN_GROUP: 11,
+  IN_TABLE_BODY: 12, IN_ROW: 13, IN_CELL: 14, IN_SELECT: 15, IN_SELECT_IN_TABLE: 16, IN_TEMPLATE: 17, AFTER_BODY: 18,
+  IN_FRAMESET: 19, AFTER_AFTER_BODY: 21,
+} as const
+const IN_ROW = MODE.IN_ROW
+const IN_BODY = MODE.IN_BODY
+const IN_TEMPLATE = MODE.IN_TEMPLATE
 /** The head's tags Chromium reads in a template by the body's rules (it keeps <link>, <meta>, <script>, <style> and <template> to the head's). */
 const BODY_IN_TEMPLATE = new Set([htmlSpec.TAG_ID.TITLE, htmlSpec.TAG_ID.BASE, htmlSpec.TAG_ID.BASEFONT, htmlSpec.TAG_ID.BGSOUND, htmlSpec.TAG_ID.NOFRAMES])
-/** parse5 8.0.1's IN_TABLE_TEXT and IN_COLUMN_GROUP. */
-const IN_TABLE_TEXT = 9
-const IN_COLUMN_GROUP = 11
-/** parse5 8.0.1's IN_TABLE, IN_TABLE_BODY and IN_ROW: the modes that read a <form> by the table's rules. */
-const TABLE_MODES = new Set([8, 12, IN_ROW])
-/** parse5 8.0.1's IN_BODY, IN_TABLE, IN_CAPTION, IN_TABLE_BODY, IN_ROW and IN_CELL: the modes that read a </form> by the body's rules. */
-const BODY_RULE_MODES = new Set([IN_BODY, 8, 10, 12, IN_ROW, 14])
+const IN_TABLE_TEXT = MODE.IN_TABLE_TEXT
+const IN_COLUMN_GROUP = MODE.IN_COLUMN_GROUP
+/** The modes that read a <form> by the table's rules. */
+const TABLE_MODES = new Set<number>([MODE.IN_TABLE, MODE.IN_TABLE_BODY, IN_ROW])
+/** The modes that read an end tag the table's rules leave to the body's rules by the body's. */
+const BODY_RULE_MODES = new Set<number>([IN_BODY, MODE.IN_TABLE, MODE.IN_CAPTION, MODE.IN_TABLE_BODY, IN_ROW, MODE.IN_CELL])
+const T = htmlSpec.TAG_ID
+/** The formatting elements' end tags: the adoption agency's, "any other end tag" when no such element is in the list of active formatting elements. */
+const FORMATTING_ENDS = new Set([T.A, T.B, T.BIG, T.CODE, T.EM, T.FONT, T.I, T.NOBR, T.S, T.SMALL, T.STRIKE, T.STRONG, T.TT, T.U])
+/** End tags parse5 8.0.1 reads by a rule of their own in BODY_RULE_MODES; every other one is "any other end tag". */
+const OWN_END_RULES = new Set([
+  ...FORMATTING_ENDS, T.P, T.DL, T.UL, T.OL, T.DIR, T.DIV, T.NAV, T.PRE, T.MAIN, T.MENU, T.ASIDE, T.BUTTON, T.CENTER, T.FIGURE,
+  T.FOOTER, T.HEADER, T.HGROUP, T.DIALOG, T.ADDRESS, T.ARTICLE, T.DETAILS, T.SEARCH, T.SECTION, T.SUMMARY, T.LISTING,
+  T.FIELDSET, T.BLOCKQUOTE, T.FIGCAPTION, T.LI, T.DD, T.DT, T.H1, T.H2, T.H3, T.H4, T.H5, T.H6, T.BR, T.BODY, T.HTML, T.FORM,
+  T.APPLET, T.OBJECT, T.MARQUEE, T.TEMPLATE, T.TABLE, T.CAPTION, T.COL, T.COLGROUP, T.TBODY, T.TD, T.TFOOT, T.TH, T.THEAD, T.TR,
+])
 
 /** Thrown when a page would hold more elements than its tags account for. */
 const TOO_MANY = new Error('element budget')
@@ -72,7 +86,7 @@ class StandardTokenizer extends Tokenizer {
 }
 
 /**
- * parse5 with eight changes:
+ * parse5 with eleven changes:
  * - Its table scope stopped only at <table> and <html>, not at <template>, so
  *   a </table>, </tr> or row group end tag in a template that is in a table
  *   closed the cells, rows and table outside the template, and a <tr> or <td>
@@ -85,6 +99,17 @@ class StandardTokenizer extends Tokenizer {
  * - A </form> in a <template> closes its form as any other end tag closes its
  *   element, as in Chromium: not past a <p>, <div>, <li> or other special
  *   element still open in it. The standard closes those first.
+ * - An end tag in svg or math is matched to an open element by its exact
+ *   name, as in Chromium: in svg it first takes svg's spelling (</foreignObject>,
+ *   </clipPath>), in math it keeps its own. One that meets an HTML element
+ *   first is then read by the HTML rules, where a name svg respelled matches
+ *   nothing. The standard compares names lowercased, so </foreignObject>
+ *   closed an HTML <foreignobject> or math's, and the content after it left
+ *   the svg or math it stays in in Chromium.
+ * - "Any other end tag" closes HTML elements only (endTagAsAnyOther), and
+ *   resetting the insertion mode reads HTML elements only (_resetInsertionMode),
+ *   as the standard and Chromium say; parse5 also took an svg or math element
+ *   of the tag's name, such as a <desc>, <mi> or <tfoot>.
  * - In a template, a <title>, <base>, <basefont>, <bgsound> or <noframes>
  *   switches the template to the body's rules, as any start tag but <link>,
  *   <meta>, <script>, <style> and <template> does in Chromium, so rows, cells
@@ -126,6 +151,35 @@ class StandardParser extends Parser<DefaultTreeAdapterMap> {
     super._startTagOutsideForeignContent(token)
   }
 
+  override onEndTag(token: Token.TagToken): void {
+    // </p> and </br> leave svg and math first, in Chromium as in parse5.
+    if (!this.currentNotInHTML || token.tagID === htmlSpec.TAG_ID.P || token.tagID === htmlSpec.TAG_ID.BR) {
+      super.onEndTag(token)
+      return
+    }
+    this.skipNextNewLine = false
+    this.currentToken = token
+    const stack = this.openElements
+    const svg = defaultTreeAdapter.getNamespaceURI(stack.current as Spec.Element) === SVG_NS
+    const name = (svg ? foreignContent.SVG_TAG_NAMES_ADJUSTMENT_MAP.get(token.tagName) : undefined) ?? token.tagName
+    for (let i = stack.stackTop; i > 0; i--) {
+      const element = stack.items[i] as Spec.Element
+      if (defaultTreeAdapter.getNamespaceURI(element) === HTML_NS) {
+        if (name === token.tagName) this._endTagOutsideForeignContent(token)
+        // A respelled name matches no HTML element; after the body it still returns to the body's rules.
+        else if ((this.insertionMode as number) === MODE.AFTER_BODY || (this.insertionMode as number) === MODE.AFTER_AFTER_BODY) {
+          this.insertionMode = IN_BODY as typeof this.insertionMode
+        }
+        return
+      }
+      // Read through the budgeted adapter, as parse5 does: each end tag may walk every open svg or math element.
+      if (this.treeAdapter.getTagName(element) === name) {
+        stack.shortenToLength(i)
+        return
+      }
+    }
+  }
+
   override onEof(token: Token.EOFToken): void {
     const fragmentMode = this.tmplInsertionModeStack[this.tmplInsertionModeStack.length - 1]
     if (this.fragmentContext !== null && (this.insertionMode as number) === IN_TABLE_TEXT && (fragmentMode as number | undefined) === IN_COLUMN_GROUP) {
@@ -144,26 +198,92 @@ class StandardParser extends Parser<DefaultTreeAdapterMap> {
 
   override _endTagOutsideForeignContent(token: Token.TagToken): void {
     if ((this.insertionMode as number) === IN_ROW && GROUP_ENDS.has(token.tagID) && !this.openElements.hasInTableScope(token.tagID)) return
-    if (token.tagID === htmlSpec.TAG_ID.FORM && BODY_RULE_MODES.has(this.insertionMode as number) && this.openElements.tmplCount > 0) {
-      this.endTagAsAnyOther(htmlSpec.TAG_ID.FORM)
+    const mode = this.insertionMode as number
+    if (token.tagID === T.FORM && BODY_RULE_MODES.has(mode) && this.openElements.tmplCount > 0) {
+      this.endTagAsAnyOther(token)
+      return
+    }
+    // After the body, an end tag but </html> is read by the body's rules.
+    if ((mode === MODE.AFTER_BODY && token.tagID !== T.HTML) || mode === MODE.AFTER_AFTER_BODY) {
+      this.insertionMode = IN_BODY as typeof this.insertionMode
+      this._endTagOutsideForeignContent(token)
+      return
+    }
+    if (BODY_RULE_MODES.has(mode) && (!OWN_END_RULES.has(token.tagID)
+      || (FORMATTING_ENDS.has(token.tagID) && this.activeFormattingElements.getElementEntryInScopeWithTagName(token.tagName) === null))) {
+      this.endTagAsAnyOther(token)
       return
     }
     super._endTagOutsideForeignContent(token)
   }
 
-  /** The standard's "any other end tag" in the body: the nearest open element of the tag closes, unless a special element is open above it. */
-  private endTagAsAnyOther(tagID: htmlSpec.TAG_ID): void {
+  /**
+   * The standard's "any other end tag" in the body: the nearest open HTML
+   * element of the tag closes, unless a special element is open above it.
+   * parse5 also closed an svg or math element of that name (a </desc> or </mi>
+   * written in HTML inside it), which Chromium and the standard do not.
+   */
+  private endTagAsAnyOther(token: Token.TagToken): void {
     const stack = this.openElements
     for (let i = stack.stackTop; i > 0; i--) {
       const element = stack.items[i] as Spec.Element
       const id = stack.tagIDs[i]!
-      if (id === tagID && defaultTreeAdapter.getNamespaceURI(element) === HTML_NS) {
-        stack.generateImpliedEndTagsWithExclusion(tagID)
+      if (id === token.tagID && defaultTreeAdapter.getNamespaceURI(element) === HTML_NS
+        && (id !== T.UNKNOWN || this.treeAdapter.getTagName(element) === token.tagName)) {
+        stack.generateImpliedEndTagsWithExclusion(id)
         if (stack.stackTop >= i) stack.shortenToLength(i)
         return
       }
       if (this._isSpecialElement(element, id)) return
     }
+  }
+
+  /**
+   * The standard's "reset the insertion mode appropriately", which reads HTML
+   * elements only. parse5 also read svg and math elements of those names, so
+   * an svg <tfoot> made the parser read what followed as a row group's.
+   */
+  override _resetInsertionMode(): void {
+    const stack = this.openElements
+    for (let i = stack.stackTop; i >= 0; i--) {
+      const context = i === 0 && this.fragmentContext !== null
+      if (!context && defaultTreeAdapter.getNamespaceURI(stack.items[i] as Spec.Element) !== HTML_NS) continue
+      const mode = this.resetMode(context ? this.fragmentContextID : stack.tagIDs[i]!, i)
+      if (mode !== undefined) {
+        this.insertionMode = mode as typeof this.insertionMode
+        return
+      }
+    }
+    this.insertionMode = IN_BODY as typeof this.insertionMode
+  }
+
+  private resetMode(id: htmlSpec.TAG_ID, i: number): number | undefined {
+    switch (id) {
+      case T.TR: return IN_ROW
+      case T.TBODY: case T.THEAD: case T.TFOOT: return MODE.IN_TABLE_BODY
+      case T.CAPTION: return MODE.IN_CAPTION
+      case T.COLGROUP: return MODE.IN_COLUMN_GROUP
+      case T.TABLE: return MODE.IN_TABLE
+      case T.BODY: return IN_BODY
+      case T.FRAMESET: return MODE.IN_FRAMESET
+      case T.SELECT: return this.selectMode(i)
+      case T.TEMPLATE: return this.tmplInsertionModeStack[0]
+      case T.HTML: return this.headElement ? MODE.AFTER_HEAD : MODE.BEFORE_HEAD
+      case T.TD: case T.TH: return i > 0 ? MODE.IN_CELL : undefined
+      case T.HEAD: return i > 0 ? MODE.IN_HEAD : undefined
+      default: return undefined
+    }
+  }
+
+  /** A <select>'s mode: in a table unless a <template> is open nearer; HTML elements only. */
+  private selectMode(select: number): number {
+    const stack = this.openElements
+    for (let i = select - 1; i > 0; i--) {
+      if (defaultTreeAdapter.getNamespaceURI(stack.items[i] as Spec.Element) !== HTML_NS) continue
+      if (stack.tagIDs[i] === T.TEMPLATE) break
+      if (stack.tagIDs[i] === T.TABLE) return MODE.IN_SELECT_IN_TABLE
+    }
+    return MODE.IN_SELECT
   }
 
   override _adoptNodes(donor: Spec.ParentNode, recipient: Spec.ParentNode): void {

@@ -195,6 +195,28 @@ describe('htmlToTables', () => {
       .toBe('N1\n\nN2\n\n| a | b |\n| --- | --- |\n| c | d |\n\nafter')
   })
 
+  it('matches an end tag in svg or math to an element by its exact name, as Chromium does', () => {
+    const page = (body: string) => parse(`<!doctype html><html><body>${body}</body></html>`).document
+    // In svg the end tag takes svg's spelling (</foreignObject>, </clipPath>), which no HTML element has, so it closes nothing there.
+    expect(page('<div><foreignObject><svg></foreignObject>x</div>').querySelector('svg')?.textContent).toBe('x')
+    expect(page('<clippath><svg></clippath>x').querySelector('svg')?.textContent).toBe('x')
+    expect(page('<math><clipPath><mi><svg></clippath>x').querySelector('svg')?.textContent).toBe('x')
+    // In math it keeps its own spelling, which svg's <foreignObject> does not have.
+    expect(page('<svg><foreignObject><math></foreignObject>x').querySelector('math')?.textContent).toBe('x')
+    // An svg element of that name still closes.
+    const closed = page('<svg><foreignObject></foreignObject>x').querySelector('svg')
+    expect([closed?.firstElementChild?.textContent, closed?.lastChild?.textContent]).toEqual(['', 'x'])
+    // Chromium shows no text in the svg.
+    expect(htmlToMarkdown('<!doctype html><html><body><p>a<lineargradient><svg></lineargradient>b</p><p>c</p></body></html>')).toBe('a\n\nc')
+    // After </body> it still returns to the body's rules, so a comment after it stays in the body.
+    expect(page('<svg><g></body></foreignObject></g></svg><!--c-->').body.lastChild?.nodeType).toBe(8)
+    // An end tag written in HTML inside svg or math closes HTML elements only: an svg <desc> or a math <mi> of its name stays open.
+    expect(page('<svg><desc><a>x</desc><span>y').querySelector('a')?.textContent).toBe('xy')
+    expect(page('<math><mi><span>x</mi>y').querySelector('span')?.textContent).toBe('xy')
+    // So does what decides how the rest is read: an svg <tfoot> is not a row group, so a second <table> still ends the first.
+    expect(page('<svg><tfoot><math><foreignobject><table><table>').querySelectorAll('table').length).toBe(2)
+  })
+
   it('reads svg and math as a browser does: their namespaces, their elements\' end tags, and htmlparser2\'s view of a self-closing slash', () => {
     const rows = (html: string) => htmlToTables(html).map((t) => t.rows)
     const tail = '<tr><td>c</td><td>d</td></tr></table><p>after</p>'
