@@ -120,6 +120,12 @@ interface Context {
   tableBudget?: { left: number }
   /** What the GFM grids of this page's tables may still add as empty cells (MAX_PAGE_TABLE_PADDING). */
   tablePadding: { left: number }
+  /**
+   * The emphasis of a <b> or <em> (and the like) around blocks: its markers,
+   * outermost first, around each paragraph the walk writes in it, and the
+   * marks its inline content starts from, so a <b> in it adds none.
+   */
+  emphasis?: { markers: string[]; marks: Marks }
 }
 
 /** Never content, or hidden by the page's CSS: skipped together with everything inside. */
@@ -965,7 +971,7 @@ class Flow {
 
   flush(): void {
     const text = this.inline.paragraph()
-    if (text) this.blocks.push({ text })
+    if (text) this.blocks.push({ text: emphasized(text, this.ctx) })
     this.inline = new Inline()
   }
 
@@ -973,6 +979,56 @@ class Flow {
     this.flush()
     for (const block of blocks) if (block !== null && block.text) this.blocks.push(block)
   }
+}
+
+/** A paragraph in the emphasis it is written in: each of its parts (a double <br> starts one) between the markers. */
+function emphasized(text: string, ctx: Context): string {
+  if (ctx.emphasis === undefined) return text
+  const open = ctx.emphasis.markers.join('')
+  const close = [...ctx.emphasis.markers].reverse().join('')
+  return text.split('\n\n').map((part) => open + part + close).join('\n\n')
+}
+
+/** The marks inline content starts from in a paragraph of the walk. */
+const flowMarks = (ctx: Context): Marks => ctx.emphasis?.marks ?? NO_MARKS
+
+/**
+ * A <b>, <strong>, <em> or <i> around blocks, as a browser shows it: its
+ * inline runs are written between the markers, and the paragraphs of the
+ * blocks in it (a list's items, a quote's paragraphs too) in the emphasis.
+ * Headings, code blocks and tables keep their own form.
+ */
+function emphasisAroundBlocks(el: Element, flow: Flow, strong: boolean): void {
+  const ctx = flow.ctx
+  const outer = ctx.emphasis
+  const marker = strong ? '**' : '*'
+  const marks: Marks = { ...flowMarks(ctx), ...(strong ? { strong: true } : { em: true }) }
+  let run = new Inline()
+  const endRun = (): void => {
+    flow.inline.wrap(run.finish(), marker, marker)
+    run = new Inline()
+  }
+  for (let node = el.firstChild; node !== null; node = node.nextSibling) {
+    if (node.nodeType === TEXT_NODE) {
+      run.text((node as Text).data)
+      continue
+    }
+    if (node.nodeType !== ELEMENT_NODE) continue
+    const child = node as Element
+    if (skipped(child, ctx)) continue
+    if (!BLOCK.has(child.localName) && !cssBlock(child, ctx) && !containsBlock(child, ctx)) {
+      inlineElement(child, run, ctx, marks)
+      continue
+    }
+    // A block: the paragraph so far ends outside the emphasis, the block's own paragraphs are written in it.
+    endRun()
+    flow.flush()
+    ctx.emphasis = { markers: [...(outer?.markers ?? []), marker], marks }
+    flowNode(child, flow)
+    flow.flush()
+    ctx.emphasis = outer
+  }
+  endRun()
 }
 
 function flowChildren(parent: Node, flow: Flow): void {
@@ -1035,7 +1091,7 @@ function flowNode(node: Node, flow: Flow): void {
     // Inline content, in a paragraph of its own when the page's CSS makes
     // the element a block (a link or emphasis keeps its markup).
     if (block) flow.flush()
-    inlineElement(el, flow.inline, ctx, NO_MARKS)
+    inlineElement(el, flow.inline, ctx, flowMarks(ctx))
     if (block) flow.flush()
     return
   }
@@ -1043,8 +1099,16 @@ function flowNode(node: Node, flow: Flow): void {
     // A link around blocks (a card) stays one link, with its text flattened,
     // in a paragraph of its own.
     flow.flush()
-    inlineElement(el, flow.inline, ctx, NO_MARKS)
+    inlineElement(el, flow.inline, ctx, flowMarks(ctx))
     flow.flush()
+    return
+  }
+  const marks = flowMarks(ctx)
+  const strong = tag === 'b' || tag === 'strong'
+  if (!tagBlock && (strong || tag === 'em' || tag === 'i') && !(strong ? marks.strong : marks.em)) {
+    if (block) flow.flush()
+    emphasisAroundBlocks(el, flow, strong)
+    if (block) flow.flush()
     return
   }
   // A block container, or an inline element around blocks (a <span> holding

@@ -349,6 +349,20 @@ describe('htmlToMarkdown', () => {
 const BASE = 'https://fixture.test/docs/page'
 
 describe('htmlToMarkdown blocks and inline whitespace', () => {
+  it('keeps the emphasis of a <b> or <em> around blocks on each paragraph in it, as a browser shows it', () => {
+    const md = (html: string) => htmlToMarkdown(`<!doctype html><html><body>${html}</body></html>`, { baseUrl: 'https://e.test/' })
+    expect(md('<b>w1<p>w2</p>w3</b>')).toBe('**w1**\n\n**w2**\n\n**w3**')
+    expect(md('a <strong>b<div>c</div></strong> d')).toBe('a **b**\n\n**c**\n\nd')
+    expect(md('<em><div>x</div></em>')).toBe('*x*')
+    expect(md('<b><div><a href="/x">w1</a></div></b>')).toBe('**[w1](https://e.test/x)**')
+    // List items and quotes take it too; a <b> in it adds no second marker; headings, code and tables keep their own form.
+    expect(md('<b><ul><li>a</li><li><p>b</p></li></ul></b>')).toBe('- **a**\n- **b**')
+    expect(md('<b><blockquote><p>q</p></blockquote></b>')).toBe('> **q**')
+    expect(md('<b><div><b>x</b> y</div></b>')).toBe('**x y**')
+    expect(md('<b><h2>x</h2>y<pre>z</pre></b>')).toBe('## x\n\n**y**\n\n```\nz\n```')
+    expect(md('<b><table><tr><td>a</td><td>b</td></tr><tr><td>c</td><td>d</td></tr></table></b>')).toBe('| a | b |\n| --- | --- |\n| c | d |')
+  })
+
   it('separates adjacent blocks and keeps inline spacing and markup', () => {
     expect(htmlToMarkdown('<div>Alpha</div><div>Beta</div>')).toBe('Alpha\n\nBeta')
     expect(htmlToMarkdown('<div>Hello <b>world</b> <a href="/x">link</a></div>', { baseUrl: BASE }))
