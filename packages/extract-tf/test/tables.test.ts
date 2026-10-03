@@ -197,6 +197,31 @@ describe('htmlToTables', () => {
       .toBe('N1\n\nN2\n\n| a | b |\n| --- | --- |\n| c | d |\n\nafter')
   })
 
+  it('reads svg and math as a browser does: their namespaces, their elements\' end tags, and htmlparser2\'s view of a self-closing slash', () => {
+    const rows = (html: string) => htmlToTables(html).map((t) => t.rows)
+    const tail = '<tr><td>c</td><td>d</td></tr></table><p>after</p>'
+    // Chromium's grids. math's <foreignObject> is no integration point: a <tr> in it is math's, and stays out of the table.
+    expect(rows(`<table><tr><td>a</td><td>b</td></tr><tr><math><math><foreignObject><tr><div>t <svg/><th>h</th></tr>${tail}`)).toEqual([[['a', 'b'], ['h', ''], ['c', 'd']]])
+    // svg's <mi> is no integration point either: a <td> in it is svg's.
+    expect(rows(`<table><tr><td>a</td><td>b</td></tr><svg><mi>m<td>x</td></svg>${tail}`)).toEqual([[['a', 'b'], ['c', 'd']]])
+    // A <div> ends an svg in a math in a math: all three end tags are written out, not only the outer one's.
+    expect(rows(`<table><tr><td>a</td><td>b</td></tr><tbody><math><svg><math></td><div>z</div><tr><td>e</td><td>f</td></tr>${tail}`)).toEqual([[['a', 'b'], ['e', 'f'], ['c', 'd']]])
+    // An svg's own <td> does not stand in for the cell: a <td> in the cell's HTML content closes the cell.
+    expect(rows(`<table><tr><td>a<svg><td>s<foreignObject><mo>m<td>x</td></tr>${tail}`)).toEqual([[['a', 'x'], ['c', 'd']]])
+    // Chromium ignores </foreignObject> in svg when only an HTML <foreignObject> outside is open.
+    expect(rows(`<table><tr><td>a</td><th><foreignObject><svg><th></foreignObject>t</th></tr>${tail}`)).toEqual([[['a', ''], ['c', 'd']]])
+    // In a cell, </span> does not pass the <div> in it, as a browser's end tag stops at a special element; </div> passes a <p>.
+    const cell = (html: string) => htmlToMarkdown(`<table><tr><td>${html}</td><td>b</td></tr><tr><td>c</td><td>d</td></tr></table>`).split('\n')[0]
+    expect(cell('<span><div>x</span>y</div>z')).toBe('| xy z | b |')
+    expect(cell('<div><p>x</div>y')).toBe('| x y | b |')
+    // </noscript>, </iframe> and </select> close theirs: a browser opens nothing in the first two, and </select> has its own rule.
+    expect(cell('<noscript><p>Please enable JavaScript</noscript>Total')).toBe('| Total | b |')
+    expect(cell('<iframe><p>x</iframe>Total')).toBe('| Total | b |')
+    expect(cell('<select name="q"><option value="1"><p>One</select> per unit')).toBe('| per unit | b |')
+    // htmlparser2 takes svg's <mi> for an integration point and ignores <rect/>'s slash there: its end tag is written out.
+    expect(rows(`<table><tr><td><svg><mi><rect/>q</mi></svg>r</td><td>b</td></tr>${tail}`)).toEqual([[['r', 'b'], ['c', 'd']]])
+  })
+
   it('ignores table tags outside any table in a whole page, as a browser does, and keeps them in a fragment', () => {
     const page = (body: string) => `<!doctype html><html><body>${body}</body></html>`
     // Chromium: the stray row after the table is its text alone.
