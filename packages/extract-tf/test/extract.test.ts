@@ -407,7 +407,8 @@ describe('extractTf selection and whole page', () => {
 
   it('reduces the page to the included selectors, in document order, and returns that selection whole', () => {
     const out = extractTf.extract(PAGE, { includeSelectors: ['table', 'html.js h1'], pruneSelectors: ['#legend', 'td .ref'] })
-    expect(out.mainHtml).toBe('<body><h1>Kiln archive</h1><table id="readings"><tr><th>Station</th><th>Flow</th></tr><tr><td>Meridian</td><td>41 </td></tr></table></body>')
+    // The <tbody> a browser opens for rows written directly in the table.
+    expect(out.mainHtml).toBe('<body><h1>Kiln archive</h1><table id="readings"><tbody><tr><th>Station</th><th>Flow</th></tr><tr><td>Meridian</td><td>41 </td></tr></tbody></table></body>')
     expect(htmlToMarkdown(out.mainHtml)).toBe('# Kiln archive\n\n| Station | Flow |\n| --- | --- |\n| Meridian | 41 |')
     // Exclusions are matched against the whole page too: the footer's paragraph is named by where it was,
     // and an excluded element takes the named elements inside it along.

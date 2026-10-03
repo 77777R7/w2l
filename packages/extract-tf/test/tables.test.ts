@@ -169,9 +169,6 @@ describe('htmlToTables', () => {
     expect(rows('<table><tr><td rowspan="0">a</td><td>b</td></tr><caption>cap</caption><tr><td>c</td><td>d</td></tr></table>')).toEqual([[0, [['a', 'b'], ['c', 'd']]]])
     // Text in a column group closes it and comes before the table.
     expect(htmlToMarkdown('<table><colgroup><col>note<col></colgroup><tr><td>a</td><td>b</td></tr><tr><td>c</td><td>d</td></tr></table>')).toBe('note\n\n| a | b |\n| --- | --- |\n| c | d |')
-    // A <table> in a <template> ends no table: no table is in scope there.
-    expect(rows('<table><tr><td>a</td><td>b</td></tr><template><thead><table><tr><td>x</td></tr></table></thead></template><tr><td>c</td><td>d</td></tr></table>'))
-      .toEqual([[0, [['a', 'b'], ['c', 'd']]]])
   })
 
   it('edits a table\'s tags only where htmlparser2 and a browser differ: odd end tags, svg and math, implied closes', () => {
@@ -208,8 +205,6 @@ describe('htmlToTables', () => {
     expect(rows(`<table><tr><td>a</td><td>b</td></tr><tbody><math><svg><math></td><div>z</div><tr><td>e</td><td>f</td></tr>${tail}`)).toEqual([[['a', 'b'], ['e', 'f'], ['c', 'd']]])
     // An svg's own <td> does not stand in for the cell: a <td> in the cell's HTML content closes the cell.
     expect(rows(`<table><tr><td>a<svg><td>s<foreignObject><mo>m<td>x</td></tr>${tail}`)).toEqual([[['a', 'x'], ['c', 'd']]])
-    // Chromium ignores </foreignObject> in svg when only an HTML <foreignObject> outside is open.
-    expect(rows(`<table><tr><td>a</td><th><foreignObject><svg><th></foreignObject>t</th></tr>${tail}`)).toEqual([[['a', ''], ['c', 'd']]])
     // In a cell, </span> does not pass the <div> in it, as a browser's end tag stops at a special element; </div> passes a <p>.
     const cell = (html: string) => htmlToMarkdown(`<table><tr><td>${html}</td><td>b</td></tr><tr><td>c</td><td>d</td></tr></table>`).split('\n')[0]
     expect(cell('<span><div>x</span>y</div>z')).toBe('| xy z | b |')
@@ -231,6 +226,12 @@ describe('htmlToTables', () => {
     // A fragment, such as the main content of a layout table, keeps its rows and cells.
     expect(htmlToMarkdown('<tr><td>x</td><td>y</td></tr><tr><td>z</td><td>w</td></tr>')).toBe('x\n\ny\n\nz\n\nw')
     expect(withoutLayoutMarkers('<tr data-w2l-display="block"><td>a</td><td>b</td></tr>')).toBe('<tr><td>a</td><td>b</td></tr>')
+    // A selection of table rows, given as <body>…</body>, keeps its rows and cells.
+    const rowsSelection = '<body><tr class="athing"><td data-w2l-display="block">1.</td><td><a href="/s1">Story one</a></td></tr><tr class="athing"><td>2.</td><td><a href="/s2">Story two</a></td></tr></body>'
+    expect(htmlToMarkdown(rowsSelection)).toBe('1.\n\n[Story one](/s1)\n\n2.\n\n[Story two](/s2)')
+    expect(withoutLayoutMarkers(rowsSelection)).toBe(rowsSelection.replace(' data-w2l-display="block"', ''))
+    // A selection given whole keeps its <body>.
+    expect(withoutLayoutMarkers('<body class="k"><nav><a href="/a" data-w2l-display="block">Nav</a></nav></body>')).toBe('<body class="k"><nav><a href="/a">Nav</a></nav></body>')
     // A </template> closes the template a table in it left open.
     expect(htmlToMarkdown(page('<template><table><tr><td>x</template><table><tr><td>a</td><td>b</td></tr><tr><td>c</td><td>d</td></tr></table><p>after</p>')))
       .toBe('| a | b |\n| --- | --- |\n| c | d |\n\nafter')

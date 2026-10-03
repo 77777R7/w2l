@@ -130,6 +130,48 @@ describe('htmlToMarkdown', () => {
     expect(htmlToMarkdown('<table><tr><td>a<th>b</th>c</td></tr><tr><td>d</td><td>e</td></tr></table>')).toBe('c\n\n| a | b |\n| --- | --- |\n| d | e |')
   })
 
+  it('parses a page as a browser does: misnested formatting reopened, no <html> or <body> needed, content after </body> kept', () => {
+    const page = (body: string) => `<!doctype html><html><body>${body}</body></html>`
+    // Each from the tree Chromium builds from the same HTML.
+    expect(htmlToMarkdown(page('<b>1<p>2</b>3</p>'))).toBe('**1**\n\n**2**3')
+    expect(htmlToMarkdown(page('<p><b>bold</p><p>more</p>'))).toBe('**bold**\n\n**more**')
+    expect(htmlToMarkdown(page('<a href="/x">one<div>two</a>three</div>'), { baseUrl: 'https://x.test/' })).toBe('[one](https://x.test/x)\n\n[two](https://x.test/x)three')
+    expect(htmlToMarkdown(page('<table><tr><td>a</td><td>b</td></tr><b><tr><td>c</td><td>d</td></tr></table><p>after</p>'))).toBe('| a | b |\n| --- | --- |\n| c | d |\n\n**after**')
+    expect(htmlToMarkdown('<!doctype html><table><tr><td>a</td><td>b</td></tr><tr><td>c</td><td>d</td></tr></table>')).toBe('| a | b |\n| --- | --- |\n| c | d |')
+    expect(htmlToMarkdown('<!doctype html><html><body><p>a</p></body><p>b</p></html><p>c</p>')).toBe('a\n\nb\n\nc')
+  })
+
+  it('bounds what a page of reopened formatting elements costs', () => {
+    // 56 KB: 3,000 differently attributed <b> closed by a </div>, then 3,000 paragraphs. The standard reopens
+    // every <b> in each paragraph (9 million elements, out of memory); past its budget the page is parsed by linkedom.
+    let html = '<!doctype html><html><body><div>'
+    for (let i = 0; i < 3000; i++) html += `<b id=${i}>`
+    html += `</div>${'<p>x</p>'.repeat(3000)}`
+    const started = Date.now()
+    expect(htmlToMarkdown(html).split('\n\n')).toHaveLength(3000)
+    expect(Date.now() - started).toBeLessThan(5_000)
+    // One <b> of 3,000 attributes reopened in 10,000 paragraphs (98 KB): each copy would carry all of them.
+    const many = `<!doctype html><html><body><div><b${Array.from({ length: 3000 }, (_, i) => ` a${i}`).join('')}></div>${'<p>x</p>'.repeat(10_000)}`
+    const manyStarted = Date.now()
+    expect(htmlToMarkdown(many).split('\n\n')).toHaveLength(10_000)
+    expect(Date.now() - manyStarted).toBeLessThan(5_000)
+    // parse5 and linkedom check each attribute of a tag against those before it: a tag of 100,000 took half a minute.
+    const wide = `<!doctype html><html><body><p${Array.from({ length: 100_000 }, (_, i) => ` a${i}`).join('')}>x</p><p>y</p>`
+    const wideStarted = Date.now()
+    expect(htmlToMarkdown(wide)).toBe('x\n\ny')
+    expect(Date.now() - wideStarted).toBeLessThan(5_000)
+    // Each later <body> start tag adds its attributes to the body: 200 tags of 255 would make 51,000 on one element.
+    const bodies = `<!doctype html><html><body><p>text</p>${Array.from({ length: 200 }, (_, t) => `<body${Array.from({ length: 255 }, (_, i) => ` a${t}_${i}`).join('')}>`).join('')}<p>end</p>`
+    const bodiesStarted = Date.now()
+    expect(htmlToMarkdown(bodies)).toBe('text\n\nend')
+    expect(Date.now() - bodiesStarted).toBeLessThan(5_000)
+    // parse5 moved a node's children one by one, each found by a linear search: 80,000 lines under a misnested <b>.
+    const moved = `<!doctype html><html><body><b><div>${'x<br>'.repeat(80_000)}</b></div>`
+    const movedStarted = Date.now()
+    expect(htmlToMarkdown(moved).length).toBeGreaterThan(80_000)
+    expect(Date.now() - movedStarted).toBeLessThan(5_000)
+  })
+
   it('counts rowspans stacked over the same columns without visiting every one in every row', () => {
     // ~2 MB: 300 rowspans a thousand columns wide stacked over 100 empty rows, 90 times.
     let stacked = '<table>'
