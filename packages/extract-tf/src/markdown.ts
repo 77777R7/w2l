@@ -714,6 +714,9 @@ interface InlineResult {
   trail: boolean
   leadBreak: boolean
   trailBreak: boolean
+  /** How much of the text's start and end was written from text, not Markdown of the walk's own (a link, code, an image, emphasis). */
+  textLead: number
+  textTrail: number
 }
 
 /**
@@ -723,6 +726,8 @@ interface InlineResult {
  */
 class Inline {
   private readonly parts: string[] = []
+  /** Whether each part was written from text (white space included), not Markdown of the walk's own. */
+  private readonly fromText: boolean[] = []
   private any = false
   private lineStarted = false
   private pendingSpace = false
@@ -730,8 +735,13 @@ class Inline {
   private leadBreak = false
   /** Whether text written now starts a line of the Markdown (a paragraph's own first line, or after a <br>). */
   private atLineStart: boolean
-  /** The emphasis marker the last part closes, so an adjacent run of it continues it instead of writing `****`. */
-  private lastClose = ''
+  /**
+   * The emphasis run the last part is (its marker and what is between the
+   * markers): an adjacent run of it continues it instead of writing `****`,
+   * and punctuation ending it moves after its closing marker when a letter
+   * follows (see emphasize).
+   */
+  private lastEmphasis: { marker: string; core: string; textTrail: number } | null = null
   /** Text not yet written (see text), in pieces, and whether the last ends in a space. */
   private pendingText: string[] = []
   private pendingEndsSpace = false
@@ -773,27 +783,52 @@ class Inline {
     const trailing = text.length > 1 && text.endsWith(' ')
     if (leading) this.space()
     const core = text.slice(leading ? 1 : 0, trailing ? -1 : undefined)
-    if (core) this.content(this.options.escape === false ? core : escapeText(core, this.atLineStart && !this.pendingSpace, this.options.link === true))
+    if (core) this.content(this.options.escape === false ? core : escapeText(core, this.atLineStart && !this.pendingSpace, this.options.link === true), true)
     if (trailing) this.space()
   }
 
   space(): void {
     this.flushText()
+    this.lastEmphasis = null
     if (this.lineStarted) this.pendingSpace = true
     else if (!this.any) this.lead = true
   }
 
-  content(s: string): void {
+  content(s: string, text = false): void {
     this.flushText()
+    if (this.lastEmphasis !== null && !this.pendingSpace && s !== '') this.closeEmphasisBefore(s)
     if (this.pendingSpace) {
       this.parts.push(' ')
+      this.fromText.push(true)
       this.pendingSpace = false
     }
     this.parts.push(s)
+    this.fromText.push(text)
     this.any = this.lineStarted = true
     this.atLineStart = false
-    this.lastClose = ''
+    this.lastEmphasis = null
     this.lastCode = null
+  }
+
+  /**
+   * CommonMark reads a closing marker after punctuation as text where a
+   * letter follows it (`**"x"**b`): the punctuation ending the run moves after
+   * the marker (`**"x**"b`), and a run of punctuation alone loses its markers.
+   */
+  private closeEmphasisBefore(next: string): void {
+    const { marker, core, textTrail } = this.lastEmphasis!
+    if (FLANK_NEUTRAL.test(next[0]!)) return
+    // The punctuation, and white space before it (a marker after a space reads as text too), of the text ending the run:
+    // never Markdown of the walk's own, such as a link's closing parenthesis. Scanned from the end, so a long run costs one pass.
+    const limit = core.length - textTrail
+    let start = core.length
+    while (start > limit && FLANK_NEUTRAL.test(core[start - 1]!)) start--
+    const trailing = start < core.length && !/[\s\p{Zs}]/u.test(core[core.length - 1]!) ? core.slice(start) : ''
+    const rest = core.slice(0, core.length - trailing.length)
+    // An underscore run (see emphasize) does not close before a letter: it is written with stars again, unless punctuation now follows it.
+    const written = trailing === '' ? marker.replace(/_/g, '*') : marker
+    if (trailing === '' && written === marker) return
+    this.parts[this.parts.length - 1] = rest ? written + rest + written + trailing : trailing
   }
 
   lineBreak(): void {
@@ -804,9 +839,10 @@ class Inline {
       return
     }
     this.parts.push('\n')
+    this.fromText.push(false)
     this.lineStarted = false
     this.atLineStart = true
-    this.lastClose = ''
+    this.lastEmphasis = null
     this.lastCode = null
   }
 
@@ -839,15 +875,34 @@ class Inline {
     this.flushText()
     if (inner.leadBreak) this.lineBreak()
     else if (inner.lead) this.space()
-    const { before, core, after } = emphasisParts(inner.text.replace(/\n{2,}/g, '\n'))
+    const parts = emphasisParts(inner.text.replace(/\n{2,}/g, '\n'))
+    const { before, after } = parts
+    let { core } = parts
+    // How much of the run's start and end is text: only that may move outside the markers.
+    const textLead = Math.max(0, inner.textLead - before.length)
+    const textTrail = Math.max(0, inner.textTrail - after.length)
     if (before) this.content(before)
-    if (core && !before && !this.pendingSpace && this.lastClose === marker) {
+    const previous = this.lastEmphasis
+    if (core && !before && !this.pendingSpace && previous !== null && previous.marker === marker) {
       // Right after a run of the same emphasis (`<b>a</b><b>b</b>`): one run, as `**a****b**` reads otherwise.
       const last = this.parts.length - 1
       this.parts[last] = this.parts[last]!.slice(0, -marker.length) + core + marker
+      this.lastEmphasis = { marker, core: previous.core + core, textTrail }
     } else if (core) {
-      this.content(marker + core + marker)
-      this.lastClose = marker
+      // An opening marker before punctuation reads as text after a letter (`a**"x"**`): that punctuation goes before it.
+      const before = this.pendingSpace ? ' ' : (this.parts[this.parts.length - 1] ?? '').slice(-1)
+      const leading = before !== '' && !FLANK_NEUTRAL.test(before) ? /^[\p{P}\p{S}][\s\p{Zs}\p{P}\p{S}]*/u.exec(core.slice(0, textLead))?.[0] : undefined
+      if (leading !== undefined) {
+        // A backslash ending it now comes before the marker, which it would escape.
+        this.content(escapeLastBackslash(leading))
+        core = core.slice(leading.length)
+      }
+      if (core) {
+        // Right after a run of the other emphasis, its stars would join this one's (`**x***.y*`): this one is written with underscores.
+        const written = previous !== null && this.parts[this.parts.length - 1]?.endsWith('*') && !this.pendingSpace ? marker.replace(/\*/g, '_') : marker
+        this.content(written + core + written)
+        this.lastEmphasis = { marker: written, core, textTrail: Math.min(textTrail, core.length) }
+      }
     }
     if (after) this.content(after)
     if (inner.trailBreak) this.lineBreak()
@@ -864,6 +919,7 @@ class Inline {
       if (this.lastCode !== null && !this.pendingSpace) {
         code = this.lastCode + code
         this.parts.pop()
+        this.fromText.pop()
       }
       const fence = '`'.repeat(longestBacktickRun(code) + 1)
       const pad = code.startsWith('`') || code.endsWith('`') ? ' ' : ''
@@ -878,12 +934,20 @@ class Inline {
     this.flushText()
     const joined = this.parts.join('')
     const text = joined.replace(/\n+$/, '')
+    let textLead = 0
+    for (let i = 0; i < this.parts.length && this.fromText[i]; i++) textLead += this.parts[i]!.length
+    let end = this.parts.length
+    while (end > 0 && this.parts[end - 1] === '\n') end--
+    let textTrail = 0
+    for (let i = end - 1; i >= 0 && this.fromText[i]; i--) textTrail += this.parts[i]!.length
     return {
       text,
       lead: this.lead,
       trail: this.pendingSpace,
       leadBreak: this.leadBreak,
       trailBreak: text.length < joined.length,
+      textLead,
+      textTrail,
     }
   }
 
@@ -915,6 +979,8 @@ function emphasisParts(text: string): { before: string; core: string; after: str
 }
 
 const ASCII_PUNCTUATION = /[!-/:-@[-`{-~]/
+/** Characters next to which an emphasis marker reads as one either way: white space and punctuation (a line's end too). */
+const FLANK_NEUTRAL = /[\s\p{Zs}\p{P}\p{S}]/u
 const WORD_CHARACTER = /[\p{L}\p{N}]/u
 const SPACE_CHARACTER = /[\s\p{Zs}]/u
 

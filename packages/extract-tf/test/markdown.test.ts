@@ -349,6 +349,30 @@ describe('htmlToMarkdown', () => {
 const BASE = 'https://fixture.test/docs/page'
 
 describe('htmlToMarkdown blocks and inline whitespace', () => {
+  it('keeps emphasis next to punctuation readable as emphasis: the punctuation at an edge goes outside the markers where it must', () => {
+    const md = (html: string) => htmlToMarkdown(`<!doctype html><html><body><p>${html}</p></body></html>`)
+    // A marker between a letter and punctuation is plain text to CommonMark.
+    expect(md('a<b>"x"</b>b')).toBe('a"**x**"b')
+    expect(md('<b>Note:</b>text')).toBe('**Note**:text')
+    expect(md('x<b>(1)</b>')).toBe('x(**1)**')
+    // Two runs of different emphasis side by side: the second with underscores, as their stars would join.
+    expect(md('<b>x</b><i>.y</i>')).toBe('**x**_.y_')
+    expect(md('<i>x</i><b>y</b>')).toBe('*x*__y__')
+    // White space next to the moved punctuation moves with it.
+    expect(md('w<b>, x:</b>y')).toBe('w, **x**:y')
+    // Only punctuation written from text moves: a link, code span or image at the edge stays whole inside the markers.
+    expect(md('<b><a href="https://e.test/x">链接</a></b>文字')).toBe('**[链接](https://e.test/x)**文字')
+    expect(md('<i><code>npm</code></i>s')).toBe('*`npm`*s')
+    expect(md('<b>x<img src="https://e.test/i.png" alt="i"></b>y')).toBe('**x![i](https://e.test/i.png)**y')
+    // A backslash moved before the opening marker is escaped, as it would escape the marker.
+    expect(md('x<b>\\a</b>')).toBe('x\\\\**a**')
+    expect(md('<i>“quoted”</i>word')).toBe('*“quoted*”word')
+    // Where the markers read as they are, nothing moves; a run of punctuation alone between letters stays plain text.
+    expect(md('<b>Note:</b> text')).toBe('**Note:** text')
+    expect(md('a <b>"x"</b> b')).toBe('a **"x"** b')
+    expect(md('a<b>!</b>b')).toBe('a!b')
+  })
+
   it('escapes text only where CommonMark would read it as Markdown, so it renders as written', () => {
     const md = (html: string) => htmlToMarkdown(`<!doctype html><html><body>${html}</body></html>`)
     // Ordinary text stays as written: an underscore inside a word, a star between spaces, balanced brackets.
