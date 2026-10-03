@@ -778,6 +778,21 @@ class Inline {
     else if (inner.trail) this.space()
   }
 
+  /**
+   * Append a run between emphasis markers, written so CommonMark reads it as
+   * emphasis (see emphasisParts); a run of white space alone gets none.
+   */
+  emphasize(inner: InlineResult, marker: string): void {
+    if (inner.leadBreak) this.lineBreak()
+    else if (inner.lead) this.space()
+    const { before, core, after } = emphasisParts(inner.text.replace(/\n{2,}/g, '\n'))
+    if (before) this.content(before)
+    if (core) this.content(marker + core + marker)
+    if (after) this.content(after)
+    if (inner.trailBreak) this.lineBreak()
+    else if (inner.trail) this.space()
+  }
+
   finish(): InlineResult {
     const joined = this.parts.join('')
     const text = joined.replace(/\n+$/, '')
@@ -797,6 +812,28 @@ class Inline {
       .map((part) => part.split('\n').join('  \n'))
       .join('\n\n')
   }
+}
+
+/**
+ * A run of emphasis split so CommonMark reads its markers as emphasis: a
+ * marker next to Unicode white space (a full-width space indenting a CJK
+ * paragraph, say) is plain text, so that white space goes outside the
+ * markers; and a backslash ending the run would escape the closing marker,
+ * so it is escaped itself (it still reads as one backslash).
+ */
+const EDGE_SPACE = /[\p{Zs}\t\f\r]/u
+
+function emphasisParts(text: string): { before: string; core: string; after: string } {
+  // Scanned from both ends, so a long run of spaces costs one pass.
+  let start = 0
+  let end = text.length
+  while (start < end && EDGE_SPACE.test(text[start]!)) start++
+  while (end > start && EDGE_SPACE.test(text[end - 1]!)) end--
+  let middle = text.slice(start, end)
+  let backslashes = 0
+  while (backslashes < middle.length && middle[middle.length - 1 - backslashes] === '\\') backslashes++
+  if (backslashes % 2 === 1) middle += '\\'
+  return { before: text.slice(0, start), core: middle, after: text.slice(end) }
 }
 
 interface Marks {
@@ -923,7 +960,7 @@ function inlineElement(el: Element, out: Inline, ctx: Context, marks: Marks): vo
 function emphasis(el: Element, out: Inline, ctx: Context, marks: Marks, marker: string): void {
   const inner = new Inline()
   inlineChildren(el, inner, ctx, marks)
-  out.wrap(inner.finish(), marker, marker)
+  out.emphasize(inner.finish(), marker)
 }
 
 function codeSpan(el: Element, out: Inline, ctx: Context): void {
@@ -986,7 +1023,13 @@ function emphasized(text: string, ctx: Context): string {
   if (ctx.emphasis === undefined) return text
   const open = ctx.emphasis.markers.join('')
   const close = [...ctx.emphasis.markers].reverse().join('')
-  return text.split('\n\n').map((part) => open + part + close).join('\n\n')
+  return text
+    .split('\n\n')
+    .map((part) => {
+      const { before, core, after } = emphasisParts(part)
+      return core ? before + open + core + close + after : part
+    })
+    .join('\n\n')
 }
 
 /** The marks inline content starts from in a paragraph of the walk. */
@@ -1005,7 +1048,7 @@ function emphasisAroundBlocks(el: Element, flow: Flow, strong: boolean): void {
   const marks: Marks = { ...flowMarks(ctx), ...(strong ? { strong: true } : { em: true }) }
   let run = new Inline()
   const endRun = (): void => {
-    flow.inline.wrap(run.finish(), marker, marker)
+    flow.inline.emphasize(run.finish(), marker)
     run = new Inline()
   }
   for (let node = el.firstChild; node !== null; node = node.nextSibling) {

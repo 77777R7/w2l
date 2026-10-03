@@ -349,6 +349,18 @@ describe('htmlToMarkdown', () => {
 const BASE = 'https://fixture.test/docs/page'
 
 describe('htmlToMarkdown blocks and inline whitespace', () => {
+  it('writes emphasis CommonMark reads as emphasis: white space at its edges outside the markers, a last backslash escaped', () => {
+    const md = (html: string) => htmlToMarkdown(`<!doctype html><html><body>${html}</body></html>`)
+    // A full-width space (a CJK paragraph indent) next to a marker makes it plain text to CommonMark.
+    expect(md('<b><p>\u3000indent</p></b>')).toBe('\u3000**indent**')
+    expect(md('<p><strong>\u3000lead</strong> rest</p>')).toBe('\u3000**lead** rest')
+    expect(md('<b>x\u3000</b>y')).toBe('**x**\u3000y')
+    expect(md('<i>\u3000</i>z')).toBe('\u3000z')
+    // A backslash before the closing marker would escape it.
+    expect(md('<em>path C:\\</em> end')).toBe('*path C:\\\\* end')
+    expect(md('<b><div>C:\\</div></b>')).toBe('**C:\\\\**')
+  })
+
   it('keeps the emphasis of a <b> or <em> around blocks on each paragraph in it, as a browser shows it', () => {
     const md = (html: string) => htmlToMarkdown(`<!doctype html><html><body>${html}</body></html>`, { baseUrl: 'https://e.test/' })
     expect(md('<b>w1<p>w2</p>w3</b>')).toBe('**w1**\n\n**w2**\n\n**w3**')
