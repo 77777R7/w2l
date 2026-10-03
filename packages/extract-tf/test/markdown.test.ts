@@ -109,6 +109,25 @@ describe('htmlToMarkdown', () => {
     expect(zero).toBe('| h | a |\n| --- | --- |\n|  | b |\n| 1 | 2 |')
   })
 
+  it('covers every row a rowspan spans: rows too short to reach its column, and not past its row group', () => {
+    const short = htmlToMarkdown('<table><tr><td>a</td><td>a2</td><td rowspan="3">b</td></tr><tr><td>c</td></tr><tr><td>d</td><td>e</td><td>f</td></tr><tr><td>g</td><td>h</td><td>i</td></tr></table>')
+    expect(short).toBe('| a | a2 | b |  |\n| --- | --- | --- | --- |\n| c |  |  |  |\n| d | e |  | f |\n| g | h | i |  |')
+    const empty = htmlToMarkdown('<table><tbody><tr><td>a</td><td rowspan="2">b</td></tr><tr></tr></tbody><tbody><tr><td>x</td><td>y</td></tr></tbody></table>')
+    expect(empty).toBe('| a | b |\n| --- | --- |\n|  |  |\n| x | y |')
+    const past = htmlToMarkdown('<table><tbody><tr><td>a</td><td rowspan="5">b</td></tr><tr><td>c</td></tr></tbody><tbody><tr><td>x</td><td>y</td></tr></tbody></table>')
+    expect(past).toBe('| a | b |\n| --- | --- |\n| c |  |\n| x | y |')
+  })
+
+  it('counts rowspans stacked over the same columns without visiting every one in every row', () => {
+    // ~2 MB: 300 rowspans a thousand columns wide stacked over 100 empty rows, 90 times.
+    let stacked = '<table>'
+    for (let i = 0; i < 300; i++) stacked += `<tr>${i < 299 ? `<td colspan="${299 - i}"></td>` : ''}<td colspan="1000" rowspan="60000"></td></tr>`
+    stacked += `${'<tr></tr>'.repeat(100)}</table>`
+    const started = Date.now()
+    expect(htmlToMarkdown(stacked.repeat(90)).length).toBeLessThan(2 * stacked.length * 90)
+    expect(Date.now() - started).toBeLessThan(5_000)
+  })
+
   it('writes a table whose padded grid would be too large as its rows of cells, still one GFM table', () => {
     // ~380 KB of HTML: one wide empty row over 20,000 one-cell rows pads to 60 million characters.
     const html = `<table><tr><td colspan="1000"></td></tr>${'<tr><td>y</td></tr>'.repeat(20_000)}</table><table><tr><td>k</td><td>v</td></tr><tr><td>1</td><td>2</td></tr></table>`

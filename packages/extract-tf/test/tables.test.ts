@@ -69,6 +69,21 @@ describe('htmlToTables', () => {
     expect(htmlToTables('<table><tr><td rowspan="0">a</td><td>b</td></tr><tr><td>c</td></tr></table>')[0]!.rows).toEqual([['a', 'b'], ['a', 'c']])
   })
 
+  it('covers every row a rowspan spans, as browsers do: rows too short to reach its column, and not past its row group', () => {
+    const [short, empty, past, overlap] = htmlToTables(
+      // Chromium places i under b: the short row c counts toward b's rowspan.
+      '<table><tr><td>a</td><td>a2</td><td rowspan="3">b</td></tr><tr><td>c</td></tr><tr><td>d</td><td>e</td><td>f</td></tr><tr><td>g</td><td>h</td><td>i</td></tr></table>' +
+        '<table><tbody><tr><td>a</td><td rowspan="2">b</td></tr><tr></tr></tbody><tbody><tr><td>x</td><td>y</td></tr></tbody></table>' +
+        '<table><tbody><tr><td>a</td><td rowspan="5">b</td></tr><tr><td>c</td></tr></tbody><tbody><tr><td>x</td><td>y</td></tr></tbody></table>' +
+        // Two spans over one slot (a table model error) both count every row; the later cell's value is in the slot.
+        '<table><tr><td>a</td><td rowspan="3">b</td></tr><tr><td colspan="2" rowspan="2">c</td></tr><tr></tr><tr><td>x</td><td>y</td></tr></table>',
+    )
+    expect(short!.rows).toEqual([['a', 'a2', 'b', ''], ['c', '', 'b', ''], ['d', 'e', 'b', 'f'], ['g', 'h', 'i', '']])
+    expect(empty!.rows).toEqual([['a', 'b'], ['', 'b'], ['x', 'y']])
+    expect(past!.rows).toEqual([['a', 'b'], ['c', 'b'], ['x', 'y']])
+    expect(overlap!.rows).toEqual([['a', 'b'], ['c', 'c'], ['c', 'c'], ['x', 'y']])
+  })
+
   it('gives no budget back to the page for a negative span', () => {
     // Three tables of about 1,893,000 characters: the page's budget gives two of them.
     const near = `<table><tr><td colspan="1000">${'x'.repeat(1890)}</td></tr><tr><td>y</td></tr></table>`

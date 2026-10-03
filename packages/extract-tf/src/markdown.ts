@@ -191,40 +191,53 @@ type GridCell = { value: string; colspan: number; rowspan: number }
  */
 function expandGrid(rows: GridCell[][], maxPadding: number, fill: 'empty' | 'repeat' = 'empty'): string[][] | null {
   const out: string[][] = []
-  // Column → the rowspans still covering it, oldest first.
-  const vertical = new Map<number, { left: number; value: string }[]>()
+  // Column → the rowspans started over it, newest last, each covering the rows before its `end`.
+  const vertical = new Map<number, { end: number; value: string }[]>()
   let slots = 0
   let cells = 0
-  for (const htmlRow of rows) {
+  for (let y = 0; y < rows.length; y++) {
     const row: string[] = []
     let cursor = 0
-    const fillOccupied = () => {
-      for (let spans = vertical.get(cursor); spans !== undefined; spans = vertical.get(cursor)) {
-        row[cursor] = fill === 'repeat' ? spans[0]!.value : ''
-        if (--spans[0]!.left === 0) spans.shift()
-        if (spans.length === 0) vertical.delete(cursor)
-        cursor++
-      }
+    // The rowspans still covering `col` in this row, newest last. Ended spans
+    // are popped from the top as they are met, so a row's work is one look per
+    // column it covers plus the spans it pops, never every span still pending.
+    const live = (col: number) => {
+      const spans = vertical.get(col)
+      if (spans === undefined) return undefined
+      while (spans.length > 0 && spans[spans.length - 1]!.end <= y) spans.pop()
+      if (spans.length > 0) return spans
+      vertical.delete(col)
+      return undefined
     }
-    for (const cell of htmlRow) {
+    // A slot two spans cover (a table model error) holds the later cell's value.
+    const covered = (spans: { value: string }[]) => (fill === 'repeat' ? spans[spans.length - 1]!.value : '')
+    const fillOccupied = () => {
+      for (let spans = live(cursor); spans !== undefined; spans = live(cursor)) row[cursor++] = covered(spans)
+    }
+    for (const cell of rows[y]!) {
       fillOccupied()
       row[cursor] = cell.value
       const cs = cell.colspan
       const rs = cell.rowspan
       if (cs > 1) for (let x = 1; x < cs; x++) row[++cursor] = fill === 'repeat' ? cell.value : ''
+      // Its columns are behind the cursor now, so the span is not met again in this row.
       if (rs > 1) {
-        for (let w = 0; w < cs; w++) {
-          const col = cursor - cs + 1 + w
+        for (let col = cursor - cs + 1; col <= cursor; col++) {
           const spans = vertical.get(col)
-          if (spans) spans.push({ left: rs - 1, value: cell.value })
-          else vertical.set(col, [{ left: rs - 1, value: cell.value }])
+          if (spans) spans.push({ end: y + rs, value: cell.value })
+          else vertical.set(col, [{ end: y + rs, value: cell.value }])
         }
       }
       cursor++
       if (slots + cursor - ++cells > maxPadding) return null
     }
-    fillOccupied()
-    slots += cursor
+    // A rowspan covers every row it spans, as browsers do, also where the
+    // row's cells end before its column (the gap between is padding).
+    for (const col of vertical.keys()) {
+      const spans = live(col)
+      if (spans !== undefined && col >= cursor) row[col] = covered(spans)
+    }
+    slots += row.length
     if (slots - cells > maxPadding) return null
     out.push(row)
   }
@@ -260,9 +273,10 @@ function nonNegativeInteger(attr: string | null): number | null {
 /**
  * A table's caption and cells as `cell` writes each one; a table nested in a
  * cell is that cell's text. Spans are integers of at least 1, read as browsers
- * read them: a colspan that is invalid or 0 is 1, an invalid rowspan is 1, and
- * a rowspan of 0 covers the rest of its row group (its `<thead>`, `<tbody>` or
- * `<tfoot>`, or the run of rows directly in the table).
+ * read them: a colspan that is invalid or 0 is 1, an invalid rowspan is 1, a
+ * rowspan of 0 covers the rest of its row group (its `<thead>`, `<tbody>` or
+ * `<tfoot>`, or the run of rows directly in the table), and no rowspan goes
+ * past the end of its row group.
  */
 function tableCells(table: Element, cell: (el: Element) => string): { caption: string | null; rows: GridCell[][] } {
   const captionEl = table.querySelector(':scope > caption')
@@ -277,7 +291,7 @@ function tableCells(table: Element, cell: (el: Element) => string): { caption: s
     return {
       value: cell(el),
       colspan: Math.min(nonNegativeInteger(el.getAttribute('colspan')) || 1, MAX_COLSPAN),
-      rowspan: Math.min(rowspan === 0 ? groupLeft[r]! : rowspan, MAX_ROWSPAN),
+      rowspan: Math.min(rowspan === 0 ? groupLeft[r]! : rowspan, groupLeft[r]!, MAX_ROWSPAN),
     }
   }))
   return { caption: captionEl ? cell(captionEl) : null, rows }
