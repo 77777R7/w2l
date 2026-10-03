@@ -349,6 +349,17 @@ describe('htmlToMarkdown', () => {
 const BASE = 'https://fixture.test/docs/page'
 
 describe('htmlToMarkdown blocks and inline whitespace', () => {
+  it('joins adjacent runs of one emphasis or code without rewriting the run each time', () => {
+    const md = (html: string) => htmlToMarkdown(`<!doctype html><html><body><p>${html}</p></body></html>`)
+    expect(md('<code>a`</code><code>`b</code><code>c</code>')).toBe('```a``bc```')
+    expect(md('<code>`a</code><code>b</code>')).toBe('`` `ab ``')
+    expect(md('<b>a</b><b>b.</b>c')).toBe('**ab**.c')
+    const started = Date.now()
+    expect(md('<code>a`</code>'.repeat(80_000)).length).toBeLessThan(200_000)
+    expect(md('<b>a.</b>'.repeat(80_000)).length).toBeLessThan(200_000)
+    expect(Date.now() - started).toBeLessThan(5_000)
+  })
+
   it('keeps emphasis next to punctuation readable as emphasis: the punctuation at an edge goes outside the markers where it must', () => {
     const md = (html: string) => htmlToMarkdown(`<!doctype html><html><body><p>${html}</p></body></html>`)
     // A marker between a letter and punctuation is plain text to CommonMark.

@@ -741,12 +741,24 @@ class Inline {
    * and punctuation ending it moves after its closing marker when a letter
    * follows (see emphasize).
    */
-  private lastEmphasis: { marker: string; core: string; textTrail: number } | null = null
+  private lastEmphasis: { marker: string; pieces: string[]; textTrail: number } | null = null
   /** Text not yet written (see text), in pieces, and whether the last ends in a space. */
   private pendingText: string[] = []
   private pendingEndsSpace = false
   /** The code of the code span the last part is, so an adjacent one joins it instead of writing a double backtick. */
-  private lastCode: string | null = null
+  private lastCode: { pieces: string[]; longest: number; tail: number; startsTick: boolean; endsTick: boolean } | null = null
+  /**
+   * How to write the last part once nothing more joins it: a run that adjacent
+   * runs joined keeps its pieces and is written once, as rewriting it at each
+   * join would cost its whole length each time.
+   */
+  private unwritten: (() => string) | null = null
+
+  private settle(): void {
+    if (this.unwritten === null) return
+    this.parts[this.parts.length - 1] = this.unwritten()
+    this.unwritten = null
+  }
 
   /**
    * `paragraph`: the inline content of a paragraph, whose first line starts a
@@ -789,6 +801,7 @@ class Inline {
 
   space(): void {
     this.flushText()
+    this.settle()
     this.lastEmphasis = null
     if (this.lineStarted) this.pendingSpace = true
     else if (!this.any) this.lead = true
@@ -797,6 +810,7 @@ class Inline {
   content(s: string, text = false): void {
     this.flushText()
     if (this.lastEmphasis !== null && !this.pendingSpace && s !== '') this.closeEmphasisBefore(s)
+    this.settle()
     if (this.pendingSpace) {
       this.parts.push(' ')
       this.fromText.push(true)
@@ -816,8 +830,9 @@ class Inline {
    * the marker (`**"x**"b`), and a run of punctuation alone loses its markers.
    */
   private closeEmphasisBefore(next: string): void {
-    const { marker, core, textTrail } = this.lastEmphasis!
+    const { marker, pieces, textTrail } = this.lastEmphasis!
     if (FLANK_NEUTRAL.test(next[0]!)) return
+    const core = pieces.join('')
     // The punctuation, and white space before it (a marker after a space reads as text too), of the text ending the run:
     // never Markdown of the walk's own, such as a link's closing parenthesis. Scanned from the end, so a long run costs one pass.
     const limit = core.length - textTrail
@@ -829,10 +844,12 @@ class Inline {
     const written = trailing === '' ? marker.replace(/_/g, '*') : marker
     if (trailing === '' && written === marker) return
     this.parts[this.parts.length - 1] = rest ? written + rest + written + trailing : trailing
+    this.unwritten = null
   }
 
   lineBreak(): void {
     this.flushText()
+    this.settle()
     this.pendingSpace = false
     if (!this.any) {
       this.leadBreak = true
@@ -853,6 +870,7 @@ class Inline {
    */
   wrap(inner: InlineResult, open: string, close: string): void {
     this.flushText()
+    this.settle()
     // A `!` written right before a link would make it an image.
     const last = this.parts.length - 1
     // (Not escaped already: an even run of backslashes before it, none included, escapes only themselves.)
@@ -885,10 +903,11 @@ class Inline {
     const previous = this.lastEmphasis
     if (core && !before && !this.pendingSpace && previous !== null && previous.marker === marker) {
       // Right after a run of the same emphasis (`<b>a</b><b>b</b>`): one run, as `**a****b**` reads otherwise.
-      const last = this.parts.length - 1
-      this.parts[last] = this.parts[last]!.slice(0, -marker.length) + core + marker
-      this.lastEmphasis = { marker, core: previous.core + core, textTrail }
+      previous.pieces.push(core)
+      previous.textTrail = textTrail
+      this.unwritten = () => marker + previous.pieces.join('') + marker
     } else if (core) {
+      this.settle()
       // An opening marker before punctuation reads as text after a letter (`a**"x"**`): that punctuation goes before it.
       const before = this.pendingSpace ? ' ' : (this.parts[this.parts.length - 1] ?? '').slice(-1)
       const leading = before !== '' && !FLANK_NEUTRAL.test(before) ? /^[\p{P}\p{S}][\s\p{Zs}\p{P}\p{S}]*/u.exec(core.slice(0, textLead))?.[0] : undefined
@@ -901,7 +920,7 @@ class Inline {
         // Right after a run of the other emphasis, its stars would join this one's (`**x***.y*`): this one is written with underscores.
         const written = previous !== null && this.parts[this.parts.length - 1]?.endsWith('*') && !this.pendingSpace ? marker.replace(/\*/g, '_') : marker
         this.content(written + core + written)
-        this.lastEmphasis = { marker: written, core, textTrail: Math.min(textTrail, core.length) }
+        this.lastEmphasis = { marker: written, pieces: [core], textTrail: Math.min(textTrail, core.length) }
       }
     }
     if (after) this.content(after)
@@ -915,16 +934,27 @@ class Inline {
     if (inner.leadBreak) this.lineBreak()
     else if (inner.lead) this.space()
     if (inner.text) {
-      let code = inner.text.replace(/\n{2,}/g, '\n')
-      if (this.lastCode !== null && !this.pendingSpace) {
-        code = this.lastCode + code
-        this.parts.pop()
-        this.fromText.pop()
+      const piece = inner.text.replace(/\n{2,}/g, '\n')
+      const write = (run: NonNullable<Inline['lastCode']>): string => {
+        const fence = '`'.repeat(run.longest + 1)
+        const pad = run.startsTick || run.endsTick ? ' ' : ''
+        return fence + pad + run.pieces.join('') + pad + fence
       }
-      const fence = '`'.repeat(longestBacktickRun(code) + 1)
-      const pad = code.startsWith('`') || code.endsWith('`') ? ' ' : ''
-      this.content(fence + pad + code + pad + fence)
-      this.lastCode = code
+      const leading = backticksAt(piece, false)
+      const trailing = backticksAt(piece, true)
+      const run = this.lastCode
+      if (run !== null && !this.pendingSpace) {
+        // The fence outlasts the longest backtick run of the code, one across the join included.
+        run.longest = Math.max(run.longest, longestBacktickRun(piece), run.tail + leading)
+        run.tail = leading === piece.length ? run.tail + leading : trailing
+        run.endsTick = piece.endsWith('`')
+        run.pieces.push(piece)
+        this.unwritten = () => write(run)
+      } else {
+        const started = { pieces: [piece], longest: longestBacktickRun(piece), tail: trailing, startsTick: piece.startsWith('`'), endsTick: piece.endsWith('`') }
+        this.content(write(started))
+        this.lastCode = started
+      }
     }
     if (inner.trailBreak) this.lineBreak()
     else if (inner.trail) this.space()
@@ -932,6 +962,7 @@ class Inline {
 
   finish(): InlineResult {
     this.flushText()
+    this.settle()
     const joined = this.parts.join('')
     const text = joined.replace(/\n+$/, '')
     let textLead = 0
@@ -1117,6 +1148,13 @@ function destination(target: string): string {
   }
   if (depth === 0 && !/[\s<>]/.test(target)) return target
   return `<${target.replace(/</g, '%3C').replace(/>/g, '%3E')}>`
+}
+
+/** How many backticks start (or end) the text. */
+function backticksAt(text: string, end: boolean): number {
+  let count = 0
+  while (count < text.length && text[end ? text.length - 1 - count : count] === '`') count++
+  return count
 }
 
 function longestBacktickRun(text: string): number {
