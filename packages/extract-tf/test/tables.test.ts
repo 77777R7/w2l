@@ -276,6 +276,22 @@ describe('htmlToTables', () => {
     expect(body('<form><p></form>x')).toBe('<form><p></p></form>x')
   })
 
+  it('ends a fragment that starts with a <col> as Chromium does: a table\'s pending text in a template at its end is dropped', () => {
+    const fragment = (html: string) => parse(html, true).document.body.innerHTML
+    // Chromium's template.innerHTML. The text is in a template either way, so no output reads it.
+    expect(fragment('<col><template><table>abc')).toBe('<col><template><table></table></template>')
+    expect(fragment('<col><template><template><div><table>  ')).toBe('<col><template><template><div><table></table></div></template></template>')
+    expect(fragment('<col><template><tfoot>abc')).toBe('<col><template><tfoot></tfoot></template>')
+    // The formatting elements it re-opens before the table are still re-opened; all-whitespace text re-opens none.
+    expect(fragment('<col><template><table><tr><b><i></tr>abc')).toBe('<col><template><b><i></i></b><b><i></i></b><table><tbody><tr></tr></tbody></table></template>')
+    expect(fragment('<col><template><table><tr><b></tr>  ')).toBe('<col><template><b></b><table><tbody><tr></tr></tbody></table></template>')
+    // Written before another tag, before the template's end, or without the <col>, it is kept, as the standard keeps it.
+    expect(fragment('<col><template><table>abc<b>')).toBe('<col><template>abc<b></b><table></table></template>')
+    expect(fragment('<col><template><table>abc</template>')).toBe('<col><template>abc<table></table></template>')
+    expect(fragment('<template><table>abc')).toBe('<template>abc<table></table></template>')
+    expect(fragment('<col><template>abc')).toBe('<col><template>abc</template>')
+  })
+
   it('ends a table at a table written where its rows belong, as the browser\'s parser does', () => {
     const r = (t: string) => `<tr><td>${t}</td><td>${t}.</td></tr>`
     // Chromium: the outer table ends there, the inner one follows it, and the rows after it are text.

@@ -26,6 +26,9 @@ const HTML_NS = 'http://www.w3.org/1999/xhtml'
 const GROUP_ENDS = new Set([htmlSpec.TAG_ID.TBODY, htmlSpec.TAG_ID.TFOOT, htmlSpec.TAG_ID.THEAD])
 /** parse5 8.0.1's InsertionMode.IN_ROW, which it does not export (the version is pinned). */
 const IN_ROW = 13
+/** parse5 8.0.1's IN_TABLE_TEXT and IN_COLUMN_GROUP. */
+const IN_TABLE_TEXT = 9
+const IN_COLUMN_GROUP = 11
 /** parse5 8.0.1's IN_TABLE, IN_TABLE_BODY and IN_ROW: the modes that read a <form> by the table's rules. */
 const TABLE_MODES = new Set([8, 12, IN_ROW])
 /** parse5 8.0.1's IN_BODY, IN_TABLE, IN_CAPTION, IN_TABLE_BODY, IN_ROW and IN_CELL: the modes that read a </form> by the body's rules. */
@@ -64,7 +67,7 @@ class StandardTokenizer extends Tokenizer {
 }
 
 /**
- * parse5 with six changes:
+ * parse5 with seven changes:
  * - Its table scope stopped only at <table> and <html>, not at <template>, so
  *   a </table>, </tr> or row group end tag in a template that is in a table
  *   closed the cells, rows and table outside the template, and a <tr> or <td>
@@ -77,6 +80,11 @@ class StandardTokenizer extends Tokenizer {
  * - A </form> in a <template> closes its form as any other end tag closes its
  *   element, as in Chromium: not past a <p>, <div>, <li> or other special
  *   element still open in it. The standard closes those first.
+ * - A fragment that starts with a <col> (its template's mode is then the
+ *   column group's) loses a table's text still pending at its end, as in
+ *   Chromium's template.innerHTML; the standard writes it. The formatting
+ *   elements the text re-opens are still re-opened. Such text is always in a
+ *   nested <template>, which no output reads.
  * - In a row it closed the row at a </tbody>, </tfoot> or </thead> whose row
  *   group is not open, where the standard (and Chromium) ignores the tag.
  * - It moved a node's children one by one, each found by a linear search, so a
@@ -101,6 +109,22 @@ class StandardParser extends Parser<DefaultTreeAdapterMap> {
       return
     }
     super._startTagOutsideForeignContent(token)
+  }
+
+  override onEof(token: Token.EOFToken): void {
+    const fragmentMode = this.tmplInsertionModeStack[this.tmplInsertionModeStack.length - 1]
+    if (this.fragmentContext !== null && (this.insertionMode as number) === IN_TABLE_TEXT && (fragmentMode as number | undefined) === IN_COLUMN_GROUP) {
+      // Text that is not all whitespace still re-opens the formatting elements before the table first; only the text is lost.
+      if (this.hasNonWhitespacePendingCharacterToken) {
+        const fostering = this.fosterParentingEnabled
+        this.fosterParentingEnabled = true
+        this._reconstructActiveFormattingElements()
+        this.fosterParentingEnabled = fostering
+      }
+      this.pendingCharacterTokens.length = 0
+      this.hasNonWhitespacePendingCharacterToken = false
+    }
+    super.onEof(token)
   }
 
   override _endTagOutsideForeignContent(token: Token.TagToken): void {
