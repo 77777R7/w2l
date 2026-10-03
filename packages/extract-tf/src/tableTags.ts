@@ -108,6 +108,18 @@ const OWN_END_RULE = new Set(['template', 'body', 'html', 'head', 'address', 'ar
 /** Whether a browser reads an end tag by its "any other end tag" rule: `</span>`, `</label>`, `</sup>`, a custom element's. */
 const anyOtherEnd = (name: string): boolean => !OWN_END_RULE.has(name) && !TABLE_TAGS.has(name) && !VOID.has(name)
 const HEADINGS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6'])
+/** The formatting elements a browser keeps in its list of active formatting elements. */
+const FORMATTING = new Set(['a', 'b', 'big', 'code', 'em', 'font', 'i', 'nobr', 's', 'small', 'strike', 'strong', 'tt', 'u'])
+/** The elements that put a marker on that list: formatting elements opened before one are not reopened in it. */
+const MARKERS = new Set(['applet', 'marquee', 'object', 'template', 'td', 'th', 'caption'])
+/** The start tags at which a browser does not reopen the formatting elements it has closed (it does at text and any other). */
+const NO_RECONSTRUCT = new Set(['html', 'body', 'head', 'frameset', 'base', 'basefont', 'bgsound', 'link', 'meta', 'noframes', 'script', 'style', 'template', 'title', 'address', 'article', 'aside', 'blockquote', 'center', 'details', 'dialog', 'dir', 'div', 'dl', 'fieldset', 'figcaption', 'figure', 'footer', 'header', 'hgroup', 'main', 'menu', 'nav', 'ol', 'p', 'search', 'section', 'summary', 'ul', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'pre', 'listing', 'form', 'li', 'dd', 'dt', 'plaintext', 'table', 'hr', 'textarea', 'iframe', 'noembed', 'noscript', 'param', 'source', 'track', 'caption', 'col', 'colgroup', 'frame', 'tbody', 'td', 'tfoot', 'th', 'thead', 'tr'])
+// Bounds past which the formatting elements are left as htmlparser2 reads them: elements open above one a browser
+// adopts (each adoption rebuilds them), entries on the list, and elements reopened on a page.
+const MAX_ADOPTION_DEPTH = 2000
+const MAX_ADOPTION_WORK = 200_000
+const MAX_FORMATTING = 200
+const MAX_REOPENED = 20000
 /** Elements whose content a browser reads as text (a <noscript> with scripting on) where htmlparser2 reads tags: their own end tag always ends them. */
 const TEXT_CONTENT = new Set(['noscript', 'iframe', 'noembed', 'noframes', 'xmp', 'plaintext', 'textarea', 'title', 'style', 'script'])
 /** The start tags at which a browser closes a <p> open in button scope. */
@@ -147,8 +159,11 @@ const endsWithBodyEnd = (html: string): boolean => {
   return true
 }
 
-/** A start tag at which a browser may close an element htmlparser2 keeps open: a <li>, <dd>, <dt>, heading, <button>, or a <p> a block closes. */
-const CLOSING_START = /<(?:li|dd|dt|h[1-6]|button|p)[\t\n\f\r />]/i
+/**
+ * A start tag at which a browser may close an element htmlparser2 keeps open (a <li>, <dd>, <dt>, heading, <button>, or a
+ * <p> a block closes), or a formatting element's, which a browser may reopen or move a block out of.
+ */
+const CLOSING_START = /<(?:li|dd|dt|h[1-6]|button|p|a|b|big|code|em|font|i|nobr|s|small|strike|strong|tt|u)[\t\n\f\r />]/i
 
 /** Whether the page has an end tag a browser reads by its "any other end tag" rule, such as `</span>`, or a heading's, which closes any heading. */
 const hasLooseEnd = (html: string): boolean => {
@@ -170,7 +185,10 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
   const tableTags = whole ? /<(table|t[dhr]|thead|tbody|tfoot|caption|col)/i : /<table/i
   if (!tableTags.test(html) && (!whole || endsWithBodyEnd(html)) && !breaksOutOfForeign(html) && !hasLooseEnd(html) && !CLOSING_START.test(html)) return html
   // Replace [at, end) with text, in source order.
-  const edits: { at: number; end: number; text: string }[] = []
+  // `first`: written before the other edits at its place (the copy of a formatting element a browser puts in a block,
+  // before its content), a later one before an earlier one, as the later copy holds the earlier.
+  const edits: { at: number; end: number; text: string; first?: number }[] = []
+  let firsts = 0
   // The elements a browser has open from the outermost table in, innermost last.
   const stack: string[] = []
   let tables = 0
@@ -183,6 +201,7 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
   const impliedClosed = new Set<number>()
   let tagAt = 0
   let tagName = ''
+  let tagNameEnd = 0
 
   // Where the table elements, the svg and math elements and each name's
   // elements are on the stack, innermost last, so no step walks the stack:
@@ -316,20 +335,34 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
       (special && !LIST_ITEM_PASSES.has(entry) ? 16 : 0) | (integration || (html && SCOPE.has(entry)) ? 32 : 0) |
       (html && (TEXT_CONTENT.has(entry) || entry === 'select') ? 64 : 0)
   }
-  const outerPush = (entry: string): void => {
+  // Each element's id, and where its start tag is (-1 for one written out here), beside it; where each id is.
+  const outerIds: number[] = []
+  const outerAt: number[] = []
+  const outerEnd: number[] = []
+  const idIndex = new Map<number, number>()
+  let nextId = 0
+  const outerPush = (entry: string, at = -1, end = -1, id = nextId++): number => {
     let list = outerByName.get(bare(entry))
     if (list === undefined) outerByName.set(bare(entry), (list = []))
     list.push(outer.length)
     const mask = maskOf(entry)
     for (let bit = 0; bit < outerLists.length; bit++) if (mask & (1 << bit)) outerLists[bit]!.push(outer.length)
     outerMasks.push(mask)
+    idIndex.set(id, outer.length)
+    outerIds.push(id)
+    outerAt.push(at)
+    outerEnd.push(end)
     outer.push(entry)
+    return id
   }
   const outerPop = (): string => {
     const entry = outer.pop()!
     outerByName.get(bare(entry))!.pop()
     const mask = outerMasks.pop()!
     for (let bit = 0; bit < outerLists.length; bit++) if (mask & (1 << bit)) outerLists[bit]!.pop()
+    idIndex.delete(outerIds.pop()!)
+    outerAt.pop()
+    outerEnd.pop()
     return entry
   }
   const outerPopTo = (index: number): void => {
@@ -379,8 +412,7 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
       text += `</${outer[index]}>`
       outerPopTo(index)
     }
-    const top = outer.length - 1
-    if (HEADINGS.has(name) && top >= 0 && HEADINGS.has(outer[top]!)) closeTo(top)
+    // In a browser's order: the list item, the <p>, then a heading the <p> was in.
     // A <li> closes the nearest <li> unless a special element other than <address>, <div> or <p> comes first; <dd> and <dt> alike.
     if (name === 'li' || name === 'dd' || name === 'dt') {
       const item = name === 'li' ? outerOpen('li') : Math.max(outerOpen('dd'), outerOpen('dt'))
@@ -390,9 +422,163 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
       const p = outerOpen('p')
       if (p > Math.max(last(outerScope), outerOpen('button'))) closeTo(p)
     }
+    const top = outer.length - 1
+    if (HEADINGS.has(name) && top >= 0 && HEADINGS.has(outer[top]!)) closeTo(top)
     if (name === 'button') {
       const button = outerOpen('button')
       if (button > last(outerScope)) closeTo(button)
+    }
+    return text
+  }
+  // A browser's list of active formatting elements outside tables, null a
+  // marker: the <b>, <a> and the like it has opened and not yet ended at
+  // their end tag. One a block or a </p> closed is reopened (a copy, with its
+  // attributes) at the next text or inline tag, and an end tag that finds a
+  // block in its element moves the block out of it, with a copy of the
+  // element inside (the adoption agency algorithm).
+  type Formatting = { id: number; name: string; attrs: string }
+  const afe: (Formatting | null)[] = []
+  const afeById = new Map<number, Formatting>()
+  let reopened = 0
+  // The elements the adoptions on this page have moved, and how many they may.
+  let adopted = 0
+  /** Whether a browser follows the list here: outside tables, svg and math, and a <select>, <noscript> or the like. */
+  const formattingOn = (): boolean => tables === 0 && !inOuterForeign() && outerOpaque.length === 0
+  const afeAdd = (f: Formatting): void => {
+    // At most three entries alike after the last marker (the Noah's Ark clause): the earliest goes.
+    let alike = 0
+    let earliest = -1
+    for (let i = afe.length - 1; i >= 0 && afe[i] !== null; i--) {
+      if (afe[i]!.name === f.name && afe[i]!.attrs === f.attrs) {
+        alike++
+        earliest = i
+      }
+    }
+    if (alike >= 3) afeById.delete(afe.splice(earliest, 1)[0]!.id)
+    if (afe.length >= MAX_FORMATTING) return
+    afe.push(f)
+    afeById.set(f.id, f)
+  }
+  const afeReplace = (f: Formatting, by: Formatting): void => {
+    afe[afe.indexOf(f)] = by
+    afeById.delete(f.id)
+    afeById.set(by.id, by)
+  }
+  const afeRemove = (f: Formatting): void => {
+    afe.splice(afe.indexOf(f), 1)
+    afeById.delete(f.id)
+  }
+  const afeClearToMarker = (): void => {
+    while (afe.length > 0) {
+      const f = afe.pop()
+      if (f === null || f === undefined) break
+      afeById.delete(f.id)
+    }
+  }
+  /** The last entry of a name after the last marker, or -1. */
+  const afeLast = (name: string): number => {
+    for (let i = afe.length - 1; i >= 0 && afe[i] !== null; i--) if (afe[i]!.name === name) return i
+    return -1
+  }
+  const startTagOf = (f: Formatting): string => `<${f.name}${f.attrs}>`
+  /** Reopens the formatting elements a browser has closed and not ended, returning their start tags. */
+  const reconstruct = (): string => {
+    const lastEntry = afe[afe.length - 1]
+    if (lastEntry === undefined || lastEntry === null || idIndex.has(lastEntry.id)) return ''
+    let i = afe.length - 1
+    while (i > 0 && afe[i - 1] !== null && !idIndex.has(afe[i - 1]!.id)) i--
+    let text = ''
+    for (; i < afe.length && reopened < MAX_REOPENED; i++, reopened++) {
+      const f = afe[i]!
+      const copy = { id: nextId++, name: f.name, attrs: f.attrs }
+      text += startTagOf(f)
+      outerPush(f.name, -1, -1, copy.id)
+      afeReplace(f, copy)
+    }
+    return text
+  }
+  /** The nearest special element above the stack index, or -1. */
+  const specialAbove = (index: number): number => {
+    let lo = 0
+    let hi = outerSpecial.length
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1
+      if (outerSpecial[mid]! > index) hi = mid
+      else lo = mid + 1
+    }
+    return lo < outerSpecial.length ? outerSpecial[lo]! : -1
+  }
+  /** How many open elements of a name are at stack indexes from..to-1. */
+  const countOpen = (name: string, from: number, to: number): number => {
+    const list = outerByName.get(name) ?? []
+    let count = 0
+    for (let k = list.length - 1; k >= 0 && list[k]! >= from; k--) if (list[k]! < to) count++
+    return count
+  }
+  /**
+   * A browser's adoption agency algorithm for a formatting element's end
+   * tag (or a <a> or <nobr> opened while one is open). It returns the end
+   * tags to write in its place, writes at each block it moves the end tags
+   * before it and the copies after it, and returns null when the list holds
+   * no such element (the tag is then read as any other end tag), undefined
+   * when it leaves the element as htmlparser2 reads it.
+   */
+  const adoption = (name: string): string | null | undefined => {
+    let text = ''
+    for (let round = 0; round < 8; round++) {
+      const fa = afeLast(name)
+      if (fa < 0) return round === 0 ? null : text
+      const formatting = afe[fa]!
+      const fi = idIndex.get(formatting.id)
+      if (fi === undefined) {
+        afeRemove(formatting)
+        return text
+      }
+      // Not in scope: the tag is ignored.
+      if (last(outerScope) > fi) return text
+      const block = specialAbove(fi)
+      if (block < 0) {
+        text += `</${name}>`.repeat(countOpen(name, fi, outer.length))
+        outerPopTo(fi)
+        afeRemove(formatting)
+        return text
+      }
+      // Too deep to rebuild, or svg or math in between: left as htmlparser2 reads it.
+      adopted += outer.length - fi
+      if (outer.length - fi > MAX_ADOPTION_DEPTH || adopted > MAX_ADOPTION_WORK || outerAt[block]! < 0) return round === 0 ? undefined : text
+      for (let k = fi; k <= block; k++) if (!isOuterHtml(outer[k]!)) return round === 0 ? undefined : text
+      // The formatting elements between are copied around the block, three at most (the nearest it); any other stays behind.
+      const copies: Formatting[] = []
+      let bookmark: Formatting | null = null
+      for (let k = block - 1, counter = 1; k > fi; k--, counter++) {
+        const f = afeById.get(outerIds[k]!)
+        if (f === undefined) continue
+        if (counter > 3) {
+          afeRemove(f)
+          continue
+        }
+        const copy = { id: nextId++, name: f.name, attrs: f.attrs }
+        afeReplace(f, copy)
+        if (copies.length === 0) bookmark = copy
+        copies.unshift(copy)
+      }
+      const inner = { id: nextId++, name, attrs: formatting.attrs }
+      edits.push({ at: outerAt[block]!, end: outerAt[block]!, text: `</${name}>`.repeat(countOpen(name, fi, block)) + copies.map(startTagOf).join('') })
+      edits.push({ at: outerEnd[block]!, end: outerEnd[block]!, text: startTagOf(inner), first: ++firsts })
+      const blockEntry = [outer[block]!, outerAt[block]!, outerEnd[block]!, outerIds[block]!] as const
+      const above: (readonly [string, number, number, number])[] = []
+      for (let k = block + 1; k < outer.length; k++) above.push([outer[k]!, outerAt[k]!, outerEnd[k]!, outerIds[k]!])
+      outerPopTo(fi)
+      for (const copy of copies) outerPush(copy.name, -1, -1, copy.id)
+      outerPush(...blockEntry)
+      outerPush(name, -1, -1, inner.id)
+      for (const entry of above) outerPush(...entry)
+      if (bookmark === null) afeReplace(formatting, inner)
+      else {
+        afeRemove(formatting)
+        afe.splice(afe.indexOf(bookmark) + 1, 0, inner)
+        afeById.set(inner.id, inner)
+      }
     }
     return text
   }
@@ -401,7 +587,7 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
    * is to be dropped: htmlparser2 would close the nearest open element of its
    * name wherever it is.
    */
-  const outerClose = (name: string): boolean => {
+  const outerClose = (name: string, anyOther = anyOtherEnd(name)): boolean => {
     if (VOID.has(name)) return false
     const open = last(outerByName.get(name))
     // Nothing of its name is open: htmlparser2 closes nothing either (a </p> opens an empty <p>, as in a browser).
@@ -414,7 +600,7 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
     // there. A </template> closes the nearest template wherever it is, and
     // a </noscript> (and the like) its element, whose content a browser
     // reads as text, so it holds no element to stop at.
-    const stop = Math.max(last(outerIntegration), anyOtherEnd(name) ? last(outerSpecial) : -1)
+    const stop = Math.max(last(outerIntegration), anyOther ? last(outerSpecial) : -1)
     if (open > last(outerHtml) || (isOuterHtml(outer[open]!) && open >= stop) || name === 'template' || TEXT_CONTENT.has(name)) {
       outerPopTo(open)
       return false
@@ -425,7 +611,7 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
     if (text !== '') edits.push({ at, end: at, text })
   }
 
-  const startTag = (name: string, at: number, end: number, selfClosing: boolean): void => {
+  const startTag = (name: string, at: number, end: number, selfClosing: boolean, attrs = ''): void => {
     if (tables === 0) {
       if (inOuterForeign()) {
         if (!BREAKOUT.has(name)) {
@@ -438,9 +624,26 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
       }
       const stray = STRAY.has(name) && (ended > 0 || (whole && templatesOutside === 0 && outerRoots.length === 0))
       if (stray) return void edits.push({ at, end, text: '' })
+      // In htmlparser2's order: the end tags written before the tag, the formatting elements reopened, then its implied closes.
+      let text = outerBrowserCloses(name)
+      const formatting = formattingOn()
+      if (formatting) {
+        // A <a> while one is open ends it first (and a <nobr> a <nobr>), as its end tag would.
+        if (name === 'a' && afeLast('a') >= 0) {
+          const open = afe[afeLast('a')]!
+          text += adoption('a') ?? ''
+          if (afeById.has(open.id)) afeRemove(open)
+        }
+        if (!NO_RECONSTRUCT.has(name)) text += reconstruct()
+        if (name === 'nobr' && outerOpen('nobr') > last(outerScope)) text += (adoption('nobr') ?? '') + reconstruct()
+      }
+      insert(at, text)
       outerImplied(name)
-      insert(at, outerBrowserCloses(name))
-      if (name !== 'table' && !VOID.has(name) && !(FOREIGN.has(name) && selfClosing)) outerPush(name)
+      if (name !== 'table' && !VOID.has(name) && !(FOREIGN.has(name) && selfClosing)) {
+        const id = outerPush(name, at, end)
+        if (formatting && FORMATTING.has(name)) afeAdd({ id, name, attrs })
+        if (MARKERS.has(name)) afe.push(null)
+      }
       if (name === 'table') push(name)
       else if (name === 'template') templatesOutside++
       return
@@ -551,7 +754,23 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
         const bound = name === 'li' ? Math.max(outerOpen('ul'), outerOpen('ol')) : name === 'p' ? outerOpen('button') : -1
         if (open >= 0 && open < Math.max(bound, last(outerScope))) return void edits.push({ at, end, text: name === 'p' ? '<p></p>' : '' })
       }
-      if (outerClose(name)) drop()
+      /** Closes as htmlparser2 would; a formatting element it closes leaves the list too, or it would be reopened. */
+      const closeAsWritten = (anyOther?: boolean): void => {
+        const open = FORMATTING.has(name) ? outerOpen(name) : -1
+        const id = open >= 0 ? outerIds[open]! : -1
+        if (outerClose(name, anyOther)) drop()
+        else if (id >= 0 && !idIndex.has(id) && afeById.has(id)) afeRemove(afeById.get(id)!)
+      }
+      if (FORMATTING.has(name) && formattingOn()) {
+        const text = adoption(name)
+        if (text === null) closeAsWritten(true)
+        else if (text === undefined) closeAsWritten()
+        else if (text !== `</${name}>`) edits.push({ at, end, text })
+        return
+      }
+      const marker = MARKERS.has(name) && outerOpen(name) >= 0
+      closeAsWritten()
+      if (marker && outerOpen(name) < 0) afeClearToMarker()
       return
     }
     // A </template> for a template opened before the table closes it, and the tables in it.
@@ -619,12 +838,13 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
       onopentagname(start, endIndex) {
         tagAt = start - 1
         tagName = html.slice(start, endIndex).toLowerCase()
+        tagNameEnd = endIndex
       },
       onopentagend(endIndex) {
-        startTag(tagName, tagAt, endIndex + 1, false)
+        startTag(tagName, tagAt, endIndex + 1, false, html.slice(tagNameEnd, endIndex))
       },
       onselfclosingtag(endIndex) {
-        startTag(tagName, tagAt, endIndex + 1, true)
+        startTag(tagName, tagAt, endIndex + 1, true, html.slice(tagNameEnd, endIndex).replace(/\/[\t\n\f\r ]*$/, ''))
       },
       onclosetag(start, endIndex) {
         // The tag starts at its `</`, which space may separate from the name.
@@ -642,18 +862,24 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
       onend() {},
       onprocessinginstruction() {},
       ontext(start, endIndex) {
+        // A browser reopens the formatting elements it has closed for text.
+        if (afe.length > 0 && formattingOn()) insert(start, reconstruct())
         // Text in a column group closes it too, as a browser moves the text out of the table.
         if (tables > 0 && !/^[\t\n\f\r ]*$/.test(html.slice(start, endIndex))) {
           const [mode, index] = innermost()
           if (mode === 'colgroup') insert(start, popTo(index, true))
         }
       },
-      ontextentity() {},
+      ontextentity(_codepoint, endIndex) {
+        if (afe.length > 0 && formattingOn()) insert(html.lastIndexOf('&', endIndex - 1), reconstruct())
+      },
     },
   )
   tokenizer.write(html)
   tokenizer.end()
   if (edits.length === 0) return html
+  // An adoption writes at a block opened earlier: in source order, and in the order written at one place.
+  edits.sort((a, b) => a.at - b.at || (b.first ?? 0) - (a.first ?? 0))
   let out = ''
   let from = 0
   for (const edit of edits) {

@@ -251,7 +251,7 @@ describe('htmlToMarkdown', () => {
     // A heading's end tag closes the heading open, of any level.
     expect(htmlToMarkdown(page('<h3>a</h2>b<p>c</p>'))).toBe('### a\n\nb\n\nc')
     // An element a browser has closed is not in between: the <p>, closed at the <div>.
-    expect(htmlToMarkdown(page('<span><p>x<b>y<div>z</div></span>w'))).toBe('x**y**\n\nz\n\nw')
+    expect(htmlToMarkdown(page('<span><p>x<b>y<div>z</div></span>w'))).toBe('x**y**\n\n**z**\n\n**w**')
   })
 
   it('closes a list item, a heading or a paragraph where a browser does, so the next is not nested in it', () => {
@@ -270,6 +270,28 @@ describe('htmlToMarkdown', () => {
     // Nothing in a <noscript> (text to a browser) or a <select> closes past it.
     expect(body('<p>a<noscript><p>enable JS</p></noscript>b')).toBe('<p>a<noscript><p>enable JS</p></noscript>b</p>')
     expect(body('<p>a<select><option>x<div>y</div></select>b')).toBe('<p>a<select><option>x<div>y</div></option></select>b</p>')
+  })
+
+  it('reopens a formatting element a browser has closed, and moves a block out of one, as a browser does', () => {
+    // Chromium's document.body.innerHTML of each page.
+    const body = (html: string) => parse(`<!doctype html><html><body>${html}</body></html>`).document.body.innerHTML
+    expect(body('<p><b>x</p>y')).toBe('<p><b>x</b></p><b>y</b>')
+    expect(body('<p><b>x</p><p>y</p>')).toBe('<p><b>x</b></p><p><b>y</b></p>')
+    expect(body('<p><a href="/1">a<p>b</a>c')).toBe('<p><a href="/1">a</a></p><p><a href="/1">b</a>c</p>')
+    expect(body('<b><div>x</b>y</div>')).toBe('<b></b><div><b>x</b>y</div>')
+    expect(body('<b><i><div>x</b>y</div>z')).toBe('<b><i></i></b><i><div><b>x</b>y</div>z</i>')
+    expect(body('<b><span><div>x</b>y</div>')).toBe('<b><span></span></b><div><b>x</b>y</div>')
+    expect(body('<em>a<ul><li>b</em>c</ul>d')).toBe('<em>a</em><ul><em></em><li><em>b</em>c</li></ul>d')
+    expect(body('<a href="/1">a<a href="/2">b</a>')).toBe('<a href="/1">a</a><a href="/2">b</a>')
+    // Two adoptions at one block: the later copy holds the earlier.
+    expect(body('<i><b><div>x</i>y</b>z</div>q')).toBe('<i><b></b></i><b></b><div><b><i>x</i>y</b>z</div>q')
+    // An end tag in an svg closes its link, which is not reopened after it.
+    expect(body('<p><a href="/x"><svg><path d="M0"></a> Home</p><p>Next</p>')).toBe('<p><a href="/x"><svg><path d="M0" /></svg></a> Home</p><p>Next</p>')
+    // The Markdown: a link around a block is a link in it (and an empty one before it, written as its target), and the text
+    // after a closed <b> is bold, as a browser shows it.
+    const page = (html: string) => htmlToMarkdown(`<!doctype html><html><body>${html}</body></html>`, { baseUrl: 'https://example.test/' })
+    expect(page('<a href="/l"><div>x</a>y</div>')).toBe('[https://example.test/l](https://example.test/l)\n\n[x](https://example.test/l)y')
+    expect(page('<p><b>Note:</p><p>read this</p>')).toBe('**Note:**\n\n**read this**')
   })
 
   it('keeps today\'s Markdown and html with the default blockAds, and shows a cookie banner with blockAds: false', () => {
