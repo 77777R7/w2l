@@ -25,6 +25,13 @@
  * a table written where its rows belong, its table tags left outside any
  * table are dropped in a fragment too.
  *
+ * An HTML element such as a `<p>` or `<div>` written in an svg or math ends
+ * it in a browser (outside an integration point such as `<foreignObject>`,
+ * whose content is HTML), and so do `</p>` and `</br>`; htmlparser2 kept
+ * them in the svg, which the converter skips with what follows. Outside
+ * tables too, the end tags of the svg or math elements a browser ends there
+ * are written out before the tag.
+ *
  * A whole page's `</body>` and `</html>` are dropped wherever they are:
  * htmlparser2 closes the body there, so what follows was outside it, where a
  * browser closes nothing and puts what follows in the body. As a browser
@@ -46,6 +53,37 @@ const FOREIGN = new Set(['svg', 'math'])
 const INTEGRATION = new Set(['foreignobject', 'desc', 'title', 'mi', 'mo', 'mn', 'ms', 'mtext'])
 /** HTML start tags that end the svg or math they are written in. */
 const BREAKOUT = new Set(['b', 'big', 'blockquote', 'body', 'br', 'center', 'code', 'dd', 'div', 'dl', 'dt', 'em', 'embed', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'head', 'hr', 'i', 'img', 'li', 'listing', 'menu', 'meta', 'nobr', 'ol', 'p', 'pre', 'ruby', 's', 'small', 'span', 'strong', 'strike', 'sub', 'sup', 'table', 'tt', 'u', 'ul', 'var'])
+/** The integration points of svg (s:) and math (m:), whose content is HTML. */
+const OUTER_INTEGRATION = new Set(['s:foreignobject', 's:desc', 's:title', 'm:mi', 'm:mo', 'm:mn', 'm:ms', 'm:mtext'])
+/** A start tag in the BREAKOUT set, or a `</p>` or `</br>`: what may end an svg or math it is written in. */
+const BREAKOUT_TAG = new RegExp(`<(?:${[...BREAKOUT].join('|')})[\\t\\n\\f\\r />]|</(?:p|br)[\\t\\n\\f\\r >]`, 'i')
+const FOREIGN_TAG = /<(\/?)(svg|math)(?=[\t\n\f\r />])/gi
+
+/**
+ * Whether an svg or math may hold a tag that ends it, read from the tags'
+ * text alone: a page whose svgs and maths (icons, mostly) hold none skips the
+ * pass. Anything it misreads, such as `<svg>` in a script, only runs the pass.
+ */
+const breaksOutOfForeign = (html: string): boolean => {
+  if (!/<(?:svg|math)[\t\n\f\r />]/i.test(html)) return false
+  // Open svgs and maths: an end tag closes only its own.
+  const depth = { svg: 0, math: 0 }
+  let from = 0
+  // The `>` that ends the latest tag, found once: a `<svg` without one is not looked past again.
+  let gt = -1
+  for (const tag of html.matchAll(FOREIGN_TAG)) {
+    if (tag.index < from) continue
+    if (depth.svg + depth.math > 0 && BREAKOUT_TAG.test(html.slice(from, tag.index))) return true
+    if (gt < tag.index) gt = html.indexOf('>', tag.index)
+    if (gt < 0) break
+    const name = tag[2]!.toLowerCase() as 'svg' | 'math'
+    if (tag[1] === '/') depth[name] = Math.max(0, depth[name] - 1)
+    else if (html[gt - 1] !== '/') depth[name]++
+    from = gt + 1
+  }
+  return depth.svg + depth.math > 0 && BREAKOUT_TAG.test(html.slice(from))
+}
+
 // htmlparser2's implied closes (its openImpliesClose) of the elements outside
 // table structure, which a browser makes too: the stack drops what
 // htmlparser2 has closed, so no end tag is written out for it.
@@ -102,7 +140,8 @@ const endsWithBodyEnd = (html: string): boolean => {
  * the main content of a layout table serialized from its tree, keeps them.
  */
 export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i.test(html)): string {
-  if (whole ? !/<(table|t[dhr]|thead|tbody|tfoot|caption|col)/i.test(html) && endsWithBodyEnd(html) : !/<table/i.test(html)) return html
+  const tableTags = whole ? /<(table|t[dhr]|thead|tbody|tfoot|caption|col)/i : /<table/i
+  if (!tableTags.test(html) && (!whole || endsWithBodyEnd(html)) && !breaksOutOfForeign(html)) return html
   // Replace [at, end) with text, in source order.
   const edits: { at: number; end: number; text: string }[] = []
   // The elements a browser has open from the outermost table in, innermost last.
@@ -111,9 +150,8 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
   // Tables a browser ended early, at a <table> where their rows belong, whose own tags still follow outside any table:
   // a browser ignores those table tags there, and the </table> each still has.
   let ended = 0
-  // The templates, and svg or math elements, open outside any table: a browser reads table tags in them.
+  // The templates open outside any table: a browser reads table tags in them, as in an svg or math (`outer`).
   let templatesOutside = 0
-  let foreignOutside = 0
   // The tables (by stack index) whose implied <tbody> a browser has closed: the next one is written out, so the rows stay in two groups.
   const impliedClosed = new Set<number>()
   let tagAt = 0
@@ -212,16 +250,103 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
     const closes = IMPLIES_CLOSE.get(name)
     while (closes !== undefined && stack.length > 0 && closes.has(stack[stack.length - 1]!)) popTo(stack.length - 1, true)
   }
+  // The elements open from the outermost svg or math opened outside any
+  // table, innermost last, as htmlparser2 builds them: the svg or math as its
+  // name, the svg and math elements in it as ^s:name and ^m:name (by the
+  // namespace they are in: an <mi> is an integration point in math, not in
+  // svg), and the HTML elements of an integration point (a <foreignObject>,
+  // say) as their name. An end tag
+  // that closes none of them may close the svg from further out, or nothing:
+  // they stay, as an end tag written for them later is ignored either way.
+  const outer: string[] = []
+  const outerByName = new Map<string, number[]>()
+  // Where its HTML elements and its integration points are, innermost last.
+  const outerHtml: number[] = []
+  const outerIntegration: number[] = []
+  const isOuterHtml = (entry: string): boolean => !entry.startsWith('^') && !FOREIGN.has(entry)
+  const isOuterIntegration = (entry: string): boolean => entry.startsWith('^') && OUTER_INTEGRATION.has(entry.slice(1))
+  const bare = (entry: string): string => (entry.startsWith('^') ? entry.slice(3) : entry)
+  const outerPush = (entry: string): void => {
+    let list = outerByName.get(bare(entry))
+    if (list === undefined) outerByName.set(bare(entry), (list = []))
+    list.push(outer.length)
+    if (isOuterHtml(entry)) outerHtml.push(outer.length)
+    if (isOuterIntegration(entry)) outerIntegration.push(outer.length)
+    outer.push(entry)
+  }
+  const outerPop = (): string => {
+    const entry = outer.pop()!
+    outerByName.get(bare(entry))!.pop()
+    if (isOuterHtml(entry)) outerHtml.pop()
+    if (isOuterIntegration(entry)) outerIntegration.pop()
+    return entry
+  }
+  /** Whether a start tag outside tables is read as svg or math: in one, but not at an integration point. */
+  const inOuterForeign = (): boolean => {
+    const top = outer[outer.length - 1]
+    return top !== undefined && (FOREIGN.has(top) || (top.startsWith('^') && !OUTER_INTEGRATION.has(top.slice(1))))
+  }
+  /** The entry of an svg or math element opened in the current one: in its namespace, but an svg in math's <annotation-xml> starts an svg. */
+  const foreignEntry = (name: string): string => {
+    const top = outer[outer.length - 1]!
+    if (name === 'svg' && top === '^m:annotation-xml') return name
+    return `^${top.startsWith('^') ? top[1] : top[0]}:${name}`
+  }
+  /** Ends the svg or math elements a browser ends at an HTML tag, returning the end tags that make htmlparser2 end them too. */
+  const leaveOuterForeign = (): string => {
+    const names: string[] = []
+    while (inOuterForeign()) names.push(bare(outerPop()))
+    // The last is the svg or math itself: one end tag for it, and for each element of its name in it, closes them all.
+    const root = names[names.length - 1]!
+    return `</${root}>`.repeat(names.filter((name) => name === root).length)
+  }
+  const outerImplied = (name: string): void => {
+    const closes = IMPLIES_CLOSE.get(name)
+    while (closes !== undefined && outer.length > 0 && closes.has(bare(outer[outer.length - 1]!))) outerPop()
+  }
+  /**
+   * Closes what an end tag closes, as a browser does, and returns whether it
+   * is to be dropped: htmlparser2 would close the nearest open element of its
+   * name wherever it is.
+   */
+  const outerClose = (name: string): boolean => {
+    if (VOID.has(name)) return false
+    const open = last(outerByName.get(name))
+    // In svg or math (an integration point too, as end tags there are its
+    // own), an end tag of one of its elements closes it there. Any other is
+    // read as HTML: it closes the nearest element of its name unless an
+    // integration point comes first, where a browser ignores it, as it does
+    // one that finds nothing. A </template> closes the nearest template
+    // wherever it is.
+    const stop = last(outerIntegration)
+    if (open > last(outerHtml) || open > stop || (name === 'template' && open >= 0)) {
+      while (outer.length > open) outerPop()
+      return false
+    }
+    return stop >= 0
+  }
   const insert = (at: number, text: string) => {
     if (text !== '') edits.push({ at, end: at, text })
   }
 
   const startTag = (name: string, at: number, end: number, selfClosing: boolean): void => {
     if (tables === 0) {
+      if (inOuterForeign()) {
+        if (!BREAKOUT.has(name)) {
+          outerImplied(name)
+          // svg and math elements, self-closing ones closed at once, as htmlparser2 and a browser close them.
+          if (!selfClosing && !VOID.has(name)) outerPush(foreignEntry(name))
+          return
+        }
+        insert(at, leaveOuterForeign())
+      }
+      if (outer.length > 0) {
+        outerImplied(name)
+        if (name !== 'table' && !VOID.has(name) && !(FOREIGN.has(name) && selfClosing)) outerPush(name)
+      } else if (FOREIGN.has(name) && !selfClosing) outerPush(name)
       if (name === 'table') push(name)
       else if (name === 'template') templatesOutside++
-      else if (FOREIGN.has(name) && !selfClosing) foreignOutside++
-      else if (STRAY.has(name) && (ended > 0 || (whole && templatesOutside === 0 && foreignOutside === 0))) edits.push({ at, end, text: '' })
+      else if (STRAY.has(name) && (ended > 0 || (whole && templatesOutside === 0 && outer.length === 0))) edits.push({ at, end, text: '' })
       return
     }
     let text = ''
@@ -304,19 +429,27 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
       edits.push({ at, end, text: '' })
     }
     if (tables === 0) {
-      if (whole && (name === 'body' || name === 'html')) drop()
-      else if (name === 'template' && templatesOutside > 0) templatesOutside--
-      else if (FOREIGN.has(name) && foreignOutside > 0) foreignOutside--
-      else if (ended > 0 && TABLE_TAGS.has(name) && name !== 'template') {
+      if (whole && (name === 'body' || name === 'html')) return drop()
+      if (ended > 0 && TABLE_TAGS.has(name) && name !== 'template') {
         if (name === 'table') ended--
-        drop()
-      } else if (STRAY.has(name) && whole && templatesOutside === 0 && foreignOutside === 0) drop()
+        return drop()
+      }
+      if (STRAY.has(name) && whole && templatesOutside === 0 && outer.length === 0) return drop()
+      if (name === 'template' && templatesOutside > 0) {
+        templatesOutside--
+        // A </template> closes the nearest template wherever it is: one opened before the svg, with the svg.
+        if (last(outerByName.get(name)) < 0) while (outer.length > 0) outerPop()
+      }
+      // </p> and </br> end the svg or math they are written in, as a <p> does.
+      if ((name === 'p' || name === 'br') && inOuterForeign()) insert(at, leaveOuterForeign())
+      if (outerClose(name)) drop()
       return
     }
     // A </template> for a template opened before the table closes it, and the tables in it.
     if (name === 'template' && !spaced && last(byName.get('template')) < 0 && templatesOutside > 0) {
       popTo(0, true)
       templatesOutside--
+      outerClose(name)
       return
     }
     // `</ td>`: htmlparser2 reads an end tag, a browser a comment.

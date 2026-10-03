@@ -216,6 +216,25 @@ describe('htmlToMarkdown', () => {
     expect(htmlToMarkdown(`<!doctype html><html><body><p>a</p></body></html>\n<!--${'x'.repeat(12_000_000)}-->${' '.repeat(12_000_000)}`)).toBe('a')
   })
 
+  it('ends an svg at an HTML element written in it, as a browser does, and keeps what follows', () => {
+    // Chromium's document.body.innerText of each page with its svg elements removed (the converter skips svg).
+    const page = (body: string) => `<!doctype html><html><body>${body}</body></html>`
+    expect(htmlToMarkdown(page('<svg><text>t</text><p>b</p></svg><p>c</p>'))).toBe('b\n\nc')
+    expect(htmlToMarkdown(page('<div>a<svg><circle/><div>d</div>e</div>f'))).toBe('a\n\nd\n\ne\n\nf')
+    expect(htmlToMarkdown(page('<svg><text>t</p>u</text></svg><p>v</p>'))).toBe('u\n\nv')
+    expect(htmlToMarkdown(page('<svg><g><table><tr><td>a</td><td>b</td></tr><tr><td>c</td><td>d</td></tr></table></g></svg><p>e</p>')))
+      .toBe('| a | b |\n| --- | --- |\n| c | d |\n\ne')
+    // In a foreignObject the HTML is the svg's own; an svg in it ends there, and the outer svg at its own end tag.
+    expect(htmlToMarkdown(page('<svg><foreignObject><p>f</p></foreignObject></svg><p>g</p>'))).toBe('g')
+    expect(htmlToMarkdown(page('<svg><foreignObject><svg><text>i</text><b>j</b></svg>k</foreignObject>l</svg><p>m</p>'))).toBe('kl\n\nm')
+    // An end tag there for an element outside the svg closes nothing.
+    expect(htmlToMarkdown(page('<div>a<svg><foreignObject><p>x</div>y</p></foreignObject></svg>z</div><p>after</p>'))).toBe('az\n\nafter')
+    // A </template> there closes its template all the same.
+    expect(htmlToMarkdown(page('<template><svg><foreignObject><p>x</template><p>after</p>'))).toBe('after')
+    // A fragment too.
+    expect(htmlToMarkdown('<svg><svg><g><span>s</span></g></svg></svg>w')).toBe('sw')
+  })
+
   it('keeps today\'s Markdown and html with the default blockAds, and shows a cookie banner with blockAds: false', () => {
     const html = `<!doctype html><html><head><title>Kiln temperatures and glaze vitrification</title></head>
 <body><main>
