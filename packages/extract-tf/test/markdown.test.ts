@@ -310,6 +310,19 @@ describe('htmlToMarkdown', () => {
     expect(body('<table><tr><td>a<col>b</td><td>c</td></tr></table>')).toBe('<table><tr><td>a</td></tr><col>b<tbody><tr><td>c</td></tr></tbody></table>')
   })
 
+  it('reopens after a table a formatting element written between its rows, as a browser does', () => {
+    // Chromium shows y bold (and the z it moves before the table): the <b> it moved out of the table stays on its list.
+    const page = (html: string) => htmlToMarkdown(`<!doctype html><html><body>${html}</body></html>`, { baseUrl: 'https://example.test/' })
+    const rows = '<tr><td>x</td><td>w</td></tr><tr><td>v</td><td>u</td></tr>'
+    const grid = '| x | w |\n| --- | --- |\n| v | u |'
+    expect(page(`<table><b>z${rows}</table>y`)).toBe(`**z**\n\n${grid}\n\n**y**`)
+    expect(page(`<table><a href="/l">${rows}</table>y`)).toBe(`[https://example.test/l](https://example.test/l)\n\n${grid}\n\n[y](https://example.test/l)`)
+    // Its end tag between the rows ends it; in a cell the cell's marker keeps it closed.
+    expect(page(`<table><b>${rows}</b></table>y`)).toBe(`${grid}\n\ny`)
+    // A hidden <input> and white space between the rows stay in the table, and reopen nothing.
+    expect(page(`<p><a href="/o">Home</p><form><table><input type="hidden" name="t">&#32;${rows}</table></form>`)).toBe(`[Home](https://example.test/o)\n\n${grid}`)
+  })
+
   it('keeps today\'s Markdown and html with the default blockAds, and shows a cookie banner with blockAds: false', () => {
     const html = `<!doctype html><html><head><title>Kiln temperatures and glaze vitrification</title></head>
 <body><main>

@@ -297,6 +297,19 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
     push(IMPLIED_TBODY)
     return ''
   }
+  /**
+   * Whether this is a table's own level, where a browser moves an element or
+   * text before the table and reads it by its body rules (formatting
+   * elements reopened and listed): not in a cell, an svg or math, or a
+   * <select>, <noscript> or the like opened there.
+   */
+  const atTableLevel = (): boolean => {
+    if (tables === 0 || CONTENT.has(innermost()[0]) || inForeign()) return false
+    const table = last(tablePos)
+    if (last(byName.get('select')) > table) return false
+    for (const name of TEXT_CONTENT) if (last(byName.get(name)) > table) return false
+    return true
+  }
   /** Whether a browser reads the tags here by its body rules: in a cell, caption or template of a table. */
   const inCell = (): boolean => tables > 0 && CONTENT.has(innermost()[0])
   /** The innermost table element open, and where it is. */
@@ -514,7 +527,7 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
   }
   const startTagOf = (f: Formatting): string => `<${f.name}${f.attrs}>`
   /** Reopens the formatting elements a browser has closed and not ended, returning their start tags. */
-  const reconstruct = (): string => {
+  const reconstruct = (tableLevel = false): string => {
     const lastEntry = afe[afe.length - 1]
     if (lastEntry === undefined || lastEntry === null || idIndex.has(lastEntry.id)) return ''
     let i = afe.length - 1
@@ -525,6 +538,11 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
       const copy = { id: nextId++, name: f.name, attrs: f.attrs }
       text += startTagOf(f)
       outerPush(f.name, -1, -1, copy.id)
+      // At a table's own level the copy is on the table stack too, which closes it at the next row or cell.
+      if (tableLevel) {
+        push(f.name)
+        links.set(stack.length - 1, copy.id)
+      }
       afeReplace(f, copy)
     }
     return text
@@ -688,11 +706,11 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
       } else if (name === 'template') templatesOutside++
       return
     }
-    tableStart(name, at, end, selfClosing)
+    tableStart(name, at, end, selfClosing, attrs)
   }
 
   /** A start tag by the table rules: where rows, cells and row groups belong, and a cell's table tags. */
-  const tableStart = (name: string, at: number, end: number, selfClosing: boolean): void => {
+  const tableStart = (name: string, at: number, end: number, selfClosing: boolean, attrs = ''): void => {
     let text = ''
     if (inForeign()) {
       if (!BREAKOUT.has(name)) {
@@ -761,9 +779,33 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
       push(name)
     } else if (name === 'body' || name === 'html') {
       // Ignored inside a table, and never on htmlparser2's stack.
-    } else if (!VOID.has(name)) {
-      // htmlparser2 ignores a self-closing slash on an HTML element, as a browser does.
-      push(name)
+    } else {
+      // At the table's own level a browser reopens the formatting elements it has closed first, and lists one opened there.
+      // (A hidden <input> a browser puts in the table itself, without moving it.)
+      const hidden = name === 'input' && /(?:^|[\t\n\f\r /])type[\t\n\f\r ]*=[\t\n\f\r ]*(["']?)hidden\1(?=[\t\n\f\r />]|$)/i.test(attrs)
+      const level = name !== 'table' && !hidden && afe.length + (FORMATTING.has(name) ? 1 : 0) > 0 && atTableLevel()
+      // A <a> while one is listed ends it first: closed when open at this level, and taken off the list. One open outside the
+      // table a browser adopts around the whole table: that, and the new <a>, are left as htmlparser2 reads them (unlisted).
+      let list = level
+      if (level && name === 'a' && afeLast('a') >= 0) {
+        const listed = afe[afeLast('a')]!
+        const open = last(byName.get('a'))
+        if (!idIndex.has(listed.id)) afeRemove(listed)
+        else if (open > last(tablePos)) {
+          text += popTo(open, true)
+          if (afeById.has(listed.id)) afeRemove(listed)
+        } else list = false
+      }
+      if (level && !NO_RECONSTRUCT.has(name)) text += reconstruct(true)
+      if (!VOID.has(name)) {
+        // htmlparser2 ignores a self-closing slash on an HTML element, as a browser does.
+        push(name)
+        if (list && FORMATTING.has(name)) {
+          const id = outerPush(name, at, end)
+          links.set(stack.length - 1, id)
+          afeAdd({ id, name, attrs })
+        }
+      }
     }
     insert(at, text)
   }
@@ -879,9 +921,16 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
     // table element or an svg or math integration point (both special to a
     // browser) comes first, or, for an end tag such as </span>, any special
     // element: </span> in <span><div> closes nothing.
+    // At the table's own level, a formatting element's end tag after a row closed it takes it off the list, as a browser's adoption
+    // agency does with an element no longer open.
+    if (FORMATTING.has(name) && afeLast(name) >= 0 && !idIndex.has(afe[afeLast(name)]!.id) && atTableLevel()) afeRemove(afe[afeLast(name)]!)
     const open = last(byName.get(name))
-    if (open > last(tablePos) && open > last(integrationPos) && (!anyOtherEnd(name) || open >= last(specialPos) || TEXT_CONTENT.has(name))) close(open)
-    else drop()
+    if (open > last(tablePos) && open > last(integrationPos) && (!anyOtherEnd(name) || open >= last(specialPos) || TEXT_CONTENT.has(name))) {
+      // A formatting element its own end tag closes leaves the list.
+      const id = links.get(open)
+      close(open)
+      if (id !== undefined && afeById.has(id) && !idIndex.has(id)) afeRemove(afeById.get(id)!)
+    } else drop()
   }
 
   const tokenizer = new Tokenizer(
@@ -920,10 +969,14 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
         if (tables > 0 && !/^[\t\n\f\r ]*$/.test(html.slice(start, endIndex))) {
           const [mode, index] = innermost()
           if (mode === 'colgroup') insert(start, popTo(index, true))
+          // Text at the table's own level, which a browser moves before the table, reopens them too.
+          if (afe.length > 0 && atTableLevel()) insert(start, reconstruct(true))
         }
       },
-      ontextentity(_codepoint, endIndex) {
+      ontextentity(codepoint, endIndex) {
         if (afe.length > 0 && formattingOn()) insert(html.lastIndexOf('&', endIndex - 1), reconstruct())
+        // At the table's level only text that is not white space is moved before the table.
+        else if (afe.length > 0 && ![9, 10, 12, 13, 32].includes(codepoint) && atTableLevel()) insert(html.lastIndexOf('&', endIndex - 1), reconstruct(true))
       },
     },
   )
