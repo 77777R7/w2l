@@ -234,6 +234,26 @@ describe('htmlToTables', () => {
     expect([copies.querySelectorAll('selectedcontent').length, copies.querySelector('selectedcontent')?.childNodes.length]).toEqual([1000, 0])
   })
 
+  it('reads an option written in a <selectedcontent> as Chromium does: its copy takes it out of the select', () => {
+    const body = (html: string) => parse(`<!doctype html><html><body>${html}</body></html>`).document.body.innerHTML
+    const fragment = (html: string) => parse(html, true).document.body.innerHTML
+    // In a page the option is copied as soon as it is selected, while still empty, which takes it out: the select then has none.
+    expect(body('<select><selectedcontent><option>A</option>z</selectedcontent></select>')).toBe('<select><selectedcontent>z</selectedcontent></select>')
+    expect(body('<select><selectedcontent></selectedcontent><selectedcontent><option>A</option></selectedcontent></select>')).toBe('<select><selectedcontent></selectedcontent><selectedcontent></selectedcontent></select>')
+    // The first enabled option left is selected, without a copy; a <selectedcontent> written later takes it.
+    expect(body('<select><option>X</option><selectedcontent><option selected>A</option></selectedcontent><selectedcontent></selectedcontent></select>'))
+      .toBe('<select><option>X</option><selectedcontent></selectedcontent><selectedcontent>X</selectedcontent></select>')
+    expect(body('<select><selectedcontent>q<option>A</option>r</selectedcontent><option>B</option></select>')).toBe('<select><selectedcontent>B</selectedcontent><option>B</option></select>')
+    // In a template's content the option is copied only when it closes, and the next one is then selected.
+    expect(fragment('<select><selectedcontent><option>A</option>z</selectedcontent></select>')).toBe('<select><selectedcontent>Az</selectedcontent></select>')
+    expect(fragment('<select><selectedcontent><option>A</option><option>B</option></selectedcontent></select>')).toBe('<select><selectedcontent>B</selectedcontent></select>')
+    // A select in another select (here through a table) copies nothing; a <selectedcontent> in a <datalist> is still the select's.
+    expect(body('<select><table><select><button><selectedcontent>q</selectedcontent></button><option>A</option></select></table></select>'))
+      .toBe('<select><select><button><selectedcontent>q</selectedcontent></button><option>A</option></select><table></table></select>')
+    expect(body('<select><option selected>A</option><datalist><button><selectedcontent></selectedcontent></button></datalist></select>'))
+      .toBe('<select><option selected>A</option><datalist><button><selectedcontent>A</selectedcontent></button></datalist></select>')
+  })
+
   it('matches an end tag in svg or math to an element by its exact name, as Chromium does', () => {
     const page = (body: string) => parse(`<!doctype html><html><body>${body}</body></html>`).document
     // In svg the end tag takes svg's spelling (</foreignObject>, </clipPath>), which no HTML element has, so it closes nothing there.
