@@ -532,3 +532,24 @@ describe('extractTf selection and whole page', () => {
     expect(extractTf.extract(chrome, { blockAds: false }).mainHtml).toContain('Promo box')
   })
 })
+
+describe('parse', () => {
+  it('copies a page parsed again from the tree it built, each document its own', async () => {
+    const { parse } = await import('../src/dom.js')
+    const page = '<!doctype html><html><body><b>1<p>2</b>3</p><table><tr><td>a</td></tr></table></body></html>'
+    const first = parse(page).document
+    first.body.innerHTML = ''
+    const second = parse(page).document
+    expect(second.body.innerHTML).toBe('<b>1</b><p><b>2</b>3</p><table><tbody><tr><td>a</td></tr></tbody></table>')
+    expect(first.body.innerHTML).toBe('')
+  })
+
+  it('reads a page the same way every time, also when its <noscript> goes past the budget', async () => {
+    const { htmlToMarkdown } = await import('../src/index.js')
+    let noscript = ''
+    for (let i = 0; i < 200; i++) noscript += `<b a=${i}>`
+    for (let i = 0; i < 200; i++) noscript += `<p>x${i}`
+    const page = `<!doctype html><html><body><div><b>1<p>2</b>3</p></div>${'<i>a</i>'.repeat(46)}<noscript>${noscript}</noscript></body></html>`
+    expect(htmlToMarkdown(page)).toBe(htmlToMarkdown(page))
+  })
+})

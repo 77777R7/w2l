@@ -133,6 +133,8 @@ export function parse(html: string, fragment = false): DomDoc {
     return parseStandard(html, fragment)
   } catch (error) {
     if (error !== TOO_MANY) throw error
+    // A page whose <noscript> went past what its tree left of the budget: it is parsed so every time.
+    if (!fragment && lastPage !== undefined && lastPage.html === html) lastPage.tree = null
     // linkedom's own parser: no formatting element is reopened, so its tree stays as large as the page.
     const body = fragment ? BODY.exec(html) : null
     const page = fragment
@@ -150,8 +152,42 @@ export function parse(html: string, fragment = false): DomDoc {
  */
 const BODY = /^\s*<body((?:\s+[^\s"'>\/=]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+))?)*)\s*\/?>([\s\S]*)<\/body>\s*$/i
 
+/**
+ * The last page parse5 built. One request reads its page several times in a
+ * row (main-content selection, the Markdown, `tables`, links, images), and the
+ * tree is only read when copied, so a page parsed again is copied from it.
+ * Only one tree is held, and only until the next task: a server does not keep
+ * a large page's tree after the request, and a loop over pages keeps one.
+ * (A WeakRef would not do: what one synchronous job creates is kept until it
+ * ends, so a loop over thousands of pages would keep every tree.)
+ */
+let lastPage: { html: string; tree: Spec.Document | null } | undefined
+let clearing = false
+
+/** The tree parse5 builds from a page, or null when it is past the budget. */
+function specPage(html: string, options: () => ParserOptions<DefaultTreeAdapterMap>): Spec.Document | null {
+  if (lastPage !== undefined && lastPage.html === html) return lastPage.tree
+  let tree: Spec.Document | null
+  try {
+    tree = StandardParser.parse<DefaultTreeAdapterMap>(html, options())
+  } catch (error) {
+    if (error !== TOO_MANY) throw error
+    tree = null
+  }
+  lastPage = { html, tree }
+  if (!clearing) {
+    clearing = true
+    setTimeout(() => {
+      lastPage = undefined
+      clearing = false
+    }, 0)
+  }
+  return tree
+}
+
 function parseStandard(html: string, fragment: boolean): DomDoc {
-  const options = budgeted(html)
+  let budget: ParserOptions<DefaultTreeAdapterMap> | undefined
+  const options = (): ParserOptions<DefaultTreeAdapterMap> => (budget ??= budgeted(html))
   const { document } = parseHTML('<html><head></head><body></body></html>') as unknown as { document: Document }
   // A loop, not recursion: a page may be thousands of elements deep.
   const copy = (top: Spec.ParentNode, into: Node): void => {
@@ -164,7 +200,7 @@ function parseStandard(html: string, fragment: boolean): DomDoc {
       // A browser running scripts reads a <noscript>'s content as text; its elements are kept
       // (the images and links in it are the page's), parsed as the fragment they are.
       if (from.nodeName === 'noscript' && (from as Spec.Element).namespaceURI === HTML_NS && nodes.length === 1 && nodes[0]!.nodeName === '#text') {
-        nodes = parseFragment((nodes[0] as Spec.TextNode).value, options).childNodes
+        nodes = parseFragment((nodes[0] as Spec.TextNode).value, options()).childNodes
       }
       for (const node of nodes) {
         if (node.nodeName === '#text') to.appendChild(document.createTextNode((node as Spec.TextNode).value))
@@ -180,15 +216,17 @@ function parseStandard(html: string, fragment: boolean): DomDoc {
   }
   const body = fragment ? BODY.exec(html) : null
   if (body !== null) {
-    const attrs = StandardParser.parse<DefaultTreeAdapterMap>(`<html><body${body[1]}></body></html>`, options).childNodes
+    const attrs = StandardParser.parse<DefaultTreeAdapterMap>(`<html><body${body[1]}></body></html>`, options()).childNodes
       .find((node): node is Spec.Element => node.nodeName === 'html')?.childNodes.find((node): node is Spec.Element => node.nodeName === 'body')?.attrs ?? []
     setAttributes(document.body, attrs)
-    copy(parseFragment(body[2]!, options), document.body)
-  } else if (fragment) copy(parseFragment(html, options), document.body)
+    copy(parseFragment(body[2]!, options()), document.body)
+  } else if (fragment) copy(parseFragment(html, options()), document.body)
   else {
     const root = document.documentElement
     while (root.firstChild !== null) root.removeChild(root.firstChild)
-    const page = StandardParser.parse<DefaultTreeAdapterMap>(html, options).childNodes.find((node): node is Spec.Element => node.nodeName === 'html')
+    const tree = specPage(html, options)
+    if (tree === null) throw TOO_MANY
+    const page = tree.childNodes.find((node): node is Spec.Element => node.nodeName === 'html')
     if (page !== undefined) {
       setAttributes(root, page.attrs)
       copy(page, root)
