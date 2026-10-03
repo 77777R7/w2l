@@ -420,6 +420,17 @@ describe('htmlToMarkdown lists and code', () => {
 })
 
 describe('htmlToMarkdown link and image targets', () => {
+  it('escapes a backslash that would escape the bracket or parenthesis closing a link or image', () => {
+    const md = (html: string, baseUrl?: string) => htmlToMarkdown(`<!doctype html><html><body>${html}</body></html>`, baseUrl ? { baseUrl } : {})
+    expect(md('<a href="/x">C:\\</a> next', 'https://e.test/')).toBe('[C:\\\\](https://e.test/x) next')
+    expect(md('<img src="/i.png" alt="dir\\"> next', 'https://e.test/')).toBe('![dir\\\\](https://e.test/i.png) next')
+    expect(md('<a href="http://e.test/a\\">t</a>')).toBe('[t](http://e.test/a\\\\)')
+    expect(md('<a href="http://e.test/a b\\">t</a>')).toBe('[t](<http://e.test/a b\\\\>)')
+    // In a target every backslash is doubled, as one before another backslash or punctuation escapes it.
+    expect(md('<a href="mailto:a\\\\b\\.c">t</a>')).toBe('[t](mailto:a\\\\\\\\b\\\\.c)')
+    expect(md('<a href="/x">plain</a>', 'https://e.test/')).toBe('[plain](https://e.test/x)')
+  })
+
   it('resolves relative targets against the base URL and keeps fragments and mailto', () => {
     const md = htmlToMarkdown(
       '<p><a href="../guide/">Guide</a> <img src="//cdn.fixture.test/a.png" alt="A"> <a href="#top">Top</a> ' +

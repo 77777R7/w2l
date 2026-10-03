@@ -829,11 +829,18 @@ function emphasisParts(text: string): { before: string; core: string; after: str
   let end = text.length
   while (start < end && EDGE_SPACE.test(text[start]!)) start++
   while (end > start && EDGE_SPACE.test(text[end - 1]!)) end--
-  let middle = text.slice(start, end)
+  return { before: text.slice(0, start), core: escapeLastBackslash(text.slice(start, end)), after: text.slice(end) }
+}
+
+/**
+ * Text written right before a closing marker, bracket or parenthesis: an odd
+ * run of backslashes ending it would escape that delimiter, so the last one is
+ * escaped itself (it still reads as one backslash).
+ */
+function escapeLastBackslash(text: string): string {
   let backslashes = 0
-  while (backslashes < middle.length && middle[middle.length - 1 - backslashes] === '\\') backslashes++
-  if (backslashes % 2 === 1) middle += '\\'
-  return { before: text.slice(0, start), core: middle, after: text.slice(end) }
+  while (backslashes < text.length && text[text.length - 1 - backslashes] === '\\') backslashes++
+  return backslashes % 2 === 1 ? `${text}\\` : text
 }
 
 interface Marks {
@@ -873,6 +880,8 @@ function linkTarget(raw: string, base: URL | null): string | null {
 
 /** A target as a CommonMark link destination, in <…> where a space or unbalanced parenthesis would cut it short. */
 function destination(target: string): string {
+  // A backslash in a destination escapes the punctuation after it, another backslash too: doubled, each reads as one.
+  target = target.replace(/\\/g, '\\\\')
   if (!/[()\s<>]/.test(target)) return target
   let depth = 0
   for (const ch of target) {
@@ -983,7 +992,7 @@ function link(el: Element, out: Inline, ctx: Context, marks: Marks): boolean {
   // A link with no text keeps its target as the text, except a bare
   // same-page anchor (a heading's permalink icon), which says nothing.
   if (!result.text && target.startsWith('#')) out.wrap(result, '', '')
-  else out.wrap({ ...result, text: result.text || target }, '[', `](${destination(target)})`)
+  else out.wrap({ ...result, text: escapeLastBackslash(result.text || target) }, '[', `](${destination(target)})`)
   return true
 }
 
@@ -993,7 +1002,7 @@ function image(el: Element, out: Inline, ctx: Context): void {
   const src = el.getAttribute('src')
   const kept = src === null ? null : src.replace(/[\t\n\r]/g, '').trim()
   const target = kept === null ? null : ctx.keepDataUriImages && /^data:/i.test(kept) ? kept : linkTarget(kept, ctx.base)
-  if (target !== null) out.content(`![${alt.replace(/[[\]]/g, '\\$&')}](${destination(target)})`)
+  if (target !== null) out.content(`![${escapeLastBackslash(alt.replace(/[[\]]/g, '\\$&'))}](${destination(target)})`)
   else if (alt) out.content(alt)
 }
 
