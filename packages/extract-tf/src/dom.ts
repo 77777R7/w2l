@@ -109,6 +109,52 @@ const SELECT_STARTS = new Set([T.SELECT, T.OPTION, T.OPTGROUP, T.HR, T.INPUT])
 /** The modes whose "anything else" reads a tag by the body's rules with foster parenting. */
 const FOSTER_MODES = new Set<number>([MODE.IN_TABLE, MODE.IN_TABLE_BODY, IN_ROW])
 
+/** A <select>'s state for <selectedcontent>: what selects an option, and the <selectedcontent> elements it fills. */
+interface SelectState {
+  /** The last option with a selected attribute. */
+  selectedAttribute: Spec.Element | null
+  /** The first option neither disabled nor in a disabled <optgroup>. */
+  firstEnabled: Spec.Element | null
+  /** A multiple select copies none, nor does one in an <option> or <selectedcontent>; a list box (size above 1) selects none by default. */
+  multiple: boolean
+  listBox: boolean
+  contents: Spec.Element[]
+}
+
+function hasAttribute(element: Spec.Element, name: string): boolean {
+  return element.attrs.some((attr) => attr.name === name)
+}
+
+function selectState(select: Spec.Element, nested: boolean): SelectState {
+  const size = /^[\t\n\f\r ]*\+?(\d+)/.exec(select.attrs.find((attr) => attr.name === 'size')?.value ?? '')
+  return { selectedAttribute: null, firstEnabled: null, multiple: nested || hasAttribute(select, 'multiple'), listBox: size !== null && Number(size[1]) > 1, contents: [] }
+}
+
+/**
+ * Whether an option holds a <select>, or a <selectedcontent> that holds an
+ * option (template content apart): copies of those are read again as the
+ * select's in Chromium, through removals and resets this does not follow.
+ */
+function holdsSelectParts(option: Spec.Element): boolean {
+  const work: [Spec.ParentNode, boolean][] = [[option, false]]
+  for (let next = work.pop(); next !== undefined; next = work.pop()) {
+    const [node, inContent] = next
+    for (const child of node.childNodes) {
+      if (!defaultTreeAdapter.isElementNode(child)) continue
+      if (child.namespaceURI === HTML_NS) {
+        if (child.tagName === 'select' || (inContent && child.tagName === 'option')) return true
+        work.push([child, inContent || child.tagName === 'selectedcontent'])
+      } else work.push([child, inContent])
+    }
+  }
+  return false
+}
+
+function selectedOption(state: SelectState): Spec.Element | null {
+  if (state.multiple) return null
+  return state.selectedAttribute ?? (state.listBox ? null : state.firstEnabled)
+}
+
 function hiddenInput(token: Token.TagToken): boolean {
   return token.attrs.find((attr) => attr.name === 'type')?.value.toLowerCase() === 'hidden'
 }
@@ -172,6 +218,10 @@ class StandardTokenizer extends Tokenizer {
 class StandardParser extends Parser<DefaultTreeAdapterMap> {
   /** Open HTML <select> elements, so a page without one never walks the stack to look for one. */
   private openSelects = 0
+  /** Each <select>'s selectedness and <selectedcontent> elements, and the <select> each option is one of. */
+  private selects = new Map<Spec.Element, SelectState>()
+  private optionSelects = new Map<Spec.Element, SelectState>()
+  private drained = false
 
   constructor(...args: ConstructorParameters<typeof Parser<DefaultTreeAdapterMap>>) {
     super(...args)
@@ -285,6 +335,15 @@ class StandardParser extends Parser<DefaultTreeAdapterMap> {
       this.hasNonWhitespacePendingCharacterToken = false
     }
     super.onEof(token)
+    // The parser pops every element left open when it stops (parse5 leaves them): an option still open closes then.
+    if (this.stopped && !this.drained) {
+      this.drained = true
+      const stack = this.openElements
+      for (let i = stack.stackTop; i >= 0; i--) {
+        const element = stack.items[i] as Spec.Element
+        if (element.tagName === 'option' && defaultTreeAdapter.getNamespaceURI(element) === HTML_NS) this.optionClosed(element)
+      }
+    }
   }
 
   override _endTagOutsideForeignContent(token: Token.TagToken): void {
@@ -376,13 +435,108 @@ class StandardParser extends Parser<DefaultTreeAdapterMap> {
 
   // parse5's stack reports the element it pushed only when it is the new top: its insertAfter (the adoption agency's, for a formatting element) reports the top.
   override onItemPush(node: Spec.ParentNode, tid: number, isTop: boolean): void {
-    if (isTop && tid === T.SELECT && defaultTreeAdapter.getNamespaceURI(node as Spec.Element) === HTML_NS) this.openSelects++
+    const element = node as Spec.Element
+    if (isTop && defaultTreeAdapter.getNamespaceURI(element) === HTML_NS) {
+      if (tid === T.SELECT) {
+        this.openSelects++
+        this.selects.set(element, selectState(element, this.inOptionOrSelectedContent()))
+      } else if (this.openSelects > 0 && (tid === T.OPTION || (tid === T.UNKNOWN && element.tagName === 'selectedcontent'))) {
+        this.selectItem(element, tid === T.OPTION)
+      }
+    }
     super.onItemPush(node, tid, isTop)
   }
 
   override onItemPop(node: Spec.ParentNode, isTop: boolean): void {
-    if (defaultTreeAdapter.getTagName(node as Spec.Element) === 'select' && defaultTreeAdapter.getNamespaceURI(node as Spec.Element) === HTML_NS) this.openSelects--
+    const element = node as Spec.Element
+    if (defaultTreeAdapter.getNamespaceURI(element) === HTML_NS) {
+      if (element.tagName === 'select') this.openSelects--
+      else if (element.tagName === 'option') this.optionClosed(element)
+    }
     super.onItemPop(node, isTop)
+  }
+
+  /**
+   * An option is copied into its select's <selectedcontent> elements when it
+   * closes, if it is the selected one; not one that holdsSelectParts.
+   */
+  private optionClosed(option: Spec.Element): void {
+    const state = this.optionSelects.get(option)
+    this.optionSelects.delete(option)
+    if (state === undefined || state.contents.length === 0 || selectedOption(state) !== option || holdsSelectParts(option)) return
+    for (const content of state.contents) this.copyChildren(option, content)
+  }
+
+  /**
+   * An <option> or <selectedcontent> just pushed: the <select> it is in, the
+   * nearest one open below it, unless a <template>, <datalist>, <option> or
+   * <selectedcontent> is open between them. A page's <selectedcontent> takes
+   * the option selected so far as it is inserted; one in a template's
+   * content, or in a fragment (read as one), does not. (Chromium also reads
+   * an option written in a <selectedcontent> or another option, through a
+   * chain of removals and resets; such an option is left alone here, as
+   * before, rather than read differently from Chromium in other ways.)
+   */
+  private selectItem(element: Spec.Element, option: boolean): void {
+    const stack = this.openElements
+    let disabled = option && hasAttribute(element, 'disabled')
+    for (let i = stack.stackTop - 1; i >= 0; i--) {
+      const item = stack.items[i] as Spec.Element
+      if (defaultTreeAdapter.getNamespaceURI(item) !== HTML_NS) continue
+      const id = stack.tagIDs[i]
+      if (id === T.SELECT) {
+        const state = this.selects.get(item)
+        if (state === undefined) return
+        if (!option) {
+          state.contents.push(element)
+          const selected = selectedOption(state)
+          if (selected !== null && this.fragmentContext === null && stack.tmplCount === 0 && !holdsSelectParts(selected)) this.copyChildren(selected, element)
+          return
+        }
+        this.optionSelects.set(element, state)
+        if (hasAttribute(element, 'selected')) state.selectedAttribute = element
+        else if (!disabled && state.firstEnabled === null) state.firstEnabled = element
+        return
+      }
+      if (id === T.TEMPLATE || id === T.OPTION || (id === T.UNKNOWN && (item.tagName === 'datalist' || item.tagName === 'selectedcontent'))) return
+      if (id === T.OPTGROUP && hasAttribute(item, 'disabled')) disabled = true
+    }
+  }
+
+  /** Whether an <option> or <selectedcontent> is open around the element just pushed (up to a <template>, whose content is apart). */
+  private inOptionOrSelectedContent(): boolean {
+    const stack = this.openElements
+    for (let i = stack.stackTop - 1; i >= 0; i--) {
+      const item = stack.items[i] as Spec.Element
+      if (defaultTreeAdapter.getNamespaceURI(item) !== HTML_NS) continue
+      const id = stack.tagIDs[i]
+      if (id === T.TEMPLATE) return false
+      if (id === T.OPTION || (id === T.UNKNOWN && item.tagName === 'selectedcontent')) return true
+    }
+    return false
+  }
+
+  /** Replaces `target`'s children with copies of `source`'s, through the budgeted adapter. */
+  private copyChildren(source: Spec.ParentNode, target: Spec.ParentNode): void {
+    for (const child of target.childNodes) child.parentNode = null
+    target.childNodes = []
+    const work: [Spec.ParentNode, Spec.ParentNode][] = [[source, target]]
+    for (let next = work.pop(); next !== undefined; next = work.pop()) {
+      const [from, into] = next
+      for (const child of from.childNodes) {
+        if (defaultTreeAdapter.isTextNode(child)) defaultTreeAdapter.appendChild(into, this.treeAdapter.createTextNode(child.value))
+        else if (defaultTreeAdapter.isCommentNode(child)) defaultTreeAdapter.appendChild(into, this.treeAdapter.createCommentNode(child.data))
+        else if (defaultTreeAdapter.isElementNode(child)) {
+          const copy = this.treeAdapter.createElement(child.tagName, child.namespaceURI, child.attrs.map((attr) => ({ ...attr })))
+          defaultTreeAdapter.appendChild(into, copy)
+          if (child.tagName === 'template' && child.namespaceURI === HTML_NS) {
+            const content = defaultTreeAdapter.createDocumentFragment()
+            defaultTreeAdapter.setTemplateContent(copy as Spec.Template, content)
+            work.push([defaultTreeAdapter.getTemplateContent(child as Spec.Template), content])
+          } else work.push([child, copy])
+        }
+      }
+    }
   }
 
   override _adoptNodes(donor: Spec.ParentNode, recipient: Spec.ParentNode): void {
@@ -434,6 +588,15 @@ function budgeted(html: string): ParserOptions<DefaultTreeAdapterMap> {
         attributes -= attrs.length
         if (--elements < 0 || attributes < 0) throw TOO_MANY
         return defaultTreeAdapter.createElement(tagName, namespaceURI, attrs)
+      },
+      // Comments, and the text and comments <selectedcontent> copies make, count as elements: a copy of an option of N nodes into M of them makes N x M.
+      createCommentNode(data) {
+        if (--elements < 0) throw TOO_MANY
+        return defaultTreeAdapter.createCommentNode(data)
+      },
+      createTextNode(value) {
+        if (--elements < 0) throw TOO_MANY
+        return defaultTreeAdapter.createTextNode(value)
       },
       getTagName(element) {
         if (--reads < 0) throw TOO_MANY

@@ -213,6 +213,27 @@ describe('htmlToTables', () => {
     expect(collectLinks('<!doctype html><html><body><select><option><a href="/x">x</a></option></select></body></html>', 'https://e.test/')).toEqual(['https://e.test/x'])
   })
 
+  it('copies the selected option into a select\'s <selectedcontent>, as Chromium does', () => {
+    const body = (html: string) => parse(`<!doctype html><html><body>${html}</body></html>`).document.body.innerHTML
+    const fragment = (html: string) => parse(html, true).document.body.innerHTML
+    const shown = '<button><selectedcontent></selectedcontent></button>'
+    // The option with the selected attribute (the last one), or else the first that is not disabled; its content replaces what was there.
+    expect(body(`<select>${shown}<option>A</option><option selected>B</option></select>`)).toBe(`<select><button><selectedcontent>B</selectedcontent></button><option>A</option><option selected>B</option></select>`)
+    expect(body(`<select>${shown}<option disabled>A<option>B</select>`)).toBe(`<select><button><selectedcontent>B</selectedcontent></button><option disabled>A</option><option>B</option></select>`)
+    expect(body('<select><button><selectedcontent>old</selectedcontent></button><option><b>x</b> y</option></select>'))
+      .toBe('<select><button><selectedcontent><b>x</b> y</selectedcontent></button><option><b>x</b> y</option></select>')
+    // A list box selects none by default, a multiple select copies none, and one inside an option or outside any select is left alone.
+    expect(body(`<select size=2>${shown}<option>A</select>`)).toBe(`<select size="2">${shown}<option>A</option></select>`)
+    expect(body(`<select multiple>${shown}<option selected>A</select>`)).toBe(`<select multiple>${shown}<option selected>A</option></select>`)
+    expect(body(`<select><option>A${shown}z</option></select>`)).toBe(`<select><option>A${shown}z</option></select>`)
+    // In a page a <selectedcontent> written after the selected option takes it when inserted; in a fragment (a template's content) it does not.
+    expect(body('<select><option>A</option><button><selectedcontent>old</selectedcontent></button></select>')).toBe('<select><option>A</option><button><selectedcontent>Aold</selectedcontent></button></select>')
+    expect(fragment('<select><option>A</option><button><selectedcontent>old</selectedcontent></button></select>')).toBe('<select><option>A</option><button><selectedcontent>old</selectedcontent></button></select>')
+    // Copies count against the parser's budget: an option of 5,000 comments into 1,000 <selectedcontent> is parsed by linkedom, which copies none.
+    const copies = parse(`<!doctype html><html><body><select><option>${'<!---->'.repeat(5000)}</option>${'<selectedcontent></selectedcontent>'.repeat(1000)}</select></body></html>`).document
+    expect([copies.querySelectorAll('selectedcontent').length, copies.querySelector('selectedcontent')?.childNodes.length]).toEqual([1000, 0])
+  })
+
   it('matches an end tag in svg or math to an element by its exact name, as Chromium does', () => {
     const page = (body: string) => parse(`<!doctype html><html><body>${body}</body></html>`).document
     // In svg the end tag takes svg's spelling (</foreignObject>, </clipPath>), which no HTML element has, so it closes nothing there.
