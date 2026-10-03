@@ -18,12 +18,12 @@
  * directly in a row group or table, and the `</table>` before a table
  * written where rows belong, which ends the table there. What a browser
  * moves before the table is left to the converter's rebuild of the table.
- * Outside tables nothing changes, except that once a table has ended that
- * way, the table tags left of it outside any table are dropped, as a browser
- * ignores them.
- *
- * A `<td>` or `<tr>` outside any table stays: a page's main content can be
- * one cell or row of a layout table, given to the converter on its own.
+ * Outside tables, a whole page's table tags are dropped (outside a template,
+ * svg or math), as a browser ignores them; nothing else changes. In a
+ * fragment they stay: a page's main content can be one cell or row of a
+ * layout table, given to the converter on its own. Once a table has ended at
+ * a table written where its rows belong, its table tags left outside any
+ * table are dropped in a fragment too.
  */
 
 import { Tokenizer } from 'htmlparser2'
@@ -58,8 +58,17 @@ const IMPLIES_CLOSE = new Map<string, Set<string>>([
   ['rp', new Set(['rb', 'rt', 'rtc', 'rp'])],
 ])
 
-export function normalizeTableTags(html: string): string {
-  if (!/<table/i.test(html)) return html
+/** The table tags a browser ignores outside any table (outside a template, svg or math). */
+const STRAY = new Set(['caption', 'colgroup', 'col', 'thead', 'tbody', 'tfoot', 'tr', 'td', 'th'])
+
+/**
+ * `whole` (default: the HTML has an `<html>` tag or a doctype, as the
+ * converter decides) is a page as a browser would read it: a table tag
+ * outside any table is dropped, as a browser ignores it. A fragment, such as
+ * the main content of a layout table serialized from its tree, keeps them.
+ */
+export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i.test(html)): string {
+  if (!(whole ? /<(table|t[dhr]|thead|tbody|tfoot|caption|col)/i : /<table/i).test(html)) return html
   // Replace [at, end) with text, in source order.
   const edits: { at: number; end: number; text: string }[] = []
   // The elements a browser has open from the outermost table in, innermost last.
@@ -68,6 +77,9 @@ export function normalizeTableTags(html: string): string {
   // Tables a browser ended early, at a <table> where their rows belong, whose own tags still follow outside any table:
   // a browser ignores those table tags there, and the </table> each still has.
   let ended = 0
+  // The templates, and svg or math elements, open outside any table: a browser reads table tags in them.
+  let templatesOutside = 0
+  let foreignOutside = 0
   // The tables (by stack index) whose implied <tbody> a browser has closed: the next one is written out, so the rows stay in two groups.
   const impliedClosed = new Set<number>()
   let tagAt = 0
@@ -173,7 +185,9 @@ export function normalizeTableTags(html: string): string {
   const startTag = (name: string, at: number, end: number, selfClosing: boolean): void => {
     if (tables === 0) {
       if (name === 'table') push(name)
-      else if (ended > 0 && TABLE_TAGS.has(name) && name !== 'template') edits.push({ at, end, text: '' })
+      else if (name === 'template') templatesOutside++
+      else if (FOREIGN.has(name) && !selfClosing) foreignOutside++
+      else if (STRAY.has(name) && (ended > 0 || (whole && templatesOutside === 0 && foreignOutside === 0))) edits.push({ at, end, text: '' })
       return
     }
     let text = ''
@@ -256,10 +270,18 @@ export function normalizeTableTags(html: string): string {
       edits.push({ at, end, text: '' })
     }
     if (tables === 0) {
-      if (ended > 0 && TABLE_TAGS.has(name) && name !== 'template') {
+      if (name === 'template' && templatesOutside > 0) templatesOutside--
+      else if (FOREIGN.has(name) && foreignOutside > 0) foreignOutside--
+      else if (ended > 0 && TABLE_TAGS.has(name) && name !== 'template') {
         if (name === 'table') ended--
         drop()
-      }
+      } else if (STRAY.has(name) && whole && templatesOutside === 0 && foreignOutside === 0) drop()
+      return
+    }
+    // A </template> for a template opened before the table closes it, and the tables in it.
+    if (name === 'template' && !spaced && last(byName.get('template')) < 0 && templatesOutside > 0) {
+      popTo(0, true)
+      templatesOutside--
       return
     }
     // `</ td>`: htmlparser2 reads an end tag, a browser a comment.

@@ -1239,7 +1239,8 @@ export function htmlToTables(html: string, options: MarkdownOptions = {}): Extra
 function convert(html: string, options: MarkdownOptions, tables?: ExtractedTable[]): string {
   if (html.trim().length === 0) return ''
   const whole = /<html[\s>]|<!doctype/i.test(html)
-  const doc = parse(whole ? html : `<!doctype html><html><body>${html}</body></html>`)
+  // A fragment is wrapped in a page, but its table tags are read as written: it may be one row of a table.
+  const doc = parse(whole ? html : `<!doctype html><html><body>${html}</body></html>`, whole)
   const document = doc.document
   if (document.documentElement !== null && document.querySelector('table') !== null) {
     for (const table of misnestedTables(document.documentElement)) rebuildTable(table)

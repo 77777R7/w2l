@@ -14,9 +14,13 @@ export interface DomDoc {
   close(): void
 }
 
-export function parse(html: string): DomDoc {
+/**
+ * `whole`: the HTML is a page, read as a browser reads one (see
+ * normalizeTableTags); by default when it has an `<html>` tag or a doctype.
+ */
+export function parse(html: string, whole?: boolean): DomDoc {
   // htmlparser2 builds tables otherwise than a browser where an end tag is stray (see tableTags.ts).
-  let { document } = parseHTML(normalizeTableTags(html))
+  let { document } = parseHTML(normalizeTableTags(html, whole))
   // linkedom parses '' (and whitespace-only input) to a document whose
   // documentElement is null; its head/body getters then THROW on access.
   // Real crawls hit empty 200 bodies constantly (the empty-body fixture),

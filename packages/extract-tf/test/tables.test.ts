@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { htmlToMarkdown, htmlToTables } from '../src/index.js'
+import { htmlToMarkdown, htmlToTables, withoutLayoutMarkers } from '../src/index.js'
 import { MAX_PAGE_TABLE_CHARS, MAX_TABLE_CHARS } from '../src/markdown.js'
 
 const gfmTables = (markdown: string): number => markdown.split('\n').filter((line) => /^\| (---( \| ---)*) \|$/.test(line)).length
@@ -195,6 +195,20 @@ describe('htmlToTables', () => {
     // A <p> closes the <p> before it in htmlparser2 as in a browser: no </p> is written out for it.
     expect(htmlToMarkdown('<p><span><table><tr><td>a</td><td>b</td></tr><p>N1<p>N2<tr><td>c</td><td>d</td></tr></table></span></p><p>after</p>'))
       .toBe('N1\n\nN2\n\n| a | b |\n| --- | --- |\n| c | d |\n\nafter')
+  })
+
+  it('ignores table tags outside any table in a whole page, as a browser does, and keeps them in a fragment', () => {
+    const page = (body: string) => `<!doctype html><html><body>${body}</body></html>`
+    // Chromium: the stray row after the table is its text alone.
+    expect(htmlToMarkdown(page('<table><tr><td>a</td><td>b</td></tr><tr><td>c</td><td>d</td></tr></table><tr><td>x</td><td>y</td></tr><p>after</p>')))
+      .toBe('| a | b |\n| --- | --- |\n| c | d |\n\nxy\n\nafter')
+    expect(htmlToMarkdown(page('<p>a<td>b</td>c</p><caption>cap</caption><thead><th>h</th></thead><p>z</p>'))).toBe('abc\n\ncaph\n\nz')
+    // A fragment, such as the main content of a layout table, keeps its rows and cells.
+    expect(htmlToMarkdown('<tr><td>x</td><td>y</td></tr><tr><td>z</td><td>w</td></tr>')).toBe('x\n\ny\n\nz\n\nw')
+    expect(withoutLayoutMarkers('<tr data-w2l-display="block"><td>a</td><td>b</td></tr>')).toBe('<tr><td>a</td><td>b</td></tr>')
+    // A </template> closes the template a table in it left open.
+    expect(htmlToMarkdown(page('<template><table><tr><td>x</template><table><tr><td>a</td><td>b</td></tr><tr><td>c</td><td>d</td></tr></table><p>after</p>')))
+      .toBe('| a | b |\n| --- | --- |\n| c | d |\n\nafter')
   })
 
   it('ends a table at a table written where its rows belong, as the browser\'s parser does', () => {

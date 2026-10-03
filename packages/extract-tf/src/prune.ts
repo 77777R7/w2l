@@ -321,7 +321,8 @@ export function selectionBody(html: string, selectors: readonly string[], exclus
  */
 export function withoutLayoutMarkers(html: string): string {
   if (!html.includes(LAYOUT_MARKERS.display) && !html.includes(LAYOUT_MARKERS.hidden)) return html
-  const doc = parse(`<!doctype html><html><body>${html}</body></html>`)
+  // A fragment wrapped in a page: its table tags are read as written, as it may be one row of a layout table.
+  const doc = parse(`<!doctype html><html><body>${html}</body></html>`, false)
   const body = doc.document.body
   for (const el of qsa(body, `[${LAYOUT_MARKERS.hidden}]`)) detach(el)
   for (const el of qsa(body, `[${LAYOUT_MARKERS.display}]`)) el.removeAttribute(LAYOUT_MARKERS.display)
