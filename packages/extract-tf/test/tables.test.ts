@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { htmlToMarkdown, htmlToTables, withoutLayoutMarkers } from '../src/index.js'
+import { collectLinks, htmlToMarkdown, htmlToTables, withoutLayoutMarkers } from '../src/index.js'
 import { MAX_PAGE_TABLE_CHARS, MAX_TABLE_CHARS } from '../src/markdown.js'
 import { parse } from '../src/dom.js'
 
@@ -193,6 +193,24 @@ describe('htmlToTables', () => {
     // A <p> closes the <p> before it in htmlparser2 as in a browser: no </p> is written out for it.
     expect(htmlToMarkdown('<p><span><table><tr><td>a</td><td>b</td></tr><p>N1<p>N2<tr><td>c</td><td>d</td></tr></table></span></p><p>after</p>'))
       .toBe('N1\n\nN2\n\n| a | b |\n| --- | --- |\n| c | d |\n\nafter')
+  })
+
+  it('reads a <select> by the standard\'s rules since 2025, as Chromium does: it holds what is written in it', () => {
+    const body = (html: string) => parse(`<!doctype html><html><body>${html}</body></html>`).document.body.innerHTML
+    // Chromium's trees: a select and its options hold elements, where the old "in select" mode dropped their tags.
+    expect(body('<select><div>a</div><option>b</select>')).toBe('<select><div>a</div><option>b</option></select>')
+    expect(body('<select><option><div>x</div></option>y')).toBe('<select><option><div>x</div></option>y</select>')
+    expect(body('<select><b>a</select>b')).toBe('<select><b>a</b></select><b>b</b>')
+    // A <select> bounds every scope, so a <p> or <li> before it is not closed in it, and </select> closes what is open in it.
+    expect(body('<p><select><p>x')).toBe('<p><select><p>x</p></select></p>')
+    expect(body('<select><div></select>x')).toBe('<select><div></div></select>x')
+    // An <input> or a second <select> still ends it; a <textarea> or <keygen> no longer does.
+    expect(body('<select><option>a<input>x')).toBe('<select><option>a</option></select><input>x')
+    expect(body('<select><textarea>t</textarea>x')).toBe('<select><textarea>t</textarea>x</select>')
+    expect(body('<table><select><input type=hidden>x')).toBe('<select><input type="hidden">x</select><table></table>')
+    // What follows a closed select reopens its formatting elements, and links and images in options are the page's.
+    expect(htmlToMarkdown('<!doctype html><html><body><p>a <select><b>x</select>b</p></body></html>')).toBe('a **b**')
+    expect(collectLinks('<!doctype html><html><body><select><option><a href="/x">x</a></option></select></body></html>', 'https://e.test/')).toEqual(['https://e.test/x'])
   })
 
   it('matches an end tag in svg or math to an element by its exact name, as Chromium does', () => {

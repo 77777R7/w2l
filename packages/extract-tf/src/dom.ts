@@ -77,6 +77,42 @@ function tableScoped(stack: Parser<DefaultTreeAdapterMap>['openElements'], targe
   return false
 }
 
+const MATHML_NS = 'http://www.w3.org/1998/Math/MathML'
+/** The bounds of the standard's scopes since <select> became one of them (2025); parse5 8.0.1 does not count it. */
+const SCOPE_BOUNDS_HTML = new Set([T.APPLET, T.CAPTION, T.HTML, T.MARQUEE, T.OBJECT, T.SELECT, T.TABLE, T.TD, T.TEMPLATE, T.TH])
+const SCOPE_BOUNDS_SVG = new Set([T.FOREIGN_OBJECT, T.DESC, T.TITLE])
+const SCOPE_BOUNDS_MATHML = new Set([T.ANNOTATION_XML, T.MI, T.MN, T.MO, T.MS, T.MTEXT])
+const LIST_ITEM_BOUNDS = new Set([T.OL, T.UL])
+const BUTTON_BOUNDS = new Set([T.BUTTON])
+const HEADINGS = new Set([T.H1, T.H2, T.H3, T.H4, T.H5, T.H6])
+
+/**
+ * Whether an HTML element of `target` (a tag ID, or any of a set) is open in
+ * scope, with `extra` bounds for list item or button scope.
+ */
+function scoped(stack: Parser<DefaultTreeAdapterMap>['openElements'], target: htmlSpec.TAG_ID | ReadonlySet<htmlSpec.TAG_ID>, extra?: ReadonlySet<htmlSpec.TAG_ID>): boolean {
+  const items = stack.items as Spec.Element[]
+  const ids = stack.tagIDs
+  for (let i = stack.stackTop; i >= 0; i--) {
+    const ns = items[i]!.namespaceURI
+    const id = ids[i]!
+    if (ns === HTML_NS) {
+      if (typeof target === 'number' ? id === target : target.has(id)) return true
+      if (SCOPE_BOUNDS_HTML.has(id) || (extra !== undefined && extra.has(id))) return false
+    } else if (ns === SVG_NS ? SCOPE_BOUNDS_SVG.has(id) : ns === MATHML_NS && SCOPE_BOUNDS_MATHML.has(id)) return false
+  }
+  return false
+}
+
+/** The tags the standard reads by rules of their own while a <select> is open in scope (2025). */
+const SELECT_STARTS = new Set([T.SELECT, T.OPTION, T.OPTGROUP, T.HR, T.INPUT])
+/** The modes whose "anything else" reads a tag by the body's rules with foster parenting. */
+const FOSTER_MODES = new Set<number>([MODE.IN_TABLE, MODE.IN_TABLE_BODY, IN_ROW])
+
+function hiddenInput(token: Token.TagToken): boolean {
+  return token.attrs.find((attr) => attr.name === 'type')?.value.toLowerCase() === 'hidden'
+}
+
 class StandardTokenizer extends Tokenizer {
   protected override _leaveAttrName(): void {
     const token = this.currentToken
@@ -86,7 +122,7 @@ class StandardTokenizer extends Tokenizer {
 }
 
 /**
- * parse5 with eleven changes:
+ * parse5 with twelve changes:
  * - Its table scope stopped only at <table> and <html>, not at <template>, so
  *   a </table>, </tr> or row group end tag in a template that is in a table
  *   closed the cells, rows and table outside the template, and a <tr> or <td>
@@ -110,6 +146,12 @@ class StandardTokenizer extends Tokenizer {
  *   resetting the insertion mode reads HTML elements only (_resetInsertionMode),
  *   as the standard and Chromium say; parse5 also took an svg or math element
  *   of the tag's name, such as a <desc>, <mi> or <tfoot>.
+ * - <select> is read by the standard's rules since 2025, as Chromium reads it:
+ *   no "in select" modes (the insertionMode property below), <select> as a
+ *   bound of every scope (scoped), the rules for <select>, <option>,
+ *   <optgroup>, <hr> and <input> while one is open (inSelect), and </select>
+ *   as one of the body's block end tags. So a select holds <div>, <b>, <p>,
+ *   tables and svg as a browser shows them, where parse5 dropped their tags.
  * - In a template, a <title>, <base>, <basefont>, <bgsound> or <noframes>
  *   switches the template to the body's rules, as any start tag but <link>,
  *   <meta>, <script>, <style> and <template> does in Chromium, so rows, cells
@@ -128,12 +170,19 @@ class StandardTokenizer extends Tokenizer {
  * - Its tokenizer stops at a tag of too many attributes (MAX_ATTRIBUTES).
  */
 class StandardParser extends Parser<DefaultTreeAdapterMap> {
+  /** Open HTML <select> elements, so a page without one never walks the stack to look for one. */
+  private openSelects = 0
+
   constructor(...args: ConstructorParameters<typeof Parser<DefaultTreeAdapterMap>>) {
     super(...args)
     this.tokenizer = new StandardTokenizer(this.options, this)
     const stack = this.openElements
     stack.hasInTableScope = (tagID) => tableScoped(stack, (id) => id === tagID)
     stack.hasTableBodyContextInTableScope = () => tableScoped(stack, (id) => GROUP_ENDS.has(id))
+    stack.hasInScope = (tagID) => scoped(stack, tagID)
+    stack.hasInListItemScope = (tagID) => scoped(stack, tagID, LIST_ITEM_BOUNDS)
+    stack.hasInButtonScope = (tagID) => scoped(stack, tagID, BUTTON_BOUNDS)
+    stack.hasNumberedHeaderInScope = () => scoped(stack, HEADINGS)
   }
 
   override _startTagOutsideForeignContent(token: Token.TagToken): void {
@@ -142,6 +191,7 @@ class StandardParser extends Parser<DefaultTreeAdapterMap> {
       this.tmplInsertionModeStack[0] = body
       this.insertionMode = body
     }
+    if (SELECT_STARTS.has(token.tagID) && this.openSelects > 0 && BODY_RULE_MODES.has(this.insertionMode as number) && this.openElements.hasInScope(T.SELECT) && this.inSelect(token)) return
     // In table text or a column group parse5 first leaves the mode and sends the tag here again.
     if (token.tagID === htmlSpec.TAG_ID.FORM && TABLE_MODES.has(this.insertionMode as number) && this.openElements.tmplCount > 0) {
       this._insertElement(token, htmlSpec.NS.HTML)
@@ -149,6 +199,47 @@ class StandardParser extends Parser<DefaultTreeAdapterMap> {
       return
     }
     super._startTagOutsideForeignContent(token)
+  }
+
+  /**
+   * The standard's rules (2025) for a <select>, <option>, <optgroup>, <hr> or
+   * <input> while a <select> is open in scope; false leaves the tag to parse5
+   * (an <input> after its <select> is closed). In the table's modes it is
+   * read as the body reads it, with foster parenting, as their "anything else".
+   */
+  private inSelect(token: Token.TagToken): boolean {
+    const stack = this.openElements
+    const mode = this.insertionMode as number
+    switch (token.tagID) {
+      case T.SELECT:
+        stack.popUntilTagNamePopped(T.SELECT)
+        return true
+      case T.INPUT:
+        // The table's own rule for a hidden <input> does not look at the <select>.
+        if (!FOSTER_MODES.has(mode) || !hiddenInput(token)) stack.popUntilTagNamePopped(T.SELECT)
+        return false
+      case T.OPTION:
+        stack.generateImpliedEndTagsWithExclusion(T.OPTGROUP)
+        break
+      case T.OPTGROUP:
+        stack.generateImpliedEndTags()
+        break
+      default:
+        if (stack.hasInButtonScope(T.P)) this._closePElement()
+        stack.generateImpliedEndTags()
+    }
+    const fostering = this.fosterParentingEnabled
+    if (FOSTER_MODES.has(mode)) this.fosterParentingEnabled = true
+    if (token.tagID === T.HR) {
+      this._appendElement(token, htmlSpec.NS.HTML)
+      this.framesetOk = false
+      token.ackSelfClosing = true
+    } else {
+      this._reconstructActiveFormattingElements()
+      this._insertElement(token, htmlSpec.NS.HTML)
+    }
+    this.fosterParentingEnabled = fostering
+    return true
   }
 
   override onEndTag(token: Token.TagToken): void {
@@ -209,6 +300,14 @@ class StandardParser extends Parser<DefaultTreeAdapterMap> {
       this._endTagOutsideForeignContent(token)
       return
     }
+    // </select> is one of the body's block end tags since 2025.
+    if (token.tagID === T.SELECT && BODY_RULE_MODES.has(mode)) {
+      if (this.openSelects > 0 && this.openElements.hasInScope(T.SELECT)) {
+        this.openElements.generateImpliedEndTags()
+        this.openElements.popUntilTagNamePopped(T.SELECT)
+      }
+      return
+    }
     if (BODY_RULE_MODES.has(mode) && (!OWN_END_RULES.has(token.tagID)
       || (FORMATTING_ENDS.has(token.tagID) && this.activeFormattingElements.getElementEntryInScopeWithTagName(token.tagName) === null))) {
       this.endTagAsAnyOther(token)
@@ -266,7 +365,6 @@ class StandardParser extends Parser<DefaultTreeAdapterMap> {
       case T.TABLE: return MODE.IN_TABLE
       case T.BODY: return IN_BODY
       case T.FRAMESET: return MODE.IN_FRAMESET
-      case T.SELECT: return this.selectMode(i)
       case T.TEMPLATE: return this.tmplInsertionModeStack[0]
       case T.HTML: return this.headElement ? MODE.AFTER_HEAD : MODE.BEFORE_HEAD
       case T.TD: case T.TH: return i > 0 ? MODE.IN_CELL : undefined
@@ -275,15 +373,16 @@ class StandardParser extends Parser<DefaultTreeAdapterMap> {
     }
   }
 
-  /** A <select>'s mode: in a table unless a <template> is open nearer; HTML elements only. */
-  private selectMode(select: number): number {
-    const stack = this.openElements
-    for (let i = select - 1; i > 0; i--) {
-      if (defaultTreeAdapter.getNamespaceURI(stack.items[i] as Spec.Element) !== HTML_NS) continue
-      if (stack.tagIDs[i] === T.TEMPLATE) break
-      if (stack.tagIDs[i] === T.TABLE) return MODE.IN_SELECT_IN_TABLE
-    }
-    return MODE.IN_SELECT
+
+  // parse5's stack reports the element it pushed only when it is the new top: its insertAfter (the adoption agency's, for a formatting element) reports the top.
+  override onItemPush(node: Spec.ParentNode, tid: number, isTop: boolean): void {
+    if (isTop && tid === T.SELECT && defaultTreeAdapter.getNamespaceURI(node as Spec.Element) === HTML_NS) this.openSelects++
+    super.onItemPush(node, tid, isTop)
+  }
+
+  override onItemPop(node: Spec.ParentNode, isTop: boolean): void {
+    if (defaultTreeAdapter.getTagName(node as Spec.Element) === 'select' && defaultTreeAdapter.getNamespaceURI(node as Spec.Element) === HTML_NS) this.openSelects--
+    super.onItemPop(node, isTop)
   }
 
   override _adoptNodes(donor: Spec.ParentNode, recipient: Spec.ParentNode): void {
@@ -295,6 +394,19 @@ class StandardParser extends Parser<DefaultTreeAdapterMap> {
     }
   }
 }
+
+// The standard has had no "in select" modes since 2025 (Chromium 134 reads
+// <select> so): a <select> leaves the insertion mode as it was, and what it
+// holds is read by the body's rules. parse5 still switches to them, so those
+// switches are dropped here.
+Object.defineProperty(StandardParser.prototype, 'insertionMode', {
+  get(this: { selectlessMode: number }) {
+    return this.selectlessMode
+  },
+  set(this: { selectlessMode: number }, mode: number) {
+    if (mode !== MODE.IN_SELECT && mode !== MODE.IN_SELECT_IN_TABLE) this.selectlessMode = mode
+  },
+})
 
 /**
  * parse5's options with an element and a work budget. The standard re-creates
