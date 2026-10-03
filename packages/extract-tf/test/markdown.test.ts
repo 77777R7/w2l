@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { extractTf, htmlToMarkdown } from '../src/index.js'
+import { parse } from '../src/dom.js'
 
 describe('htmlToMarkdown', () => {
   it('turns headings, paragraphs, and emphasis into GFM', () => {
@@ -250,7 +251,25 @@ describe('htmlToMarkdown', () => {
     // A heading's end tag closes the heading open, of any level.
     expect(htmlToMarkdown(page('<h3>a</h2>b<p>c</p>'))).toBe('### a\n\nb\n\nc')
     // An element a browser has closed is not in between: the <p>, closed at the <div>.
-    expect(htmlToMarkdown(page('<span><p>x<b>y<div>z</div></span>w'))).toBe('xy\n\nz\n\nw')
+    expect(htmlToMarkdown(page('<span><p>x<b>y<div>z</div></span>w'))).toBe('x**y**\n\nz\n\nw')
+  })
+
+  it('closes a list item, a heading or a paragraph where a browser does, so the next is not nested in it', () => {
+    // Chromium's document.body.innerHTML of each page.
+    const body = (html: string) => parse(`<!doctype html><html><body>${html}</body></html>`).document.body.innerHTML
+    expect(body('<ul><li><span>a<li>b</span>c</ul><p>d</p>')).toBe('<ul><li><span>a</span></li><li>bc</li></ul><p>d</p>')
+    expect(body('<ol><li><div>a<li>b</ol>')).toBe('<ol><li><div>a</div></li><li>b</li></ol>')
+    expect(body('<dl><dt><span>a<dd>b</span></dl>')).toBe('<dl><dt><span>a</span></dt><dd>b</dd></dl>')
+    expect(body('<h1>a<h2>b</h2>c</h1>d')).toBe('<h1>a</h1><h2>b</h2>cd')
+    expect(body('<p>a<span>b<ul><li>c</ul>d')).toBe('<p>a<span>b</span></p><ul><li>c</li></ul>d')
+    expect(body('<button>a<span><button>b')).toBe('<button>a<span></span></button><button>b</button>')
+    // An end tag closes its element only in scope: not a <li> past a <ul>, nor a <p> past a <button>.
+    expect(body('<ul><li>a<ol><li>b</li></li>c</ol></ul>')).toBe('<ul><li>a<ol><li>b</li>c</ol></li></ul>')
+    expect(body('<p>a<button>b</p>c</button>d')).toBe('<p>a<button>b<p></p>c</button>d</p>')
+    expect(htmlToMarkdown('<!doctype html><html><body><ul><li>One<span> item<li>Two</span></ul></body></html>')).toBe('- One item\n- Two')
+    // Nothing in a <noscript> (text to a browser) or a <select> closes past it.
+    expect(body('<p>a<noscript><p>enable JS</p></noscript>b')).toBe('<p>a<noscript><p>enable JS</p></noscript>b</p>')
+    expect(body('<p>a<select><option>x<div>y</div></select>b')).toBe('<p>a<select><option>x<div>y</div></option></select>b</p>')
   })
 
   it('keeps today\'s Markdown and html with the default blockAds, and shows a cookie banner with blockAds: false', () => {

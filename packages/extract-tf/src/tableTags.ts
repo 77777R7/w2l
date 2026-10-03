@@ -147,6 +147,9 @@ const endsWithBodyEnd = (html: string): boolean => {
   return true
 }
 
+/** A start tag at which a browser may close an element htmlparser2 keeps open: a <li>, <dd>, <dt>, heading, <button>, or a <p> a block closes. */
+const CLOSING_START = /<(?:li|dd|dt|h[1-6]|button|p)[\t\n\f\r />]/i
+
 /** Whether the page has an end tag a browser reads by its "any other end tag" rule, such as `</span>`, or a heading's, which closes any heading. */
 const hasLooseEnd = (html: string): boolean => {
   for (const tag of html.matchAll(/<\/([A-Za-z][^\t\n\f\r />]*)/g)) {
@@ -165,7 +168,7 @@ const hasLooseEnd = (html: string): boolean => {
  */
 export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i.test(html)): string {
   const tableTags = whole ? /<(table|t[dhr]|thead|tbody|tfoot|caption|col)/i : /<table/i
-  if (!tableTags.test(html) && (!whole || endsWithBodyEnd(html)) && !breaksOutOfForeign(html) && !hasLooseEnd(html)) return html
+  if (!tableTags.test(html) && (!whole || endsWithBodyEnd(html)) && !breaksOutOfForeign(html) && !hasLooseEnd(html) && !CLOSING_START.test(html)) return html
   // Replace [at, end) with text, in source order.
   const edits: { at: number; end: number; text: string }[] = []
   // The elements a browser has open from the outermost table in, innermost last.
@@ -300,7 +303,9 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
   const isOuterHtml = (entry: string): boolean => !entry.startsWith('^') && !FOREIGN.has(entry)
   const isOuterIntegration = (entry: string): boolean => entry.startsWith('^') && (OUTER_INTEGRATION.has(entry.slice(1)) || entry === '^m:annotation-xml')
   const bare = (entry: string): string => (entry.startsWith('^') ? entry.slice(3) : entry)
-  const outerLists = [outerHtml, outerRoots, outerIntegration, outerSpecial, outerStrict, outerScope]
+  // The <noscript>, <iframe> and the like (text to a browser) and <select> elements open: nothing in them closes past them.
+  const outerOpaque: number[] = []
+  const outerLists = [outerHtml, outerRoots, outerIntegration, outerSpecial, outerStrict, outerScope, outerOpaque]
   // Which of those lists each entry is in, one bit per list, kept beside it.
   const outerMasks: number[] = []
   const maskOf = (entry: string): number => {
@@ -308,7 +313,8 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
     const integration = isOuterIntegration(entry)
     const special = integration || (html && SPECIAL.has(entry))
     return (html ? 1 : 0) | (FOREIGN.has(entry) ? 2 : 0) | (integration ? 4 : 0) | (special ? 8 : 0) |
-      (special && !LIST_ITEM_PASSES.has(entry) ? 16 : 0) | (integration || (html && SCOPE.has(entry)) ? 32 : 0)
+      (special && !LIST_ITEM_PASSES.has(entry) ? 16 : 0) | (integration || (html && SCOPE.has(entry)) ? 32 : 0) |
+      (html && (TEXT_CONTENT.has(entry) || entry === 'select') ? 64 : 0)
   }
   const outerPush = (entry: string): void => {
     let list = outerByName.get(bare(entry))
@@ -358,22 +364,37 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
     while (closes !== undefined && outer.length > 0 && closes.has(bare(outer[outer.length - 1]!))) outerPop()
   }
   /** The elements a browser closes at an HTML start tag, which htmlparser2 may keep open. */
-  const outerBrowserCloses = (name: string): void => {
-    const top = outer[outer.length - 1]
-    if (HEADINGS.has(name) && top !== undefined && HEADINGS.has(top)) outerPop()
+  /**
+   * Closes what a browser closes at an HTML start tag beyond htmlparser2's
+   * implied closes, returning the end tags that make htmlparser2 close it
+   * too: htmlparser2 kept a <li> open at the next <li> past an inline
+   * element, and nested the next one in it.
+   */
+  const outerBrowserCloses = (name: string): string => {
+    let text = ''
+    // In a <noscript> or <iframe> a browser reads text, and a <select> holds options: leave what htmlparser2 reads there.
+    if (outerOpaque.length > 0) return text
+    const closeTo = (index: number): void => {
+      // The nearest element of its name: its end tag closes it, and what is open in it, in htmlparser2 too.
+      text += `</${outer[index]}>`
+      outerPopTo(index)
+    }
+    const top = outer.length - 1
+    if (HEADINGS.has(name) && top >= 0 && HEADINGS.has(outer[top]!)) closeTo(top)
     // A <li> closes the nearest <li> unless a special element other than <address>, <div> or <p> comes first; <dd> and <dt> alike.
     if (name === 'li' || name === 'dd' || name === 'dt') {
       const item = name === 'li' ? outerOpen('li') : Math.max(outerOpen('dd'), outerOpen('dt'))
-      if (item >= 0 && item >= last(outerStrict)) outerPopTo(item)
+      if (item >= 0 && item >= last(outerStrict)) closeTo(item)
     }
     if (CLOSES_P.has(name)) {
       const p = outerOpen('p')
-      if (p > Math.max(last(outerScope), outerOpen('button'))) outerPopTo(p)
+      if (p > Math.max(last(outerScope), outerOpen('button'))) closeTo(p)
     }
     if (name === 'button') {
       const button = outerOpen('button')
-      if (button > last(outerScope)) outerPopTo(button)
+      if (button > last(outerScope)) closeTo(button)
     }
+    return text
   }
   /**
    * Closes what an end tag closes, as a browser does, and returns whether it
@@ -418,7 +439,7 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
       const stray = STRAY.has(name) && (ended > 0 || (whole && templatesOutside === 0 && outerRoots.length === 0))
       if (stray) return void edits.push({ at, end, text: '' })
       outerImplied(name)
-      outerBrowserCloses(name)
+      insert(at, outerBrowserCloses(name))
       if (name !== 'table' && !VOID.has(name) && !(FOREIGN.has(name) && selfClosing)) outerPush(name)
       if (name === 'table') push(name)
       else if (name === 'template') templatesOutside++
@@ -521,6 +542,14 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
           outerPopTo(heading)
           return
         }
+      }
+      // A </li> closes a <li> only in list item scope (not past a <ul> or <ol>), a </p> a <p> in button scope, and </dd> and
+      // </dt> theirs in scope; htmlparser2 closed the nearest anywhere. A browser ignores the tag there, and opens an empty
+      // <p> at a </p>.
+      if ((name === 'li' || name === 'p' || name === 'dd' || name === 'dt') && !inOuterForeign() && outerOpaque.length === 0) {
+        const open = outerOpen(name)
+        const bound = name === 'li' ? Math.max(outerOpen('ul'), outerOpen('ol')) : name === 'p' ? outerOpen('button') : -1
+        if (open >= 0 && open < Math.max(bound, last(outerScope))) return void edits.push({ at, end, text: name === 'p' ? '<p></p>' : '' })
       }
       if (outerClose(name)) drop()
       return
