@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { htmlToMarkdown, htmlToTables, withoutLayoutMarkers } from '../src/index.js'
 import { MAX_PAGE_TABLE_CHARS, MAX_TABLE_CHARS } from '../src/markdown.js'
+import { parse } from '../src/dom.js'
 
 const gfmTables = (markdown: string): number => markdown.split('\n').filter((line) => /^\| (---( \| ---)*) \|$/.test(line)).length
 
@@ -235,6 +236,18 @@ describe('htmlToTables', () => {
     // A </template> closes the template a table in it left open.
     expect(htmlToMarkdown(page('<template><table><tr><td>x</template><table><tr><td>a</td><td>b</td></tr><tr><td>c</td><td>d</td></tr></table><p>after</p>')))
       .toBe('| a | b |\n| --- | --- |\n| c | d |\n\nafter')
+  })
+
+  it('keeps a table\'s end tags written in a <template> in the table inside the template, as a browser does', () => {
+    const page = (body: string) => `<!doctype html><html><body>${body}</body></html>`
+    // Chromium: the template's </table> closes nothing outside it, so its text stays in it and the table stays whole.
+    const rows = page('<table><tr><td>a</td><template><td>hidden</td></table>x</template><td>b</td></tr><tr><td>c</td><td>d</td></tr></table>')
+    expect(htmlToTables(rows).map((t) => t.rows)).toEqual([[['a', 'b'], ['c', 'd']]])
+    expect(htmlToMarkdown(rows)).toBe('| a | b |\n| --- | --- |\n| c | d |')
+    expect(htmlToMarkdown(page('<table><tr><td><template><td></table>hidden</template>visible</td></tr></table><p>after</p>'))).toBe('visible\n\nafter')
+    // A row group end tag in it does not close the group outside it either.
+    expect(parse(page('<table><tbody><template><tr></tbody>hidden</template><tr><td>a</td></tr></table>')).document.body.innerHTML)
+      .toBe('<table><tbody><template><tr></tr>hidden</template><tr><td>a</td></tr></tbody></table>')
   })
 
   it('ends a table at a table written where its rows belong, as the browser\'s parser does', () => {

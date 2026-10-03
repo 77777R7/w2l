@@ -38,6 +38,19 @@ const TOO_MANY = new Error('element budget')
  */
 const MAX_ATTRIBUTES = 256
 
+const TABLE_SCOPE = new Set([htmlSpec.TAG_ID.HTML, htmlSpec.TAG_ID.TABLE, htmlSpec.TAG_ID.TEMPLATE])
+
+/** Whether an HTML element `target` takes is open in table scope: above the nearest <html>, <table> or <template>. */
+function tableScoped(stack: Parser<DefaultTreeAdapterMap>['openElements'], target: (tagID: htmlSpec.TAG_ID) => boolean): boolean {
+  for (let i = stack.stackTop; i >= 0; i--) {
+    if (defaultTreeAdapter.getNamespaceURI(stack.items[i] as Spec.Element) !== HTML_NS) continue
+    const id = stack.tagIDs[i]!
+    if (target(id)) return true
+    if (TABLE_SCOPE.has(id)) return false
+  }
+  return false
+}
+
 class StandardTokenizer extends Tokenizer {
   protected override _leaveAttrName(): void {
     const token = this.currentToken
@@ -47,7 +60,12 @@ class StandardTokenizer extends Tokenizer {
 }
 
 /**
- * parse5 with three changes:
+ * parse5 with four changes:
+ * - Its table scope stopped only at <table> and <html>, not at <template>, so
+ *   a </table>, </tr> or row group end tag in a template that is in a table
+ *   closed the cells, rows and table outside the template, and a <tr> or <td>
+ *   in a template in a row group ended the template. The standard's table
+ *   scope stops at <template> as well (tableScoped).
  * - In a row it closed the row at a </tbody>, </tfoot> or </thead> whose row
  *   group is not open, where the standard (and Chromium) ignores the tag.
  * - It moved a node's children one by one, each found by a linear search, so a
@@ -59,6 +77,9 @@ class StandardParser extends Parser<DefaultTreeAdapterMap> {
   constructor(...args: ConstructorParameters<typeof Parser<DefaultTreeAdapterMap>>) {
     super(...args)
     this.tokenizer = new StandardTokenizer(this.options, this)
+    const stack = this.openElements
+    stack.hasInTableScope = (tagID) => tableScoped(stack, (id) => id === tagID)
+    stack.hasTableBodyContextInTableScope = () => tableScoped(stack, (id) => GROUP_ENDS.has(id))
   }
 
   override _endTagOutsideForeignContent(token: Token.TagToken): void {
