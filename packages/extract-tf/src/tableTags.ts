@@ -24,6 +24,11 @@
  * layout table, given to the converter on its own. Once a table has ended at
  * a table written where its rows belong, its table tags left outside any
  * table are dropped in a fragment too.
+ *
+ * A whole page's `</body>` and `</html>` are dropped wherever they are:
+ * htmlparser2 closes the body there, so what follows was outside it, where a
+ * browser closes nothing and puts what follows in the body. As a browser
+ * closes both at the end anyway, dropping them changes nothing else.
  */
 
 import { Tokenizer } from 'htmlparser2'
@@ -62,13 +67,42 @@ const IMPLIES_CLOSE = new Map<string, Set<string>>([
 const STRAY = new Set(['caption', 'colgroup', 'col', 'thead', 'tbody', 'tfoot', 'tr', 'td', 'th'])
 
 /**
+ * Whether the page's `</body>` and `</html>` are all in its last run of end
+ * tags, white space and comments, where dropping them changes nothing: one
+ * written earlier (or in a script) needs the pass. Read step by step rather
+ * than by one pattern over the tail, whose backtracking state overflows on a
+ * tail of millions of characters; anything else, such as `<!-->`, runs the
+ * pass.
+ */
+const endsWithBodyEnd = (html: string): boolean => {
+  let i = html.search(/<\/\s*(body|html)/i)
+  if (i < 0) return true
+  const endTag = /<\/[\t\n\f\r ]*(?:body|html)[\t\n\f\r ]*>/iy
+  while (i < html.length) {
+    const c = html.charCodeAt(i)
+    if (c === 0x20 || c === 0x09 || c === 0x0a || c === 0x0c || c === 0x0d) i++
+    else if (html.startsWith('<!--', i)) {
+      const end = html.indexOf('-->', i + 2)
+      if (end < i + 4) return false
+      i = end + 3
+    } else {
+      endTag.lastIndex = i
+      if (!endTag.test(html)) return false
+      i = endTag.lastIndex
+    }
+  }
+  return true
+}
+
+/**
  * `whole` (default: the HTML has an `<html>` tag or a doctype, as the
  * converter decides) is a page as a browser would read it: a table tag
- * outside any table is dropped, as a browser ignores it. A fragment, such as
+ * outside any table is dropped, as a browser ignores it, and so is every
+ * `</body>` and `</html>`. A fragment, such as
  * the main content of a layout table serialized from its tree, keeps them.
  */
 export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i.test(html)): string {
-  if (!(whole ? /<(table|t[dhr]|thead|tbody|tfoot|caption|col)/i : /<table/i).test(html)) return html
+  if (whole ? !/<(table|t[dhr]|thead|tbody|tfoot|caption|col)/i.test(html) && endsWithBodyEnd(html) : !/<table/i.test(html)) return html
   // Replace [at, end) with text, in source order.
   const edits: { at: number; end: number; text: string }[] = []
   // The elements a browser has open from the outermost table in, innermost last.
@@ -270,7 +304,8 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
       edits.push({ at, end, text: '' })
     }
     if (tables === 0) {
-      if (name === 'template' && templatesOutside > 0) templatesOutside--
+      if (whole && (name === 'body' || name === 'html')) drop()
+      else if (name === 'template' && templatesOutside > 0) templatesOutside--
       else if (FOREIGN.has(name) && foreignOutside > 0) foreignOutside--
       else if (ended > 0 && TABLE_TAGS.has(name) && name !== 'template') {
         if (name === 'table') ended--

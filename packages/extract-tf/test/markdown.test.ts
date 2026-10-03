@@ -198,6 +198,24 @@ describe('htmlToMarkdown', () => {
     expect(htmlToMarkdown('')).toBe('')
   })
 
+  it('keeps the content after an early </body> or </html> in the body, as a browser does', () => {
+    // Chromium's document.body.innerText of each page.
+    expect(htmlToMarkdown('<!doctype html><html><body><p>a</p></body><p>b</p></html>')).toBe('a\n\nb')
+    expect(htmlToMarkdown('<!doctype html><html><body><p>a</p></body></html><p>c</p>')).toBe('a\n\nc')
+    expect(htmlToMarkdown('<!doctype html><html><body><div><p>a</p></BODY ><p>b</p></div></HTML><p>c</p>')).toBe('a\n\nb\n\nc')
+    expect(htmlToMarkdown('<!doctype html><html><body><p>a</p></body></html><!-- x --><script>1</script><p>c</p>')).toBe('a\n\nc')
+    expect(htmlToMarkdown('<!doctype html><html><body><table><tr><td>a</td><td>b</td></tr><tr><td>c</td><td>d</td></tr></table></body><p>after</p></html>'))
+      .toBe('| a | b |\n| --- | --- |\n| c | d |\n\nafter')
+    // Main-content selection reads the same body.
+    const text = (words: string) => `${words} `.repeat(8)
+    const article = extractTf.extract(`<!doctype html><html><body><nav><a href="/">Home</a></nav><main><article><h1>Title</h1><p>${text('First paragraph.')}</p></body></html><p>${text('After the end tags.')}</p></article></main></html>`)
+    expect(htmlToMarkdown(article.mainHtml)).toContain('After the end tags.')
+    // A page that ends with its </body></html> is unchanged.
+    expect(htmlToMarkdown('<!doctype html><html><body><p>a</p></body></html>\n')).toBe('a')
+    // So is one with millions of characters after them.
+    expect(htmlToMarkdown(`<!doctype html><html><body><p>a</p></body></html>\n<!--${'x'.repeat(12_000_000)}-->${' '.repeat(12_000_000)}`)).toBe('a')
+  })
+
   it('keeps today\'s Markdown and html with the default blockAds, and shows a cookie banner with blockAds: false', () => {
     const html = `<!doctype html><html><head><title>Kiln temperatures and glaze vitrification</title></head>
 <body><main>
