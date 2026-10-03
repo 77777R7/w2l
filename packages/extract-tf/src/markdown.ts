@@ -168,7 +168,7 @@ function normalizeCell(s: string): string {
  * boundaries are spaces, so separate lines stay separate words.
  */
 function cellText(cell: Element, ctx: Context): string {
-  const inline = new Inline()
+  const inline = new Inline({ escape: true })
   inlineChildren(cell, inline, ctx, CELL_MARKS)
   return inline.finish().text.replace(/\n/g, ' ')
 }
@@ -668,7 +668,7 @@ function tableData(table: Element, ctx: Context, tableIndex: number): ExtractedT
 }
 
 function plainCell(cell: Element, ctx: Context): string {
-  const inline = new Inline()
+  const inline = new Inline({ escape: false })
   inlineChildren(cell, inline, ctx, TEXT_MARKS)
   return inline.finish().text.replace(/\s+/g, ' ').trim()
 }
@@ -728,33 +728,76 @@ class Inline {
   private pendingSpace = false
   private lead = false
   private leadBreak = false
+  /** Whether text written now starts a line of the Markdown (a paragraph's own first line, or after a <br>). */
+  private atLineStart: boolean
+  /** The emphasis marker the last part closes, so an adjacent run of it continues it instead of writing `****`. */
+  private lastClose = ''
+  /** Text not yet written (see text), in pieces, and whether the last ends in a space. */
+  private pendingText: string[] = []
+  private pendingEndsSpace = false
+  /** The code of the code span the last part is, so an adjacent one joins it instead of writing a double backtick. */
+  private lastCode: string | null = null
 
+  /**
+   * `paragraph`: the inline content of a paragraph, whose first line starts a
+   * line of the Markdown (a link's or emphasis's starts after its marker).
+   * `escape`: text is escaped where CommonMark would read it as Markdown
+   * (not in code, nor in the plain text of the `tables` format). `link`: in
+   * a link's text, where an unbalanced bracket would end the link.
+   */
+  constructor(private readonly options: { paragraph?: boolean; escape?: boolean; link?: boolean } = {}) {
+    this.atLineStart = options.paragraph === true
+  }
+
+  /**
+   * Text, collected until other content, a break or the end follows: the
+   * parser splits text at each entity (`&lt;div&gt;` is five nodes), and the
+   * text is escaped as a whole, so each character is read with its
+   * neighbours.
+   */
   text(raw: string): void {
     const text = raw.replace(WHITESPACE, ' ')
     if (text.length === 0) return
+    const piece = this.pendingEndsSpace && text.startsWith(' ') ? text.slice(1) : text
+    if (piece.length === 0) return
+    this.pendingText.push(piece)
+    this.pendingEndsSpace = piece.endsWith(' ')
+  }
+
+  private flushText(): void {
+    if (this.pendingText.length === 0) return
+    const text = this.pendingText.join('')
+    this.pendingText = []
+    this.pendingEndsSpace = false
     const leading = text.startsWith(' ')
     const trailing = text.length > 1 && text.endsWith(' ')
     if (leading) this.space()
     const core = text.slice(leading ? 1 : 0, trailing ? -1 : undefined)
-    if (core) this.content(core)
+    if (core) this.content(this.options.escape === false ? core : escapeText(core, this.atLineStart && !this.pendingSpace, this.options.link === true))
     if (trailing) this.space()
   }
 
   space(): void {
+    this.flushText()
     if (this.lineStarted) this.pendingSpace = true
     else if (!this.any) this.lead = true
   }
 
   content(s: string): void {
+    this.flushText()
     if (this.pendingSpace) {
       this.parts.push(' ')
       this.pendingSpace = false
     }
     this.parts.push(s)
     this.any = this.lineStarted = true
+    this.atLineStart = false
+    this.lastClose = ''
+    this.lastCode = null
   }
 
   lineBreak(): void {
+    this.flushText()
     this.pendingSpace = false
     if (!this.any) {
       this.leadBreak = true
@@ -762,6 +805,9 @@ class Inline {
     }
     this.parts.push('\n')
     this.lineStarted = false
+    this.atLineStart = true
+    this.lastClose = ''
+    this.lastCode = null
   }
 
   /**
@@ -770,6 +816,13 @@ class Inline {
    * markers at all.
    */
   wrap(inner: InlineResult, open: string, close: string): void {
+    this.flushText()
+    // A `!` written right before a link would make it an image.
+    const last = this.parts.length - 1
+    // (Not escaped already: an even run of backslashes before it, none included, escapes only themselves.)
+    if (open === '[' && !this.pendingSpace && !inner.lead && !inner.leadBreak && /(?:^|[^\\])(?:\\\\)*!$/.test(this.parts[last] ?? '')) {
+      this.parts[last] = `${this.parts[last]!.slice(0, -1)}\\!`
+    }
     if (inner.leadBreak) this.lineBreak()
     else if (inner.lead) this.space()
     // A blank line would end the paragraph inside the markers.
@@ -783,17 +836,46 @@ class Inline {
    * emphasis (see emphasisParts); a run of white space alone gets none.
    */
   emphasize(inner: InlineResult, marker: string): void {
+    this.flushText()
     if (inner.leadBreak) this.lineBreak()
     else if (inner.lead) this.space()
     const { before, core, after } = emphasisParts(inner.text.replace(/\n{2,}/g, '\n'))
     if (before) this.content(before)
-    if (core) this.content(marker + core + marker)
+    if (core && !before && !this.pendingSpace && this.lastClose === marker) {
+      // Right after a run of the same emphasis (`<b>a</b><b>b</b>`): one run, as `**a****b**` reads otherwise.
+      const last = this.parts.length - 1
+      this.parts[last] = this.parts[last]!.slice(0, -marker.length) + core + marker
+    } else if (core) {
+      this.content(marker + core + marker)
+      this.lastClose = marker
+    }
     if (after) this.content(after)
     if (inner.trailBreak) this.lineBreak()
     else if (inner.trail) this.space()
   }
 
+  /** A code span: its code between enough backticks; one right after another joins it, as two would read as a double backtick. */
+  code(inner: InlineResult): void {
+    this.flushText()
+    if (inner.leadBreak) this.lineBreak()
+    else if (inner.lead) this.space()
+    if (inner.text) {
+      let code = inner.text.replace(/\n{2,}/g, '\n')
+      if (this.lastCode !== null && !this.pendingSpace) {
+        code = this.lastCode + code
+        this.parts.pop()
+      }
+      const fence = '`'.repeat(longestBacktickRun(code) + 1)
+      const pad = code.startsWith('`') || code.endsWith('`') ? ' ' : ''
+      this.content(fence + pad + code + pad + fence)
+      this.lastCode = code
+    }
+    if (inner.trailBreak) this.lineBreak()
+    else if (inner.trail) this.space()
+  }
+
   finish(): InlineResult {
+    this.flushText()
     const joined = this.parts.join('')
     const text = joined.replace(/\n+$/, '')
     return {
@@ -830,6 +912,85 @@ function emphasisParts(text: string): { before: string; core: string; after: str
   while (start < end && EDGE_SPACE.test(text[start]!)) start++
   while (end > start && EDGE_SPACE.test(text[end - 1]!)) end--
   return { before: text.slice(0, start), core: escapeLastBackslash(text.slice(start, end)), after: text.slice(end) }
+}
+
+const ASCII_PUNCTUATION = /[!-/:-@[-`{-~]/
+const WORD_CHARACTER = /[\p{L}\p{N}]/u
+const SPACE_CHARACTER = /[\s\p{Zs}]/u
+
+/**
+ * Text as Markdown that renders as written, escaped only where CommonMark
+ * would read it otherwise: a backslash before punctuation (or at the end,
+ * before what follows), a `*` that is not between spaces, a `_` not inside a
+ * word, a backtick, a `]` opening a link's target (and in a link's text an
+ * unbalanced bracket), a `<` that starts a tag, an `&` that starts an
+ * entity, a double `~`; and at the start of a line, what starts a heading,
+ * list item, quote, rule, setext underline or link definition. Snake_case
+ * names, `2 * 3` and `[1]` stay as written.
+ */
+function escapeText(text: string, lineStart: boolean, link: boolean): string {
+  // In a link's text, the brackets with no partner in this text.
+  let unmatched: Set<number> | null = null
+  if (link && /[[\]]/.test(text)) {
+    unmatched = new Set()
+    const open: number[] = []
+    for (let i = 0; i < text.length; i++) {
+      if (text[i] === '[') open.push(i)
+      else if (text[i] === ']') {
+        if (open.length > 0) open.pop()
+        else unmatched.add(i)
+      }
+    }
+    for (const i of open) unmatched.add(i)
+  }
+  let out = ''
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i]!
+    const prev = text[i - 1]
+    const next = text[i + 1]
+    switch (c) {
+      case '\\':
+        out += next === undefined || ASCII_PUNCTUATION.test(next) ? '\\\\' : c
+        break
+      case '*':
+        out += prev !== undefined && next !== undefined && SPACE_CHARACTER.test(prev) && SPACE_CHARACTER.test(next) ? c : '\\*'
+        break
+      case '_':
+        out += prev !== undefined && next !== undefined && WORD_CHARACTER.test(prev) && WORD_CHARACTER.test(next) ? c : '\\_'
+        break
+      case '`':
+        out += '\\`'
+        break
+      case '[':
+        out += unmatched?.has(i) ? '\\[' : c
+        break
+      case ']':
+        out += next === '(' || next === '[' || unmatched?.has(i) ? '\\]' : c
+        break
+      case '<':
+        out += next !== undefined && /[A-Za-z/!?]/.test(next) ? '\\<' : c
+        break
+      case '&':
+        out += /^&#?[A-Za-z0-9]{1,32};/.test(text.slice(i, i + 35)) ? '\\&' : c
+        break
+      case '~':
+        out += prev === '~' || next === '~' ? '\\~' : c
+        break
+      default:
+        out += c
+    }
+  }
+  return lineStart ? escapeLineStart(out) : out
+}
+
+/** What would start a block at the start of a line: a heading, list item, quote, rule, setext underline or link definition. */
+function escapeLineStart(line: string): string {
+  if (/^(?:#{1,6}|[-+]|>)(?=[ \t]|$)/.test(line) || /^>/.test(line)) return `\\${line}`
+  const ordered = /^(\d{1,9})([.)])(?=[ \t]|$)/.exec(line)
+  if (ordered) return `${ordered[1]}\\${line.slice(ordered[1]!.length)}`
+  if (/^(?:=+|-+|(?:-[ \t]*){3,})[ \t]*$/.test(line)) return `\\${line}`
+  if (/^\[(?:[^\]\\]|\\.)*\]:/.test(line)) return `\\${line}`
+  return line
 }
 
 /**
@@ -945,7 +1106,7 @@ function inlineElement(el: Element, out: Inline, ctx: Context, marks: Marks): vo
     case 'sub': {
       // Digits and signs keep their script form; a footnote mark or a word
       // in a superscript stays as written.
-      const inner = new Inline()
+      const inner = new Inline({ escape: !marks.text, link: marks.link })
       inlineChildren(el, inner, ctx, marks)
       const run = inner.finish()
       const script = scriptText(run.text, tag)
@@ -967,18 +1128,15 @@ function inlineElement(el: Element, out: Inline, ctx: Context, marks: Marks): vo
 }
 
 function emphasis(el: Element, out: Inline, ctx: Context, marks: Marks, marker: string): void {
-  const inner = new Inline()
+  const inner = new Inline({ link: marks.link })
   inlineChildren(el, inner, ctx, marks)
   out.emphasize(inner.finish(), marker)
 }
 
 function codeSpan(el: Element, out: Inline, ctx: Context): void {
-  const inner = new Inline()
+  const inner = new Inline({ escape: false })
   inner.text(shownText(el, ctx))
-  const result = inner.finish()
-  const fence = '`'.repeat(longestBacktickRun(result.text) + 1)
-  const pad = result.text.startsWith('`') || result.text.endsWith('`') ? ' ' : ''
-  out.wrap(result, fence + pad, pad + fence)
+  out.code(inner.finish())
 }
 
 /** Render a link; false when it has no usable target (no href, or inside another link) and is only text. */
@@ -986,7 +1144,7 @@ function link(el: Element, out: Inline, ctx: Context, marks: Marks): boolean {
   const href = el.getAttribute('href')
   const target = href === null || marks.link || marks.text ? null : linkTarget(href, ctx.base)
   if (target === null) return false
-  const inner = new Inline()
+  const inner = new Inline({ link: true })
   inlineChildren(el, inner, ctx, { ...marks, link: true })
   const result = inner.finish()
   // A link with no text keeps its target as the text, except a bare
@@ -1011,14 +1169,14 @@ function image(el: Element, out: Inline, ctx: Context): void {
 /** Blocks of one container, plus the paragraph its inline content is building. */
 class Flow {
   readonly blocks: Block[] = []
-  inline = new Inline()
+  inline = new Inline({ paragraph: true })
 
   constructor(readonly ctx: Context) {}
 
   flush(): void {
     const text = this.inline.paragraph()
     if (text) this.blocks.push({ text: emphasized(text, this.ctx) })
-    this.inline = new Inline()
+    this.inline = new Inline({ paragraph: true })
   }
 
   add(...blocks: (Block | null)[]): void {

@@ -349,6 +349,28 @@ describe('htmlToMarkdown', () => {
 const BASE = 'https://fixture.test/docs/page'
 
 describe('htmlToMarkdown blocks and inline whitespace', () => {
+  it('escapes text only where CommonMark would read it as Markdown, so it renders as written', () => {
+    const md = (html: string) => htmlToMarkdown(`<!doctype html><html><body>${html}</body></html>`)
+    // Ordinary text stays as written: an underscore inside a word, a star between spaces, balanced brackets.
+    expect(md('<p>snake_case and 2 * 3 [note] a.b</p>')).toBe('snake_case and 2 * 3 [note] a.b')
+    // Text that would become emphasis, code, a link, HTML or an entity.
+    expect(md('<p>*not bold* and _not em_ and `not code`</p>')).toBe('\\*not bold\\* and \\_not em\\_ and \\`not code\\`')
+    expect(md('<p>[x](y) &lt;div&gt; &amp;amp; C:\\*</p>')).toBe('[x\\](y) \\<div> \\&amp; C:\\\\\\*')
+    // At the start of a line: a heading, list item, quote or rule.
+    expect(md('<p># tag</p><p>- dash</p><p>1. one</p><p>&gt; quote</p><p>---</p>')).toBe('\\# tag\n\n\\- dash\n\n1\\. one\n\n\\> quote\n\n\\---')
+    expect(md('<p>a<br>= b<br>+ c<br>===</p>')).toBe('a  \n= b  \n\\+ c  \n\\===')
+    // The parser splits text at entities; it is escaped as a whole.
+    expect(md('<p>x &lt;div&gt; &amp;amp; snake&#95;case</p>')).toBe('x \\<div> \\&amp; snake_case')
+    // Code stays as written; the tables format stays plain text.
+    expect(md('<p><code>*a*_b_</code></p>')).toBe('`*a*_b_`')
+    // Adjacent runs of one emphasis are one run.
+    expect(md('<p><b>a</b><b>b</b></p>')).toBe('**ab**')
+    // Adjacent code spans are one span, and a `!` before a link stays text.
+    expect(md('<p><code>a</code><code>b</code> x</p>')).toBe('`ab` x')
+    expect(md('<p>wow!<a href="https://e.test/x">link</a></p>')).toBe('wow\\![link](https://e.test/x)')
+    expect(md('<p>a\\!<a href="https://e.test/x">t</a></p>')).toBe('a\\\\\\![t](https://e.test/x)')
+  })
+
   it('writes emphasis CommonMark reads as emphasis: white space at its edges outside the markers, a last backslash escaped', () => {
     const md = (html: string) => htmlToMarkdown(`<!doctype html><html><body>${html}</body></html>`)
     // A full-width space (a CJK paragraph indent) next to a marker makes it plain text to CommonMark.
