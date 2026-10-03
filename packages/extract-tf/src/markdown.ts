@@ -209,8 +209,8 @@ function expandGrid(rows: GridCell[][], maxPadding: number, fill: 'empty' | 'rep
     for (const cell of htmlRow) {
       fillOccupied()
       row[cursor] = cell.value
-      const cs = Math.max(1, cell.colspan)
-      const rs = Math.max(1, cell.rowspan)
+      const cs = cell.colspan
+      const rs = cell.rowspan
       if (cs > 1) for (let x = 1; x < cs; x++) row[++cursor] = fill === 'repeat' ? cell.value : ''
       if (rs > 1) {
         for (let w = 0; w < cs; w++) {
@@ -245,14 +245,41 @@ function ownCells(tr: Element): Element[] {
   return Array.from(tr.querySelectorAll('th,td')).filter((cell) => cell.closest('tr') === tr)
 }
 
-/** A table's caption and cells as `cell` writes each one; a table nested in a cell is that cell's text. */
+/**
+ * An attribute read by HTML's rules for parsing non-negative integers:
+ * leading whitespace, an optional sign, then the leading digits (`1.5` is 1,
+ * `2abc` is 2); null when absent, when no digit follows, or when negative.
+ */
+function nonNegativeInteger(attr: string | null): number | null {
+  const m = attr === null ? null : /^[\t\n\f\r ]*([-+]?)([0-9]+)/.exec(attr)
+  if (m === null) return null
+  const n = Number(m[2])
+  return m[1] === '-' && n !== 0 ? null : n
+}
+
+/**
+ * A table's caption and cells as `cell` writes each one; a table nested in a
+ * cell is that cell's text. Spans are integers of at least 1, read as browsers
+ * read them: a colspan that is invalid or 0 is 1, an invalid rowspan is 1, and
+ * a rowspan of 0 covers the rest of its row group (its `<thead>`, `<tbody>` or
+ * `<tfoot>`, or the run of rows directly in the table).
+ */
 function tableCells(table: Element, cell: (el: Element) => string): { caption: string | null; rows: GridCell[][] } {
   const captionEl = table.querySelector(':scope > caption')
-  const rows = ownRows(table).map((tr) => ownCells(tr).map((el) => ({
-    value: cell(el),
-    colspan: Math.min(Number(el.getAttribute('colspan') ?? 1) || 1, MAX_COLSPAN),
-    rowspan: Math.min(Number(el.getAttribute('rowspan') ?? 1) || 1, MAX_ROWSPAN),
-  })))
+  const trs = ownRows(table)
+  // Row → how many rows from it to the end of its row group.
+  const groupLeft: number[] = []
+  for (let r = trs.length - 1; r >= 0; r--) {
+    groupLeft[r] = r + 1 < trs.length && trs[r + 1]!.parentElement === trs[r]!.parentElement ? groupLeft[r + 1]! + 1 : 1
+  }
+  const rows = trs.map((tr, r) => ownCells(tr).map((el) => {
+    const rowspan = nonNegativeInteger(el.getAttribute('rowspan')) ?? 1
+    return {
+      value: cell(el),
+      colspan: Math.min(nonNegativeInteger(el.getAttribute('colspan')) || 1, MAX_COLSPAN),
+      rowspan: Math.min(rowspan === 0 ? groupLeft[r]! : rowspan, MAX_ROWSPAN),
+    }
+  }))
   return { caption: captionEl ? cell(captionEl) : null, rows }
 }
 

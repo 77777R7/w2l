@@ -99,6 +99,16 @@ describe('htmlToMarkdown', () => {
     expect(tall).toBe('| a | b |\n| --- | --- |\n|  | c |\n|  | d |')
   })
 
+  it('reads colspan and rowspan as browsers do: leading digits, 1 when there are none, a rowspan of 0 to the end of its row group', () => {
+    const cols = htmlToMarkdown('<table><tr><td colspan="2.9">a</td><td colspan=" +2abc">b</td><td colspan="0">c</td><td colspan="-3">d</td></tr><tr><td>1</td></tr></table>')
+    expect(cols).toBe('| a |  | b |  | c | d |\n| --- | --- | --- | --- | --- | --- |\n| 1 |  |  |  |  |  |')
+    // A fractional rowspan ended after its whole rows instead of covering its column in every later row.
+    const rows = htmlToMarkdown('<table><tr><td rowspan="1.5">a</td><td rowspan="2.5">b</td><td rowspan="-2">c</td></tr><tr><td>d</td></tr><tr><td>e</td><td>f</td><td>g</td></tr></table>')
+    expect(rows).toBe('| a | b | c |\n| --- | --- | --- |\n| d |  |  |\n| e | f | g |')
+    const zero = htmlToMarkdown('<table><thead><tr><th rowspan="0">h</th><th>a</th></tr><tr><th>b</th></tr></thead><tbody><tr><td>1</td><td>2</td></tr></tbody></table>')
+    expect(zero).toBe('| h | a |\n| --- | --- |\n|  | b |\n| 1 | 2 |')
+  })
+
   it('writes a table whose padded grid would be too large as its rows of cells, still one GFM table', () => {
     // ~380 KB of HTML: one wide empty row over 20,000 one-cell rows pads to 60 million characters.
     const html = `<table><tr><td colspan="1000"></td></tr>${'<tr><td>y</td></tr>'.repeat(20_000)}</table><table><tr><td>k</td><td>v</td></tr><tr><td>1</td><td>2</td></tr></table>`

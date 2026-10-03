@@ -48,6 +48,38 @@ describe('htmlToTables', () => {
     expect(tables[2]).toMatchObject({ tableIndex: 2, rows: [['k', 'v'], ['1', '2']] })
   })
 
+  it('reads a span as browsers do: its leading digits, 1 when it has none, is negative or is a colspan of 0', () => {
+    const [cols, rows] = htmlToTables(
+      '<table><tr><td colspan="2.9">a</td><td colspan=" +2abc">b</td><td colspan="0">c</td><td colspan="-3">d</td><td colspan="x">e</td></tr><tr><td>1</td></tr></table>' +
+        '<table><tr><td rowspan="1.5">a</td><td rowspan="2.5">b</td><td rowspan="-2">c</td></tr><tr><td>d</td></tr><tr><td>e</td><td>f</td><td>g</td></tr></table>',
+    )
+    expect(cols!.rows).toEqual([['a', 'a', 'b', 'b', 'c', 'd', 'e'], ['1', '', '', '', '', '', '']])
+    expect(rows!.rows).toEqual([['a', 'b', 'c'], ['d', 'b', ''], ['e', 'f', 'g']])
+    // 2,547 bytes of HTML: a fractional rowspan never ended and filled its column in every later row (166 million characters of JSON).
+    const [wide] = htmlToTables(`<table><tr><td colspan="1000" rowspan="1.5">${'x'.repeat(1000)}</td></tr>${'<tr></tr>'.repeat(165)}</table>`)
+    expect(wide!.rows).toHaveLength(166)
+    expect(wide!.rows[0]!.every((cell) => cell === 'x'.repeat(1000))).toBe(true)
+    expect(wide!.rows.slice(1).every((row) => row.length === 1000 && row.every((cell) => cell === ''))).toBe(true)
+    expect(JSON.stringify(wide).length).toBeLessThan(MAX_TABLE_CHARS)
+  })
+
+  it('spans a rowspan of 0 to the end of its row group, as browsers do', () => {
+    const html = '<table><thead><tr><th rowspan="0">h</th><th>a</th></tr><tr><th>b</th></tr></thead><tbody><tr><td>1</td><td>2</td></tr></tbody></table>'
+    expect(htmlToTables(html)[0]!.rows).toEqual([['h', 'a'], ['h', 'b'], ['1', '2']])
+    expect(htmlToTables('<table><tr><td rowspan="0">a</td><td>b</td></tr><tr><td>c</td></tr></table>')[0]!.rows).toEqual([['a', 'b'], ['a', 'c']])
+  })
+
+  it('gives no budget back to the page for a negative span', () => {
+    // Three tables of about 1,893,000 characters: the page's budget gives two of them.
+    const near = `<table><tr><td colspan="1000">${'x'.repeat(1890)}</td></tr><tr><td>y</td></tr></table>`
+    expect(htmlToTables(near.repeat(3)).map((table) => table.omitted)).toEqual([undefined, undefined, 'too_large'])
+    for (const [span, length] of [['colspan="-1000"', 2000], ['colspan="1000" rowspan="-1000"', 10]] as const) {
+      const negative = `<table><tr><td ${span}>${'x'.repeat(length)}</td></tr><tr><td>y</td></tr></table>`
+      const tables = htmlToTables(negative + near.repeat(3))
+      expect(tables.map((table) => table.omitted)).toEqual([undefined, undefined, undefined, 'too_large'])
+    }
+  })
+
   it('shares one budget among a page\'s tables, so many tables just under the cap cannot add up to a huge response', () => {
     const near = `<table><tr><td colspan="1000">${'x'.repeat(1990)}</td></tr><tr><td>y</td></tr></table>`
     const tables = htmlToTables(near.repeat(150))
