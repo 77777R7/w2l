@@ -26,6 +26,10 @@ const HTML_NS = 'http://www.w3.org/1999/xhtml'
 const GROUP_ENDS = new Set([htmlSpec.TAG_ID.TBODY, htmlSpec.TAG_ID.TFOOT, htmlSpec.TAG_ID.THEAD])
 /** parse5 8.0.1's InsertionMode.IN_ROW, which it does not export (the version is pinned). */
 const IN_ROW = 13
+/** parse5 8.0.1's IN_TABLE, IN_TABLE_BODY and IN_ROW: the modes that read a <form> by the table's rules. */
+const TABLE_MODES = new Set([8, 12, IN_ROW])
+/** parse5 8.0.1's IN_BODY, IN_TABLE, IN_CAPTION, IN_TABLE_BODY, IN_ROW and IN_CELL: the modes that read a </form> by the body's rules. */
+const BODY_RULE_MODES = new Set([6, 8, 10, 12, IN_ROW, 14])
 
 /** Thrown when a page would hold more elements than its tags account for. */
 const TOO_MANY = new Error('element budget')
@@ -60,12 +64,19 @@ class StandardTokenizer extends Tokenizer {
 }
 
 /**
- * parse5 with four changes:
+ * parse5 with six changes:
  * - Its table scope stopped only at <table> and <html>, not at <template>, so
  *   a </table>, </tr> or row group end tag in a template that is in a table
  *   closed the cells, rows and table outside the template, and a <tr> or <td>
  *   in a template in a row group ended the template. The standard's table
  *   scope stops at <template> as well (tableScoped).
+ * - A <form> in a table in a <template> is kept where it is written and closed
+ *   at once, without becoming the page's form, as Chromium keeps it (its
+ *   HTMLTreeBuilder drops it only when a form is open outside any template).
+ *   The standard drops it whenever a template is open.
+ * - A </form> in a <template> closes its form as any other end tag closes its
+ *   element, as in Chromium: not past a <p>, <div>, <li> or other special
+ *   element still open in it. The standard closes those first.
  * - In a row it closed the row at a </tbody>, </tfoot> or </thead> whose row
  *   group is not open, where the standard (and Chromium) ignores the tag.
  * - It moved a node's children one by one, each found by a linear search, so a
@@ -82,9 +93,38 @@ class StandardParser extends Parser<DefaultTreeAdapterMap> {
     stack.hasTableBodyContextInTableScope = () => tableScoped(stack, (id) => GROUP_ENDS.has(id))
   }
 
+  override _startTagOutsideForeignContent(token: Token.TagToken): void {
+    // In table text or a column group parse5 first leaves the mode and sends the tag here again.
+    if (token.tagID === htmlSpec.TAG_ID.FORM && TABLE_MODES.has(this.insertionMode as number) && this.openElements.tmplCount > 0) {
+      this._insertElement(token, htmlSpec.NS.HTML)
+      this.openElements.pop()
+      return
+    }
+    super._startTagOutsideForeignContent(token)
+  }
+
   override _endTagOutsideForeignContent(token: Token.TagToken): void {
     if ((this.insertionMode as number) === IN_ROW && GROUP_ENDS.has(token.tagID) && !this.openElements.hasInTableScope(token.tagID)) return
+    if (token.tagID === htmlSpec.TAG_ID.FORM && BODY_RULE_MODES.has(this.insertionMode as number) && this.openElements.tmplCount > 0) {
+      this.endTagAsAnyOther(htmlSpec.TAG_ID.FORM)
+      return
+    }
     super._endTagOutsideForeignContent(token)
+  }
+
+  /** The standard's "any other end tag" in the body: the nearest open element of the tag closes, unless a special element is open above it. */
+  private endTagAsAnyOther(tagID: htmlSpec.TAG_ID): void {
+    const stack = this.openElements
+    for (let i = stack.stackTop; i > 0; i--) {
+      const element = stack.items[i] as Spec.Element
+      const id = stack.tagIDs[i]!
+      if (id === tagID && defaultTreeAdapter.getNamespaceURI(element) === HTML_NS) {
+        stack.generateImpliedEndTagsWithExclusion(tagID)
+        if (stack.stackTop >= i) stack.shortenToLength(i)
+        return
+      }
+      if (this._isSpecialElement(element, id)) return
+    }
   }
 
   override _adoptNodes(donor: Spec.ParentNode, recipient: Spec.ParentNode): void {

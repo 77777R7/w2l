@@ -250,6 +250,32 @@ describe('htmlToTables', () => {
       .toBe('<table><tbody><template><tr></tr>hidden</template><tr><td>a</td></tr></tbody></table>')
   })
 
+  it('keeps a <form> written in a table in a <template>, as Chromium does', () => {
+    const body = (html: string) => parse(`<!doctype html><html><body>${html}</body></html>`).document.body.innerHTML
+    // Chromium puts it where it is written and closes it, also when a form is open outside the template; the standard drops it.
+    expect(body('<template><table><tr><form id=a><td>y</template>')).toBe('<template><table><tbody><tr><form id="a"></form><td>y</td></tr></tbody></table></template>')
+    expect(body('<form id=o><table><template><table><form id=a></template></table></form>'))
+      .toBe('<form id="o"><table><template><table><form id="a"></form></table></template></table></form>')
+    expect(body('<template><table><colgroup><col>t<form id=a><form id=b></table></template>'))
+      .toBe('<template>t<table><colgroup><col></colgroup><form id="a"></form><form id="b"></form></table></template>')
+    // It is not the page's form: a form after the template is still read, and outside a template one in a table is dropped while another is open.
+    expect(body('<table><template><tr><form id=a></template></table><form id=b>z</form>'))
+      .toBe('<table><template><tr><form id="a"></form></tr></template></table><form id="b">z</form>')
+    expect(body('<form id=o><table><form id=a></table></form>')).toBe('<form id="o"><table></table></form>')
+  })
+
+  it('closes a form in a <template> at its </form> as Chromium does: not past a special element open in it', () => {
+    const body = (html: string) => parse(`<!doctype html><html><body>${html}</body></html>`).document.body.innerHTML
+    // Chromium reads it as any other end tag; the standard closes the <p>, <div> or <li> first.
+    expect(body('<template><form><p></form>x</template>')).toBe('<template><form><p>x</p></form></template>')
+    expect(body('<template><form><div></form>x</template>')).toBe('<template><form><div>x</div></form></template>')
+    expect(body('<template><form><table><tr><td></form>x</template>')).toBe('<template><form><table><tbody><tr><td>x</td></tr></tbody></table></form></template>')
+    expect(body('<template><form><span></form>x</template>')).toBe('<template><form><span></span></form>x</template>')
+    expect(body('<template><form><option></form>x</template>')).toBe('<template><form><option></option></form>x</template>')
+    // Outside a template it is the standard's: the page's form closes.
+    expect(body('<form><p></form>x')).toBe('<form><p></p></form>x')
+  })
+
   it('ends a table at a table written where its rows belong, as the browser\'s parser does', () => {
     const r = (t: string) => `<tr><td>${t}</td><td>${t}.</td></tr>`
     // Chromium: the outer table ends there, the inner one follows it, and the rows after it are text.
