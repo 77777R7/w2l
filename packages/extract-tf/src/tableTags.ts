@@ -125,7 +125,9 @@ const TEXT_CONTENT = new Set(['noscript', 'iframe', 'noembed', 'noframes', 'xmp'
 /** The start tags at which a browser closes a <p> open in button scope. */
 const CLOSES_P = new Set(['address', 'article', 'aside', 'blockquote', 'center', 'details', 'dialog', 'dir', 'div', 'dl', 'fieldset', 'figcaption', 'figure', 'footer', 'header', 'hgroup', 'main', 'menu', 'nav', 'ol', 'p', 'search', 'section', 'summary', 'ul', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'pre', 'listing', 'form', 'plaintext', 'xmp', 'li', 'dd', 'dt', 'hr', 'table'])
 /** The elements that end a browser's default scope outside tables (with the integration points), and the special ones a <li>, <dd> or <dt> looks past. */
-const SCOPE = new Set(['applet', 'marquee', 'object', 'template', 'html'])
+const SCOPE = new Set(['applet', 'marquee', 'object', 'template', 'html', 'table', 'td', 'th', 'caption'])
+/** The elements htmlparser2 counts in or out of svg and math (by name): their end tags keep its count right. */
+const FOREIGN_CONTEXT = new Set(['svg', 'math', 'mi', 'mo', 'mn', 'ms', 'mtext', 'annotation-xml', 'foreignobject', 'desc', 'title'])
 const LIST_ITEM_PASSES = new Set(['address', 'div', 'p'])
 
 /** The table tags a browser ignores outside any table (outside a template, svg or math). */
@@ -216,11 +218,20 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
   // The svg and math elements opened as HTML (each starts a run), innermost last: one can sit in another's integration point.
   const regionPos: number[] = []
   const byName = new Map<string, number[]>()
+  // The table stack's tables, cells, captions and templates, by index, and their ids in the body model.
+  const links = new Map<number, number>()
+  // Where the tag being read starts.
+  let tagStart = 0
   const last = (list: number[] | undefined): number => (list !== undefined && list.length > 0 ? list[list.length - 1]! : -1)
 
   const push = (name: string) => {
     const i = stack.length
     stack.push(name)
+    // A table, cell, caption or template is a boundary in the body model too (its content is read by a browser's body rules).
+    if (name === 'table' || CONTENT.has(name)) {
+      links.set(i, outerPush(name))
+      if (MARKERS.has(name)) afe.push(null)
+    }
     if (TABLE_TAGS.has(name)) tablePos.push(i)
     if (!name.startsWith('^') && !FOREIGN.has(name)) plainPos.push(i)
     if (FOREIGN.has(name)) regionPos.push(i)
@@ -244,6 +255,11 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
       if (name.startsWith('^') && INTEGRATION.has(name.slice(1))) integrationPos.pop()
       if (SPECIAL.has(name)) specialPos.pop()
       if (TABLE_TAGS.has(name)) tablePos.pop()
+      const link = links.get(i)
+      if (link !== undefined) {
+        links.delete(i)
+        unlink(name, link)
+      }
       if (name === IMPLIED_TBODY) impliedClosed.add(last(byName.get('table')))
       else if (TABLE_TAGS.has(name)) text += `</${name}>`
       else {
@@ -258,6 +274,20 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
     }
     return text
   }
+  /**
+   * Ends a boundary in the body model with its table element: what is open
+   * in it closes with the element's end tag, but the svg and math there are
+   * ended by name first, as htmlparser2 counts them by their end tags.
+   */
+  function unlink(name: string, id: number): void {
+    const index = idIndex.get(id)
+    if (index === undefined) return
+    let text = ''
+    for (let k = outer.length - 1; k > index; k--) if (FOREIGN_CONTEXT.has(bare(outer[k]!))) text += `</${bare(outer[k]!)}>`
+    insert(tagStart, text)
+    outerPopTo(index)
+    if (MARKERS.has(name)) afeClearToMarker()
+  }
   /** Opens the <tbody> a browser opens for a row written directly in the table: implied, or written out after an implied one closed. */
   const openImpliedTbody = (): string => {
     if (impliedClosed.has(last(byName.get('table')))) {
@@ -267,6 +297,8 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
     push(IMPLIED_TBODY)
     return ''
   }
+  /** Whether a browser reads the tags here by its body rules: in a cell, caption or template of a table. */
+  const inCell = (): boolean => tables > 0 && CONTENT.has(innermost()[0])
   /** The innermost table element open, and where it is. */
   const innermost = (): [string, number] => {
     const i = last(tablePos)
@@ -443,7 +475,7 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
   // The elements the adoptions on this page have moved, and how many they may.
   let adopted = 0
   /** Whether a browser follows the list here: outside tables, svg and math, and a <select>, <noscript> or the like. */
-  const formattingOn = (): boolean => tables === 0 && !inOuterForeign() && outerOpaque.length === 0
+  const formattingOn = (): boolean => (tables === 0 || inCell()) && !inOuterForeign() && outerOpaque.length === 0
   const afeAdd = (f: Formatting): void => {
     // At most three entries alike after the last marker (the Noah's Ark clause): the earliest goes.
     let alike = 0
@@ -595,12 +627,13 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
     // In svg or math (an integration point too, as end tags there are its
     // own), an end tag of one of its elements closes it there. Any other is
     // read as HTML: it closes the nearest HTML element of its name unless an
-    // integration point comes first, or, for an end tag such as </span>, any
+    // integration point or the end of a scope (a cell, a table, an <object>)
+    // comes first, or, for an end tag such as </span>, any
     // special element (the element itself aside): a browser ignores it
     // there. A </template> closes the nearest template wherever it is, and
     // a </noscript> (and the like) its element, whose content a browser
     // reads as text, so it holds no element to stop at.
-    const stop = Math.max(last(outerIntegration), anyOther ? last(outerSpecial) : -1)
+    const stop = Math.max(last(outerIntegration), last(outerScope), anyOther ? last(outerSpecial) : -1)
     if (open > last(outerHtml) || (isOuterHtml(outer[open]!) && open >= stop) || name === 'template' || TEXT_CONTENT.has(name)) {
       outerPopTo(open)
       return false
@@ -612,7 +645,11 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
   }
 
   const startTag = (name: string, at: number, end: number, selfClosing: boolean, attrs = ''): void => {
-    if (tables === 0) {
+    tagStart = at
+    // Outside tables, and in a cell (but its table tags, and a table in it after the body rules, go to the table rules).
+    const cell = inCell()
+    if (tables === 0 || cell) {
+      if (cell && (name === 'body' || name === 'html')) return
       if (inOuterForeign()) {
         if (!BREAKOUT.has(name)) {
           outerImplied(name)
@@ -622,7 +659,8 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
         }
         insert(at, leaveOuterForeign())
       }
-      const stray = STRAY.has(name) && (ended > 0 || (whole && templatesOutside === 0 && outerRoots.length === 0))
+      if (cell && (TABLE_TAGS.has(name) || name === 'col') && name !== 'table') return tableStart(name, at, end, selfClosing)
+      const stray = !cell && STRAY.has(name) && (ended > 0 || (whole && templatesOutside === 0 && outerRoots.length === 0))
       if (stray) return void edits.push({ at, end, text: '' })
       // In htmlparser2's order: the end tags written before the tag, the formatting elements reopened, then its implied closes.
       let text = outerBrowserCloses(name)
@@ -644,10 +682,17 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
         if (formatting && FORMATTING.has(name)) afeAdd({ id, name, attrs })
         if (MARKERS.has(name)) afe.push(null)
       }
-      if (name === 'table') push(name)
-      else if (name === 'template') templatesOutside++
+      if (name === 'table') {
+        if (cell) return tableStart(name, at, end, selfClosing)
+        push(name)
+      } else if (name === 'template') templatesOutside++
       return
     }
+    tableStart(name, at, end, selfClosing)
+  }
+
+  /** A start tag by the table rules: where rows, cells and row groups belong, and a cell's table tags. */
+  const tableStart = (name: string, at: number, end: number, selfClosing: boolean): void => {
     let text = ''
     if (inForeign()) {
       if (!BREAKOUT.has(name)) {
@@ -724,17 +769,24 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
   }
 
   const endTag = (name: string, at: number, end: number, spaced: boolean): void => {
+    tagStart = at
     const drop = (): void => {
       edits.push({ at, end, text: '' })
     }
-    if (tables === 0) {
-      if (whole && (name === 'body' || name === 'html')) return drop()
-      if (ended > 0 && TABLE_TAGS.has(name) && name !== 'template') {
-        if (name === 'table') ended--
-        return drop()
+    // In a cell, its table tags (a </td>, a </table>) go to the table rules, the others to the body rules, as does a
+    // table tag that closes an svg or math element of its name (an svg's <td>).
+    const cell = inCell() && (!TABLE_TAGS.has(name) || last(outerByName.get(name)) > last(outerHtml))
+    if (cell && (spaced || name === 'body' || name === 'html')) return drop()
+    if (tables === 0 || cell) {
+      if (!cell) {
+        if (whole && (name === 'body' || name === 'html')) return drop()
+        if (ended > 0 && TABLE_TAGS.has(name) && name !== 'template') {
+          if (name === 'table') ended--
+          return drop()
+        }
+        if (STRAY.has(name) && whole && templatesOutside === 0 && outerRoots.length === 0) return drop()
+        if (name === 'template' && templatesOutside > 0) templatesOutside--
       }
-      if (STRAY.has(name) && whole && templatesOutside === 0 && outerRoots.length === 0) return drop()
-      if (name === 'template' && templatesOutside > 0) templatesOutside--
       // </p> and </br> end the svg or math they are written in, as a <p> does.
       if ((name === 'p' || name === 'br') && inOuterForeign()) insert(at, leaveOuterForeign())
       // A heading's end tag closes the nearest heading of any level in scope: written out as that one's, which htmlparser2 closes.

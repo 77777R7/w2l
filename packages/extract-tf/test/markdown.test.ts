@@ -294,6 +294,22 @@ describe('htmlToMarkdown', () => {
     expect(page('<p><b>Note:</p><p>read this</p>')).toBe('**Note:**\n\n**read this**')
   })
 
+  it('reads a table cell by the same body rules, the cell ending what is open in it', () => {
+    // Chromium's document.body.innerHTML of each page, its implied <tbody> left out.
+    const body = (html: string) => parse(`<!doctype html><html><body>${html}</body></html>`).document.body.innerHTML
+    expect(body('<table><tr><td><p><b>x</p>y</td><td>z</td></tr></table>')).toBe('<table><tr><td><p><b>x</b></p><b>y</b></td><td>z</td></tr></table>')
+    expect(body('<table><tr><td><b><div>x</b>y</div></td></tr></table>')).toBe('<table><tr><td><b></b><div><b>x</b>y</div></td></tr></table>')
+    expect(body('<table><tr><td><ul><li><span>a<li>b</span></ul></td></tr></table>')).toBe('<table><tr><td><ul><li><span>a</span></li><li>b</li></ul></td></tr></table>')
+    // An end tag in a cell closes nothing outside it; a <b> opened before the table is not reopened in a cell.
+    expect(body('<div><table><tr><td>a</div>b</td></tr></table>')).toBe('<div><table><tr><td>ab</td></tr></table></div>')
+    expect(body('<p><b>x</p><table><tr><td>y</td></tr></table>')).toBe('<p><b>x</b></p><table><tr><td>y</td></tr></table>')
+    // An svg left open in a cell ends with it: a self-closing <p/> after the table is an HTML <p> again.
+    expect(body('<table><tr><td><svg><g></td></tr></table><p/>z')).toBe('<table><tr><td><svg><g /></svg></td></tr></table><p>z</p>')
+    // A cell's table tags still go by the table rules: a </td> in an svg is the svg's, a <col> ends the cell.
+    expect(body('<table><tr><td><svg><td>a</td>b</svg>c</td><td>d</td></tr></table>')).toBe('<table><tr><td><svg><td>a</td>b</svg>c</td><td>d</td></tr></table>')
+    expect(body('<table><tr><td>a<col>b</td><td>c</td></tr></table>')).toBe('<table><tr><td>a</td></tr><col>b<tbody><tr><td>c</td></tr></tbody></table>')
+  })
+
   it('keeps today\'s Markdown and html with the default blockAds, and shows a cookie banner with blockAds: false', () => {
     const html = `<!doctype html><html><head><title>Kiln temperatures and glaze vitrification</title></head>
 <body><main>
