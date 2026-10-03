@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { extractTf, htmlToMarkdown, wholePageBody, withoutLayoutMarkers } from '../src/index.js'
 
 const ARTICLE = `<!doctype html><html><head><title>Kiln temperatures and glaze vitrification</title></head>
@@ -542,6 +542,23 @@ describe('parse', () => {
     const second = parse(page).document
     expect(second.body.innerHTML).toBe('<b>1</b><p><b>2</b>3</p><table><tbody><tr><td>a</td></tr></tbody></table>')
     expect(first.body.innerHTML).toBe('')
+  })
+
+  it('builds each of two pages read by turns once (the rendered page and the body as received)', async () => {
+    const { parse } = await import('../src/dom.js')
+    const { Parser } = await import('parse5')
+    const built = vi.spyOn(Parser, 'parse')
+    try {
+      const rendered = '<!doctype html><html><body><main><p>rendered</p></main></body></html>'
+      const received = '<!doctype html><html><body><main><p>received</p></main></body></html>'
+      for (let i = 0; i < 3; i++) {
+        expect(parse(rendered).document.body.innerHTML).toBe('<main><p>rendered</p></main>')
+        expect(parse(received).document.body.innerHTML).toBe('<main><p>received</p></main>')
+      }
+      expect(built).toHaveBeenCalledTimes(2)
+    } finally {
+      built.mockRestore()
+    }
   })
 
   it('reads a page the same way every time, also when its <noscript> goes past the budget', async () => {

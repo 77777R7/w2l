@@ -134,7 +134,8 @@ export function parse(html: string, fragment = false): DomDoc {
   } catch (error) {
     if (error !== TOO_MANY) throw error
     // A page whose <noscript> went past what its tree left of the budget: it is parsed so every time.
-    if (!fragment && lastPage !== undefined && lastPage.html === html) lastPage.tree = null
+    const built = fragment ? undefined : recentPages.find((page) => page.html === html)
+    if (built !== undefined) built.tree = null
     // linkedom's own parser: no formatting element is reopened, so its tree stays as large as the page.
     const body = fragment ? BODY.exec(html) : null
     const page = fragment
@@ -153,20 +154,24 @@ export function parse(html: string, fragment = false): DomDoc {
 const BODY = /^\s*<body((?:\s+[^\s"'>\/=]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+))?)*)\s*\/?>([\s\S]*)<\/body>\s*$/i
 
 /**
- * The last page parse5 built. One request reads its page several times in a
- * row (main-content selection, the Markdown, `tables`, links, images), and the
- * tree is only read when copied, so a page parsed again is copied from it.
- * Only one tree is held, and only until the next task: a server does not keep
- * a large page's tree after the request, and a loop over pages keeps one.
+ * The last two pages parse5 built, the latest first. One request reads its
+ * page several times (main-content selection, the Markdown, `tables`, links,
+ * images), and the tree is only read when copied, so a page parsed again is
+ * copied from it. Two, because the browser lane reads two by turns: the page
+ * as rendered for selection, Markdown and tables, the body as received for
+ * links and images. They are held only until the next task: a server does not
+ * keep a large page's tree after the request, and a loop over pages keeps two.
  * (A WeakRef would not do: what one synchronous job creates is kept until it
  * ends, so a loop over thousands of pages would keep every tree.)
  */
-let lastPage: { html: string; tree: Spec.Document | null } | undefined
+const recentPages: { html: string; tree: Spec.Document | null }[] = []
+const RECENT_PAGES = 2
 let clearing = false
 
 /** The tree parse5 builds from a page, or null when it is past the budget. */
 function specPage(html: string, options: () => ParserOptions<DefaultTreeAdapterMap>): Spec.Document | null {
-  if (lastPage !== undefined && lastPage.html === html) return lastPage.tree
+  const recent = recentPages.find((page) => page.html === html)
+  if (recent !== undefined) return recent.tree
   let tree: Spec.Document | null
   try {
     tree = StandardParser.parse<DefaultTreeAdapterMap>(html, options())
@@ -174,11 +179,12 @@ function specPage(html: string, options: () => ParserOptions<DefaultTreeAdapterM
     if (error !== TOO_MANY) throw error
     tree = null
   }
-  lastPage = { html, tree }
+  recentPages.unshift({ html, tree })
+  recentPages.length = Math.min(recentPages.length, RECENT_PAGES)
   if (!clearing) {
     clearing = true
     setTimeout(() => {
-      lastPage = undefined
+      recentPages.length = 0
       clearing = false
     }, 0)
   }
