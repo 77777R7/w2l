@@ -124,6 +124,12 @@ describe('htmlToMarkdown', () => {
     expect(md).toBe('| Item | Count |\n| --- | --- |\n| a | 4 |\n| b | 5 |\n| Total | 9 |')
   })
 
+  it('closes a cell at a row group written in it, the text after it before the table, as the browser\'s parser does', () => {
+    expect(htmlToMarkdown('<table><tr><td>a<thead><tr><td>x</td><td>y</td></tr></thead>tail</td></tr><tr><td>b</td><td>c</td></tr></table>'))
+      .toBe('tail\n\n| x | y |\n| --- | --- |\n| a |  |\n| b | c |')
+    expect(htmlToMarkdown('<table><tr><td>a<th>b</th>c</td></tr><tr><td>d</td><td>e</td></tr></table>')).toBe('c\n\n| a | b |\n| --- | --- |\n| d | e |')
+  })
+
   it('counts rowspans stacked over the same columns without visiting every one in every row', () => {
     // ~2 MB: 300 rowspans a thousand columns wide stacked over 100 empty rows, 90 times.
     let stacked = '<table>'

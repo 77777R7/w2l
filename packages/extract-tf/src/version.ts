@@ -14,4 +14,4 @@
  * path, so bump it also when that test stays green. Timings, routing
  * diagnostics and product facts that never reach the Markdown need no bump.
  */
-export const EXTRACTOR_VERSION = 'extract-tf/9'
+export const EXTRACTOR_VERSION = 'extract-tf/10'

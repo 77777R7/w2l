@@ -118,6 +118,45 @@ describe('htmlToTables', () => {
     }
   })
 
+  it('closes a cell at a row, cell or row group written in it, as the browser\'s parser does', () => {
+    const table = (html: string) => {
+      const [t] = htmlToTables(html)
+      return { caption: t!.caption, headerRows: t!.headerRows, rows: t!.rows }
+    }
+    // Each expected grid is the one Chromium builds from the same HTML.
+    expect(table('<table><tr><td>a<thead><tr><td>x</td><td>y</td></tr></thead></td><td>q</td></tr><tr><td>b</td><td>c</td></tr></table>'))
+      .toEqual({ caption: null, headerRows: 1, rows: [['x', 'y'], ['a', ''], ['q', ''], ['b', 'c']] })
+    expect(table('<table><tr><td><div>a<tr><td>b</td><td>c</td></tr></div></td><td>d</td></tr></table>').rows).toEqual([['a', ''], ['b', 'c'], ['d', '']])
+    expect(table('<table><tr><td>a<th>b</th>c</td></tr><tr><td>d</td><td>e</td></tr></table>').rows).toEqual([['a', 'b'], ['d', 'e']])
+    expect(table('<table><tr><td>a<span>s<tfoot><tr><td>f</td><td>g</td></tr></tfoot>t</span>u</td><td>v</td></tr><tr><td>b</td><td>c</td></tr></table>').rows)
+      .toEqual([['as', ''], ['v', ''], ['b', 'c'], ['f', 'g']])
+    expect(table('<table><tr><td>a<caption>cap</caption></td><td>z</td></tr><tr><td>b</td><td>c</td></tr></table>'))
+      .toEqual({ caption: 'cap', headerRows: 0, rows: [['a', ''], ['z', ''], ['b', 'c']] })
+    expect(table('<table><tr><td>a<tbody><tr><td>b</td><td>c</td></tr></tbody></td><td>z</td></tr></table>').rows).toEqual([['a', ''], ['b', 'c'], ['z', '']])
+    // A cell 4,000 elements deep is rebuilt without running out of call stack.
+    expect(table(`<table><tr><td>${'<span>'.repeat(4000)}a<thead><tr><td>h</td><td>i</td></tr></thead>${'</span>'.repeat(4000)}</td></tr><tr><td>b</td><td>c</td></tr></table>`).rows)
+      .toEqual([['h', 'i'], ['a', ''], ['b', 'c']])
+    // A <template>'s rows are not the table's, wherever it is.
+    const template = '<template x-for="r in more"><tr><td>NAME</td><td>QTY</td></tr></template><template x-if="loading"><div class="spinner"></div></template>'
+    expect(table(`<table><thead><tr><th>Name</th><th>Qty</th></tr></thead><tbody><tr><td>apple</td><td>3</td></tr>${template}</tbody></table>`).rows)
+      .toEqual([['Name', 'Qty'], ['apple', '3']])
+    expect(table(`<table><tr><td>a<thead><tr><td>x</td><td>y</td></tr></thead></td></tr>${template}<tr><td>b</td><td>c</td></tr></table>`).rows)
+      .toEqual([['x', 'y'], ['a', ''], ['b', 'c']])
+    // A table nested in a cell is still that cell's text.
+    expect(table('<table><tr><td>a<table><tr><td>n</td></tr><tr><td>m</td></tr></table></td><td>z</td></tr><tr><td>b</td><td>c</td></tr></table>').rows)
+      .toEqual([['a n m', 'z'], ['b', 'c']])
+  })
+
+  it('ends a table at a table written where its rows belong, as the browser\'s parser does', () => {
+    const r = (t: string) => `<tr><td>${t}</td><td>${t}.</td></tr>`
+    // Chromium: the outer table ends there, the inner one follows it, and the rows after it are text.
+    const html = `<p>pre</p><table>${r('a')}${r('a2')}<table>${r('n1')}${r('n2')}</table>${r('b')}</table><p>post</p>`
+    expect(htmlToTables(html).map((t) => t.rows)).toEqual([[['a', 'a.'], ['a2', 'a2.']], [['n1', 'n1.'], ['n2', 'n2.']]])
+    expect(htmlToMarkdown(html)).toBe('pre\n\n| a | a. |\n| --- | --- |\n| a2 | a2. |\n\n| n1 | n1. |\n| --- | --- |\n| n2 | n2. |\n\nbb.\n\npost')
+    const row = `<table><tr><th>Name</th><th>Price</th></tr><tr><td>A</td><td>1</td></tr><tr><table>${r('n1')}${r('n2')}</table></tr><tr><td>B</td><td>2</td></tr></table>`
+    expect(htmlToTables(row).map((t) => t.rows)).toEqual([[['Name', 'Price'], ['A', '1'], ['', '']], [['n1', 'n1.'], ['n2', 'n2.']]])
+  })
+
   it('finds each row\'s group without walking past its table, however deep the table is', () => {
     // ~900 KB: 30,000 rows in a <div> in a table 4,000 elements deep.
     const html = `${'<div>'.repeat(4000)}<table><div>${'<tr><td>a</td><td>b</td></tr>'.repeat(30_000)}</div></table>${'</div>'.repeat(4000)}`
