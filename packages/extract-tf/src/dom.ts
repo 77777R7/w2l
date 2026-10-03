@@ -26,13 +26,18 @@ const HTML_NS = 'http://www.w3.org/1999/xhtml'
 const GROUP_ENDS = new Set([htmlSpec.TAG_ID.TBODY, htmlSpec.TAG_ID.TFOOT, htmlSpec.TAG_ID.THEAD])
 /** parse5 8.0.1's InsertionMode.IN_ROW, which it does not export (the version is pinned). */
 const IN_ROW = 13
+/** parse5 8.0.1's IN_BODY and IN_TEMPLATE. */
+const IN_BODY = 6
+const IN_TEMPLATE = 17
+/** The head's tags Chromium reads in a template by the body's rules (it keeps <link>, <meta>, <script>, <style> and <template> to the head's). */
+const BODY_IN_TEMPLATE = new Set([htmlSpec.TAG_ID.TITLE, htmlSpec.TAG_ID.BASE, htmlSpec.TAG_ID.BASEFONT, htmlSpec.TAG_ID.BGSOUND, htmlSpec.TAG_ID.NOFRAMES])
 /** parse5 8.0.1's IN_TABLE_TEXT and IN_COLUMN_GROUP. */
 const IN_TABLE_TEXT = 9
 const IN_COLUMN_GROUP = 11
 /** parse5 8.0.1's IN_TABLE, IN_TABLE_BODY and IN_ROW: the modes that read a <form> by the table's rules. */
 const TABLE_MODES = new Set([8, 12, IN_ROW])
 /** parse5 8.0.1's IN_BODY, IN_TABLE, IN_CAPTION, IN_TABLE_BODY, IN_ROW and IN_CELL: the modes that read a </form> by the body's rules. */
-const BODY_RULE_MODES = new Set([6, 8, 10, 12, IN_ROW, 14])
+const BODY_RULE_MODES = new Set([IN_BODY, 8, 10, 12, IN_ROW, 14])
 
 /** Thrown when a page would hold more elements than its tags account for. */
 const TOO_MANY = new Error('element budget')
@@ -67,7 +72,7 @@ class StandardTokenizer extends Tokenizer {
 }
 
 /**
- * parse5 with seven changes:
+ * parse5 with eight changes:
  * - Its table scope stopped only at <table> and <html>, not at <template>, so
  *   a </table>, </tr> or row group end tag in a template that is in a table
  *   closed the cells, rows and table outside the template, and a <tr> or <td>
@@ -80,6 +85,11 @@ class StandardTokenizer extends Tokenizer {
  * - A </form> in a <template> closes its form as any other end tag closes its
  *   element, as in Chromium: not past a <p>, <div>, <li> or other special
  *   element still open in it. The standard closes those first.
+ * - In a template, a <title>, <base>, <basefont>, <bgsound> or <noframes>
+ *   switches the template to the body's rules, as any start tag but <link>,
+ *   <meta>, <script>, <style> and <template> does in Chromium, so rows, cells
+ *   and columns after it are dropped and their text kept. The standard reads
+ *   them by the head's rules, which leave the template's mode as it was.
  * - A fragment that starts with a <col> (its template's mode is then the
  *   column group's) loses a table's text still pending at its end, as in
  *   Chromium's template.innerHTML; the standard writes it. The formatting
@@ -102,6 +112,11 @@ class StandardParser extends Parser<DefaultTreeAdapterMap> {
   }
 
   override _startTagOutsideForeignContent(token: Token.TagToken): void {
+    if ((this.insertionMode as number) === IN_TEMPLATE && BODY_IN_TEMPLATE.has(token.tagID)) {
+      const body = IN_BODY as typeof this.insertionMode
+      this.tmplInsertionModeStack[0] = body
+      this.insertionMode = body
+    }
     // In table text or a column group parse5 first leaves the mode and sends the tag here again.
     if (token.tagID === htmlSpec.TAG_ID.FORM && TABLE_MODES.has(this.insertionMode as number) && this.openElements.tmplCount > 0) {
       this._insertElement(token, htmlSpec.NS.HTML)

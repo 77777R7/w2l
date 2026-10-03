@@ -292,6 +292,20 @@ describe('htmlToTables', () => {
     expect(fragment('<col><template>abc')).toBe('<col><template>abc</template>')
   })
 
+  it('reads a <title>, <base> or <noframes> in a template as Chromium does: what follows is read by the body\'s rules', () => {
+    const fragment = (html: string) => parse(html, true).document.body.innerHTML
+    // Chromium's template.innerHTML: the rows, cells and columns after them are dropped and their text kept.
+    expect(fragment('<title>t</title><tr><td>x</td></tr>')).toBe('<title>t</title>x')
+    expect(fragment('<base><col>')).toBe('<base>')
+    expect(fragment('<noframes></noframes><caption>x')).toBe('<noframes></noframes>x')
+    expect(parse('<!doctype html><html><body><template><title>t</title><tr><td>x</template></body></html>').document.body.innerHTML)
+      .toBe('<template><title>t</title>x</template>')
+    // After a <style>, <script>, <meta> or <link>, as the standard says, and after a row, they stay.
+    expect(fragment('<style>x</style><tr><td>y</td></tr>')).toBe('<style>x</style><tr><td>y</td></tr>')
+    expect(fragment('<tr><title>t</title><td>x</td></tr>')).toBe('<tr><td>x</td></tr><title>t</title>')
+    expect(htmlToMarkdown('<title>Rows</title><tr><td>a</td><td>b</td></tr>')).toBe('ab')
+  })
+
   it('ends a table at a table written where its rows belong, as the browser\'s parser does', () => {
     const r = (t: string) => `<tr><td>${t}</td><td>${t}.</td></tr>`
     // Chromium: the outer table ends there, the inner one follows it, and the rows after it are text.
