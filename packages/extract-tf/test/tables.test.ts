@@ -84,6 +84,29 @@ describe('htmlToTables', () => {
     expect(overlap!.rows).toEqual([['a', 'b'], ['c', 'c'], ['c', 'c'], ['x', 'y']])
   })
 
+  it('puts the first <thead> first and the first <tfoot> last, wherever they are written, as browsers lay them out', () => {
+    const r = (t: string) => `<tr><td>${t}</td><td>${t}.</td></tr>`
+    const rows = (html: string) => htmlToTables(html).map((table) => [table.headerRows, table.rows.map((row) => row[0])])
+    // The order Chromium lays each out in; a second <thead> or <tfoot> stays where it is written.
+    expect(rows(`<table><tbody>${r('b1')}</tbody><thead>${r('h1')}</thead><tbody>${r('b2')}</tbody></table>`)).toEqual([[1, ['h1', 'b1', 'b2']]])
+    expect(rows(`<table><tbody>${r('b1')}</tbody><thead>${r('h1')}</thead><thead>${r('h2')}</thead></table>`)).toEqual([[1, ['h1', 'b1', 'h2']]])
+    expect(rows(`<table><tfoot>${r('f1')}</tfoot><tbody>${r('b1')}</tbody><tfoot>${r('f2')}</tfoot><tbody>${r('b2')}</tbody></table>`)).toEqual([[0, ['b1', 'f2', 'b2', 'f1']]])
+    expect(rows(`<table><tfoot>${r('f1')}</tfoot><thead>${r('h1')}</thead>${r('r1')}</table>`)).toEqual([[1, ['h1', 'r1', 'f1']]])
+    // An empty first <thead> or <tfoot> is still the header or footer: a later one stays where it is.
+    expect(rows(`<table><thead></thead><tbody>${r('b1')}</tbody><thead>${r('h1')}</thead></table>`)).toEqual([[0, ['b1', 'h1']]])
+    expect(rows(`<table><tfoot></tfoot>${r('b0')}<tbody>${r('b1')}</tbody><tfoot>${r('f1')}</tfoot><tbody>${r('b2')}</tbody></table>`)).toEqual([[0, ['b0', 'b1', 'f1', 'b2']]])
+    // A browser's parser closes the cell at a <thead> written in it, so that empty <thead> is the first.
+    expect(rows(`<table><tbody>${r('b1')}<tr><td><thead></thead></td></tr></tbody><thead>${r('h1')}</thead></table>`)).toEqual([[0, ['b1', '', 'h1']]])
+    // A browser moves the <div> out of the <thead>; its row is still the header's.
+    expect(rows(`<table><tbody>${r('b1')}</tbody><thead><div>${r('h1')}</div></thead></table>`)).toEqual([[1, ['h1', 'b1']]])
+    // Each group moves whole: a rowspan of 0 still ends with its <tbody>.
+    expect(htmlToTables(`<table><tbody><tr><td rowspan="0">s</td><td>b1</td></tr><tr><td>b2</td></tr></tbody><thead><tr><th>H</th><th>I</th></tr></thead>${r('r1')}</table>`)[0]!.rows)
+      .toEqual([['H', 'I'], ['s', 'b1'], ['s', 'b2'], ['r1', 'r1.']])
+    // The rows directly in the table before and after the <thead> are two groups, as a browser wraps each run in a <tbody>.
+    expect(htmlToTables(`<table><tr><td>a</td><td rowspan="4">s</td></tr><thead>${r('h1')}</thead>${r('r1')}${r('r2')}</table>`)[0]!.rows)
+      .toEqual([['h1', 'h1.'], ['a', 's'], ['r1', 'r1.'], ['r2', 'r2.']])
+  })
+
   it('gives no budget back to the page for a negative span', () => {
     // Three tables of about 1,893,000 characters: the page's budget gives two of them.
     const near = `<table><tr><td colspan="1000">${'x'.repeat(1890)}</td></tr><tr><td>y</td></tr></table>`
@@ -93,6 +116,14 @@ describe('htmlToTables', () => {
       const tables = htmlToTables(negative + near.repeat(3))
       expect(tables.map((table) => table.omitted)).toEqual([undefined, undefined, undefined, 'too_large'])
     }
+  })
+
+  it('finds each row\'s group without walking past its table, however deep the table is', () => {
+    // ~900 KB: 30,000 rows in a <div> in a table 4,000 elements deep.
+    const html = `${'<div>'.repeat(4000)}<table><div>${'<tr><td>a</td><td>b</td></tr>'.repeat(30_000)}</div></table>${'</div>'.repeat(4000)}`
+    const started = Date.now()
+    expect(htmlToTables(html, { onlyMainContent: false })[0]!.rows).toHaveLength(30_000)
+    expect(Date.now() - started).toBeLessThan(5_000)
   })
 
   it('shares one budget among a page\'s tables, so many tables just under the cap cannot add up to a huge response', () => {

@@ -248,9 +248,68 @@ function expandGrid(rows: GridCell[][], maxPadding: number, fill: 'empty' | 'rep
   return out.map((r) => Array.from({ length: width }, (_, c) => r[c] ?? ''))
 }
 
-/** The table's own rows, not those of a table nested in one of its cells. */
+const ROW_GROUPS = new Set(['thead', 'tbody', 'tfoot'])
+
+/**
+ * The `<thead>`, `<tbody>` or `<tfoot>` of the table a row is in, or null for
+ * a row directly in the table. A browser moves anything else in between (a
+ * `<div>` around rows) out of the table; the row stays in its group. The walk
+ * stops at the table, so a deep page costs no more than the row's own depth.
+ */
+function rowGroup(tr: Element, table: Element): Element | null {
+  for (let el = tr.parentElement; el !== null && el !== table; el = el.parentElement) {
+    if (ROW_GROUPS.has(el.localName)) return el
+  }
+  return null
+}
+
+/**
+ * The table's first `<thead>` and first `<tfoot>` in tree order, empty ones
+ * included, as CSS takes the first of each as the header and footer. One
+ * written in a cell counts too, as the browser's parser closes the cell there;
+ * nested tables are not searched.
+ */
+function headAndFoot(table: Element): { head: Element | null; foot: Element | null } {
+  let head: Element | null = null
+  let foot: Element | null = null
+  const stack: Element[] = []
+  for (let child = table.lastElementChild; child !== null; child = child.previousElementSibling) stack.push(child)
+  for (let el = stack.pop(); el !== undefined && (head === null || foot === null); el = stack.pop()) {
+    if (el.localName === 'thead') head ??= el
+    else if (el.localName === 'tfoot') foot ??= el
+    if (el.localName === 'table') continue
+    // One push per child, not push(...children): a <div> of 30,000 rows would overflow the call stack.
+    for (let child = el.lastElementChild; child !== null; child = child.previousElementSibling) stack.push(child)
+  }
+  return { head, foot }
+}
+
+/**
+ * The table's own rows, not those of a table nested in one of its cells, by
+ * row group in the order browsers lay them out: the first `<thead>` first and
+ * the first `<tfoot>` last, wherever they are written. A later `<thead>` or
+ * `<tfoot>` stays where it is, as CSS lays out only the first as the header
+ * or footer. Each run of rows directly in the table is a group of its own,
+ * as the browser's parser wraps each in a `<tbody>`.
+ */
+function ownRowGroups(table: Element): Element[][] {
+  const runs: { group: Element | null; rows: Element[] }[] = []
+  for (const tr of Array.from(table.querySelectorAll('tr'))) {
+    if (tr.closest('table') !== table) continue
+    const group = rowGroup(tr, table)
+    const last = runs[runs.length - 1]
+    if (last !== undefined && last.group === group) last.rows.push(tr)
+    else runs.push({ group, rows: [tr] })
+  }
+  const { head, foot } = headAndFoot(table)
+  const headRun = head === null ? undefined : runs.find((run) => run.group === head)
+  const footRun = foot === null ? undefined : runs.find((run) => run.group === foot)
+  const body = runs.filter((run) => run !== headRun && run !== footRun)
+  return [...(headRun ? [headRun] : []), ...body, ...(footRun ? [footRun] : [])].map((run) => run.rows)
+}
+
 function ownRows(table: Element): Element[] {
-  return Array.from(table.querySelectorAll('tr')).filter((tr) => tr.closest('table') === table)
+  return ownRowGroups(table).flat()
 }
 
 /** A row's own cells, not those of a table nested in one of them. */
@@ -280,12 +339,10 @@ function nonNegativeInteger(attr: string | null): number | null {
  */
 function tableCells(table: Element, cell: (el: Element) => string): { caption: string | null; rows: GridCell[][] } {
   const captionEl = table.querySelector(':scope > caption')
-  const trs = ownRows(table)
+  const groups = ownRowGroups(table)
+  const trs = groups.flat()
   // Row → how many rows from it to the end of its row group.
-  const groupLeft: number[] = []
-  for (let r = trs.length - 1; r >= 0; r--) {
-    groupLeft[r] = r + 1 < trs.length && trs[r + 1]!.parentElement === trs[r]!.parentElement ? groupLeft[r + 1]! + 1 : 1
-  }
+  const groupLeft = groups.flatMap((group) => group.map((_, i) => group.length - i))
   const rows = trs.map((tr, r) => ownCells(tr).map((el) => {
     const rowspan = nonNegativeInteger(el.getAttribute('rowspan')) ?? 1
     return {
@@ -357,7 +414,7 @@ function tableData(table: Element, ctx: Context, tableIndex: number): ExtractedT
   let headerRows = 0
   for (const tr of ownRows(table)) {
     const cells = ownCells(tr)
-    if (cells.length === 0 || !(tr.parentElement?.localName === 'thead' || cells.every((el) => el.localName === 'th'))) break
+    if (cells.length === 0 || !(rowGroup(tr, table)?.localName === 'thead' || cells.every((el) => el.localName === 'th'))) break
     headerRows++
   }
   return { tableIndex, caption: caption === '' ? null : caption, headerRows, rows: grid }

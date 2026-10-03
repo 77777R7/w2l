@@ -118,6 +118,12 @@ describe('htmlToMarkdown', () => {
     expect(past).toBe('| a | b |\n| --- | --- |\n| c |  |\n| x | y |')
   })
 
+  it('writes the first <thead> as the header and the first <tfoot> last, wherever they are written', () => {
+    const md = htmlToMarkdown('<table><tfoot><tr><td>Total</td><td>9</td></tr></tfoot><tbody><tr><td>a</td><td>4</td></tr></tbody>' +
+      '<thead><tr><th>Item</th><th>Count</th></tr></thead><tbody><tr><td>b</td><td>5</td></tr></tbody></table>')
+    expect(md).toBe('| Item | Count |\n| --- | --- |\n| a | 4 |\n| b | 5 |\n| Total | 9 |')
+  })
+
   it('counts rowspans stacked over the same columns without visiting every one in every row', () => {
     // ~2 MB: 300 rowspans a thousand columns wide stacked over 100 empty rows, 90 times.
     let stacked = '<table>'
