@@ -333,6 +333,10 @@ describe('htmlToMarkdown', () => {
     expect(body('<table>x<!--c--> <tr><td>a</td></tr></table>')).toBe('x<table><!--c--> <tr><td>a</td></tr></table>')
     expect(body('<table>x<!--c-->y<tr><td>a</td></tr><!--d-->z</table>')).toBe('xyz<table><!--c--><tr><td>a</td></tr><!--d--></table>')
     expect(body('<table><div>x<!--c-->y</div><tr><td>a</td></tr></table>')).toBe('<div>x<!--c-->y</div><table><tr><td>a</td></tr></table>')
+    // So do a <![CDATA[ ]]> (a comment in HTML), and a <!x>, <?x> or <!doctype> (which linkedom leaves out): the white space after
+    // them stays in the table.
+    expect(body('<table><tr><td>a</td></tr>x<![CDATA[c]]> <tr><td>b</td></tr></table>')).toBe('x<table><tr><td>a</td></tr><!--[CDATA[c]]--> <tr><td>b</td></tr></table>')
+    expect(body('<table><tr><td>a</td></tr>x<!d> <?p> <!doctype html> <tr><td>b</td></tr></table>')).toBe('x<table><tr><td>a</td></tr>   <tr><td>b</td></tr></table>')
     // A moved svg's table tags are closed by their own names.
     expect(body('<table><svg><td></tr> x</table>')).toBe('<svg><td> x</td></svg><table></table>')
     // htmlparser2 holds one of two such <td>s open, and the svg's end tag closes it: an end tag for each closed the outer cell.

@@ -1062,6 +1062,14 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
     } else drop()
   }
 
+  /**
+   * A comment where no moved element is open a browser keeps in the table: it ends the run. So do a <![CDATA[ ]]> (a comment
+   * in HTML) and a <!x>, <?x> or <!doctype> (a comment or an ignored token to a browser, which ends the text a browser moves).
+   */
+  const comment = (start: number): void => {
+    afterText = false
+    if (openRun !== null && stack.length - 1 === last(tablePos)) closeRun(html.lastIndexOf('<', start - 1))
+  }
   const tokenizer = new Tokenizer(
     { decodeEntities: true },
     {
@@ -1088,15 +1096,11 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
       onattribentity() {},
       onattribend() {},
       onattribname() {},
-      oncdata() {},
-      oncomment(start) {
-        afterText = false
-        // A comment where no moved element is open a browser keeps in the table: it ends the run.
-        if (openRun !== null && stack.length - 1 === last(tablePos)) closeRun(html.lastIndexOf('<', start - 1))
-      },
-      ondeclaration() {},
+      oncdata: comment,
+      oncomment: comment,
+      ondeclaration: comment,
       onend() {},
-      onprocessinginstruction() {},
+      onprocessinginstruction: comment,
       ontext(start, endIndex) {
         // White space alone after a tag, where no moved element is open, a browser keeps in the table: it ends the run.
         if (!afterText && openRun !== null && /^[\t\n\f\r ]*$/.test(html.slice(start, endIndex)) && stack.length - 1 === last(tablePos)) closeRun(start)
