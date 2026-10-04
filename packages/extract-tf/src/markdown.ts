@@ -191,40 +191,53 @@ type GridCell = { value: string; colspan: number; rowspan: number }
  */
 function expandGrid(rows: GridCell[][], maxPadding: number, fill: 'empty' | 'repeat' = 'empty'): string[][] | null {
   const out: string[][] = []
-  // Column → the rowspans still covering it, oldest first.
-  const vertical = new Map<number, { left: number; value: string }[]>()
+  // Column → the rowspans started over it, newest last, each covering the rows before its `end`.
+  const vertical = new Map<number, { end: number; value: string }[]>()
   let slots = 0
   let cells = 0
-  for (const htmlRow of rows) {
+  for (let y = 0; y < rows.length; y++) {
     const row: string[] = []
     let cursor = 0
-    const fillOccupied = () => {
-      for (let spans = vertical.get(cursor); spans !== undefined; spans = vertical.get(cursor)) {
-        row[cursor] = fill === 'repeat' ? spans[0]!.value : ''
-        if (--spans[0]!.left === 0) spans.shift()
-        if (spans.length === 0) vertical.delete(cursor)
-        cursor++
-      }
+    // The rowspans still covering `col` in this row, newest last. Ended spans
+    // are popped from the top as they are met, so a row's work is one look per
+    // column it covers plus the spans it pops, never every span still pending.
+    const live = (col: number) => {
+      const spans = vertical.get(col)
+      if (spans === undefined) return undefined
+      while (spans.length > 0 && spans[spans.length - 1]!.end <= y) spans.pop()
+      if (spans.length > 0) return spans
+      vertical.delete(col)
+      return undefined
     }
-    for (const cell of htmlRow) {
+    // A slot two spans cover (a table model error) holds the later cell's value.
+    const covered = (spans: { value: string }[]) => (fill === 'repeat' ? spans[spans.length - 1]!.value : '')
+    const fillOccupied = () => {
+      for (let spans = live(cursor); spans !== undefined; spans = live(cursor)) row[cursor++] = covered(spans)
+    }
+    for (const cell of rows[y]!) {
       fillOccupied()
       row[cursor] = cell.value
-      const cs = Math.max(1, cell.colspan)
-      const rs = Math.max(1, cell.rowspan)
+      const cs = cell.colspan
+      const rs = cell.rowspan
       if (cs > 1) for (let x = 1; x < cs; x++) row[++cursor] = fill === 'repeat' ? cell.value : ''
+      // Its columns are behind the cursor now, so the span is not met again in this row.
       if (rs > 1) {
-        for (let w = 0; w < cs; w++) {
-          const col = cursor - cs + 1 + w
+        for (let col = cursor - cs + 1; col <= cursor; col++) {
           const spans = vertical.get(col)
-          if (spans) spans.push({ left: rs - 1, value: cell.value })
-          else vertical.set(col, [{ left: rs - 1, value: cell.value }])
+          if (spans) spans.push({ end: y + rs, value: cell.value })
+          else vertical.set(col, [{ end: y + rs, value: cell.value }])
         }
       }
       cursor++
       if (slots + cursor - ++cells > maxPadding) return null
     }
-    fillOccupied()
-    slots += cursor
+    // A rowspan covers every row it spans, as browsers do, also where the
+    // row's cells end before its column (the gap between is padding).
+    for (const col of vertical.keys()) {
+      const spans = live(col)
+      if (spans !== undefined && col >= cursor) row[col] = covered(spans)
+    }
+    slots += row.length
     if (slots - cells > maxPadding) return null
     out.push(row)
   }
@@ -235,24 +248,116 @@ function expandGrid(rows: GridCell[][], maxPadding: number, fill: 'empty' | 'rep
   return out.map((r) => Array.from({ length: width }, (_, c) => r[c] ?? ''))
 }
 
-/** The table's own rows, not those of a table nested in one of its cells. */
+const ROW_GROUPS = new Set(['thead', 'tbody', 'tfoot'])
+
+/**
+ * The `<thead>`, `<tbody>` or `<tfoot>` of the table a row is in, or null for
+ * a row directly in the table (a fragment's). The walk stops at the table, so
+ * a deep page costs no more than the row's own depth.
+ */
+function rowGroup(tr: Element, table: Element): Element | null {
+  for (let el = tr.parentElement; el !== null && el !== table; el = el.parentElement) {
+    if (ROW_GROUPS.has(el.localName)) return el
+  }
+  return null
+}
+
+/**
+ * The table's first `<thead>` and first `<tfoot>` in tree order, empty ones
+ * included, as CSS takes the first of each as the header and footer. One
+ * written in a cell counts too, as the browser's parser closes the cell there;
+ * nested tables are not searched.
+ */
+function headAndFoot(table: Element): { head: Element | null; foot: Element | null } {
+  let head: Element | null = null
+  let foot: Element | null = null
+  const stack: Element[] = []
+  for (let child = table.lastElementChild; child !== null; child = child.previousElementSibling) stack.push(child)
+  for (let el = stack.pop(); el !== undefined && (head === null || foot === null); el = stack.pop()) {
+    if (el.localName === 'thead') head ??= el
+    else if (el.localName === 'tfoot') foot ??= el
+    if (el.localName === 'table') continue
+    // One push per child, not push(...children): a <div> of 30,000 rows would overflow the call stack.
+    for (let child = el.lastElementChild; child !== null; child = child.previousElementSibling) stack.push(child)
+  }
+  return { head, foot }
+}
+
+/**
+ * The table's own rows, not those of a table nested in one of its cells, by
+ * row group in the order browsers lay them out: the first `<thead>` first and
+ * the first `<tfoot>` last, wherever they are written. A later `<thead>` or
+ * `<tfoot>` stays where it is, as CSS lays out only the first as the header
+ * or footer. Each run of rows directly in the table is a group of its own,
+ * as the browser's parser wraps each in a `<tbody>`.
+ */
+function ownRowGroups(table: Element): Element[][] {
+  const runs: { group: Element | null; rows: Element[] }[] = []
+  for (const tr of Array.from(table.querySelectorAll('tr'))) {
+    if (tr.closest('table') !== table || inForeign(tr, table)) continue
+    const group = rowGroup(tr, table)
+    const last = runs[runs.length - 1]
+    if (last !== undefined && last.group === group) last.rows.push(tr)
+    else runs.push({ group, rows: [tr] })
+  }
+  const { head, foot } = headAndFoot(table)
+  const headRun = head === null ? undefined : runs.find((run) => run.group === head)
+  const footRun = foot === null ? undefined : runs.find((run) => run.group === foot)
+  const body = runs.filter((run) => run !== headRun && run !== footRun)
+  return [...(headRun ? [headRun] : []), ...body, ...(footRun ? [footRun] : [])].map((run) => run.rows)
+}
+
 function ownRows(table: Element): Element[] {
-  return Array.from(table.querySelectorAll('tr')).filter((tr) => tr.closest('table') === table)
+  return ownRowGroups(table).flat()
 }
 
 /** A row's own cells, not those of a table nested in one of them. */
 function ownCells(tr: Element): Element[] {
-  return Array.from(tr.querySelectorAll('th,td')).filter((cell) => cell.closest('tr') === tr)
+  return Array.from(tr.querySelectorAll('th,td')).filter((cell) => cell.closest('tr') === tr && !inForeign(cell, tr))
 }
 
-/** A table's caption and cells as `cell` writes each one; a table nested in a cell is that cell's text. */
+/** Whether an svg or math element lies between `el` and its ancestor `top`: its <tr> or <td> is not a row or cell. */
+function inForeign(el: Element, top: Element): boolean {
+  for (let up = el.parentElement; up !== null && up !== top; up = up.parentElement) {
+    if (up.localName === 'svg' || up.localName === 'math') return true
+  }
+  return false
+}
+
+/**
+ * An attribute read by HTML's rules for parsing non-negative integers:
+ * leading whitespace, an optional sign, then the leading digits (`1.5` is 1,
+ * `2abc` is 2); null when absent, when no digit follows, or when negative.
+ */
+function nonNegativeInteger(attr: string | null): number | null {
+  const m = attr === null ? null : /^[\t\n\f\r ]*([-+]?)([0-9]+)/.exec(attr)
+  if (m === null) return null
+  const n = Number(m[2])
+  return m[1] === '-' && n !== 0 ? null : n
+}
+
+/**
+ * A table's caption and cells as `cell` writes each one; a table nested in a
+ * cell is that cell's text. Spans are integers of at least 1, read as browsers
+ * read them: a colspan that is invalid or 0 is 1, an invalid rowspan is 1, a
+ * rowspan of 0 covers the rest of its row group (its `<thead>`, `<tbody>` or
+ * `<tfoot>`, or the run of rows directly in the table), and no rowspan goes
+ * past the end of its row group.
+ */
 function tableCells(table: Element, cell: (el: Element) => string): { caption: string | null; rows: GridCell[][] } {
   const captionEl = table.querySelector(':scope > caption')
-  const rows = ownRows(table).map((tr) => ownCells(tr).map((el) => ({
-    value: cell(el),
-    colspan: Math.min(Number(el.getAttribute('colspan') ?? 1) || 1, MAX_COLSPAN),
-    rowspan: Math.min(Number(el.getAttribute('rowspan') ?? 1) || 1, MAX_ROWSPAN),
-  })))
+  const groups = ownRowGroups(table)
+  const trs = groups.flat()
+  // Row → how many rows from it to the end of its row group.
+  const groupLeft = groups.flatMap((group) => group.map((_, i) => group.length - i))
+  const rows = trs.map((tr, r) => ownCells(tr).map((el) => {
+    const rowspan = nonNegativeInteger(el.getAttribute('rowspan')) ?? 1
+    return {
+      value: cell(el),
+      colspan: Math.min(nonNegativeInteger(el.getAttribute('colspan')) || 1, MAX_COLSPAN),
+      rowspan: Math.min(rowspan === 0 ? groupLeft[r]! : rowspan, groupLeft[r]!, MAX_ROWSPAN),
+    }
+  }))
   return { caption: captionEl ? cell(captionEl) : null, rows }
 }
 
@@ -316,7 +421,7 @@ function tableData(table: Element, ctx: Context, tableIndex: number): ExtractedT
   let headerRows = 0
   for (const tr of ownRows(table)) {
     const cells = ownCells(tr)
-    if (cells.length === 0 || !(tr.parentElement?.localName === 'thead' || cells.every((el) => el.localName === 'th'))) break
+    if (cells.length === 0 || !(rowGroup(tr, table)?.localName === 'thead' || cells.every((el) => el.localName === 'th'))) break
     headerRows++
   }
   return { tableIndex, caption: caption === '' ? null : caption, headerRows, rows: grid }
@@ -919,7 +1024,8 @@ function startsWithHead(html: string): boolean {
 function convert(html: string, options: MarkdownOptions, tables?: ExtractedTable[]): string {
   if (html.trim().length === 0) return ''
   const whole = /<html[\s>]|<!doctype/i.test(html) || startsWithHead(html)
-  const doc = parse(whole ? html : `<!doctype html><html><body>${html}</body></html>`)
+  // A fragment is read as a <template>'s content, so its rows and cells stay: it may be one row of a layout table.
+  const doc = parse(html, !whole)
   const document = doc.document
   // A whole document may carry its own <base href>; a fragment such as
   // mainHtml is resolved against the base the caller passes.

@@ -99,6 +99,90 @@ describe('htmlToMarkdown', () => {
     expect(tall).toBe('| a | b |\n| --- | --- |\n|  | c |\n|  | d |')
   })
 
+  it('reads colspan and rowspan as browsers do: leading digits, 1 when there are none, a rowspan of 0 to the end of its row group', () => {
+    const cols = htmlToMarkdown('<table><tr><td colspan="2.9">a</td><td colspan=" +2abc">b</td><td colspan="0">c</td><td colspan="-3">d</td></tr><tr><td>1</td></tr></table>')
+    expect(cols).toBe('| a |  | b |  | c | d |\n| --- | --- | --- | --- | --- | --- |\n| 1 |  |  |  |  |  |')
+    // A fractional rowspan ended after its whole rows instead of covering its column in every later row.
+    const rows = htmlToMarkdown('<table><tr><td rowspan="1.5">a</td><td rowspan="2.5">b</td><td rowspan="-2">c</td></tr><tr><td>d</td></tr><tr><td>e</td><td>f</td><td>g</td></tr></table>')
+    expect(rows).toBe('| a | b | c |\n| --- | --- | --- |\n| d |  |  |\n| e | f | g |')
+    const zero = htmlToMarkdown('<table><thead><tr><th rowspan="0">h</th><th>a</th></tr><tr><th>b</th></tr></thead><tbody><tr><td>1</td><td>2</td></tr></tbody></table>')
+    expect(zero).toBe('| h | a |\n| --- | --- |\n|  | b |\n| 1 | 2 |')
+  })
+
+  it('covers every row a rowspan spans: rows too short to reach its column, and not past its row group', () => {
+    const short = htmlToMarkdown('<table><tr><td>a</td><td>a2</td><td rowspan="3">b</td></tr><tr><td>c</td></tr><tr><td>d</td><td>e</td><td>f</td></tr><tr><td>g</td><td>h</td><td>i</td></tr></table>')
+    expect(short).toBe('| a | a2 | b |  |\n| --- | --- | --- | --- |\n| c |  |  |  |\n| d | e |  | f |\n| g | h | i |  |')
+    const empty = htmlToMarkdown('<table><tbody><tr><td>a</td><td rowspan="2">b</td></tr><tr></tr></tbody><tbody><tr><td>x</td><td>y</td></tr></tbody></table>')
+    expect(empty).toBe('| a | b |\n| --- | --- |\n|  |  |\n| x | y |')
+    const past = htmlToMarkdown('<table><tbody><tr><td>a</td><td rowspan="5">b</td></tr><tr><td>c</td></tr></tbody><tbody><tr><td>x</td><td>y</td></tr></tbody></table>')
+    expect(past).toBe('| a | b |\n| --- | --- |\n| c |  |\n| x | y |')
+  })
+
+  it('writes the first <thead> as the header and the first <tfoot> last, wherever they are written', () => {
+    const md = htmlToMarkdown('<table><tfoot><tr><td>Total</td><td>9</td></tr></tfoot><tbody><tr><td>a</td><td>4</td></tr></tbody>' +
+      '<thead><tr><th>Item</th><th>Count</th></tr></thead><tbody><tr><td>b</td><td>5</td></tr></tbody></table>')
+    expect(md).toBe('| Item | Count |\n| --- | --- |\n| a | 4 |\n| b | 5 |\n| Total | 9 |')
+  })
+
+  it('closes a cell at a row group written in it, the text after it before the table, as the browser\'s parser does', () => {
+    expect(htmlToMarkdown('<table><tr><td>a<thead><tr><td>x</td><td>y</td></tr></thead>tail</td></tr><tr><td>b</td><td>c</td></tr></table>'))
+      .toBe('tail\n\n| x | y |\n| --- | --- |\n| a |  |\n| b | c |')
+    expect(htmlToMarkdown('<table><tr><td>a<th>b</th>c</td></tr><tr><td>d</td><td>e</td></tr></table>')).toBe('c\n\n| a | b |\n| --- | --- |\n| d | e |')
+  })
+
+  it('parses a page as a browser does: misnested formatting reopened, no <html> or <body> needed, content after </body> kept', () => {
+    const page = (body: string) => `<!doctype html><html><body>${body}</body></html>`
+    // Each from the tree Chromium builds from the same HTML.
+    expect(htmlToMarkdown(page('<b>1<p>2</b>3</p>'))).toBe('**1**\n\n**2**3')
+    expect(htmlToMarkdown(page('<p><b>bold</p><p>more</p>'))).toBe('**bold**\n\n**more**')
+    expect(htmlToMarkdown(page('<a href="/x">one<div>two</a>three</div>'), { baseUrl: 'https://x.test/' })).toBe('[one](https://x.test/x)\n\n[two](https://x.test/x)three')
+    expect(htmlToMarkdown(page('<table><tr><td>a</td><td>b</td></tr><b><tr><td>c</td><td>d</td></tr></table><p>after</p>'))).toBe('| a | b |\n| --- | --- |\n| c | d |\n\n**after**')
+    expect(htmlToMarkdown('<!doctype html><table><tr><td>a</td><td>b</td></tr><tr><td>c</td><td>d</td></tr></table>')).toBe('| a | b |\n| --- | --- |\n| c | d |')
+    expect(htmlToMarkdown('<!doctype html><html><body><p>a</p></body><p>b</p></html><p>c</p>')).toBe('a\n\nb\n\nc')
+  })
+
+  it('bounds what a page of reopened formatting elements costs', () => {
+    // 56 KB: 3,000 differently attributed <b> closed by a </div>, then 3,000 paragraphs. The standard reopens
+    // every <b> in each paragraph (9 million elements, out of memory); past its budget the page is parsed by linkedom.
+    let html = '<!doctype html><html><body><div>'
+    for (let i = 0; i < 3000; i++) html += `<b id=${i}>`
+    html += `</div>${'<p>x</p>'.repeat(3000)}`
+    const started = Date.now()
+    expect(htmlToMarkdown(html).split('\n\n')).toHaveLength(3000)
+    expect(Date.now() - started).toBeLessThan(5_000)
+    // One <b> of 3,000 attributes reopened in 10,000 paragraphs (98 KB): each copy would carry all of them.
+    const many = `<!doctype html><html><body><div><b${Array.from({ length: 3000 }, (_, i) => ` a${i}`).join('')}></div>${'<p>x</p>'.repeat(10_000)}`
+    const manyStarted = Date.now()
+    expect(htmlToMarkdown(many).split('\n\n')).toHaveLength(10_000)
+    expect(Date.now() - manyStarted).toBeLessThan(5_000)
+    // parse5 and linkedom check each attribute of a tag against those before it: a tag of 100,000 took half a minute.
+    const wide = `<!doctype html><html><body><p${Array.from({ length: 100_000 }, (_, i) => ` a${i}`).join('')}>x</p><p>y</p>`
+    const wideStarted = Date.now()
+    expect(htmlToMarkdown(wide)).toBe('x\n\ny')
+    expect(Date.now() - wideStarted).toBeLessThan(5_000)
+    // Each later <body> start tag adds its attributes to the body: 200 tags of 255 would make 51,000 on one element.
+    const bodies = `<!doctype html><html><body><p>text</p>${Array.from({ length: 200 }, (_, t) => `<body${Array.from({ length: 255 }, (_, i) => ` a${t}_${i}`).join('')}>`).join('')}<p>end</p>`
+    const bodiesStarted = Date.now()
+    expect(htmlToMarkdown(bodies)).toBe('text\n\nend')
+    expect(Date.now() - bodiesStarted).toBeLessThan(5_000)
+    // parse5 moved a node's children one by one, each found by a linear search: 80,000 lines under a misnested <b>.
+    const moved = `<!doctype html><html><body><b><div>${'x<br>'.repeat(80_000)}</b></div>`
+    const movedStarted = Date.now()
+    expect(htmlToMarkdown(moved).length).toBeGreaterThan(80_000)
+    expect(Date.now() - movedStarted).toBeLessThan(5_000)
+  })
+
+  it('counts rowspans stacked over the same columns without visiting every one in every row', () => {
+    // ~2 MB: 300 rowspans a thousand columns wide stacked over 100 empty rows, 90 times.
+    let stacked = '<table>'
+    for (let i = 0; i < 300; i++) stacked += `<tr>${i < 299 ? `<td colspan="${299 - i}"></td>` : ''}<td colspan="1000" rowspan="60000"></td></tr>`
+    stacked += `${'<tr></tr>'.repeat(100)}</table>`
+    const started = Date.now()
+    expect(htmlToMarkdown(stacked.repeat(90)).length).toBeLessThan(2 * stacked.length * 90)
+    // About 1 s here and 5 s on a loaded CI runner; visiting every rowspan's columns in every row is some 10^10 steps.
+    expect(Date.now() - started).toBeLessThan(20_000)
+  })
+
   it('writes a table whose padded grid would be too large as its rows of cells, still one GFM table', () => {
     // ~380 KB of HTML: one wide empty row over 20,000 one-cell rows pads to 60 million characters.
     const html = `<table><tr><td colspan="1000"></td></tr>${'<tr><td>y</td></tr>'.repeat(20_000)}</table><table><tr><td>k</td><td>v</td></tr><tr><td>1</td><td>2</td></tr></table>`

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { extractTf, htmlToMarkdown, wholePageBody, withoutLayoutMarkers } from '../src/index.js'
 
 const ARTICLE = `<!doctype html><html><head><title>Kiln temperatures and glaze vitrification</title></head>
@@ -407,7 +407,8 @@ describe('extractTf selection and whole page', () => {
 
   it('reduces the page to the included selectors, in document order, and returns that selection whole', () => {
     const out = extractTf.extract(PAGE, { includeSelectors: ['table', 'html.js h1'], pruneSelectors: ['#legend', 'td .ref'] })
-    expect(out.mainHtml).toBe('<body><h1>Kiln archive</h1><table id="readings"><tr><th>Station</th><th>Flow</th></tr><tr><td>Meridian</td><td>41 </td></tr></table></body>')
+    // The <tbody> a browser opens for rows written directly in the table.
+    expect(out.mainHtml).toBe('<body><h1>Kiln archive</h1><table id="readings"><tbody><tr><th>Station</th><th>Flow</th></tr><tr><td>Meridian</td><td>41 </td></tr></tbody></table></body>')
     expect(htmlToMarkdown(out.mainHtml)).toBe('# Kiln archive\n\n| Station | Flow |\n| --- | --- |\n| Meridian | 41 |')
     // Exclusions are matched against the whole page too: the footer's paragraph is named by where it was,
     // and an excluded element takes the named elements inside it along.
@@ -552,5 +553,53 @@ describe('extractTf selection and whole page', () => {
     const md = htmlToMarkdown(extractTf.extract(html).mainHtml)
     expect(md).toContain('The kiln reached 1240 degrees')
     expect(md).toContain('Sediment cores from the estuary')
+  })
+})
+
+describe('parse', () => {
+  it('reads a <head> inside the body as a browser does also on a page past the parse5 budget, read by linkedom', async () => {
+    const { htmlToMarkdown: markdown } = await import('../src/index.js')
+    // One tag of 300 attributes sends the page to linkedom's parser.
+    const wide = `<div ${Array.from({ length: 300 }, (_, k) => `data-k${k}="v"`).join(' ')}>config</div>`
+    expect(markdown(`<head/><p>Some text</p>${wide}`)).toBe('Some text\n\nconfig')
+    expect(markdown(`<head><title>T</title><p>Para one.</p>${wide}`)).toBe('Para one.\n\nconfig')
+    expect(markdown(`<!doctype html><head><title>T</title><p>Para one.</p>${wide}`)).toBe('Para one.\n\nconfig')
+    expect(markdown(`<!doctype html><html><body><article><p>a<head/>b</p><p>c</p></article>${wide}</body></html>`)).toBe('ab\n\nc\n\nconfig')
+  })
+
+  it('copies a page parsed again from the tree it built, each document its own', async () => {
+    const { parse } = await import('../src/dom.js')
+    const page = '<!doctype html><html><body><b>1<p>2</b>3</p><table><tr><td>a</td></tr></table></body></html>'
+    const first = parse(page).document
+    first.body.innerHTML = ''
+    const second = parse(page).document
+    expect(second.body.innerHTML).toBe('<b>1</b><p><b>2</b>3</p><table><tbody><tr><td>a</td></tr></tbody></table>')
+    expect(first.body.innerHTML).toBe('')
+  })
+
+  it('builds each of two pages read by turns once (the rendered page and the body as received)', async () => {
+    const { parse } = await import('../src/dom.js')
+    const { Parser } = await import('parse5')
+    const built = vi.spyOn(Parser, 'parse')
+    try {
+      const rendered = '<!doctype html><html><body><main><p>rendered</p></main></body></html>'
+      const received = '<!doctype html><html><body><main><p>received</p></main></body></html>'
+      for (let i = 0; i < 3; i++) {
+        expect(parse(rendered).document.body.innerHTML).toBe('<main><p>rendered</p></main>')
+        expect(parse(received).document.body.innerHTML).toBe('<main><p>received</p></main>')
+      }
+      expect(built).toHaveBeenCalledTimes(2)
+    } finally {
+      built.mockRestore()
+    }
+  })
+
+  it('reads a page the same way every time, also when its <noscript> goes past the budget', async () => {
+    const { htmlToMarkdown } = await import('../src/index.js')
+    let noscript = ''
+    for (let i = 0; i < 200; i++) noscript += `<b a=${i}>`
+    for (let i = 0; i < 200; i++) noscript += `<p>x${i}`
+    const page = `<!doctype html><html><body><div><b>1<p>2</b>3</p></div>${'<i>a</i>'.repeat(46)}<noscript>${noscript}</noscript></body></html>`
+    expect(htmlToMarkdown(page)).toBe(htmlToMarkdown(page))
   })
 })

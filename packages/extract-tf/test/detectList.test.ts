@@ -25,7 +25,9 @@ function expectBounded(html: string, maxParses = MAX_PARSES): ReturnType<typeof 
     }
     return best
   }
-  const parsed = Math.max(time(() => parse(html).close()), 20)
+  // A parse of a string not parsed before: dom.ts keeps the last pages' trees, so parsing the same string again only copies one.
+  let fresh = 0
+  const parsed = Math.max(time(() => parse(`${html}<!--${fresh++}-->`).close()), 20)
   let found: ReturnType<typeof detectLists> = []
   const detected = time(() => { found = detectLists(html) })
   expect(detected / parsed).toBeLessThan(maxParses)
@@ -68,7 +70,8 @@ describe('detectLists', () => {
     const row = (n: number, state: string) => `<tr class="team"><td class="name">Team ${n}</td><td class="wins">${n * 3}</td><td class="pct ${state}">0.${n}</td></tr>`
     const html = `<table class="table"><tr><th>Name</th><th>Wins</th><th>%</th></tr>${[1, 2, 3, 4, 5].map((n) => row(n, n % 2 === 0 ? 'text-success' : 'text-danger')).join('')}</table>`
     const [best] = detectLists(html)
-    expect(best).toMatchObject({ itemSelector: 'table.table > tr.team', count: 5 })
+    // The rows are in the <tbody> a browser opens for them, as the page is parsed.
+    expect(best).toMatchObject({ itemSelector: 'tbody > tr.team', count: 5 })
     expect(best!.fields).toEqual([{ name: 'name', selector: 'td.name' }, { name: 'wins', selector: 'td.wins' }, { name: 'pct', selector: 'td.pct' }])
   })
 
