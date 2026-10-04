@@ -266,6 +266,21 @@ describe('htmlToTables', () => {
     // In the document a copied option with a selected attribute is selected and copied in turn, which takes it out; a list box then selects none.
     const cascade = `<select size=3>${shown}<option selected>A<selectedcontent><option selected></option></selectedcontent></option></select>`
     expect(body(cascade)).toBe(`<select size="3">${shown}<option selected>A<selectedcontent><option selected></option></selectedcontent></option></select>`)
+    // Every copied option is read in turn, also one the copy of an earlier one already took out, as Chromium handles each node of an insertion.
+    expect(body(`<select size=3>${shown}<option selected>A<span><option selected>B${shown}</option><option selected>Q</option></span></option></select>`))
+      .toBe(`<select size="3"><button><selectedcontent>Q</selectedcontent></button><option selected>A<span><option selected>B${shown}</option><option selected>Q</option></span></option></select>`)
+    expect(body('<select size=3><selectedcontent></selectedcontent><option selected><span><option selected><selectedcontent></selectedcontent><option selected>'))
+      .toBe('<select size="3"><selectedcontent></selectedcontent><option selected><span><option selected><selectedcontent></selectedcontent></option><option selected></option></span></option></select>')
+    // But such an option is then not the select's: one without a selected attribute is never selected by default, and a later <selectedcontent> takes none.
+    expect(body(`<select>${shown}<option selected disabled>A<span><option selected>B</option><option>Q</option></span></option></select>`))
+      .toBe(`<select><button><selectedcontent>B</selectedcontent></button><option selected disabled>A<span><option selected>B</option><option>Q</option></span></option></select>`)
+    // While it is copied the select has no selection of its own: an option its copy holds is selected by default if it is the first enabled one left.
+    expect(body(`<select>${shown}<option selected disabled>A<span><option selected>R</option><option selected>Q<span><option>R</option></span></option></span></option>${shown}</select>`))
+      .toBe(`<select><button><selectedcontent>R</selectedcontent></button><option selected disabled>A<span><option selected>R</option><option selected>Q<span><option>R</option></span></option></span></option>${shown}</select>`)
+    expect(body(`<select>${shown}<option>Z</option><option selected>A<span><option selected>B</option><option selected>Q<span><option>R</option></span></option></span></option>${shown}</select>`))
+      .toBe(`<select><button><selectedcontent>Q<span><option>R</option></span></selectedcontent></button><option>Z</option><option selected>A<span><option selected>B</option><option selected>Q<span><option>R</option></span></option></span></option><button><selectedcontent>Z</selectedcontent></button></select>`)
+    expect(body(`<select size=3>${shown}<option selected>A<span><option selected>B${shown}</option><option selected>Q</option></span></option>${shown}</select>`))
+      .toBe(`<select size="3"><button><selectedcontent>Q</selectedcontent></button><option selected>A<span><option selected>B${shown}</option><option selected>Q</option></span></option>${shown}</select>`)
     // In a template's content it is only copied.
     expect(fragment(cascade)).toBe(`<select size="3"><button><selectedcontent>A<selectedcontent><option selected></option></selectedcontent></selectedcontent></button><option selected>A<selectedcontent><option selected></option></selectedcontent></option></select>`)
   })

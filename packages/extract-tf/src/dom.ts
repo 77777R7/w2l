@@ -518,7 +518,14 @@ class StandardParser extends Parser<DefaultTreeAdapterMap> {
     this.optionSelects.set(option, state)
     state.options.push({ option, disabled })
     state.members.add(option)
-    if (!hasAttribute(option, 'selected') && (state.selected !== null || state.listBox || disabled)) return
+    if (!hasAttribute(option, 'selected')) {
+      // Selected by default only as the first enabled option still in the select. A taken-out copy being
+      // copied (selected, but not the select's) does not count as a selection, as in Chromium.
+      const current = state.selected !== null && state.members.has(state.selected) && !state.removed.has(state.selected) ? state.selected : null
+      if (current !== null || state.listBox || disabled) return
+      this.advanceCandidate(state)
+      if (state.options[state.firstCandidate]?.option !== option) return
+    }
     state.selected = option
     if (this.connected()) this.fill(state, option)
   }
@@ -559,8 +566,11 @@ class StandardParser extends Parser<DefaultTreeAdapterMap> {
    * rules a parsed one follows (not in another select, a <datalist>, an
    * option or a second <optgroup>): one with a selected attribute is
    * selected, and in the document copied in turn, which takes it out again.
-   * Each such copy is of an option nested deeper, so this ends, at the
-   * deepest selected one (or past MAX_COPY_DEPTH, in linkedom).
+   * One an earlier one's copy already took out is still handled once, as
+   * Chromium handles each node of an insertion: with a selected attribute it
+   * is selected and copied, then it is out (not the select's, never selected
+   * by default). Each such copy is of an option nested deeper, so this ends
+   * (past MAX_COPY_DEPTH, in linkedom).
    */
   private copyInto(state: SelectState, option: Spec.Element, content: Spec.Element): void {
     const taken = content.childNodes
@@ -587,8 +597,16 @@ class StandardParser extends Parser<DefaultTreeAdapterMap> {
       }
     }
     for (const copy of copies) {
-      // A copy an earlier one's copy took out is no longer in the select.
-      if (!state.removed.has(content) && this.contains(content, copy.option)) this.optionInserted(state, copy.option, copy.disabled)
+      if (!state.removed.has(content) && this.contains(content, copy.option)) {
+        this.optionInserted(state, copy.option, copy.disabled)
+        continue
+      }
+      // Taken out again by an earlier one's copy: Chromium still selects one with a selected attribute and copies it, once, but it is not the select's.
+      if (!hasAttribute(copy.option, 'selected')) continue
+      state.selected = copy.option
+      if (this.connected()) this.fill(state, copy.option)
+      state.removed.add(copy.option)
+      if (state.selected === copy.option) this.reselect(state)
     }
   }
 
@@ -603,9 +621,18 @@ class StandardParser extends Parser<DefaultTreeAdapterMap> {
       }
       for (const child of node.childNodes) work.push(child)
     }
-    if (!lostSelected) return
-    while (state.firstCandidate < state.options.length && (state.options[state.firstCandidate]!.disabled || state.removed.has(state.options[state.firstCandidate]!.option))) state.firstCandidate++
+    if (lostSelected) this.reselect(state)
+  }
+
+  /** The selected option was taken out: the first enabled option left is selected (none in a list box), without a copy. */
+  private reselect(state: SelectState): void {
+    this.advanceCandidate(state)
     state.selected = state.listBox ? null : state.options[state.firstCandidate]?.option ?? null
+  }
+
+  /** Moves `firstCandidate` past options that are disabled or taken out, which lasts. */
+  private advanceCandidate(state: SelectState): void {
+    while (state.firstCandidate < state.options.length && (state.options[state.firstCandidate]!.disabled || state.removed.has(state.options[state.firstCandidate]!.option))) state.firstCandidate++
   }
 
   /** Whether a <select>, <option> or <selectedcontent> is an ancestor of `element` (up to a <template>, whose content is apart). */
