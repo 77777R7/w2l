@@ -329,6 +329,15 @@ describe('htmlToMarkdown', () => {
     // A nested table's text goes before it, in its cell.
     expect(body('<div><table>t<tr><td><table>u<tr><td>v</td></tr></table></td></tr></table></div>')).toBe('<div>t<table><tr><td>u<table><tr><td>v</td></tr></table></td></tr></table></div>')
     expect(body('<table></br>x<tr><td>a</td></tr></table>')).toBe('<br>x<table><tr><td>a</td></tr></table>')
+    // A comment stays in the table, unless a moved element is open: it ends the run, and the text after it is moved on its own.
+    expect(body('<table>x<!--c--> <tr><td>a</td></tr></table>')).toBe('x<table><!--c--> <tr><td>a</td></tr></table>')
+    expect(body('<table>x<!--c-->y<tr><td>a</td></tr><!--d-->z</table>')).toBe('xyz<table><!--c--><tr><td>a</td></tr><!--d--></table>')
+    expect(body('<table><div>x<!--c-->y</div><tr><td>a</td></tr></table>')).toBe('<div>x<!--c-->y</div><table><tr><td>a</td></tr></table>')
+    // A moved svg's table tags are closed by their own names.
+    expect(body('<table><svg><td></tr> x</table>')).toBe('<svg><td> x</td></svg><table></table>')
+    // htmlparser2 holds one of two such <td>s open, and the svg's end tag closes it: an end tag for each closed the outer cell.
+    // (Chromium nests the second <td> in the first; htmlparser2 closes the first.)
+    expect(body('<table><tr><td>A<table><svg><td>a<td>b</table>B</td></tr></table>')).toBe('<table><tr><td>A<svg><td>a</td><td>b</td></svg><table></table>B</td></tr></table>')
     // White space, <script>, a hidden <input> and a column group's <col> stay in the table.
     expect(body('<table><colgroup><col><col span=2></colgroup><tr><td>a</td></tr></table>')).toBe('<table><colgroup><col><col span="2"></colgroup><tr><td>a</td></tr></table>')
     // (A browser's implied <colgroup> htmlparser2 does not add.)

@@ -288,7 +288,9 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
       else {
         // An element in a cell closes with the cell's end tag; one at the table's own level is open in htmlparser2's tree there.
         const below = last(tablePos)
-        if (below >= 0 && !CONTENT.has(stack[below]!)) text += `</${name}>`
+        // (An svg or math element kept as ^name gets none: htmlparser2 may hold fewer of them open, and the svg's or math's end
+        // tag closes those it holds.)
+        if (below >= 0 && !CONTENT.has(stack[below]!) && !name.startsWith('^')) text += `</${name}>`
       }
       if (name === 'table') {
         tables--
@@ -1087,8 +1089,10 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
       onattribend() {},
       onattribname() {},
       oncdata() {},
-      oncomment() {
+      oncomment(start) {
         afterText = false
+        // A comment where no moved element is open a browser keeps in the table: it ends the run.
+        if (openRun !== null && stack.length - 1 === last(tablePos)) closeRun(html.lastIndexOf('<', start - 1))
       },
       ondeclaration() {},
       onend() {},
