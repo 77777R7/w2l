@@ -132,13 +132,23 @@ describe('htmlToMarkdown', () => {
   })
 
   it('counts rowspans stacked over the same columns without visiting every one in every row', () => {
-    // ~2 MB: 300 rowspans a thousand columns wide stacked over 100 empty rows, 90 times.
+    // 300 rowspans a thousand columns wide stacked over 100 empty rows, 30 and 60 times (~0.7 and ~1.4 MB). Twice the
+    // tables take about twice the time where each rowspan is counted once, four times where every row visits them all:
+    // the ratio holds on a slow or busy machine, where a fixed limit in seconds does not. The faster of two runs counts.
     let stacked = '<table>'
     for (let i = 0; i < 300; i++) stacked += `<tr>${i < 299 ? `<td colspan="${299 - i}"></td>` : ''}<td colspan="1000" rowspan="60000"></td></tr>`
     stacked += `${'<tr></tr>'.repeat(100)}</table>`
-    const started = Date.now()
-    expect(htmlToMarkdown(stacked.repeat(90)).length).toBeLessThan(2 * stacked.length * 90)
-    expect(Date.now() - started).toBeLessThan(5_000)
+    const time = (copies: number): number => {
+      let best = Infinity
+      for (let run = 0; run < 2; run++) {
+        const started = performance.now()
+        expect(htmlToMarkdown(stacked.repeat(copies)).length).toBeLessThan(2 * stacked.length * copies)
+        best = Math.min(best, performance.now() - started)
+      }
+      return best
+    }
+    const once = time(30)
+    expect(time(60) / once).toBeLessThan(3)
   })
 
   it('writes a table whose padded grid would be too large as its rows of cells, still one GFM table', () => {
@@ -159,10 +169,24 @@ describe('htmlToMarkdown', () => {
     expect(Date.now() - tallStarted).toBeLessThan(5_000)
   })
 
-  it('writes a table of 200,000 rows', () => {
-    const md = htmlToMarkdown(`<table>${'<tr><td>y</td></tr>'.repeat(200_000)}</table>`)
-    expect(md.split('\n')).toHaveLength(200_001)
-  })
+  it('writes a table of 200,000 rows, in time proportional to its rows', () => {
+    const table = (rows: number) => `<table>${'<tr><td>y</td></tr>'.repeat(rows)}</table>`
+    // A table this tall once overflowed the call stack.
+    expect(htmlToMarkdown(table(200_000)).split('\n')).toHaveLength(200_001)
+    // Twice the rows take about twice the time: the ratio holds on a slow or busy machine, where a fixed limit in
+    // seconds (the test runner's own included) does not. The faster of two runs counts.
+    const time = (rows: number): number => {
+      let best = Infinity
+      for (let run = 0; run < 2; run++) {
+        const started = performance.now()
+        expect(htmlToMarkdown(table(rows)).split('\n')).toHaveLength(rows + 1)
+        best = Math.min(best, performance.now() - started)
+      }
+      return best
+    }
+    const once = time(50_000)
+    expect(time(100_000) / once).toBeLessThan(3)
+  }, 60_000)
 
   it('shares one padding budget among a page\'s tables', () => {
     // Each table pads to just under the per-table limit; together they pass the page's.
@@ -292,6 +316,24 @@ describe('htmlToMarkdown', () => {
     const page = (html: string) => htmlToMarkdown(`<!doctype html><html><body>${html}</body></html>`, { baseUrl: 'https://example.test/' })
     expect(page('<a href="/l"><div>x</a>y</div>')).toBe('[https://example.test/l](https://example.test/l)\n\n[x](https://example.test/l)y')
     expect(page('<p><b>Note:</p><p>read this</p>')).toBe('**Note:**\n\n**read this**')
+  })
+
+  it('follows a browser\'s form element pointer: a nested <form> is ignored, and </form> leaves what is open in the form open', () => {
+    // Chromium's document.body.innerHTML of each page, its implied <tbody> left out.
+    const body = (html: string) => parse(`<!doctype html><html><body>${html}</body></html>`).document.body.innerHTML.replace(/<\/?tbody>/g, '')
+    expect(body('<form><form>x</form>y</form>z')).toBe('<form>x</form>yz')
+    expect(body('<form><div>a</form>b</div>c')).toBe('<form><div>ab</div></form>c')
+    expect(body('<form><div><div>a</form>b</div>c</div>d')).toBe('<form><div><div>ab</div>c</div></form>d')
+    expect(body('<div><form></div><form>x</form>y')).toBe('<div><form></form></div>xy')
+    expect(body('<table><form><tr><td>a</td></tr></table><form>b</form>')).toBe('<table><form></form><tr><td>a</td></tr></table>b')
+    // A form in a <noscript> (text to a browser) neither sets nor clears it.
+    expect(body('<noscript><form>a</form></noscript><form>b</form>')).toBe('<noscript><form>a</form></noscript><form>b</form>')
+    expect(body('<form>a<noscript><form>b</form></noscript>c</form>d')).toBe('<form>a<noscript><form>b</form></noscript>c</form>d')
+    // In a <template> the pointer is not used.
+    expect(body('<template><form><form>x</form></form></template>y')).toBe('<template><form><form>x</form></form></template>y')
+    // Directly in a template, an end tag but its own is ignored.
+    expect(body('<template></p><div>x</div></template>')).toBe('<template><div>x</div></template>')
+    expect(body('<template><div></div></p></template>')).toBe('<template><div></div><p></p></template>')
   })
 
   it('reads a table cell by the same body rules, the cell ending what is open in it', () => {

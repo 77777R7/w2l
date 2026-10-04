@@ -108,6 +108,10 @@ const OWN_END_RULE = new Set(['template', 'body', 'html', 'head', 'address', 'ar
 /** Whether a browser reads an end tag by its "any other end tag" rule: `</span>`, `</label>`, `</sup>`, a custom element's. */
 const anyOtherEnd = (name: string): boolean => !OWN_END_RULE.has(name) && !TABLE_TAGS.has(name) && !VOID.has(name)
 const HEADINGS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6'])
+/** The start tags a browser reads in a template's "in template" mode by its head rules, leaving that mode. */
+const HEAD_IN_TEMPLATE = new Set(['base', 'basefont', 'bgsound', 'link', 'meta', 'noframes', 'script', 'style', 'template', 'title'])
+/** The elements a browser closes before an end tag such as </form> ("generate implied end tags"). */
+const IMPLIED_END = new Set(['dd', 'dt', 'li', 'optgroup', 'option', 'p', 'rb', 'rp', 'rt', 'rtc'])
 /** The formatting elements a browser keeps in its list of active formatting elements. */
 const FORMATTING = new Set(['a', 'b', 'big', 'code', 'em', 'font', 'i', 'nobr', 's', 'small', 'strike', 'strong', 'tt', 'u'])
 /** The elements that put a marker on that list: formatting elements opened before one are not reopened in it. */
@@ -163,9 +167,10 @@ const endsWithBodyEnd = (html: string): boolean => {
 
 /**
  * A start tag at which a browser may close an element htmlparser2 keeps open (a <li>, <dd>, <dt>, heading, <button>, or a
- * <p> a block closes), or a formatting element's, which a browser may reopen or move a block out of.
+ * <p> a block closes), a formatting element's, which a browser may reopen or move a block out of, or a <form>'s,
+ * which a browser ignores while a form is open, or a <template>'s, whose content it reads in a mode of its own.
  */
-const CLOSING_START = /<(?:li|dd|dt|h[1-6]|button|p|a|b|big|code|em|font|i|nobr|s|small|strike|strong|tt|u)[\t\n\f\r />]/i
+const CLOSING_START = /<(?:li|dd|dt|h[1-6]|button|p|a|b|big|code|em|font|i|nobr|s|small|strike|strong|tt|u|form|template)[\t\n\f\r />]/i
 
 /** Whether the page has an end tag a browser reads by its "any other end tag" rule, such as `</span>`, or a heading's, which closes any heading. */
 const hasLooseEnd = (html: string): boolean => {
@@ -658,6 +663,25 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
     }
     return true
   }
+  // A browser's form element pointer (outside templates): set at a <form>, cleared at a </form>; while it is set, a <form>
+  // is ignored. A </form> takes the form off the stack but leaves what is open in it open: htmlparser2 keeps the form
+  // (`detached`, by id) until they close, and then its end tag is written out.
+  // The templates (by id) whose content has had no start tag yet: a browser reads it in its "in template" mode.
+  const freshTemplates = new Set<number>()
+  let formPointer = false
+  let formId = -1
+  const detached = new Set<number>()
+  const templateOpen = (): boolean => outerOpen('template') >= 0 || last(byName.get('template')) >= 0
+  /** The end tags of the detached forms that are now innermost. */
+  const closeDetached = (): string => {
+    let text = ''
+    while (outer.length > 0 && detached.has(outerIds[outer.length - 1]!)) {
+      detached.delete(outerIds[outer.length - 1]!)
+      outerPop()
+      text += '</form>'
+    }
+    return text
+  }
   const insert = (at: number, text: string) => {
     if (text !== '') edits.push({ at, end: at, text })
   }
@@ -680,8 +704,11 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
       if (cell && (TABLE_TAGS.has(name) || name === 'col') && name !== 'table') return tableStart(name, at, end, selfClosing)
       const stray = !cell && STRAY.has(name) && (ended > 0 || (whole && templatesOutside === 0 && outerRoots.length === 0))
       if (stray) return void edits.push({ at, end, text: '' })
+      // (Not in a <noscript>, <iframe> or the like, whose content a browser reads as text, nor in a <select>.)
+      if (name === 'form' && formPointer && !templateOpen() && outerOpaque.length === 0) return void edits.push({ at, end, text: '' })
       // In htmlparser2's order: the end tags written before the tag, the formatting elements reopened, then its implied closes.
       let text = outerBrowserCloses(name)
+      text += closeDetached()
       const formatting = formattingOn()
       if (formatting) {
         // A <a> while one is open ends it first (and a <nobr> a <nobr>), as its end tag would.
@@ -695,8 +722,16 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
       }
       insert(at, text)
       outerImplied(name)
+      insert(at, closeDetached())
+      // A start tag directly in a template other than a head element takes it out of its "in template" mode.
+      if (outer[outer.length - 1] === 'template' && !HEAD_IN_TEMPLATE.has(name)) freshTemplates.delete(outerIds[outer.length - 1]!)
       if (name !== 'table' && !VOID.has(name) && !(FOREIGN.has(name) && selfClosing)) {
         const id = outerPush(name, at, end)
+        if (name === 'template') freshTemplates.add(id)
+        if (name === 'form' && !templateOpen() && outerOpaque.length === 0) {
+          formPointer = true
+          formId = id
+        }
         if (formatting && FORMATTING.has(name)) afeAdd({ id, name, attrs })
         if (MARKERS.has(name)) afe.push(null)
       }
@@ -779,6 +814,14 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
       push(name)
     } else if (name === 'body' || name === 'html') {
       // Ignored inside a table, and never on htmlparser2's stack.
+    } else if (name === 'form' && !CONTENT.has(mode) && !inForeign() && !templateOpen()) {
+      // A <form> at the table's own level: ignored while a form is open, otherwise an empty form, closed at once. (In a
+      // template, Chromium keeps it as it is written.)
+      if (formPointer) return void edits.push({ at, end, text })
+      formPointer = true
+      formId = -1
+      insert(at, text)
+      return insert(end, '</form>')
     } else {
       // At the table's own level a browser reopens the formatting elements it has closed first, and lists one opened there.
       // (A hidden <input> a browser puts in the table itself, without moving it.)
@@ -820,51 +863,73 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
     const cell = inCell() && (!TABLE_TAGS.has(name) || last(outerByName.get(name)) > last(outerHtml))
     if (cell && (spaced || name === 'body' || name === 'html')) return drop()
     if (tables === 0 || cell) {
-      if (!cell) {
-        if (whole && (name === 'body' || name === 'html')) return drop()
-        if (ended > 0 && TABLE_TAGS.has(name) && name !== 'template') {
-          if (name === 'table') ended--
-          return drop()
+      const bodyEnd = (): void => {
+        if (!cell) {
+          if (whole && (name === 'body' || name === 'html')) return drop()
+          if (ended > 0 && TABLE_TAGS.has(name) && name !== 'template') {
+            if (name === 'table') ended--
+            return drop()
+          }
+          if (STRAY.has(name) && whole && templatesOutside === 0 && outerRoots.length === 0) return drop()
+          if (name === 'template' && templatesOutside > 0) templatesOutside--
         }
-        if (STRAY.has(name) && whole && templatesOutside === 0 && outerRoots.length === 0) return drop()
-        if (name === 'template' && templatesOutside > 0) templatesOutside--
-      }
-      // </p> and </br> end the svg or math they are written in, as a <p> does.
-      if ((name === 'p' || name === 'br') && inOuterForeign()) insert(at, leaveOuterForeign())
-      // A heading's end tag closes the nearest heading of any level in scope: written out as that one's, which htmlparser2 closes.
-      if (HEADINGS.has(name) && !inOuterForeign()) {
-        const heading = Math.max(...[...HEADINGS].map(outerOpen))
-        if (heading > last(outerScope) && outer[heading] !== name) {
-          edits.push({ at, end, text: `</${outer[heading]}>` })
-          outerPopTo(heading)
+        // </p> and </br> end the svg or math they are written in, as a <p> does.
+        if ((name === 'p' || name === 'br') && inOuterForeign()) insert(at, leaveOuterForeign())
+        // Directly in a <template> before any start tag in it, a browser ignores any end tag but its own (htmlparser2 made an
+        // empty <p> of a </p>); after one, it reads them by the body rules.
+        if (outer[outer.length - 1] === 'template' && freshTemplates.has(outerIds[outer.length - 1]!) && name !== 'template') return drop()
+        if (name === 'form' && !inOuterForeign() && outerOpaque.length === 0 && !templateOpen()) {
+          const node = formPointer ? idIndex.get(formId) : undefined
+          formPointer = false
+          if (node === undefined || last(outerScope) > node) return drop()
+          // The implied end tags, then the form: off the stack, as what is still open in it stays open.
+          let text = ''
+          while (outer.length - 1 > node && IMPLIED_END.has(outer[outer.length - 1]!)) {
+            text += `</${outer[outer.length - 1]}>`
+            outerPop()
+          }
+          if (outer.length - 1 === node) return void outerPop()
+          detached.add(formId)
+          return void edits.push({ at, end, text })
+        }
+        // A heading's end tag closes the nearest heading of any level in scope: written out as that one's, which htmlparser2 closes.
+        if (HEADINGS.has(name) && !inOuterForeign()) {
+          const heading = Math.max(...[...HEADINGS].map(outerOpen))
+          if (heading > last(outerScope) && outer[heading] !== name) {
+            edits.push({ at, end, text: `</${outer[heading]}>` })
+            outerPopTo(heading)
+            return
+          }
+        }
+        // A </li> closes a <li> only in list item scope (not past a <ul> or <ol>), a </p> a <p> in button scope, and </dd> and
+        // </dt> theirs in scope; htmlparser2 closed the nearest anywhere. A browser ignores the tag there, and opens an empty
+        // <p> at a </p>.
+        if ((name === 'li' || name === 'p' || name === 'dd' || name === 'dt') && !inOuterForeign() && outerOpaque.length === 0) {
+          const open = outerOpen(name)
+          const bound = name === 'li' ? Math.max(outerOpen('ul'), outerOpen('ol')) : name === 'p' ? outerOpen('button') : -1
+          if (open >= 0 && open < Math.max(bound, last(outerScope))) return void edits.push({ at, end, text: name === 'p' ? '<p></p>' : '' })
+        }
+        /** Closes as htmlparser2 would; a formatting element it closes leaves the list too, or it would be reopened. */
+        const closeAsWritten = (anyOther?: boolean): void => {
+          const open = FORMATTING.has(name) ? outerOpen(name) : -1
+          const id = open >= 0 ? outerIds[open]! : -1
+          if (outerClose(name, anyOther)) drop()
+          else if (id >= 0 && !idIndex.has(id) && afeById.has(id)) afeRemove(afeById.get(id)!)
+        }
+        if (FORMATTING.has(name) && formattingOn()) {
+          const text = adoption(name)
+          if (text === null) closeAsWritten(true)
+          else if (text === undefined) closeAsWritten()
+          else if (text !== `</${name}>`) edits.push({ at, end, text })
           return
         }
-      }
-      // A </li> closes a <li> only in list item scope (not past a <ul> or <ol>), a </p> a <p> in button scope, and </dd> and
-      // </dt> theirs in scope; htmlparser2 closed the nearest anywhere. A browser ignores the tag there, and opens an empty
-      // <p> at a </p>.
-      if ((name === 'li' || name === 'p' || name === 'dd' || name === 'dt') && !inOuterForeign() && outerOpaque.length === 0) {
-        const open = outerOpen(name)
-        const bound = name === 'li' ? Math.max(outerOpen('ul'), outerOpen('ol')) : name === 'p' ? outerOpen('button') : -1
-        if (open >= 0 && open < Math.max(bound, last(outerScope))) return void edits.push({ at, end, text: name === 'p' ? '<p></p>' : '' })
-      }
-      /** Closes as htmlparser2 would; a formatting element it closes leaves the list too, or it would be reopened. */
-      const closeAsWritten = (anyOther?: boolean): void => {
-        const open = FORMATTING.has(name) ? outerOpen(name) : -1
-        const id = open >= 0 ? outerIds[open]! : -1
-        if (outerClose(name, anyOther)) drop()
-        else if (id >= 0 && !idIndex.has(id) && afeById.has(id)) afeRemove(afeById.get(id)!)
-      }
-      if (FORMATTING.has(name) && formattingOn()) {
-        const text = adoption(name)
-        if (text === null) closeAsWritten(true)
-        else if (text === undefined) closeAsWritten()
-        else if (text !== `</${name}>`) edits.push({ at, end, text })
+        const marker = MARKERS.has(name) && outerOpen(name) >= 0
+        closeAsWritten()
+        if (marker && outerOpen(name) < 0) afeClearToMarker()
         return
       }
-      const marker = MARKERS.has(name) && outerOpen(name) >= 0
-      closeAsWritten()
-      if (marker && outerOpen(name) < 0) afeClearToMarker()
+      bodyEnd()
+      insert(end, closeDetached())
       return
     }
     // A </template> for a template opened before the table closes it, and the tables in it.
@@ -924,6 +989,10 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
     // At the table's own level, a formatting element's end tag after a row closed it takes it off the list, as a browser's adoption
     // agency does with an element no longer open.
     if (FORMATTING.has(name) && afeLast(name) >= 0 && !idIndex.has(afe[afeLast(name)]!.id) && atTableLevel()) afeRemove(afe[afeLast(name)]!)
+    if (name === 'form' && !templateOpen()) formPointer = false
+    // A </p> at the table's own level with no <p> open there: a browser puts an empty <p> before the table (the converter's
+    // rebuild of the table moves it there).
+    if (name === 'p' && last(byName.get('p')) < last(tablePos) && atTableLevel()) return void edits.push({ at, end, text: '<p></p>' })
     const open = last(byName.get(name))
     if (open > last(tablePos) && open > last(integrationPos) && (!anyOtherEnd(name) || open >= last(specialPos) || TEXT_CONTENT.has(name))) {
       // A formatting element its own end tag closes leaves the list.
