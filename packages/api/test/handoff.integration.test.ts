@@ -47,6 +47,8 @@ beforeAll(async () => {
     }
     if (req.url === '/signin') return html('<h1>Sign in</h1><form><input name="user"><input type="password" name="pw"><button id="in" type="button" onclick="document.cookie=\'member=1; path=/\'; location.href=\'/\'">Sign in</button></form>')
     if (req.url === '/') return html(ARTICLE.replace('The member page', 'Welcome home'))
+    // A page that keeps the widget's script once the person is through it (as a Turnstile page does).
+    if (req.url === '/turnstile') return cookie.includes('turnstile=1') ? html(`<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async></script>${ARTICLE}`) : html(`<div class="cf-turnstile" data-sitekey="k"></div>${captcha('turnstile')}`)
     // Checks that pass by themselves in a browser, with nobody there: a script that reloads into the page, a meta refresh.
     if (req.url === '/auto') return cookie.includes('auto=1') ? html(ARTICLE) : html('<div class="g-recaptcha" data-sitekey="k"></div><script>document.cookie = "auto=1; path=/"; setTimeout(() => location.reload(), 300)</script>')
     if (req.url === '/meta') return cookie.includes('meta=1') ? html(ARTICLE) : html('<meta http-equiv="refresh" content="0; url=/meta2"><div class="g-recaptcha" data-sitekey="k"></div>')
@@ -176,7 +178,7 @@ describe('handing a page a check stopped to the person, in their own Chrome', ()
       expect(before.map((item) => [new URL(item.url).pathname, item.status, item.blockReason])).toEqual([['/dd', 'blocked', 'bot_detected_generic'], ['/thin', 'blocked', 'captcha']])
       const done = await engine.handOffBatch(taskId, { waitMs: 6_000 })
       expect(done).toMatchObject({ handedOff: 2, through: 0, notThrough: 2 })
-      expect(done!.items.map((item) => item.reason)).toEqual([expect.stringContaining('still showed a check (bot_detected_generic)'), expect.stringContaining('was failed (empty_unverified), not the page')])
+      expect(done!.items.map((item) => item.reason)).toEqual([expect.stringContaining('still showed a check (bot_detected_generic: header_x_datadome'), expect.stringContaining('was failed (empty_unverified), not the page')])
       const after = await itemsOf(engine, taskId)
       expect(after.map((item) => [item.id, item.status, item.blockReason, item.lane])).toEqual(before.map((item) => [item.id, item.status, item.blockReason, item.lane]))
       expect(await engine.getBatch(taskId)).toMatchObject({ waitingForPerson: 2 })
@@ -186,14 +188,14 @@ describe('handing a page a check stopped to the person, in their own Chrome', ()
     }
   }, 120_000)
 
-  it('a search box with the focus, a hidden sign-in box, or a challenge reloading by itself does not stop a page from being through', async () => {
+  it('a search box with the focus, a hidden sign-in box, a challenge reloading by itself, or a widget script left on the page does not stop a page from being through', async () => {
     const engine = engineFor(join(root, 'tasks-5'))
     // The challenge reloads into the page by itself; the person then clicks on the page to have it read.
-    const stop = person(chrome, { '/search': async (page) => { await page.click('#pass') }, '/jsc': async (page) => { await page.waitForSelector('article', { timeout: 20_000 }); await page.mouse.click(10, 10) } })
+    const stop = person(chrome, { '/search': async (page) => { await page.click('#pass') }, '/turnstile': async (page) => { await page.click('#pass') }, '/jsc': async (page) => { await page.waitForSelector('article', { timeout: 20_000 }); await page.mouse.click(10, 10) } })
     try {
-      const taskId = await batchOf(engine, ['/search', '/jsc'])
+      const taskId = await batchOf(engine, ['/search', '/jsc', '/turnstile'])
       const done = await engine.handOffBatch(taskId, { waitMs: 20_000 })
-      expect(done).toMatchObject({ handedOff: 2, through: 2 })
+      expect(done).toMatchObject({ handedOff: 3, through: 3 })
     } finally {
       stop()
       await engine.close()

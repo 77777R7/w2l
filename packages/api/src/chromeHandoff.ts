@@ -33,7 +33,8 @@
  * address is Chrome's, not what the page's script says.
  */
 
-import { classifyGate } from '@w2l/http-core'
+import { extractTf } from '@w2l/extract-tf'
+import { classifyGate, type GateVerdict } from '@w2l/http-core'
 import { isLoginPath, sessionCoversHost, type UserBrowserRead } from '@w2l/bench'
 import { chromeEndpoint, chromeUserDataDir, ChromeLoginError, connectCdp, type CdpConnection } from './chromeLogin.js'
 
@@ -49,7 +50,7 @@ export interface UserChromeOptions {
 export interface UserChromeReadOptions {
   /** How long to wait for the person, per page. Default 10 minutes. */
   waitMs?: number
-  /** Between two reads of the page. Default 1 s. */
+  /** Between two reads of the page. Default 0.5 s: a click just before the page moves on is seen. */
   pollMs?: number
   /** Told once, when the page shows a check the person has to pass. */
   onWaiting?: (url: string, check: string) => void
@@ -59,7 +60,7 @@ export interface UserChromeReadOptions {
   signal?: AbortSignal
 }
 
-/** Reads in a row a page must pass to count as through. */
+/** Reads in a row a page must pass to count as through: about 1.5 s at the default poll. */
 const CLEAR_READS = 3
 /** Times W2L takes the tab back to the page asked for when the person's way through ended elsewhere on the site (a home page after a sign-in). */
 const RETURNS = 2
@@ -132,7 +133,7 @@ export async function openUserChrome(options: UserChromeOptions = {}, signal?: A
 
 async function readPage(connection: CdpConnection, browser: string, url: string, options: UserChromeReadOptions): Promise<UserBrowserRead> {
   const waitMs = options.waitMs ?? 600_000
-  const pollMs = options.pollMs ?? 1_000
+  const pollMs = options.pollMs ?? 500
   const host = new URL(url).hostname
   const started = Date.now()
   let sawGate: string | null = null
@@ -174,6 +175,8 @@ async function readPage(connection: CdpConnection, browser: string, url: string,
       }))
       await connection.send('Network.enable', {}, sessionId)
     }
+    // The tab in front, in the person's window: the one they are to act in, not one left from before.
+    await connection.send('Target.activateTarget', { targetId }).catch(() => undefined)
     // Chrome answers Page.navigate when the page's response begins: a slow page is waited for in the reads, not here.
     let navigation: unknown = null
     const open = (returning: boolean) => {
@@ -224,10 +227,9 @@ async function readPage(connection: CdpConnection, browser: string, url: string,
       const response: DocumentResponse | null = heard.document !== null && sameDocument(heard.document.url, state.href) ? heard.document : null
       const status = response?.status ?? state.status
       last = { state, response }
-      const gate = classifyGate({ status: status ?? 200, header: (name) => response?.headers[name.toLowerCase()] ?? null, body: state.html })
+      const { full, decisive, gate } = checksOf(state, response, status)
       // What the page showed, as evidence: a generic bot check only on decisive markers, not a loading page's weak ones.
-      const decisive = classifyGate({ status: status ?? 200, header: (name) => response?.headers[name.toLowerCase()] ?? null, body: state.html, contentful: true })
-      if (gate !== null && (gate.reason !== 'bot_detected_generic' || decisive !== null)) sawGate ??= gate.reason
+      if (full !== null && (full.reason !== 'bot_detected_generic' || decisive !== null)) sawGate ??= full.reason
       if (gate !== null && !told) { told = true; options.onWaiting?.(url, gate.reason) }
       const typing = state.field !== null && field !== undefined && state.field !== field
       field = state.field
@@ -267,7 +269,7 @@ async function readPage(connection: CdpConnection, browser: string, url: string,
     }
     const where = last === null ? 'it never loaded'
       : !sameSite(last.state.href, host) ? `it was on ${safeHost(last.state.href)}, not ${host}`
-        : classifyGate({ status: last.response?.status ?? last.state.status ?? 200, header: (name) => last!.response?.headers[name.toLowerCase()] ?? null, body: last.state.html }) !== null ? `it still showed a check (${sawGate ?? 'on the page'})`
+        : stillGated(last) !== null ? `it still showed a check (${stillGated(last)!.reason}: ${stillGated(last)!.signals.join(', ')})`
           : clear >= CLEAR_READS && heard.act === null ? 'the page showed no check, and you did not click on it to have it read (W2L reads a page in your Chrome only once you act in its tab; a site you are signed into is read with your login through w2l login import and mode authed)'
             : 'it was not yet the page: still loading, at a sign-in step, or not answering 2xx'
     throw new HandoffNotThrough(`${url} was not through within ${Math.round(waitMs / 1000)} s: ${where}`, sawGate)
@@ -277,6 +279,26 @@ async function readPage(connection: CdpConnection, browser: string, url: string,
     for (const stop of stops) stop()
     await connection.send('Target.closeTarget', { targetId }).catch(() => undefined)
   }
+}
+
+/**
+ * The checks W2L's gate reads on a page: `full`, any evidence; `decisive`,
+ * the evidence that names a check on a page with content; `gate`, the one
+ * that holds the page, as W2L's own lanes judge it: a page with content (an
+ * article that embeds a captcha widget, a page that keeps the widget's
+ * script once passed) by decisive evidence alone, one without by any.
+ */
+function checksOf(state: PageState, response: DocumentResponse | null, status: number | null): { full: GateVerdict | null; decisive: GateVerdict | null; gate: GateVerdict | null } {
+  const header = (name: string) => response?.headers[name.toLowerCase()] ?? null
+  const full = classifyGate({ status: status ?? 200, header, body: state.html })
+  const decisive = classifyGate({ status: status ?? 200, header, body: state.html, contentful: true })
+  const gate = full === null || decisive !== null || state.ready !== 'complete' ? full ?? decisive : extractTf.extract(state.html, { url: state.href }).escalate ? full : null
+  return { full, decisive, gate }
+}
+
+/** The check that held the page as last read, with what it was read from. */
+function stillGated(last: { state: PageState; response: DocumentResponse | null }): GateVerdict | null {
+  return checksOf(last.state, last.response, last.response?.status ?? last.state.status).gate
 }
 
 /** Whether a page's address is on the site asked for: the same host, a subdomain of it, or a parent domain of it. */

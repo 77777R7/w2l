@@ -75,7 +75,7 @@ describe('the person\'s Chrome', () => {
     expect(waiting).toEqual(['https://site.test/a captcha'])
     expect(read).toMatchObject({ requestedUrl: 'https://site.test/a', finalUrl: 'https://site.test/a', status: 200, contentType: null, html: PAGE, sawGate: 'captcha', act: 'user_activation', browser: 'Chrome/144.0.7000.0' })
     // Each read: the tab from the browser, the page, and, until the person has acted, their activation in W2L's own world (made once for the document).
-    expect(chrome.calls).toEqual(['Browser.getVersion', 'Target.createTarget', 'Target.attachToTarget', 'Page.navigate@s1',
+    expect(chrome.calls).toEqual(['Browser.getVersion', 'Target.createTarget', 'Target.attachToTarget', 'Target.activateTarget', 'Page.navigate@s1',
       'Target.getTargetInfo', 'Runtime.evaluate@s1', 'Page.createIsolatedWorld@s1', 'Runtime.evaluate@s1',
       'Target.getTargetInfo', 'Runtime.evaluate@s1', 'Runtime.evaluate@s1',
       ...Array(2).fill(['Target.getTargetInfo', 'Runtime.evaluate@s1']).flat(), 'Target.closeTarget', 'close'])
@@ -86,7 +86,7 @@ describe('the person\'s Chrome', () => {
     const reader = await openUserChrome({ userDataDir, connect: chrome.connect })
     const failure = await reader.read('https://site.test/a', { pollMs: 1, waitMs: 50 }).catch((error: unknown) => error)
     expect(failure).toBeInstanceOf(HandoffNotThrough)
-    expect(failure).toMatchObject({ check: 'captcha', message: expect.stringContaining('still showed a check (captcha)') })
+    expect(failure).toMatchObject({ check: 'captcha', message: expect.stringContaining('still showed a check (captcha: widget_recaptcha') })
     expect(chrome.calls).toContain('Target.closeTarget')
   })
 

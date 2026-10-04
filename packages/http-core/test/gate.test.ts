@@ -96,6 +96,16 @@ describe('classifyGate — Cloudflare interstitial', () => {
     expect(v?.signals).toContain('cf_challenge_platform_script')
   })
 
+  it('does not name Cloudflare from the bot-management script it injects into a site\'s ordinary pages', () => {
+    // The page a visitor gets once through the challenge, as Cloudflare serves it.
+    const page = `<html><head><title>Cloudflare Challenge</title></head><body><article><h1>You bypassed the challenge</h1>${ARTICLE}</article>` +
+      `<script>(function(){var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';window.__CF$cv$params={r:'8c',t:'MTcy'};document.head.appendChild(a)})();</script></body></html>`
+    expect(classifyGate(res({ status: 200, body: page }))).toBeNull()
+    expect(classifyGate(res({ status: 200, body: page, contentful: true }))).toBeNull()
+    // The challenge's own plumbing beside it still names Cloudflare.
+    expect(classifyGate(res({ status: 403, body: `<script src="/cdn-cgi/challenge-platform/h/b/orchestrate/chl_page/v1"></script>${page}` }))?.reason).toBe('cloudflare_challenge')
+  })
+
   it('names Cloudflare from the interstitial copy pair on a 200', () => {
     const v = classifyGate(
       res({

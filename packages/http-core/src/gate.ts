@@ -182,6 +182,23 @@ const BOT_WEAK_MARKERS: readonly (readonly [marker: string, signal: string])[] =
  */
 const GATE_SHAPED_STATUS: readonly number[] = [403, 429, 503]
 
+/**
+ * Cloudflare injects its bot-management script into the ordinary pages of a
+ * site it protects (`/cdn-cgi/challenge-platform/scripts/jsd/main.js`, with
+ * `__CF$cv$params`), the page a visitor gets once through as well as any
+ * other: that path alone is no challenge. Any other use of the platform's
+ * path (the challenge's own `/h/.../orchestrate`) is.
+ */
+const CF_JSD_PATH = '/cdn-cgi/challenge-platform/scripts/jsd/'
+
+function challengePlatformBeyondJsd(lower: string): boolean {
+  const marker = '/cdn-cgi/challenge-platform'
+  for (let at = lower.indexOf(marker); at !== -1; at = lower.indexOf(marker, at + marker.length)) {
+    if (!lower.startsWith(CF_JSD_PATH, at)) return true
+  }
+  return false
+}
+
 function matched(
   haystack: string,
   table: readonly (readonly [string, string])[],
@@ -235,7 +252,7 @@ export function classifyGate(res: GateResponse): GateVerdict | null {
   }
 
   // --- Cloudflare managed challenge --------------------------------------
-  const cfStrong = matched(lower, CF_STRONG_MARKERS)
+  const cfStrong = matched(lower, CF_STRONG_MARKERS).filter((signal) => signal !== 'cf_challenge_platform_script' || challengePlatformBeyondJsd(lower))
   if (cfStrong.length > 0) {
     return { reason: 'cloudflare_challenge', signals: cfStrong }
   }
