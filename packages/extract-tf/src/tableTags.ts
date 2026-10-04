@@ -55,7 +55,7 @@ const INTEGRATION = new Set(['foreignobject', 'desc', 'title', 'mi', 'mo', 'mn',
 const BREAKOUT = new Set(['b', 'big', 'blockquote', 'body', 'br', 'center', 'code', 'dd', 'div', 'dl', 'dt', 'em', 'embed', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'head', 'hr', 'i', 'img', 'li', 'listing', 'menu', 'meta', 'nobr', 'ol', 'p', 'pre', 'ruby', 's', 'small', 'span', 'strong', 'strike', 'sub', 'sup', 'table', 'tt', 'u', 'ul', 'var'])
 /** The integration points of svg (s:) and math (m:), whose content is HTML. */
 const OUTER_INTEGRATION = new Set(['s:foreignobject', 's:desc', 's:title', 'm:mi', 'm:mo', 'm:mn', 'm:ms', 'm:mtext'])
-/** A start tag in the BREAKOUT set, or a `</p>` or `</br>`: what may end an svg or math it is written in. */
+/** A start tag in the BREAKOUT set, or a `</p>` or `</br>`: what may end an svg or math it is written in. (A <font>, which does with a color, face or size, CLOSING_START lets through.) */
 const BREAKOUT_TAG = new RegExp(`<(?:${[...BREAKOUT].join('|')})[\\t\\n\\f\\r />]|</(?:p|br)[\\t\\n\\f\\r >]`, 'i')
 const FOREIGN_TAG = /<(\/?)(svg|math)(?=[\t\n\f\r />])/gi
 
@@ -174,6 +174,9 @@ const endsWithBodyEnd = (html: string): boolean => {
  */
 const CLOSING_START = /<(?:li|dd|dt|h[1-6]|button|p|a|b|big|code|em|font|i|nobr|s|small|strike|strong|tt|u|form|template)[\t\n\f\r />]/i
 
+/** Whether the page may have a <![CDATA[ ]]> in an svg or math, which a browser reads as text and htmlparser2 as a comment. */
+const hasForeignCdata = (html: string): boolean => html.includes('<![CDATA[') && /<(?:svg|math)[\t\n\f\r />]/i.test(html)
+
 /** Whether the page has an end tag a browser reads by its "any other end tag" rule, such as `</span>`, or a heading's, which closes any heading. */
 const hasLooseEnd = (html: string): boolean => {
   for (const tag of html.matchAll(/<\/([A-Za-z][^\t\n\f\r />]*)/g)) {
@@ -192,7 +195,7 @@ const hasLooseEnd = (html: string): boolean => {
  */
 export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i.test(html)): string {
   const tableTags = whole ? /<(table|t[dhr]|thead|tbody|tfoot|caption|col)/i : /<table/i
-  if (!tableTags.test(html) && (!whole || endsWithBodyEnd(html)) && !breaksOutOfForeign(html) && !hasLooseEnd(html) && !CLOSING_START.test(html)) return html
+  if (!tableTags.test(html) && (!whole || endsWithBodyEnd(html)) && !breaksOutOfForeign(html) && !hasLooseEnd(html) && !CLOSING_START.test(html) && !hasForeignCdata(html)) return html
   // Replace [at, end) with text, in source order.
   // `first`: written before the other edits at its place (the copy of a formatting element a browser puts in a block,
   // before its content), a later one before an earlier one, as the later copy holds the earlier.
@@ -719,6 +722,11 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
     }
     return text
   }
+  // Whether the <font> tag being read has a color, face or size: one that ends an svg or math, as a BREAKOUT tag does. (Not
+  // directly in an <annotation-xml>, which may be an HTML integration point by its encoding, unknown here: left as before.)
+  let fontBreaks = false
+  const breaksOut = (name: string): boolean =>
+    BREAKOUT.has(name) || (name === 'font' && fontBreaks && outer[outer.length - 1] !== '^m:annotation-xml' && stack[stack.length - 1] !== '^annotation-xml')
   const insert = (at: number, text: string) => {
     if (text !== '') edits.push({ at, end: at, text })
   }
@@ -730,7 +738,7 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
     if (tables === 0 || cell) {
       if (cell && (name === 'body' || name === 'html')) return
       if (inOuterForeign()) {
-        if (!BREAKOUT.has(name)) {
+        if (!breaksOut(name)) {
           outerImplied(name)
           // svg and math elements, self-closing ones closed at once, as htmlparser2 and a browser close them.
           if (!selfClosing && !VOID.has(name)) outerPush(foreignEntry(name))
@@ -785,7 +793,7 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
   const tableStart = (name: string, at: number, end: number, selfClosing: boolean, attrs = ''): void => {
     let text = ''
     if (inForeign()) {
-      if (!BREAKOUT.has(name)) {
+      if (!breaksOut(name)) {
         // svg and math elements, self-closing ones closed at once, as htmlparser2 and a browser close them.
         if (!selfClosing) push(`^${name}`)
         return
@@ -1075,6 +1083,7 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
     {
       onopentagname(start, endIndex) {
         afterText = false
+        fontBreaks = false
         tagAt = start - 1
         tagName = html.slice(start, endIndex).toLowerCase()
         tagNameEnd = endIndex
@@ -1095,8 +1104,20 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
       onattribdata() {},
       onattribentity() {},
       onattribend() {},
-      onattribname() {},
-      oncdata: comment,
+      onattribname(start, endIndex) {
+        if (tagName === 'font' && /^(?:color|face|size)$/i.test(html.slice(start, endIndex))) fontBreaks = true
+      },
+      oncdata(start, endIndex, endOffset) {
+        // In an svg or math (not at an HTML integration point) a browser reads it as text, as written, to its ]]> or the end
+        // of the page: written out as that text. (Not in an <annotation-xml>, which is an integration point or not by its
+        // encoding, unknown here, as is whether what is in it is HTML: left a comment there.)
+        const foreign = tables === 0 || inCell() ? inOuterForeign() && last(outerByName.get('annotation-xml')) < 0 : inForeign() && last(byName.get('^annotation-xml')) < 0
+        if (!foreign) return comment(start)
+        afterText = true
+        // (Its content ends `endOffset` before `endIndex`, the `>` of its ]]>, or the page's end.)
+        const text = html.slice(start, endIndex - endOffset).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        edits.push({ at: html.lastIndexOf('<', start - 1), end: Math.min(endIndex + 1, html.length), text })
+      },
       oncomment: comment,
       ondeclaration: comment,
       onend() {},

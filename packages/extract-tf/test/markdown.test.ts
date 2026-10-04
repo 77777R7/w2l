@@ -318,6 +318,26 @@ describe('htmlToMarkdown', () => {
     expect(page('<p><b>Note:</p><p>read this</p>')).toBe('**Note:**\n\n**read this**')
   })
 
+  it('reads a <![CDATA[ ]]> in an svg or math as its text, as a browser does, and one in HTML as a comment', () => {
+    // Chromium's document.body.innerHTML of each page, its implied <tbody> left out.
+    const body = (html: string) => parse(`<!doctype html><html><body>${html}</body></html>`).document.body.innerHTML.replace(/<\/?tbody>/g, '')
+    // Its text as written: no tags or character references in it.
+    expect(body('<p>a<svg><![CDATA[x<y&amp;z]]>b</svg>c')).toBe('<p>a<svg>x&lt;y&amp;amp;zb</svg>c</p>')
+    expect(body('<svg><g><![CDATA[a]]b]]></g><![CDATA[]]></svg>')).toBe('<svg><g>a]]b</g></svg>')
+    // At an HTML integration point it is HTML's comment.
+    expect(body('<math><mi><![CDATA[h]]></mi><![CDATA[m]]></math>')).toBe('<math><mi><!--[CDATA[h]]--></mi>m</math>')
+    expect(body('<svg><desc><![CDATA[d]]></desc><![CDATA[s]]></svg>')).toBe('<svg><desc><!--[CDATA[d]]--></desc>s</svg>')
+    // In a cell, before a table and in a template too; one never closed holds the rest of the page.
+    expect(body('<table><tr><td><svg><![CDATA[c]]></svg></td></tr></table>')).toBe('<table><tr><td><svg>c</svg></td></tr></table>')
+    expect(body('<table><svg><![CDATA[t]]></svg><tr><td>a</td></tr></table>')).toBe('<svg>t</svg><table><tr><td>a</td></tr></table>')
+    expect(body('<template><svg><![CDATA[tp]]></svg></template>')).toBe('<template><svg>tp</svg></template>')
+    expect(body('<svg><![CDATA[open')).toBe('<svg>open&lt;/body&gt;&lt;/html&gt;</svg>')
+    expect(htmlToMarkdown('<p>Area: <math><mi>x</mi><![CDATA[ + 1]]></math></p>')).toBe('Area: x + 1')
+    // A <font> with a color, face or size ends the svg or math, as a browser ends it there: the CDATA after it is HTML's comment.
+    expect(body('<p>Area <math><font color=x><![CDATA[hidden]]></font><mi>x</mi><![CDATA[y]]></math></p>')).toBe('<p>Area <math></math><font color="x"><!--[CDATA[hidden]]--></font><mi>x</mi><!--[CDATA[y]]--></p>')
+    expect(body('<svg><font>a</font><![CDATA[b]]><font data-size=1 face=f>c</font></svg>')).toBe('<svg><font>a</font>b</svg><font data-size="1" face="f">c</font>')
+  })
+
   it('moves text and elements written where a table\'s rows belong before the table, as a browser does (foster parenting)', () => {
     // Chromium's document.body.innerHTML of each page, its implied <tbody> left out.
     const body = (html: string) => parse(`<!doctype html><html><body>${html}</body></html>`).document.body.innerHTML.replace(/<\/?tbody>/g, '')
