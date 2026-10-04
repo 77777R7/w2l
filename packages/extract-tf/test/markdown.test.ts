@@ -318,6 +318,24 @@ describe('htmlToMarkdown', () => {
     expect(page('<p><b>Note:</p><p>read this</p>')).toBe('**Note:**\n\n**read this**')
   })
 
+  it('moves text and elements written where a table\'s rows belong before the table, as a browser does (foster parenting)', () => {
+    // Chromium's document.body.innerHTML of each page, its implied <tbody> left out.
+    const body = (html: string) => parse(`<!doctype html><html><body>${html}</body></html>`).document.body.innerHTML.replace(/<\/?tbody>/g, '')
+    expect(body('<table>x<tr><td>a</td></tr></table>')).toBe('x<table><tr><td>a</td></tr></table>')
+    // A row closes what was moved: the text after it is moved on its own.
+    expect(body('<table><div>a<tr><td>b</td></tr>c</div></table>')).toBe('<div>a</div>c<table><tr><td>b</td></tr></table>')
+    expect(body('<table><tr><td>a</td></tr><span>s</span><tr><td>b</td></tr></table>')).toBe('<span>s</span><table><tr><td>a</td></tr><tr><td>b</td></tr></table>')
+    expect(body('<p>p<table><b>z<tr><td>a</td></tr>y</table>')).toBe('<p>p</p><b>z</b><b>y</b><table><tr><td>a</td></tr></table>')
+    // A nested table's text goes before it, in its cell.
+    expect(body('<div><table>t<tr><td><table>u<tr><td>v</td></tr></table></td></tr></table></div>')).toBe('<div>t<table><tr><td>u<table><tr><td>v</td></tr></table></td></tr></table></div>')
+    expect(body('<table></br>x<tr><td>a</td></tr></table>')).toBe('<br>x<table><tr><td>a</td></tr></table>')
+    // White space, <script>, a hidden <input> and a column group's <col> stay in the table.
+    expect(body('<table><colgroup><col><col span=2></colgroup><tr><td>a</td></tr></table>')).toBe('<table><colgroup><col><col span="2"></colgroup><tr><td>a</td></tr></table>')
+    // (A browser's implied <colgroup> htmlparser2 does not add.)
+    expect(body('<table><col><tr><td>a</td></tr></table>')).toBe('<table><col><tr><td>a</td></tr></table>')
+    expect(body('<table> <script>1</script><input type="hidden"><tr><td>a</td></tr> </table>')).toBe('<table> <script>1</script><input type="hidden"><tr><td>a</td></tr> </table>')
+  })
+
   it('follows a browser\'s form element pointer: a nested <form> is ignored, and </form> leaves what is open in the form open', () => {
     // Chromium's document.body.innerHTML of each page, its implied <tbody> left out.
     const body = (html: string) => parse(`<!doctype html><html><body>${html}</body></html>`).document.body.innerHTML.replace(/<\/?tbody>/g, '')
@@ -349,7 +367,7 @@ describe('htmlToMarkdown', () => {
     expect(body('<table><tr><td><svg><g></td></tr></table><p/>z')).toBe('<table><tr><td><svg><g /></svg></td></tr></table><p>z</p>')
     // A cell's table tags still go by the table rules: a </td> in an svg is the svg's, a <col> ends the cell.
     expect(body('<table><tr><td><svg><td>a</td>b</svg>c</td><td>d</td></tr></table>')).toBe('<table><tr><td><svg><td>a</td>b</svg>c</td><td>d</td></tr></table>')
-    expect(body('<table><tr><td>a<col>b</td><td>c</td></tr></table>')).toBe('<table><tr><td>a</td></tr><col>b<tbody><tr><td>c</td></tr></tbody></table>')
+    expect(body('<table><tr><td>a<col>b</td><td>c</td></tr></table>')).toBe('b<table><tr><td>a</td></tr><col><tbody><tr><td>c</td></tr></tbody></table>')
   })
 
   it('reopens after a table a formatting element written between its rows, as a browser does', () => {

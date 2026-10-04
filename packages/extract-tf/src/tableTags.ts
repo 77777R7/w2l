@@ -108,6 +108,8 @@ const OWN_END_RULE = new Set(['template', 'body', 'html', 'head', 'address', 'ar
 /** Whether a browser reads an end tag by its "any other end tag" rule: `</span>`, `</label>`, `</sup>`, a custom element's. */
 const anyOtherEnd = (name: string): boolean => !OWN_END_RULE.has(name) && !TABLE_TAGS.has(name) && !VOID.has(name)
 const HEADINGS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6'])
+/** A hidden <input>'s attributes: a browser puts it in a table itself, without moving it. */
+const HIDDEN_INPUT = /(?:^|[\t\n\f\r /])type[\t\n\f\r ]*=[\t\n\f\r ]*(["']?)hidden\1(?=[\t\n\f\r />]|$)/i
 /** The start tags a browser reads in a template's "in template" mode by its head rules, leaving that mode. */
 const HEAD_IN_TEMPLATE = new Set(['base', 'basefont', 'bgsound', 'link', 'meta', 'noframes', 'script', 'style', 'template', 'title'])
 /** The elements a browser closes before an end tag such as </form> ("generate implied end tags"). */
@@ -227,11 +229,25 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
   const links = new Map<number, number>()
   // Where the tag being read starts.
   let tagStart = 0
+  // Foster parenting: text and elements a browser finds where a table's rows belong it moves before the table. Each run
+  // of them (from the first, up to the next table tag, which closes what it left open) is written before the table's
+  // start tag at the end (see the end of normalizeTableTags), with what was written in it. A run's ends are places in
+  // the source, and among the edits at its start only those made from it on (`startSeq`), at its end only those before
+  // it closed (`endSeq`), are its.
+  type FosterRun = { start: number; startSeq: number; end: number; endSeq: number; to: number }
+  const runs: FosterRun[] = []
+  let openRun: { start: number; startSeq: number; table: number } | null = null
+  // Where each table's start tag is, by its index on the table stack.
+  const tableAt = new Map<number, number>()
+  let closingRun = false
+  // Whether the last token read was text: text split at an entity is still one run of characters to a browser.
+  let afterText = false
   const last = (list: number[] | undefined): number => (list !== undefined && list.length > 0 ? list[list.length - 1]! : -1)
 
   const push = (name: string) => {
     const i = stack.length
     stack.push(name)
+    if (name === 'table') tableAt.set(i, tagStart)
     // A table, cell, caption or template is a boundary in the body model too (its content is read by a browser's body rules).
     if (name === 'table' || CONTENT.has(name)) {
       links.set(i, outerPush(name))
@@ -251,6 +267,8 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
   const popTo = (index: number, inclusive: boolean): string => {
     let text = ''
     const keep = inclusive ? index : index + 1
+    // Popping a table element ends the foster run open in its table first, with what it left open.
+    if (openRun !== null && !closingRun && keep <= last(tablePos)) closeRun(tagStart)
     while (stack.length > keep) {
       const i = stack.length - 1
       const name = stack.pop()!
@@ -278,6 +296,23 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
       }
     }
     return text
+  }
+  /** Text or an element a browser moves before the table: it opens a foster run there, unless one is open. */
+  function fosterAt(at: number): void {
+    // In a template's content a browser inserts it there instead, where it is written.
+    if (openRun === null && !templateOpen()) openRun = { start: at, startSeq: edits.length, table: last(byName.get('table')) }
+  }
+  /** Ends the open foster run at a table tag, closing the elements it left open (as a browser does at a row) in the run. */
+  function closeRun(at: number): void {
+    if (openRun === null) return
+    closingRun = true
+    const [, index] = innermost()
+    const closes = index >= 0 ? popTo(index, false) : ''
+    closingRun = false
+    if (closes !== '') edits.push({ at, end: at, text: closes })
+    const to = tableAt.get(openRun.table)
+    if (to !== undefined) runs.push({ start: openRun.start, startSeq: openRun.startSeq, end: at, endSeq: edits.length, to })
+    openRun = null
   }
   /**
    * Ends a boundary in the body model with its table element: what is open
@@ -756,6 +791,13 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
       text += leaveForeign()
     }
     if (FOREIGN.has(name) && selfClosing) return insert(at, text)
+    // A table tag ends the foster run open at the table's level; so does what a browser puts in the table itself where no
+    // moved element is open (a <script>, <style>, hidden <input> or <form>).
+    if (openRun !== null) {
+      const hidden = name === 'input' && HIDDEN_INPUT.test(attrs)
+      const staying = name === 'script' || name === 'style' || hidden || name === 'form'
+      if (TABLE_TAGS.has(name) || name === 'col' || (staying && stack.length - 1 === last(tablePos))) closeRun(at)
+    }
     impliedCloses(name)
     let [mode, index] = innermost()
     // A column group holds only columns: anything else closes it and goes where the table puts it.
@@ -825,7 +867,14 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
     } else {
       // At the table's own level a browser reopens the formatting elements it has closed first, and lists one opened there.
       // (A hidden <input> a browser puts in the table itself, without moving it.)
-      const hidden = name === 'input' && /(?:^|[\t\n\f\r /])type[\t\n\f\r ]*=[\t\n\f\r ]*(["']?)hidden\1(?=[\t\n\f\r />]|$)/i.test(attrs)
+      const hidden = name === 'input' && HIDDEN_INPUT.test(attrs)
+      // Anything else at the table's own level (not a <script>, <style> or <template>, which a browser reads there by its head rules)
+      // a browser moves before the table: it is in a foster run, with what the tag's own closes wrote before it kept out.
+      if (!TABLE_TAGS.has(name) && name !== 'col' && !hidden && name !== 'script' && name !== 'style' && !CONTENT.has(mode) && atTableLevel()) {
+        insert(at, text)
+        text = ''
+        fosterAt(at)
+      }
       const level = name !== 'table' && !hidden && afe.length + (FORMATTING.has(name) ? 1 : 0) > 0 && atTableLevel()
       // A <a> while one is listed ends it first: closed when open at this level, and taken off the list. One open outside the
       // table a browser adopts around the whole table: that, and the new <a>, are left as htmlparser2 reads them (unlisted).
@@ -963,17 +1012,23 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
       insert(at, leaving)
       popTo(index, true)
     }
+    // A </br> is a <br> to a browser, moved before the table at its level like one.
+    if (name === 'br' && atTableLevel()) fosterAt(at)
     if (name === 'br' || VOID.has(name)) return
     if (name === 'body' || name === 'html') return drop()
     if (TABLE_TAGS.has(name)) {
+      // A table end tag that closes something ends the foster run open there; one a browser ignores leaves it open.
       if (name === 'colgroup') {
         const [mode, index] = innermost()
-        if (mode === 'colgroup') close(index)
-        else drop()
+        if (mode === 'colgroup') {
+          closeRun(at)
+          close(index)
+        } else drop()
         return
       }
       const found = name === 'template' ? last(byName.get('template')) : inTableScope(name)
       if (found < 0) return drop()
+      closeRun(at)
       if (stack[found] === IMPLIED_TBODY) {
         // htmlparser2 holds no <tbody> to close: close what a browser closes with it instead.
         edits.push({ at, end, text: leaving + popTo(found, true) })
@@ -992,7 +1047,10 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
     if (name === 'form' && !templateOpen()) formPointer = false
     // A </p> at the table's own level with no <p> open there: a browser puts an empty <p> before the table (the converter's
     // rebuild of the table moves it there).
-    if (name === 'p' && last(byName.get('p')) < last(tablePos) && atTableLevel()) return void edits.push({ at, end, text: '<p></p>' })
+    if (name === 'p' && last(byName.get('p')) < last(tablePos) && atTableLevel()) {
+      fosterAt(at)
+      return void edits.push({ at, end, text: '<p></p>' })
+    }
     const open = last(byName.get(name))
     if (open > last(tablePos) && open > last(integrationPos) && (!anyOtherEnd(name) || open >= last(specialPos) || TEXT_CONTENT.has(name))) {
       // A formatting element its own end tag closes leaves the list.
@@ -1006,6 +1064,7 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
     { decodeEntities: true },
     {
       onopentagname(start, endIndex) {
+        afterText = false
         tagAt = start - 1
         tagName = html.slice(start, endIndex).toLowerCase()
         tagNameEnd = endIndex
@@ -1017,6 +1076,7 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
         startTag(tagName, tagAt, endIndex + 1, true, html.slice(tagNameEnd, endIndex).replace(/\/[\t\n\f\r ]*$/, ''))
       },
       onclosetag(start, endIndex) {
+        afterText = false
         // The tag starts at its `</`, which space may separate from the name.
         const open = html.lastIndexOf('<', start)
         const close = html.indexOf('>', endIndex)
@@ -1027,38 +1087,138 @@ export function normalizeTableTags(html: string, whole = /<html[\s>]|<!doctype/i
       onattribend() {},
       onattribname() {},
       oncdata() {},
-      oncomment() {},
+      oncomment() {
+        afterText = false
+      },
       ondeclaration() {},
       onend() {},
       onprocessinginstruction() {},
       ontext(start, endIndex) {
+        // White space alone after a tag, where no moved element is open, a browser keeps in the table: it ends the run.
+        if (!afterText && openRun !== null && /^[\t\n\f\r ]*$/.test(html.slice(start, endIndex)) && stack.length - 1 === last(tablePos)) closeRun(start)
+        afterText = true
         // A browser reopens the formatting elements it has closed for text.
         if (afe.length > 0 && formattingOn()) insert(start, reconstruct())
         // Text in a column group closes it too, as a browser moves the text out of the table.
         if (tables > 0 && !/^[\t\n\f\r ]*$/.test(html.slice(start, endIndex))) {
           const [mode, index] = innermost()
           if (mode === 'colgroup') insert(start, popTo(index, true))
-          // Text at the table's own level, which a browser moves before the table, reopens them too.
-          if (afe.length > 0 && atTableLevel()) insert(start, reconstruct(true))
+          // Text at the table's own level a browser moves before the table, and it reopens the formatting elements too.
+          if (atTableLevel()) {
+            fosterAt(start)
+            if (afe.length > 0) insert(start, reconstruct(true))
+          }
         }
       },
       ontextentity(codepoint, endIndex) {
+        afterText = true
         if (afe.length > 0 && formattingOn()) insert(html.lastIndexOf('&', endIndex - 1), reconstruct())
         // At the table's level only text that is not white space is moved before the table.
-        else if (afe.length > 0 && ![9, 10, 12, 13, 32].includes(codepoint) && atTableLevel()) insert(html.lastIndexOf('&', endIndex - 1), reconstruct(true))
+        else if (![9, 10, 12, 13, 32].includes(codepoint) && tables > 0 && atTableLevel()) {
+          const at = html.lastIndexOf('&', endIndex - 1)
+          fosterAt(at)
+          if (afe.length > 0) insert(at, reconstruct(true))
+        }
       },
     },
   )
   tokenizer.write(html)
   tokenizer.end()
+  tagStart = html.length
+  closeRun(html.length)
   if (edits.length === 0) return html
   // An adoption writes at a block opened earlier: in source order, and in the order written at one place.
+  const seq = new Map(edits.map((edit, i) => [edit, i]))
   edits.sort((a, b) => a.at - b.at || (b.first ?? 0) - (a.first ?? 0))
-  let out = ''
+  if (runs.length === 0) {
+    let out = ''
+    let from = 0
+    for (const edit of edits) {
+      out += html.slice(from, edit.at) + edit.text
+      from = edit.end
+    }
+    return out + html.slice(from)
+  }
+  return withFosterRuns(html, edits.map((edit) => ({ ...edit, seq: seq.get(edit)! })), runs)
+}
+
+/**
+ * The edited HTML with each foster run written before its table's start tag
+ * (after what is written there), in the order the runs came, a run inside a
+ * run moved with it. The output is cut into pieces at the runs' ends and
+ * targets; each piece belongs to the innermost run that holds it.
+ */
+function withFosterRuns(
+  html: string,
+  edits: { at: number; end: number; text: string; seq: number }[],
+  runs: { start: number; startSeq: number; end: number; endSeq: number; to: number }[],
+): string {
+  type Piece = { key: number; seq: number; text: string; owner: number }
+  const bounds = [...new Set(runs.flatMap((run) => [run.start, run.end, run.to]))].sort((a, b) => a - b)
+  const pieces: Piece[] = []
+  let b = 0
+  const source = (from: number, to: number): void => {
+    while (b < bounds.length && bounds[b]! <= from) b++
+    let at = from
+    while (b < bounds.length && bounds[b]! < to) {
+      pieces.push({ key: at, seq: -1, text: html.slice(at, bounds[b]), owner: -1 })
+      at = bounds[b++]!
+    }
+    if (to > at) pieces.push({ key: at, seq: -1, text: html.slice(at, to), owner: -1 })
+  }
   let from = 0
   for (const edit of edits) {
-    out += html.slice(from, edit.at) + edit.text
+    source(from, edit.at)
+    pieces.push({ key: edit.at, seq: edit.seq, text: edit.text, owner: -1 })
     from = edit.end
   }
-  return out + html.slice(from)
+  source(from, html.length)
+  // Outer runs first (by start, the longer first), so an inner run takes its pieces from it.
+  const order = runs.map((_, i) => i).sort((x, y) => runs[x]!.start - runs[y]!.start || runs[y]!.end - runs[x]!.end)
+  const keys = pieces.map((piece) => piece.key)
+  const firstAt = (key: number): number => {
+    let lo = 0
+    let hi = keys.length
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1
+      if (keys[mid]! < key) lo = mid + 1
+      else hi = mid
+    }
+    return lo
+  }
+  for (const r of order) {
+    const run = runs[r]!
+    for (let i = firstAt(run.start); i < pieces.length && pieces[i]!.key <= run.end; i++) {
+      const piece = pieces[i]!
+      const afterStart = piece.key > run.start || piece.seq === -1 || piece.seq >= run.startSeq
+      const beforeEnd = piece.key < run.end || (piece.seq !== -1 && piece.seq < run.endSeq)
+      if (afterStart && beforeEnd) piece.owner = r
+    }
+  }
+  const owned = new Map<number, number[]>()
+  pieces.forEach((piece, i) => {
+    let list = owned.get(piece.owner)
+    if (list === undefined) owned.set(piece.owner, (list = []))
+    list.push(i)
+  })
+  const byTarget = new Map<number, number[]>()
+  runs.forEach((run, r) => {
+    let list = byTarget.get(run.to)
+    if (list === undefined) byTarget.set(run.to, (list = []))
+    list.push(r)
+  })
+  const render = (owner: number): string => {
+    let out = ''
+    for (const i of owned.get(owner) ?? []) {
+      const piece = pieces[i]!
+      const moved = piece.seq === -1 ? byTarget.get(piece.key) : undefined
+      if (moved !== undefined) {
+        byTarget.delete(piece.key)
+        for (const r of moved) out += render(r)
+      }
+      out += piece.text
+    }
+    return out
+  }
+  return render(-1)
 }
