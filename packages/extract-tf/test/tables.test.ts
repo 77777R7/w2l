@@ -270,6 +270,17 @@ describe('htmlToTables', () => {
     expect(fragment(cascade)).toBe(`<select size="3"><button><selectedcontent>A<selectedcontent><option selected></option></selectedcontent></selectedcontent></button><option selected>A<selectedcontent><option selected></option></selectedcontent></option></select>`)
   })
 
+  it('finds an option\'s select up its ancestors: one fostered out of a table in a <selectedcontent> is the select\'s', () => {
+    const body = (html: string) => parse(`<!doctype html><html><body>${html}</body></html>`).document.body.innerHTML
+    const fragment = (html: string) => parse(html, true).document.body.innerHTML
+    // Each option is fostered into the <selectedcontent>, even once the copy of the first took the table out, and each copy takes it out again.
+    expect(body('<select><selectedcontent>w<table><option><option><option>')).toBe('<select><selectedcontent></selectedcontent></select>')
+    expect(fragment('<select><selectedcontent>w<table><option><option><option>')).toBe('<select><selectedcontent></selectedcontent></select>')
+    // An option fostered out of a table is the select's too.
+    expect(body('<select><button><selectedcontent></selectedcontent></button><div><table><option>A</option></table></div></select>'))
+      .toBe('<select><button><selectedcontent>A</selectedcontent></button><div><option>A</option><table></table></div></select>')
+  })
+
   it('matches an end tag in svg or math to an element by its exact name, as Chromium does', () => {
     const page = (body: string) => parse(`<!doctype html><html><body>${body}</body></html>`).document
     // In svg the end tag takes svg's spelling (</foreignObject>, </clipPath>), which no HTML element has, so it closes nothing there.

@@ -424,7 +424,7 @@ class StandardParser extends Parser<DefaultTreeAdapterMap> {
     if (isTop && defaultTreeAdapter.getNamespaceURI(element) === HTML_NS) {
       if (tid === T.SELECT) {
         this.openSelects++
-        this.selects.set(element, selectState(element, this.inOptionOrSelectedContent()))
+        this.selects.set(element, selectState(element, this.inOptionOrSelectedContent(element)))
       } else if (this.openSelects > 0 && (tid === T.OPTION || (tid === T.UNKNOWN && element.tagName === 'selectedcontent'))) {
         this.selectItem(element, tid === T.OPTION)
       }
@@ -475,32 +475,34 @@ class StandardParser extends Parser<DefaultTreeAdapterMap> {
   }
 
   /**
-   * An <option> or <selectedcontent> just pushed: the <select> it is in, the
-   * nearest one open below it, unless a <template> or <option> (for an
+   * An <option> or <selectedcontent> just inserted: the <select> it is in,
+   * its nearest ancestor select, unless a <template> or <option> (for an
    * option, a <datalist> or a second <optgroup>; for a <selectedcontent>,
-   * another one) is open between them, or the element was put in a part a
-   * copy took out of the tree.
+   * another one) comes first, or it is not in the tree (put in a part a copy
+   * took out). Read up its ancestors rather than the stack of open elements:
+   * an element fostered out of a table, or moved by the adoption agency, is
+   * not where the stack would put it.
    */
   private selectItem(element: Spec.Element, option: boolean): void {
-    const stack = this.openElements
     let disabled = option && hasAttribute(element, 'disabled')
     let groups = 0
-    for (let i = stack.stackTop - 1; i >= 0; i--) {
-      const item = stack.items[i] as Spec.Element
-      if (defaultTreeAdapter.getNamespaceURI(item) !== HTML_NS) continue
-      const id = stack.tagIDs[i]
-      if (id === T.SELECT) {
-        const state = this.selects.get(item)
+    for (let parent = element.parentNode; parent !== null; parent = (parent as Spec.Element).parentNode) {
+      this.visit()
+      if (!defaultTreeAdapter.isElementNode(parent)) return
+      if (parent.namespaceURI !== HTML_NS) continue
+      const name = parent.tagName
+      if (name === 'select') {
+        const state = this.selects.get(parent)
         if (state === undefined) return
         if (option) this.optionInserted(state, element, disabled)
         else this.contentInserted(state, element, groups, disabled)
         return
       }
-      if (item.parentNode === null || id === T.TEMPLATE || id === T.OPTION || (id === T.UNKNOWN && item.tagName === (option ? 'datalist' : 'selectedcontent'))) return
-      if (id === T.OPTGROUP) {
+      if (name === 'template' || name === 'option' || name === (option ? 'datalist' : 'selectedcontent')) return
+      if (name === 'optgroup') {
         // An option in an optgroup in another one is not the select's, as in Chromium.
         if (++groups > 1 && option) return
-        if (hasAttribute(item, 'disabled')) disabled = true
+        if (hasAttribute(parent, 'disabled')) disabled = true
       }
     }
   }
@@ -606,15 +608,14 @@ class StandardParser extends Parser<DefaultTreeAdapterMap> {
     state.selected = state.listBox ? null : state.options[state.firstCandidate]?.option ?? null
   }
 
-  /** Whether a <select>, <option> or <selectedcontent> is open around the element just pushed (up to a <template>, whose content is apart). */
-  private inOptionOrSelectedContent(): boolean {
-    const stack = this.openElements
-    for (let i = stack.stackTop - 1; i >= 0; i--) {
-      const item = stack.items[i] as Spec.Element
-      if (defaultTreeAdapter.getNamespaceURI(item) !== HTML_NS) continue
-      const id = stack.tagIDs[i]
-      if (id === T.TEMPLATE) return false
-      if (id === T.SELECT || id === T.OPTION || (id === T.UNKNOWN && item.tagName === 'selectedcontent')) return true
+  /** Whether a <select>, <option> or <selectedcontent> is an ancestor of `element` (up to a <template>, whose content is apart). */
+  private inOptionOrSelectedContent(element: Spec.Element): boolean {
+    for (let parent = element.parentNode; parent !== null; parent = (parent as Spec.Element).parentNode) {
+      this.visit()
+      if (!defaultTreeAdapter.isElementNode(parent)) return false
+      if (parent.namespaceURI !== HTML_NS) continue
+      if (parent.tagName === 'template') return false
+      if (parent.tagName === 'select' || parent.tagName === 'option' || parent.tagName === 'selectedcontent') return true
     }
     return false
   }
