@@ -53,6 +53,9 @@ const OWN_END_RULES = new Set([
   T.APPLET, T.OBJECT, T.MARQUEE, T.TEMPLATE, T.TABLE, T.CAPTION, T.COL, T.COLGROUP, T.TBODY, T.TD, T.TFOOT, T.TH, T.THEAD, T.TR,
 ])
 
+/** The deepest chain of copied options selected in turn that is followed; past it the page is parsed by linkedom. */
+const MAX_COPY_DEPTH = 100
+
 /** Thrown when a page would hold more elements than its tags account for. */
 const TOO_MANY = new Error('element budget')
 
@@ -119,7 +122,8 @@ interface SelectState {
   firstCandidate: number
   members: Set<Spec.Element>
   contents: Spec.Element[]
-  contentSet: Set<Spec.Element>
+  /** Each <selectedcontent>'s <optgroup> elements around it in the select, and whether one is disabled, for the options its copies hold. */
+  contentGroups: Map<Spec.Element, { groups: number; disabled: boolean }>
   /** Options and <selectedcontent> elements a copy took out of the tree. */
   removed: Set<Spec.Element>
   /** A multiple select copies none, nor does one in another select, an <option> or a <selectedcontent>; a list box (size above 1) selects none by default. */
@@ -133,29 +137,7 @@ function hasAttribute(element: Spec.Element, name: string): boolean {
 
 function selectState(select: Spec.Element, nested: boolean): SelectState {
   const size = /^[\t\n\f\r ]*\+?(\d+)/.exec(select.attrs.find((attr) => attr.name === 'size')?.value ?? '')
-  return { selected: null, options: [], firstCandidate: 0, members: new Set(), contents: [], contentSet: new Set(), removed: new Set(), noCopies: nested || hasAttribute(select, 'multiple'), listBox: size !== null && Number(size[1]) > 1 }
-}
-
-/**
- * Whether an option holds a <select>, or a <selectedcontent> that holds an
- * option (template content apart): Chromium reads the copies of those as
- * options of the select again, a chain this does not follow, so such an
- * option is not copied.
- */
-function holdsSelectParts(option: Spec.Element, visit: () => void): boolean {
-  const work: [Spec.ParentNode, boolean][] = [[option, false]]
-  for (let next = work.pop(); next !== undefined; next = work.pop()) {
-    const [node, inContent] = next
-    for (const child of node.childNodes) {
-      if (!defaultTreeAdapter.isElementNode(child)) continue
-      visit()
-      if (child.namespaceURI === HTML_NS) {
-        if (child.tagName === 'select' || (inContent && child.tagName === 'option')) return true
-        work.push([child, inContent || child.tagName === 'selectedcontent'])
-      } else work.push([child, inContent])
-    }
-  }
-  return false
+  return { selected: null, options: [], firstCandidate: 0, members: new Set(), contents: [], contentGroups: new Map(), removed: new Set(), noCopies: nested || hasAttribute(select, 'multiple'), listBox: size !== null && Number(size[1]) > 1 }
 }
 
 function hiddenInput(token: Token.TagToken): boolean {
@@ -469,6 +451,17 @@ class StandardParser extends Parser<DefaultTreeAdapterMap> {
     (this.treeAdapter as { visit?: () => void }).visit?.()
   }
 
+  private copyDepth = 0
+
+  /** Whether `node` is still in `ancestor`, each step up counted as a visit. */
+  private contains(ancestor: Spec.ParentNode, node: Spec.ChildNode): boolean {
+    for (let parent: Spec.ParentNode | null = node.parentNode; parent !== null; parent = 'parentNode' in parent ? parent.parentNode ?? null : null) {
+      this.visit()
+      if (parent === ancestor) return true
+    }
+    return false
+  }
+
   /** Whether what is parsed now is in the document: not in a fragment (read as a template's content) nor in a template's content. */
   private connected(): boolean {
     return this.fragmentContext === null && this.openElements.tmplCount === 0
@@ -500,13 +493,13 @@ class StandardParser extends Parser<DefaultTreeAdapterMap> {
         const state = this.selects.get(item)
         if (state === undefined) return
         if (option) this.optionInserted(state, element, disabled)
-        else this.contentInserted(state, element)
+        else this.contentInserted(state, element, groups, disabled)
         return
       }
       if (item.parentNode === null || id === T.TEMPLATE || id === T.OPTION || (id === T.UNKNOWN && item.tagName === (option ? 'datalist' : 'selectedcontent'))) return
       if (id === T.OPTGROUP) {
         // An option in an optgroup in another one is not the select's, as in Chromium.
-        if (option && ++groups > 1) return
+        if (++groups > 1 && option) return
         if (hasAttribute(item, 'disabled')) disabled = true
       }
     }
@@ -529,12 +522,12 @@ class StandardParser extends Parser<DefaultTreeAdapterMap> {
   }
 
   /** A <selectedcontent> inserted in a select: in the document it takes a copy of the option selected so far. */
-  private contentInserted(state: SelectState, content: Spec.Element): void {
+  private contentInserted(state: SelectState, content: Spec.Element, groups: number, disabled: boolean): void {
     state.contents.push(content)
-    state.contentSet.add(content)
+    state.contentGroups.set(content, { groups, disabled })
     const selected = state.selected
     this.visit()
-    if (selected !== null && !state.noCopies && this.connected() && !holdsSelectParts(selected, this.visit)) this.copyChildren(selected, content)
+    if (selected !== null && !state.noCopies && this.connected()) this.copyInto(state, selected, content)
   }
 
   /**
@@ -542,16 +535,58 @@ class StandardParser extends Parser<DefaultTreeAdapterMap> {
    * replacing what they held. What that takes out of the tree is no longer
    * the select's: if it held the selected option, the first enabled option
    * left is selected (none in a list box), without copying it, as in
-   * Chromium. Not an option that holdsSelectParts.
+   * Chromium.
    */
   private fill(state: SelectState, option: Spec.Element): void {
-    if (state.contents.length === 0 || state.noCopies || holdsSelectParts(option, this.visit)) return
-    for (const content of state.contents) {
+    if (state.contents.length === 0 || state.noCopies) return
+    // A copied option selected in turn fills again, one level deeper; no real page nests a hundred selected options.
+    if (++this.copyDepth > MAX_COPY_DEPTH) throw TOO_MANY
+    try {
+      for (const content of state.contents) {
+        this.visit()
+        if (!state.removed.has(content)) this.copyInto(state, option, content)
+      }
+    } finally {
+      this.copyDepth--
+    }
+  }
+
+  /**
+   * Replaces a <selectedcontent>'s children with a copy of `option`'s. The
+   * options the copy holds are then the select's, in tree order, by the
+   * rules a parsed one follows (not in another select, a <datalist>, an
+   * option or a second <optgroup>): one with a selected attribute is
+   * selected, and in the document copied in turn, which takes it out again.
+   * Each such copy is of an option nested deeper, so this ends, at the
+   * deepest selected one (or past MAX_COPY_DEPTH, in linkedom).
+   */
+  private copyInto(state: SelectState, option: Spec.Element, content: Spec.Element): void {
+    const taken = content.childNodes
+    this.copyChildren(option, content)
+    this.takenOut(state, taken)
+    const around = state.contentGroups.get(content)!
+    const copies: { option: Spec.Element; disabled: boolean }[] = []
+    const work: { node: Spec.ChildNode; groups: number; disabled: boolean }[] = []
+    for (let i = content.childNodes.length - 1; i >= 0; i--) work.push({ node: content.childNodes[i]!, groups: around.groups, disabled: around.disabled })
+    for (let next = work.pop(); next !== undefined; next = work.pop()) {
+      const { node, groups, disabled } = next
+      if (!defaultTreeAdapter.isElementNode(node)) continue
       this.visit()
-      if (state.removed.has(content)) continue
-      const taken = content.childNodes
-      this.copyChildren(option, content)
-      this.takenOut(state, taken)
+      if (node.namespaceURI === HTML_NS) {
+        if (node.tagName === 'select' || node.tagName === 'datalist' || node.tagName === 'template') continue
+        if (node.tagName === 'option') {
+          if (groups < 2) copies.push({ option: node, disabled: disabled || hasAttribute(node, 'disabled') })
+          continue
+        }
+      }
+      const group = node.namespaceURI === HTML_NS && node.tagName === 'optgroup'
+      for (let i = node.childNodes.length - 1; i >= 0; i--) {
+        work.push({ node: node.childNodes[i]!, groups: groups + (group ? 1 : 0), disabled: disabled || (group && hasAttribute(node, 'disabled')) })
+      }
+    }
+    for (const copy of copies) {
+      // A copy an earlier one's copy took out is no longer in the select.
+      if (!state.removed.has(content) && this.contains(content, copy.option)) this.optionInserted(state, copy.option, copy.disabled)
     }
   }
 
@@ -560,7 +595,7 @@ class StandardParser extends Parser<DefaultTreeAdapterMap> {
     let lostSelected = false
     for (let node = work.pop(); node !== undefined; node = work.pop()) {
       if (!defaultTreeAdapter.isElementNode(node)) continue
-      if (node.namespaceURI === HTML_NS && (state.members.has(node) || state.contentSet.has(node))) {
+      if (node.namespaceURI === HTML_NS && (state.members.has(node) || state.contentGroups.has(node))) {
         state.removed.add(node)
         if (node === state.selected) lostSelected = true
       }

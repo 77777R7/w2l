@@ -254,6 +254,22 @@ describe('htmlToTables', () => {
       .toBe('<select><option selected>A</option><datalist><button><selectedcontent>A</selectedcontent></button></datalist></select>')
   })
 
+  it('copies an option that holds a select or options as Chromium does: the options of the copy are the select\'s', () => {
+    const body = (html: string) => parse(`<!doctype html><html><body>${html}</body></html>`).document.body.innerHTML
+    const fragment = (html: string) => parse(html, true).document.body.innerHTML
+    const shown = '<button><selectedcontent></selectedcontent></button>'
+    // The copy holds all the option holds, a select or a <selectedcontent> with options included.
+    expect(body(`<select>${shown}<option>A<table><tr><td><select><option selected>x</select></td></tr></table></option></select>`))
+      .toBe(`<select><button><selectedcontent>A<table><tbody><tr><td><select><option selected>x</option></select></td></tr></tbody></table></selectedcontent></button><option>A<table><tbody><tr><td><select><option selected>x</option></select></td></tr></tbody></table></option></select>`)
+    expect(body(`<select>${shown}<option>A<selectedcontent><option>B</option></selectedcontent></option></select>`))
+      .toBe(`<select><button><selectedcontent>A<selectedcontent><option>B</option></selectedcontent></selectedcontent></button><option>A<selectedcontent><option>B</option></selectedcontent></option></select>`)
+    // In the document a copied option with a selected attribute is selected and copied in turn, which takes it out; a list box then selects none.
+    const cascade = `<select size=3>${shown}<option selected>A<selectedcontent><option selected></option></selectedcontent></option></select>`
+    expect(body(cascade)).toBe(`<select size="3">${shown}<option selected>A<selectedcontent><option selected></option></selectedcontent></option></select>`)
+    // In a template's content it is only copied.
+    expect(fragment(cascade)).toBe(`<select size="3"><button><selectedcontent>A<selectedcontent><option selected></option></selectedcontent></selectedcontent></button><option selected>A<selectedcontent><option selected></option></selectedcontent></option></select>`)
+  })
+
   it('matches an end tag in svg or math to an element by its exact name, as Chromium does', () => {
     const page = (body: string) => parse(`<!doctype html><html><body>${body}</body></html>`).document
     // In svg the end tag takes svg's spelling (</foreignObject>, </clipPath>), which no HTML element has, so it closes nothing there.
